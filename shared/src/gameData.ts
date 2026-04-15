@@ -165,7 +165,7 @@ export const cards: Record<string, Card> = {
   },
   riceShowerBasic: {
     id: "riceShowerBasic",
-    owner: "rival",
+    owner: "opponent",
     kind: "pokemon",
     name: "Rice Shower",
     label: "Umamusume - Dark - Basic",
@@ -180,7 +180,7 @@ export const cards: Record<string, Card> = {
   },
   riceShowerStage1: {
     id: "riceShowerStage1",
-    owner: "rival",
+    owner: "opponent",
     kind: "pokemon",
     name: "Rice Shower",
     label: "Umamusume - Dark - Stage 1",
@@ -196,7 +196,7 @@ export const cards: Record<string, Card> = {
   },
   riceShowerStage2: {
     id: "riceShowerStage2",
-    owner: "rival",
+    owner: "opponent",
     kind: "pokemon",
     name: "Rice Shower",
     label: "Umamusume - Dark - Stage 2",
@@ -403,13 +403,13 @@ export const premadeDecks = [
 ];
 
 export const defaultPlayerDeckId = "mihonoBourbon";
-export const defaultRivalDeckId = "riceShower";
+export const defaultOpponentDeckId = "riceShower";
 
 export const playerDeckList = premadeDecks.find((deck) => deck.id === defaultPlayerDeckId)?.cardIds ?? mihonoBourbonDeckList;
-export const rivalDeckList = premadeDecks.find((deck) => deck.id === defaultRivalDeckId)?.cardIds ?? riceShowerDeckList;
+export const opponentDeckList = premadeDecks.find((deck) => deck.id === defaultOpponentDeckId)?.cardIds ?? riceShowerDeckList;
 
 export const gameData: GameData = {
   cards,
   playerDeckList,
-  rivalDeckList,
+  opponentDeckList,
 };

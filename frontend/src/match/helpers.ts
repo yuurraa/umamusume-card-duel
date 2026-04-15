@@ -17,7 +17,7 @@ export function createSetupPreviewSide(side: SideState, activeIndex: number | nu
   };
 }
 
-export function createSetupHiddenRivalSide(side: SideState): SideState {
+export function createSetupHiddenOpponentSide(side: SideState): SideState {
   return { ...side, bench: [] };
 }
 
@@ -71,12 +71,12 @@ export function getSelectablePokemonUids(game: GameState, pending: PendingSelect
   return undefined;
 }
 
-export function getRivalStepDelay(game: GameState): number {
-  if (game.rivalTurnStep === "attack" || game.rivalTurnStep === "finish") return 1400;
+export function getOpponentStepDelay(game: GameState): number {
+  if (game.opponentTurnStep === "attack" || game.opponentTurnStep === "finish") return 1400;
   return 1260;
 }
 
-export function getRivalBannerMessage(game: GameState): string {
+export function getOpponentBannerMessage(game: GameState): string {
   if (game.pendingPlayerChoice) return game.log[0] ?? "Opponent waited for your choice.";
   const latest = game.log[0];
   if (latest && (latest.includes("Opponent") || latest.includes("coin flip"))) return latest;

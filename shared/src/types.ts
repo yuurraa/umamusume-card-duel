@@ -1,11 +1,11 @@
-export type SideId = "player" | "rival";
+export type SideId = "player" | "opponent";
 export type CoinFlipResult = "heads" | "tails";
 export type EnergyType = "grass" | "fire" | "water" | "lightning" | "psychic" | "fighting" | "darkness" | "metal";
 export type PokemonType = "Grass" | "Fire" | "Water" | "Lightning" | "Psychic" | "Fighting" | "Darkness" | "Metal";
 export type EnergyRequirement = EnergyType | "colorless";
 export type EnergyCost = Partial<Record<EnergyRequirement, number>>;
 export type TrainerType = "supporter" | "item" | "stadium";
-export type RivalTurnStep = "bench" | "trainerBefore" | "evolve" | "attach" | "trainerAfter" | "attack" | "finish";
+export type OpponentTurnStep = "bench" | "trainerBefore" | "evolve" | "attach" | "trainerAfter" | "attack" | "finish";
 
 export type Attack = {
   name: string;
@@ -96,13 +96,13 @@ export type PokemonInstance = {
 };
 
 export type PendingPlayerChoice =
-  | { kind: "promoteAfterKnockout"; resume: "finishRivalTurn" | "none" }
-  | { kind: "switchAfterGust"; resume: "resumeRivalAfterFirstTrainerPass" | "resumeRivalAfterSecondTrainerPass" | "none" };
+  | { kind: "promoteAfterKnockout"; resume: "finishOpponentTurn" | "none" }
+  | { kind: "switchAfterGust"; resume: "resumeOpponentAfterFirstTrainerPass" | "resumeOpponentAfterSecondTrainerPass" | "none" };
 
 export type SetupState = {
   coinFlipResult: CoinFlipResult;
-  rivalReady: boolean;
-  rivalRevealed: boolean;
+  opponentReady: boolean;
+  opponentRevealed: boolean;
 };
 
 export type SideState = {
@@ -130,7 +130,7 @@ export type GameState = {
   pendingPlayerChoice: PendingPlayerChoice | null;
   sides: Record<SideId, SideState>;
   currentSide: SideId | "done";
-  rivalTurnStep: RivalTurnStep | null;
+  opponentTurnStep: OpponentTurnStep | null;
   stadium: { cardId: string; owner: SideId } | null;
   turnNumber: number;
   firstPlayer: SideId;
@@ -148,5 +148,5 @@ export type PlayAction =
 export type GameData = {
   cards: Record<string, Card>;
   playerDeckList: string[];
-  rivalDeckList: string[];
+  opponentDeckList: string[];
 };

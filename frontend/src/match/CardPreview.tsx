@@ -26,7 +26,7 @@ export function CardPreview({ state, target, canUseAttack, canUseRetreat, canUse
   const hpPercent = pokemon ? Math.max(0, Math.round((pokemon.hp / pokemon.maxHp) * 100)) : 0;
   const energyEntries = pokemon ? (Object.entries(pokemon.energies) as [EnergyType, number][]) : [];
   const attachedEnergy = energyEntries.flatMap(([type, amount]) => Array.from({ length: amount }, () => type)).reverse();
-  const previewSide = target.sideId === "player" ? state.sides.player : state.sides.rival;
+  const previewSide = target.sideId === "player" ? state.sides.player : state.sides.opponent;
   const retreatCost = pokemon ? getDisplayedRetreatCost(state, previewSide, pokemon) : 0;
 
   return (

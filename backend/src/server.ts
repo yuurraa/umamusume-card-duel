@@ -30,5 +30,5 @@ app.get("/api/game-data", (_request, response) => {
 });
 
 app.listen(port, () => {
-  console.log(`Umamusume Pocket backend listening on http://127.0.0.1:${port}`);
+  console.log(`Umamusume Card Duel backend listening on http://127.0.0.1:${port}`);
 });

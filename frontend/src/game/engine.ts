@@ -5,7 +5,7 @@ import {
   OPENING_HAND,
   cards,
   playerDeckList,
-  rivalDeckList,
+  opponentDeckList,
 } from "../../../shared/src/gameData";
 import type {
   Card,
@@ -54,27 +54,27 @@ export type PlayChoices = {
   pokemonTargetUid?: number;
 };
 
-export function createGame(playerDeck = playerDeckList, rivalDeck = rivalDeckList): GameState {
+export function createGame(playerDeck = playerDeckList, opponentDeck = opponentDeckList, opponentName = "Opponent"): GameState {
   nextPokemonId = 1;
-  const firstPlayer = Math.random() >= 0.5 ? "player" : "rival";
+  const firstPlayer = Math.random() >= 0.5 ? "player" : "opponent";
   const coinFlipResult = firstPlayer === "player" ? "heads" : "tails";
   const playerOpening = buildOpeningSide("player", "You", playerDeck, false);
-  const rivalOpening = buildOpeningSide("rival", "Rice Shower", rivalDeck, true);
+  const opponentOpening = buildOpeningSide("opponent", opponentName, opponentDeck, true);
 
   const state: GameState = {
     phase: "setup",
     setup: {
       coinFlipResult,
-      rivalReady: true,
-      rivalRevealed: false,
+      opponentReady: true,
+      opponentRevealed: false,
     },
     pendingPlayerChoice: null,
     sides: {
       player: playerOpening,
-      rival: rivalOpening,
+      opponent: opponentOpening,
     },
     currentSide: firstPlayer,
-    rivalTurnStep: null,
+    opponentTurnStep: null,
     stadium: null,
     turnNumber: 1,
     firstPlayer,
@@ -185,74 +185,74 @@ export function playerSurrender(state: GameState): GameState {
   const next = cloneGame(state);
   if (next.phase !== "play" || next.gameOver) return next;
   next.pendingPlayerChoice = null;
-  next.rivalTurnStep = null;
+  next.opponentTurnStep = null;
   next.gameOver = true;
-  next.winner = "rival";
+  next.winner = "opponent";
   next.currentSide = "done";
   log(next, "You surrendered. Opponent won.");
   return next;
 }
 
-export function advanceRivalTurnStep(state: GameState): GameState {
+export function advanceOpponentTurnStep(state: GameState): GameState {
   const next = cloneGame(state);
-  if (next.phase !== "play" || next.pendingPlayerChoice || next.gameOver || next.currentSide !== "rival") return next;
-  const rival = next.sides.rival;
-  if (!rival.active) return next;
+  if (next.phase !== "play" || next.pendingPlayerChoice || next.gameOver || next.currentSide !== "opponent") return next;
+  const opponent = next.sides.opponent;
+  if (!opponent.active) return next;
 
   for (let transitions = 0; transitions < 8; transitions += 1) {
-    const step = next.rivalTurnStep ?? "bench";
+    const step = next.opponentTurnStep ?? "bench";
 
     if (step === "bench") {
-      if (aiPlayOneBasic(next, rival)) return next;
-      next.rivalTurnStep = "trainerBefore";
+      if (aiPlayOneBasic(next, opponent)) return next;
+      next.opponentTurnStep = "trainerBefore";
       continue;
     }
 
     if (step === "trainerBefore") {
-      if (aiPlayOneTrainer(next, rival, "resumeRivalAfterFirstTrainerPass")) return next;
-      next.rivalTurnStep = "evolve";
+      if (aiPlayOneTrainer(next, opponent, "resumeOpponentAfterFirstTrainerPass")) return next;
+      next.opponentTurnStep = "evolve";
       continue;
     }
 
     if (step === "evolve") {
-      if (aiEvolveOne(next, rival)) {
+      if (aiEvolveOne(next, opponent)) {
         refreshContinuousEffects(next);
         return next;
       }
-      next.rivalTurnStep = "attach";
+      next.opponentTurnStep = "attach";
       continue;
     }
 
     if (step === "attach") {
-      if (aiAttachOneEnergy(next, rival)) return next;
-      next.rivalTurnStep = "trainerAfter";
+      if (aiAttachOneEnergy(next, opponent)) return next;
+      next.opponentTurnStep = "trainerAfter";
       continue;
     }
 
     if (step === "trainerAfter") {
-      if (aiPlayOneTrainer(next, rival, "resumeRivalAfterSecondTrainerPass")) return next;
-      next.rivalTurnStep = "attack";
+      if (aiPlayOneTrainer(next, opponent, "resumeOpponentAfterSecondTrainerPass")) return next;
+      next.opponentTurnStep = "attack";
       continue;
     }
 
     if (step === "attack") {
       refreshContinuousEffects(next);
-      if (canAttack(next, rival)) {
-        performAttack(next, "rival");
+      if (canAttack(next, opponent)) {
+        performAttack(next, "opponent");
         if (next.pendingPlayerChoice) {
-          next.rivalTurnStep = "finish";
+          next.opponentTurnStep = "finish";
           return next;
         }
       } else {
         log(next, "Opponent did not attack.");
       }
-      next.rivalTurnStep = null;
+      next.opponentTurnStep = null;
       if (!next.gameOver) endTurn(next);
       return next;
     }
 
     if (step === "finish") {
-      next.rivalTurnStep = null;
+      next.opponentTurnStep = null;
       if (!next.gameOver) endTurn(next);
       return next;
     }
@@ -399,7 +399,7 @@ export function completePregameSetup(state: GameState, activeHandIndex: number, 
   player.hand = player.hand.filter((_, index) => !taken.has(index));
 
   next.phase = "play";
-  next.setup = next.setup ? { ...next.setup, rivalRevealed: true } : null;
+  next.setup = next.setup ? { ...next.setup, opponentRevealed: true } : null;
   next.pendingPlayerChoice = null;
 
   startTurn(next, next.firstPlayer, true);
@@ -437,7 +437,7 @@ export function resolvePendingPlayerChoice(state: GameState, pokemonUid: number)
   normalizeBoardState(next);
   refreshContinuousEffects(next);
 
-  if (pending.resume === "finishRivalTurn") {
+  if (pending.resume === "finishOpponentTurn") {
     if (!next.gameOver) endTurn(next);
     return next;
   }
@@ -575,7 +575,7 @@ function shuffle<T>(items: T[]): T[] {
 function startTurn(state: GameState, sideId: SideId, skipDraw = false): void {
   const side = state.sides[sideId];
   state.currentSide = sideId;
-  state.rivalTurnStep = sideId === "rival" ? "bench" : null;
+  state.opponentTurnStep = sideId === "opponent" ? "bench" : null;
   side.energyAttachmentsThisTurn = 0;
   side.bonusEnergyAttachments = 0;
   side.retreatCostReduction = 0;
@@ -825,7 +825,7 @@ function payRetreatCost(pokemon: PokemonInstance, cost: number): void {
 }
 
 function performAttack(state: GameState, attackerId: SideId, healTargetUid?: number): void {
-  const defenderId = attackerId === "player" ? "rival" : "player";
+  const defenderId = attackerId === "player" ? "opponent" : "player";
   const attacker = state.sides[attackerId];
   const defender = state.sides[defenderId];
   if (!attacker.active || !defender.active) return;
@@ -922,7 +922,7 @@ function resolveKnockout(state: GameState, attackerId: SideId, defenderId: SideI
   if (defenderId === "player") {
     state.pendingPlayerChoice = {
       kind: "promoteAfterKnockout",
-      resume: attackerId === "rival" ? "finishRivalTurn" : "none",
+      resume: attackerId === "opponent" ? "finishOpponentTurn" : "none",
     };
     refreshContinuousEffects(state);
     log(state, "Choose your next active Umamusume.");
@@ -939,7 +939,7 @@ function resolveKnockout(state: GameState, attackerId: SideId, defenderId: SideI
 
 function endTurn(state: GameState): void {
   if (state.gameOver || state.currentSide === "done") return;
-  const nextSide: SideId = state.currentSide === "player" ? "rival" : "player";
+  const nextSide: SideId = state.currentSide === "player" ? "opponent" : "player";
   if (nextSide === "player") state.turnNumber += 1;
   startTurn(state, nextSide);
 }
@@ -1028,19 +1028,19 @@ function shouldAiPlayTrainer(state: GameState, side: SideState, card: Card): boo
 }
 
 function getOpposingSide(state: GameState, sideId: SideId): SideState {
-  return state.sides[sideId === "player" ? "rival" : "player"];
+  return state.sides[sideId === "player" ? "opponent" : "player"];
 }
 
 function refreshContinuousEffects(state: GameState): void {
   normalizeBoardState(state);
   const basicHpBonus = getStadiumBasicHpBonus(state);
   refreshSideContinuousEffects(state.sides.player, basicHpBonus);
-  refreshSideContinuousEffects(state.sides.rival, basicHpBonus);
+  refreshSideContinuousEffects(state.sides.opponent, basicHpBonus);
 }
 
 function normalizeBoardState(state: GameState): void {
   normalizeSideBoard(state.sides.player);
-  normalizeSideBoard(state.sides.rival);
+  normalizeSideBoard(state.sides.opponent);
 }
 
 function normalizeSideBoard(side: SideState): void {

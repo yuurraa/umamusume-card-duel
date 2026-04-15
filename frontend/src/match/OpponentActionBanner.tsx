@@ -1,19 +1,19 @@
 import type { CSSProperties } from "react";
 import { previewKickerStyle } from "../styles/shared";
 
-export function RivalActionBanner({ message, paused }: { message: string; paused: boolean }) {
+export function OpponentActionBanner({ message, paused }: { message: string; paused: boolean }) {
   return (
-    <section style={rivalActionBannerStyle}>
-      <span style={rivalPulseStyle(paused)} />
+    <section style={opponentActionBannerStyle}>
+      <span style={opponentPulseStyle(paused)} />
       <div style={{ minWidth: 0 }}>
         <div style={previewKickerStyle}>{paused ? "Opponent is waiting" : "Opponent turn"}</div>
-        <strong style={rivalActionTextStyle}>{message}</strong>
+        <strong style={opponentActionTextStyle}>{message}</strong>
       </div>
     </section>
   );
 }
 
-const rivalActionBannerStyle: CSSProperties = {
+const opponentActionBannerStyle: CSSProperties = {
   position: "fixed",
   left: "50%",
   top: 16,
@@ -32,7 +32,7 @@ const rivalActionBannerStyle: CSSProperties = {
   pointerEvents: "none",
 };
 
-function rivalPulseStyle(paused: boolean): CSSProperties {
+function opponentPulseStyle(paused: boolean): CSSProperties {
   return {
     width: 22,
     height: 22,
@@ -46,7 +46,7 @@ function rivalPulseStyle(paused: boolean): CSSProperties {
   };
 }
 
-const rivalActionTextStyle: CSSProperties = {
+const opponentActionTextStyle: CSSProperties = {
   display: "block",
   marginTop: 2,
   color: "#17211c",

@@ -16,7 +16,7 @@ export function GameOverModal({ game, onPlayAgain }: { game: GameState; onPlayAg
         <p style={gameOverBodyStyle}>{latest}</p>
         <div style={gameOverScoreRowStyle}>
           <ScoreSummary label="You" points={game.sides.player.points} accent="#d6519d" />
-          <ScoreSummary label="Opponent" points={game.sides.rival.points} accent="#26312d" />
+          <ScoreSummary label="Opponent" points={game.sides.opponent.points} accent="#26312d" />
         </div>
         <NeutralButton style={gameOverButtonStyle} onClick={onPlayAgain}>Play Again</NeutralButton>
       </section>

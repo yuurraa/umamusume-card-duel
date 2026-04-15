@@ -17,7 +17,11 @@ export function MainMenuScreen({
   return (
     <section style={menuScreenStyle}>
       <div style={menuHeroStyle}>
-        <h1 style={menuTitleStyle}>Umamusume TCG Pocket</h1>
+        <div style={titleRowStyle}>
+          <img style={headerImageLeftStyle} src="/assets/header.png" alt="" draggable={false} />
+          <h1 style={menuTitleStyle}>Umamusume Card Duel</h1>
+          <img style={headerImageRightStyle} src="/assets/header.png" alt="" draggable={false} />
+        </div>
         <div style={menuActionPanelStyle}>
           <div style={menuButtonColumnStyle}>
             <NeutralButton style={menuPrimaryButtonStyle} onClick={onPlay}>Play</NeutralButton>
@@ -29,6 +33,11 @@ export function MainMenuScreen({
       <div style={equippedDeckDockStyle}>
         <DeckSummaryCard deck={equippedDeck} label="Equipped Deck" compact />
       </div>
+      <footer style={footerStyle}>
+        <a style={footerLinkStyle} href="https://github.com/yuurraa" target="_blank" rel="noreferrer">
+          github.com/yuurraa
+        </a>
+      </footer>
     </section>
   );
 }
@@ -47,6 +56,36 @@ const menuHeroStyle: CSSProperties = {
   justifyItems: "center",
   textAlign: "center",
   gap: 20,
+};
+
+const titleRowStyle: CSSProperties = {
+  position: "relative",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+};
+
+const headerImageBase: CSSProperties = {
+  position: "absolute",
+  top: "50%",
+  width: "clamp(112px, 8vw, 112px)",
+  height: "auto",
+  objectFit: "contain",
+  transform: "translateY(-50%)",
+  filter: "drop-shadow(0 10px 20px rgba(17, 24, 39, 0.14))",
+};
+
+const headerImageLeftStyle: CSSProperties = {
+  ...headerImageBase,
+  right: "100%",
+  marginRight: -120,
+  transform: "translateY(-50%) scaleX(-1)",
+};
+
+const headerImageRightStyle: CSSProperties = {
+  ...headerImageBase,
+  left: "100%",
+  marginLeft: -120,
 };
 
 const menuTitleStyle: CSSProperties = {
@@ -89,4 +128,22 @@ const equippedDeckDockStyle: CSSProperties = {
   bottom: 20,
   width: "min(230px, calc(100vw - 112px))",
   zIndex: 1,
+};
+
+const footerStyle: CSSProperties = {
+  position: "absolute",
+  left: 0,
+  right: 0,
+  bottom: 0,
+  display: "flex",
+  justifyContent: "center",
+  padding: "0 16px clamp(6px, 1vh, 16px)",
+};
+
+const footerLinkStyle: CSSProperties = {
+  color: "rgba(100, 113, 104, 0.38)",
+  fontSize: 13,
+  fontWeight: 800,
+  letterSpacing: 0.3,
+  textDecoration: "none",
 };

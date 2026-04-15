@@ -3,7 +3,7 @@ import { MAX_BENCH, premadeDecks } from "../../shared/src/gameData";
 import { Hand } from "./components/Hand";
 import { SideBoard } from "./components/SideBoard";
 import {
-  advanceRivalTurnStep,
+  advanceOpponentTurnStep,
   attachPlayerEnergy,
   canAttack,
   canAttachEnergy,
@@ -29,13 +29,13 @@ import {
 import type { GameState, PokemonInstance } from "../../shared/src/types";
 import type { InspectTarget } from "./inspect";
 import type { ActionNoticeSource, AppScreen, PendingSelection } from "./types/ui";
-import { getDeckById, readEquippedDeckId, writeEquippedDeckId } from "./utils/deck";
+import { getDeckById, readEquippedDeckId, writeEquippedDeckId, pickRandomOpponentDeck } from "./utils/deck";
 import {
   createSetupPreviewSide,
-  createSetupHiddenRivalSide,
+  createSetupHiddenOpponentSide,
   getSelectablePokemonUids,
-  getRivalStepDelay,
-  getRivalBannerMessage,
+  getOpponentStepDelay,
+  getOpponentBannerMessage,
   getOpponentAttackNotice,
   getActionNotice,
 } from "./match/helpers";
@@ -47,7 +47,7 @@ import { PregameSetupPanel } from "./match/PregameSetupPanel";
 import { GameOverModal } from "./match/GameOverModal";
 import { ChoiceModal } from "./match/ChoiceModal";
 import { SelectionPrompt } from "./match/SelectionPrompt";
-import { RivalActionBanner } from "./match/RivalActionBanner";
+import { OpponentActionBanner } from "./match/OpponentActionBanner";
 import { ActionNotice } from "./match/ActionNotice";
 import { MainMenuScreen } from "./screens/MainMenuScreen";
 import { DeckBrowserScreen } from "./screens/DeckBrowserScreen";
@@ -55,7 +55,11 @@ import { DeckBrowserScreen } from "./screens/DeckBrowserScreen";
 export function App() {
   const [screen, setScreen] = useState<AppScreen>("mainMenu");
   const [equippedDeckId, setEquippedDeckId] = useState(() => readEquippedDeckId());
-  const [game, setGame] = useState(() => createGame(getDeckById(readEquippedDeckId()).cardIds));
+  const [game, setGame] = useState(() => {
+    const playerDeck = getDeckById(readEquippedDeckId());
+    const opponent = pickRandomOpponentDeck();
+    return createGame(playerDeck.cardIds, opponent.cardIds, opponent.name);
+  });
   const [previewTarget, setPreviewTarget] = useState<InspectTarget | null>(null);
   const [pendingSelection, setPendingSelection] = useState<PendingSelection | null>(null);
   const [actionNotice, setActionNotice] = useState<string | null>(null);
@@ -68,11 +72,11 @@ export function App() {
   const nextPlayerEnergy = player.energyZone[0] ?? null;
   const activePendingSelection = game.pendingPlayerChoice ? ({ kind: "replaceActive" } as PendingSelection) : pendingSelection;
   const selectablePokemonUids = getSelectablePokemonUids(game, activePendingSelection);
-  const hiddenRival = game.phase === "setup" && !game.setup?.rivalRevealed;
+  const hiddenOpponent = game.phase === "setup" && !game.setup?.opponentRevealed;
   const isBusyWithChoice = Boolean(pendingSelection || game.pendingPlayerChoice);
   const displayedPlayerSide = game.phase === "setup" ? createSetupPreviewSide(player, setupActiveIndex, setupBenchIndexes) : player;
-  const displayedRivalSide = hiddenRival ? createSetupHiddenRivalSide(game.sides.rival) : game.sides.rival;
-  const hiddenRivalBenchCount = hiddenRival ? game.sides.rival.bench.length : undefined;
+  const displayedOpponentSide = hiddenOpponent ? createSetupHiddenOpponentSide(game.sides.opponent) : game.sides.opponent;
+  const hiddenOpponentBenchCount = hiddenOpponent ? game.sides.opponent.bench.length : undefined;
   const setupDragHandIndexByUid = game.phase === "setup"
     ? {
         ...(setupActiveIndex !== null ? { [-1]: setupActiveIndex } : {}),
@@ -121,7 +125,8 @@ export function App() {
     setPreviewTarget(null);
     setActionNotice(null);
     setMenuOpen(false);
-    setGame(createGame(equippedDeck.cardIds));
+    const opponent = pickRandomOpponentDeck();
+    setGame(createGame(equippedDeck.cardIds, opponent.cardIds, opponent.name));
   };
 
   const playEquippedDeck = () => {
@@ -153,7 +158,7 @@ export function App() {
   useEffect(() => {
     if (!previewTarget?.pokemon || !previewTarget.sideId) return;
     if (game.phase === "setup") return;
-    const liveSide = previewTarget.sideId === "player" ? game.sides.player : game.sides.rival;
+    const liveSide = previewTarget.sideId === "player" ? game.sides.player : game.sides.opponent;
     const livePokemon = getAllPokemon(liveSide).find((pokemon) => pokemon.uid === previewTarget.pokemon?.uid);
     if (!livePokemon) {
       setPreviewTarget(null);
@@ -190,17 +195,17 @@ export function App() {
   }, [game.phase, player.hand]);
 
   useEffect(() => {
-    if (game.phase !== "play" || game.currentSide !== "rival" || game.gameOver || game.pendingPlayerChoice) return undefined;
+    if (game.phase !== "play" || game.currentSide !== "opponent" || game.gameOver || game.pendingPlayerChoice) return undefined;
     const timeoutId = window.setTimeout(() => {
-      setGame((current) => advanceRivalTurnStep(current));
-    }, getRivalStepDelay(game));
+      setGame((current) => advanceOpponentTurnStep(current));
+    }, getOpponentStepDelay(game));
     return () => window.clearTimeout(timeoutId);
   }, [game]);
 
   useEffect(() => {
     const previousSide = previousSideRef.current;
     previousSideRef.current = game.currentSide;
-    if (previousSide !== "rival" || game.currentSide === "rival" || game.gameOver) return;
+    if (previousSide !== "opponent" || game.currentSide === "opponent" || game.gameOver) return;
     const notice = getOpponentAttackNotice(game);
     if (notice) setActionNotice(notice);
   }, [game]);
@@ -375,12 +380,12 @@ export function App() {
             setupDragHandIndexByUid={setupDragHandIndexByUid}
           />
           <SideBoard
-            key={hiddenRival ? "rival-setup-hidden" : "rival-live"}
-            side={displayedRivalSide}
-            sideId="rival"
-            hidden={hiddenRival}
+            key={hiddenOpponent ? "opponent-setup-hidden" : "opponent-live"}
+            side={displayedOpponentSide}
+            sideId="opponent"
+            hidden={hiddenOpponent}
             onInspect={openPreview}
-            {...(hiddenRivalBenchCount !== undefined ? { hiddenBenchCount: hiddenRivalBenchCount } : {})}
+            {...(hiddenOpponentBenchCount !== undefined ? { hiddenBenchCount: hiddenOpponentBenchCount } : {})}
           />
           {game.phase === "play" && (
             <>
@@ -425,8 +430,8 @@ export function App() {
           )}
         </section>
       </div>
-      {game.phase === "play" && game.currentSide === "rival" && (
-        <RivalActionBanner message={getRivalBannerMessage(game)} paused={Boolean(game.pendingPlayerChoice)} />
+      {game.phase === "play" && game.currentSide === "opponent" && (
+        <OpponentActionBanner message={getOpponentBannerMessage(game)} paused={Boolean(game.pendingPlayerChoice)} />
       )}
       {activePendingSelection && <SelectionPrompt pending={activePendingSelection} onCancel={game.pendingPlayerChoice ? () => undefined : clearSelection} nextEnergyType={nextPlayerEnergy} />}
       <CardPreview

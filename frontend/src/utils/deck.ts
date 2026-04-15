@@ -34,6 +34,10 @@ export function writeEquippedDeckId(deckId: string): void {
   window.localStorage.setItem(EQUIPPED_DECK_STORAGE_KEY, deckId);
 }
 
+export function pickRandomOpponentDeck(): PremadeDeck {
+  return premadeDecks[Math.floor(Math.random() * premadeDecks.length)] ?? premadeDecks[0]!;
+}
+
 export function getDeckCoverCard(deck: PremadeDeck) {
   const card = getCard(deck.coverCardId);
   if (card.kind !== "pokemon") throw new Error(`Deck cover card must be a pokemon: ${deck.coverCardId}`);
