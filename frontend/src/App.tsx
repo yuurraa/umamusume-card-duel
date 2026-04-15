@@ -2266,7 +2266,7 @@ function MainMenuScreen({
   return (
     <section style={menuScreenStyle}>
       <div style={menuHeroStyle}>
-        <h1 style={menuTitleStyle}>Umamusume TCG Pocket</h1>
+        <h1 style={menuTitleStyle}>Umamusume Card Duel</h1>
         <div style={menuActionPanelStyle}>
           <div style={menuButtonColumnStyle}>
           <NeutralButton style={menuPrimaryButtonStyle} onClick={onPlay}>Play</NeutralButton>
