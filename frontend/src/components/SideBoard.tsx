@@ -4,7 +4,7 @@ import { hasTextDragPayload, readDragPayload, writeDragPayload } from "./dragDat
 import { UmaCard } from "./UmaCard";
 import { getPokemonCard } from "../game/engine";
 import { MAX_POINTS } from "../../../shared/src/gameData";
-import type { PokemonInstance, PokemonType, SideId, SideState } from "../../../shared/src/types";
+import type { EnergyType, PokemonInstance, PokemonType, SideId, SideState } from "../../../shared/src/types";
 import type { InspectTarget } from "../inspect";
 
 type SideBoardProps = {
@@ -16,6 +16,7 @@ type SideBoardProps = {
   setupMode?: boolean;
   activeRetreatDraggable?: boolean;
   selectablePokemonUids?: Set<number> | undefined;
+  abilityEnergyTypes?: Set<EnergyType> | undefined;
   onPokemonSelect?: ((pokemon: PokemonInstance) => void) | undefined;
   onSetupDropActive?: ((handIndex: number) => void) | undefined;
   onSetupDropBench?: ((handIndex: number) => void) | undefined;
@@ -24,6 +25,7 @@ type SideBoardProps = {
   onHandCardDropOnBenchSlot?: ((handIndex: number) => void) | undefined;
   onHandCardDropOnPokemon?: ((handIndex: number, pokemonUid: number) => void) | undefined;
   onEnergyDropOnPokemon?: ((pokemonUid: number) => void) | undefined;
+  onAbilityEnergyDropOnActive?: ((sourcePokemonUid: number, energyType: EnergyType) => void) | undefined;
   onRetreatDropOnPokemon?: ((pokemonUid: number) => void) | undefined;
   setupDragHandIndexByUid?: Record<number, number>;
 };
@@ -49,6 +51,7 @@ export function SideBoard({
   setupMode = false,
   activeRetreatDraggable = false,
   selectablePokemonUids,
+  abilityEnergyTypes,
   onPokemonSelect,
   onSetupDropActive,
   onSetupDropBench,
@@ -57,6 +60,7 @@ export function SideBoard({
   onHandCardDropOnBenchSlot,
   onHandCardDropOnPokemon,
   onEnergyDropOnPokemon,
+  onAbilityEnergyDropOnActive,
   onRetreatDropOnPokemon,
   setupDragHandIndexByUid = {},
 }: SideBoardProps) {
@@ -93,6 +97,7 @@ export function SideBoard({
       return;
     }
     if (payload?.kind === "energy-token") onEnergyDropOnPokemon?.(side.active.uid);
+    if (payload?.kind === "ability-energy") onAbilityEnergyDropOnActive?.(payload.sourcePokemonUid, payload.energyType);
   };
 
   const health = hidden
@@ -208,6 +213,7 @@ export function SideBoard({
         hidden={hidden}
         setupMode={setupMode}
         selectablePokemonUids={selectablePokemonUids}
+        abilityEnergyTypes={abilityEnergyTypes}
         onPokemonSelect={onPokemonSelect}
         onSetupDropBench={onSetupDropBench}
         onSetupPromoteToActive={onSetupPromoteToActive}

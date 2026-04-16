@@ -16,7 +16,7 @@ export function SelectionPrompt({ pending, onCancel, nextEnergyType }: {
         ? <AttachPromptContent energyType={nextEnergyType} />
         : "Choose one of your Umamusume to receive this turn's Energy."
     : pending.kind === "moveEnergyAbility"
-      ? <MoveEnergyPromptContent energyType={pending.energyType} />
+      ? <MoveEnergyPromptContent energyTypes={pending.energyTypes} />
     : pending.kind === "retreatTarget"
       ? "Choose the benched Umamusume to move active."
       : pending.kind === "replaceActive"
@@ -59,14 +59,20 @@ function AttachPromptContent({ energyType }: { energyType: EnergyType }) {
   );
 }
 
-function MoveEnergyPromptContent({ energyType }: { energyType: EnergyType }) {
+function MoveEnergyPromptContent({ energyTypes }: { energyTypes: EnergyType[] }) {
   return (
     <span style={inlineEnergyLabelStyle}>
-      <span>Choose the benched Umamusume to send</span>
-      <EnergyIcon type={energyType} size="sm" />
-      <span>{energyLabel(energyType)} from.</span>
+      <span>Drag a Benched</span>
+      {energyTypes.map((energyType) => <EnergyIcon key={energyType} type={energyType} size="sm" />)}
+      <span>{formatEnergyList(energyTypes)} to your Active Umamusume.</span>
     </span>
   );
+}
+
+function formatEnergyList(energyTypes: EnergyType[]): string {
+  const labels = energyTypes.map(energyLabel);
+  if (labels.length <= 1) return labels[0] ?? "Energy";
+  return `${labels.slice(0, -1).join(", ")} or ${labels[labels.length - 1]}`;
 }
 
 const selectionPromptStyle: CSSProperties = {

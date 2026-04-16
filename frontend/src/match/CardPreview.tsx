@@ -1,9 +1,9 @@
-import type { CSSProperties } from "react";
+import { type CSSProperties, useState } from "react";
 import type { EnergyType, GameState } from "../../../shared/src/types";
 import type { InspectTarget } from "../inspect";
 import { getDisplayedRetreatCost } from "../game/engine";
 import { getPreviewTone } from "../utils/color";
-import { overlayBackdropStyle, overlayButtonStyle, overlaySurfaceStyle, previewKickerStyle } from "../styles/shared";
+import { overlayBackdropStyle, overlayButtonStyle, overlaySurfaceStyle, previewAccentButtonStyle, previewKickerStyle } from "../styles/shared";
 import { NeutralButton } from "../components/NeutralButton";
 import { PreviewAccentButton } from "../components/PreviewAccentButton";
 import { EnergyIcon } from "../components/EnergyIcon";
@@ -19,6 +19,7 @@ export function CardPreview({ state, target, canUseAttack, canUseRetreat, canUse
   onAbility: () => void;
   onClose: () => void;
 }) {
+  const [abilityHovered, setAbilityHovered] = useState(false);
   if (!target) return null;
   const { card, pokemon } = target;
   const previewTone = getPreviewTone(card);
@@ -79,16 +80,28 @@ export function CardPreview({ state, target, canUseAttack, canUseRetreat, canUse
           )}
 
           {card.kind === "pokemon" && card.ability && (
-            <section style={abilitySectionStyle}>
-              <div style={previewKickerStyle}>Ability</div>
-              <strong style={abilityNameStyle}>{card.ability.name}</strong>
-              <span style={abilityTextStyle}>{card.ability.text}</span>
-              {card.ability.moveBenchedEnergyToActive && (
-                <PreviewAccentButton accent={previewTone.accent} style={{ marginTop: 10 }} disabled={!canUseAbility} onClick={onAbility}>
-                  Use Ability
-                </PreviewAccentButton>
-              )}
-            </section>
+            card.ability.moveBenchedEnergyToActive ? (
+              <button
+                type="button"
+                disabled={!canUseAbility}
+                onClick={onAbility}
+                onMouseEnter={() => setAbilityHovered(true)}
+                onMouseLeave={() => setAbilityHovered(false)}
+                onFocus={() => setAbilityHovered(true)}
+                onBlur={() => setAbilityHovered(false)}
+                style={abilityButtonStyle(canUseAbility, abilityHovered, previewTone.accent)}
+              >
+                <div style={abilityKickerStyle(canUseAbility, abilityHovered)}>Ability</div>
+                <strong style={abilityNameStyle}>{card.ability.name}</strong>
+                <span style={abilityTextStyle}>{card.ability.text}</span>
+              </button>
+            ) : (
+              <section style={abilitySectionStyle}>
+                <div style={previewKickerStyle}>Ability</div>
+                <strong style={abilityNameStyle}>{card.ability.name}</strong>
+                <span style={abilityTextStyle}>{card.ability.text}</span>
+              </section>
+            )
           )}
 
           {card.kind === "pokemon" && (
@@ -237,10 +250,24 @@ const colorlessPipStyle: CSSProperties = {
 
 const abilitySectionStyle: CSSProperties = { ...previewBlockStyle };
 
+function abilityButtonStyle(enabled: boolean, hovered: boolean, accent: string): CSSProperties {
+  return {
+    ...previewAccentButtonStyle(enabled, hovered, accent),
+    marginTop: 10,
+  };
+}
+
+function abilityKickerStyle(enabled: boolean, hovered: boolean): CSSProperties {
+  return {
+    ...previewKickerStyle,
+    color: enabled && hovered ? "rgba(255, 255, 255, 0.78)" : previewKickerStyle.color,
+  };
+}
+
 const abilityNameStyle: CSSProperties = {
   display: "block",
   marginTop: 6,
-  color: "#17211c",
+  color: "inherit",
   fontSize: 18,
   lineHeight: 1.1,
   fontWeight: 950,
@@ -249,7 +276,8 @@ const abilityNameStyle: CSSProperties = {
 const abilityTextStyle: CSSProperties = {
   display: "block",
   marginTop: 6,
-  color: "#17211c",
+  color: "inherit",
+  opacity: 0.9,
   fontSize: 14,
   fontWeight: 800,
   lineHeight: 1.35,

@@ -4,7 +4,7 @@ import { getAttachedEnergy } from "./attachedEnergy";
 import { hasTextDragPayload, readDragPayload, writeDragPayload } from "./dragData";
 import { getPokemonCard } from "../game/engine";
 import { MAX_BENCH } from "../../../shared/src/gameData";
-import type { PokemonInstance, PokemonType, SideState } from "../../../shared/src/types";
+import type { EnergyType, PokemonInstance, PokemonType, SideState } from "../../../shared/src/types";
 import type { InspectTarget } from "../inspect";
 
 type BenchProps = {
@@ -14,6 +14,7 @@ type BenchProps = {
   hiddenBenchCount?: number;
   setupMode?: boolean;
   selectablePokemonUids?: Set<number> | undefined;
+  abilityEnergyTypes?: Set<EnergyType> | undefined;
   onPokemonSelect?: ((pokemon: PokemonInstance) => void) | undefined;
   onSetupDropBench?: ((handIndex: number) => void) | undefined;
   onSetupPromoteToActive?: ((handIndex: number) => void) | undefined;
@@ -56,6 +57,7 @@ export function Bench({
   hiddenBenchCount,
   setupMode = false,
   selectablePokemonUids,
+  abilityEnergyTypes,
   onPokemonSelect,
   onSetupDropBench,
   onSetupPromoteToActive,
@@ -173,6 +175,7 @@ export function Bench({
             hoverRingColor={hoverRingColor}
             hoverGlowColor={hoverGlowColor}
             isSelectable={Boolean(selectablePokemonUids?.has(pokemon.uid))}
+            abilityEnergyTypes={abilityEnergyTypes}
             onInspect={onInspect}
             onPokemonSelect={onPokemonSelect}
           />
@@ -182,7 +185,7 @@ export function Bench({
   );
 }
 
-function BenchSlot({ card, pokemon, side, hidden, setupMode, activeSetupHandIndex, setupDragHandIndex, onSetupPromoteToActive, onHandCardDropOnPokemon, onEnergyDropOnPokemon, onRetreatDropOnPokemon, hpPercent, fillColor, hoverBorderColor, hoverBackground, hoverRingColor, hoverGlowColor, isSelectable, onInspect, onPokemonSelect }: { card: ReturnType<typeof getPokemonCard>; pokemon: PokemonInstance; side: SideState; hidden: boolean; setupMode: boolean; activeSetupHandIndex: number | undefined; setupDragHandIndex: number | undefined; onSetupPromoteToActive?: ((handIndex: number) => void) | undefined; onHandCardDropOnPokemon?: ((handIndex: number, pokemonUid: number) => void) | undefined; onEnergyDropOnPokemon?: ((pokemonUid: number) => void) | undefined; onRetreatDropOnPokemon?: ((pokemonUid: number) => void) | undefined; hpPercent: number; fillColor: string; hoverBorderColor: string; hoverBackground: string; hoverRingColor: string; hoverGlowColor: string; isSelectable: boolean; onInspect: (target: InspectTarget) => void; onPokemonSelect?: ((pokemon: PokemonInstance) => void) | undefined }) {
+function BenchSlot({ card, pokemon, side, hidden, setupMode, activeSetupHandIndex, setupDragHandIndex, onSetupPromoteToActive, onHandCardDropOnPokemon, onEnergyDropOnPokemon, onRetreatDropOnPokemon, hpPercent, fillColor, hoverBorderColor, hoverBackground, hoverRingColor, hoverGlowColor, isSelectable, abilityEnergyTypes, onInspect, onPokemonSelect }: { card: ReturnType<typeof getPokemonCard>; pokemon: PokemonInstance; side: SideState; hidden: boolean; setupMode: boolean; activeSetupHandIndex: number | undefined; setupDragHandIndex: number | undefined; onSetupPromoteToActive?: ((handIndex: number) => void) | undefined; onHandCardDropOnPokemon?: ((handIndex: number, pokemonUid: number) => void) | undefined; onEnergyDropOnPokemon?: ((pokemonUid: number) => void) | undefined; onRetreatDropOnPokemon?: ((pokemonUid: number) => void) | undefined; hpPercent: number; fillColor: string; hoverBorderColor: string; hoverBackground: string; hoverRingColor: string; hoverGlowColor: string; isSelectable: boolean; abilityEnergyTypes?: Set<EnergyType> | undefined; onInspect: (target: InspectTarget) => void; onPokemonSelect?: ((pokemon: PokemonInstance) => void) | undefined }) {
   const [hovered, setHovered] = useState(false);
   const [dropHovered, setDropHovered] = useState(false);
 
@@ -283,7 +286,7 @@ function BenchSlot({ card, pokemon, side, hidden, setupMode, activeSetupHandInde
               alt={card.name}
               draggable={false}
             />
-            <AttachedEnergyPips energies={getAttachedEnergy(pokemon)} />
+            <AttachedEnergyPips energies={getAttachedEnergy(pokemon)} draggableEnergyTypes={abilityEnergyTypes} sourcePokemonUid={pokemon.uid} />
           </>
         )}
       </button>

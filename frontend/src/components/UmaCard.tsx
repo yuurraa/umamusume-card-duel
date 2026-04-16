@@ -1,6 +1,7 @@
 import { type CSSProperties, useState } from "react";
 import { EnergyIcon } from "./EnergyIcon";
 import { getAttachedEnergy } from "./attachedEnergy";
+import { writeDragPayload } from "./dragData";
 import { getPokemonCard } from "../game/engine";
 import type { EnergyType, PokemonInstance, PokemonType } from "../../../shared/src/types";
 
@@ -75,7 +76,17 @@ export function UmaCard({ pokemon, onInspect, hidden = false, isSelectable = fal
   );
 }
 
-export function AttachedEnergyPips({ energies, size = "sm" }: { energies: EnergyType[]; size?: "sm" | "lg" }) {
+export function AttachedEnergyPips({
+  energies,
+  size = "sm",
+  draggableEnergyTypes,
+  sourcePokemonUid,
+}: {
+  energies: EnergyType[];
+  size?: "sm" | "lg";
+  draggableEnergyTypes?: Set<EnergyType> | undefined;
+  sourcePokemonUid?: number | undefined;
+}) {
   if (energies.length === 0) return null;
 
   const ringSize = size === "lg" ? 38 : 24;
@@ -87,7 +98,7 @@ export function AttachedEnergyPips({ energies, size = "sm" }: { energies: Energy
     zIndex: 2,
     display: "flex",
     gap: 0,
-    pointerEvents: "none",
+    pointerEvents: draggableEnergyTypes ? "auto" : "none",
   };
 
   return (
@@ -95,6 +106,16 @@ export function AttachedEnergyPips({ energies, size = "sm" }: { energies: Energy
       {energies.map((type, index) => (
         <span
           key={`${type}-${index}`}
+          draggable={Boolean(draggableEnergyTypes?.has(type) && sourcePokemonUid !== undefined)}
+          onClick={(event) => {
+            if (draggableEnergyTypes?.has(type)) event.stopPropagation();
+          }}
+          onDragStart={(event) => {
+            if (!draggableEnergyTypes?.has(type) || sourcePokemonUid === undefined) return;
+            event.stopPropagation();
+            event.dataTransfer.effectAllowed = "move";
+            writeDragPayload(event.dataTransfer, { kind: "ability-energy", energyType: type, sourcePokemonUid });
+          }}
           style={{
             width: ringSize,
             height: ringSize,
@@ -105,6 +126,7 @@ export function AttachedEnergyPips({ energies, size = "sm" }: { energies: Energy
             border: "1px solid white",
             background: "rgba(255, 255, 255, 0.72)",
             boxShadow: "0 8px 16px rgba(17, 24, 39, 0.22)",
+            cursor: draggableEnergyTypes?.has(type) ? "grab" : "default",
           }}
         >
           <EnergyIcon type={type} size={iconSize} />

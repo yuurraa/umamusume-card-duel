@@ -1,5 +1,5 @@
 import type { GameState, PokemonInstance, SideState } from "../../../shared/src/types";
-import { getAllPokemon, getCard, getDamagedPokemon, getEvolutionTargets } from "../game/engine";
+import { canAttachEnergyToPokemon, getAllPokemon, getCard, getDamagedPokemon, getEvolutionTargets } from "../game/engine";
 import type { ActionNoticeSource, PendingSelection } from "../types/ui";
 import { formatCardDisplayName, formatNameList } from "../utils/format";
 
@@ -50,9 +50,15 @@ function createSetupPreviewPokemon(cardId: string, uid: number): PokemonInstance
 export function getSelectablePokemonUids(game: GameState, pending: PendingSelection | null): Set<number> | undefined {
   if (!pending) return undefined;
   const player = game.sides.player;
-  if (pending.kind === "attachEnergy") return new Set(getAllPokemon(player).map((pokemon) => pokemon.uid));
+  if (pending.kind === "attachEnergy") {
+    return new Set(
+      getAllPokemon(player)
+        .filter((pokemon) => canAttachEnergyToPokemon(game, player, pokemon))
+        .map((pokemon) => pokemon.uid),
+    );
+  }
   if (pending.kind === "attackHealTarget") return new Set(getDamagedPokemon(player).map((pokemon) => pokemon.uid));
-  if (pending.kind === "moveEnergyAbility") return new Set(player.bench.filter((pokemon) => pokemon.energies[pending.energyType] > 0).map((pokemon) => pokemon.uid));
+  if (pending.kind === "moveEnergyAbility") return undefined;
   if (pending.kind === "retreatTarget") return new Set(player.bench.map((pokemon) => pokemon.uid));
   if (pending.kind === "replaceActive") return new Set(player.bench.map((pokemon) => pokemon.uid));
   if (pending.kind === "healTarget") {

@@ -31,7 +31,7 @@ export type Ability = {
   heal?: number;
   activeHpBonus?: number;
   damageReduction?: number;
-  moveBenchedEnergyToActive?: EnergyType;
+  moveBenchedEnergyToActive?: EnergyType | EnergyType[];
 };
 
 export type PokemonCard = {
@@ -122,6 +122,7 @@ export type SideState = {
   attackDamageBonus: number;
   usedSupporterThisTurn: boolean;
   usedRetreatThisTurn: boolean;
+  usedAbilityNamesThisTurn: string[];
 };
 
 export type GameState = {

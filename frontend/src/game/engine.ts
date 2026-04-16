@@ -157,9 +157,8 @@ export function attachPlayerEnergy(state: GameState, pokemonUid?: number): GameS
   const next = cloneGame(state);
   const side = next.sides.player;
   if (next.pendingPlayerChoice) return next;
-  if (!canAttachEnergy(next, side)) return next;
   const target = pokemonUid ? findOwnPokemonByUid(side, pokemonUid) : side.active;
-  if (!target) return next;
+  if (!target || !canAttachEnergyToPokemon(next, side, target)) return next;
   attachEnergy(next, side, target);
   normalizeBoardState(next);
   return next;
@@ -283,6 +282,11 @@ export function canAttachEnergy(state: GameState, side: SideState): boolean {
   return state.phase === "play" && !state.pendingPlayerChoice && !state.gameOver && state.currentSide === side.id && side.energyZone.length > 0 && side.energyAttachmentsThisTurn < 1 + side.bonusEnergyAttachments;
 }
 
+export function canAttachEnergyToPokemon(state: GameState, side: SideState, pokemon: PokemonInstance): boolean {
+  if (!canAttachEnergy(state, side)) return false;
+  return side.energyAttachmentsThisTurn < 1 || pokemon.uid === side.active?.uid;
+}
+
 export function canAttack(state: GameState, side: SideState): boolean {
   if (state.phase !== "play" || state.pendingPlayerChoice || state.gameOver || state.currentSide !== side.id || !side.active) return false;
   return hasEnoughEnergy(side.active, getPrimaryAttack(getPokemonCard(side.active)).cost);
@@ -294,27 +298,38 @@ export function canRetreat(state: GameState, side: SideState): boolean {
   return attachedEnergyCount(side.active) >= effectiveRetreatCost(state, side);
 }
 
-export function canUseActiveAbility(state: GameState, side: SideState): boolean {
+export function canUsePokemonAbility(state: GameState, side: SideState, abilityPokemonUid: number): boolean {
   if (state.phase !== "play" || state.pendingPlayerChoice || state.gameOver || state.currentSide !== side.id || !side.active) return false;
-  if (side.active.usedAbilityThisTurn) return false;
-  const ability = getPokemonCard(side.active).ability;
+  const abilityPokemon = findOwnPokemonByUid(side, abilityPokemonUid);
+  if (!abilityPokemon || abilityPokemon.usedAbilityThisTurn) return false;
+  const ability = getPokemonCard(abilityPokemon).ability;
   if (!ability?.moveBenchedEnergyToActive) return false;
-  return side.bench.some((pokemon) => pokemon.energies[ability.moveBenchedEnergyToActive!] > 0);
+  if (side.usedAbilityNamesThisTurn?.includes(ability.name)) return false;
+  return getAbilityMoveEnergyTypes(ability).length > 0;
 }
 
-export function usePlayerActiveAbility(state: GameState, sourcePokemonUid: number): GameState {
+export function usePlayerAbility(state: GameState, abilityPokemonUid: number, sourcePokemonUid: number, selectedEnergyType?: EnergyType): GameState {
   const next = cloneGame(state);
   const side = next.sides.player;
-  if (!canUseActiveAbility(next, side) || !side.active) return next;
-  const activeCard = getPokemonCard(side.active);
-  const energyType = activeCard.ability?.moveBenchedEnergyToActive;
-  if (!energyType) return next;
-  const source = side.bench.find((pokemon) => pokemon.uid === sourcePokemonUid && pokemon.energies[energyType] > 0);
+  if (!canUsePokemonAbility(next, side, abilityPokemonUid) || !side.active) return next;
+  const abilityPokemon = findOwnPokemonByUid(side, abilityPokemonUid);
+  if (!abilityPokemon) return next;
+  const abilityCard = getPokemonCard(abilityPokemon);
+  const ability = abilityCard.ability;
+  const energyTypes = getAbilityMoveEnergyTypes(ability);
+  const source = side.bench.find((pokemon) => pokemon.uid === sourcePokemonUid && energyTypes.some((energyType) => pokemon.energies[energyType] > 0));
   if (!source) return next;
+  const availableEnergyTypes = energyTypes.filter((type) => source.energies[type] > 0);
+  const energyType = selectedEnergyType
+    ? availableEnergyTypes.includes(selectedEnergyType) ? selectedEnergyType : undefined
+    : availableEnergyTypes.length === 1 ? availableEnergyTypes[0] : undefined;
+  if (!ability || !energyType) return next;
   source.energies[energyType] -= 1;
   side.active.energies[energyType] += 1;
-  side.active.usedAbilityThisTurn = true;
-  log(next, `${formatPokemonCardName(activeCard)}'s ${activeCard.ability?.name} moved 1 ${energyLabel(energyType)} to the active spot.`);
+  abilityPokemon.usedAbilityThisTurn = true;
+  side.usedAbilityNamesThisTurn ??= [];
+  if (!side.usedAbilityNamesThisTurn.includes(ability.name)) side.usedAbilityNamesThisTurn.push(ability.name);
+  log(next, `${formatPokemonCardName(abilityCard)}'s ${ability.name} moved 1 ${energyLabel(energyType)} to the active spot.`);
   return next;
 }
 
@@ -536,6 +551,7 @@ function makeSide(id: SideId, title: string, deck: string[], energyPool: EnergyT
     attackDamageBonus: 0,
     usedSupporterThisTurn: false,
     usedRetreatThisTurn: false,
+    usedAbilityNamesThisTurn: [],
   };
 }
 
@@ -582,6 +598,7 @@ function startTurn(state: GameState, sideId: SideId, skipDraw = false): void {
   side.attackDamageBonus = 0;
   side.usedSupporterThisTurn = false;
   side.usedRetreatThisTurn = false;
+  side.usedAbilityNamesThisTurn = [];
   preparePokemonForTurn(side);
   side.energyZone = [];
   if (!(state.turnNumber === 1 && state.firstPlayer === sideId)) {
@@ -625,6 +642,12 @@ function applyStartAbilities(state: GameState, side: SideState): void {
   side.active.hp = Math.min(side.active.maxHp, side.active.hp + card.ability.heal);
   const healed = side.active.hp - before;
   if (healed > 0) log(state, `${actorPossessive(side)} ${formatPokemonCardName(card)} healed ${healed} HP with ${card.ability.name}.`);
+}
+
+function getAbilityMoveEnergyTypes(ability: PokemonCard["ability"]): EnergyType[] {
+  const energyTypes = ability?.moveBenchedEnergyToActive;
+  if (!energyTypes) return [];
+  return Array.isArray(energyTypes) ? energyTypes : [energyTypes];
 }
 
 function resolveCardPlay(state: GameState, side: SideState, card: Card, play: PlayAction, choices: PlayChoices = {}): void {
@@ -978,6 +1001,10 @@ function aiEvolveOne(state: GameState, side: SideState): boolean {
 
 function aiAttachOneEnergy(state: GameState, side: SideState): boolean {
   if (!side.active || !canAttachEnergy(state, side)) return false;
+  if (side.energyAttachmentsThisTurn >= 1) {
+    attachEnergy(state, side, side.active);
+    return true;
+  }
   if (!hasEnoughEnergy(side.active, getPrimaryAttack(getPokemonCard(side.active)).cost)) {
     attachEnergy(state, side, side.active);
     return true;

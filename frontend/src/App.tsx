@@ -8,7 +8,7 @@ import {
   canAttack,
   canAttachEnergy,
   canRetreat,
-  canUseActiveAbility,
+  canUsePokemonAbility,
   completePregameSetup,
   createGame,
   getAllPokemon,
@@ -24,9 +24,9 @@ import {
   playerSurrender,
   playHandCard,
   resolvePendingPlayerChoice,
-  usePlayerActiveAbility,
+  usePlayerAbility,
 } from "./game/engine";
-import type { GameState, PokemonInstance } from "../../shared/src/types";
+import type { EnergyType, GameState, PokemonInstance } from "../../shared/src/types";
 import type { InspectTarget } from "./inspect";
 import type { ActionNoticeSource, AppScreen, PendingSelection } from "./types/ui";
 import { getDeckById, readEquippedDeckId, writeEquippedDeckId, pickRandomOpponentDeck } from "./utils/deck";
@@ -72,6 +72,7 @@ export function App() {
   const nextPlayerEnergy = player.energyZone[0] ?? null;
   const activePendingSelection = game.pendingPlayerChoice ? ({ kind: "replaceActive" } as PendingSelection) : pendingSelection;
   const selectablePokemonUids = getSelectablePokemonUids(game, activePendingSelection);
+  const abilityEnergyTypes = pendingSelection?.kind === "moveEnergyAbility" ? new Set(pendingSelection.energyTypes) : undefined;
   const hiddenOpponent = game.phase === "setup" && !game.setup?.opponentRevealed;
   const isBusyWithChoice = Boolean(pendingSelection || game.pendingPlayerChoice);
   const displayedPlayerSide = game.phase === "setup" ? createSetupPreviewSide(player, setupActiveIndex, setupBenchIndexes) : player;
@@ -298,6 +299,14 @@ export function App() {
     setGame((current) => attachPlayerEnergy(current, pokemonUid));
   };
 
+  const moveAbilityEnergyByDrop = (sourcePokemonUid: number, energyType: EnergyType) => {
+    if (game.phase !== "play" || !pendingSelection || pendingSelection.kind !== "moveEnergyAbility" || game.pendingPlayerChoice) return;
+    if (!pendingSelection.energyTypes.includes(energyType)) return;
+    setGame((current) => usePlayerAbility(current, pendingSelection.abilityPokemonUid, sourcePokemonUid, energyType));
+    setPendingSelection(null);
+    setPreviewTarget(null);
+  };
+
   const retreatByDrop = (benchPokemonUid: number) => {
     if (game.phase !== "play" || pendingSelection || game.pendingPlayerChoice) return;
     setGame((current) => playerRetreat(current, benchPokemonUid));
@@ -320,8 +329,6 @@ export function App() {
       } else {
         setGame((current) => playerAttack(current, pokemon.uid));
       }
-    } else if (pendingSelection.kind === "moveEnergyAbility") {
-      setGame((current) => usePlayerActiveAbility(current, pokemon.uid));
     } else if (pendingSelection.kind === "retreatTarget") {
       setGame((current) => playerRetreat(current, pokemon.uid));
     } else if (pendingSelection.kind === "healTarget" || pendingSelection.kind === "evolveTarget") {
@@ -368,6 +375,7 @@ export function App() {
             setupMode={game.phase === "setup"}
             activeRetreatDraggable={game.phase === "play" && canRetreat(game, player) && !isBusyWithChoice}
             selectablePokemonUids={game.phase === "play" ? selectablePokemonUids : undefined}
+            abilityEnergyTypes={abilityEnergyTypes}
             onPokemonSelect={selectPokemon}
             onSetupDropActive={applySetupActive}
             onSetupDropBench={applySetupBench}
@@ -376,6 +384,7 @@ export function App() {
             onHandCardDropOnBenchSlot={playHandCardOnBenchSlot}
             onHandCardDropOnPokemon={playHandCardOnPokemon}
             onEnergyDropOnPokemon={attachEnergyByDrop}
+            onAbilityEnergyDropOnActive={moveAbilityEnergyByDrop}
             onRetreatDropOnPokemon={retreatByDrop}
             setupDragHandIndexByUid={setupDragHandIndexByUid}
           />
@@ -439,7 +448,7 @@ export function App() {
         target={previewTarget}
         canUseAttack={Boolean(player.active && previewTarget?.isActive && previewTarget.sideId === "player" && canAttack(game, player))}
         canUseRetreat={Boolean(player.active && previewTarget?.isActive && previewTarget.sideId === "player" && canRetreat(game, player))}
-        canUseAbility={Boolean(player.active && previewTarget?.isActive && previewTarget.sideId === "player" && canUseActiveAbility(game, player))}
+        canUseAbility={Boolean(previewTarget?.pokemon && previewTarget.sideId === "player" && canUsePokemonAbility(game, player, previewTarget.pokemon.uid))}
         onAttack={() => {
           if (!player.active) return;
           const attack = getPrimaryAttack(getPokemonCard(player.active));
@@ -463,10 +472,11 @@ export function App() {
           setPreviewTarget(null);
         }}
         onAbility={() => {
-          if (!player.active) return;
-          const ability = getPokemonCard(player.active).ability;
+          if (!previewTarget?.pokemon || previewTarget.sideId !== "player") return;
+          const ability = getPokemonCard(previewTarget.pokemon).ability;
           if (!ability?.moveBenchedEnergyToActive) return;
-          setPendingSelection({ kind: "moveEnergyAbility", energyType: ability.moveBenchedEnergyToActive });
+          const energyTypes = Array.isArray(ability.moveBenchedEnergyToActive) ? ability.moveBenchedEnergyToActive : [ability.moveBenchedEnergyToActive];
+          setPendingSelection({ kind: "moveEnergyAbility", abilityPokemonUid: previewTarget.pokemon.uid, energyTypes });
           setPreviewTarget(null);
         }}
         onClose={closePreview}

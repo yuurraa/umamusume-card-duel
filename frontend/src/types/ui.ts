@@ -8,7 +8,7 @@ export type PendingSelection =
   | { kind: "attackHealTarget" }
   | { kind: "healTarget"; handIndex: number }
   | { kind: "evolveTarget"; handIndex: number }
-  | { kind: "moveEnergyAbility"; energyType: EnergyType }
+  | { kind: "moveEnergyAbility"; abilityPokemonUid: number; energyTypes: EnergyType[] }
   | { kind: "discardForScout"; handIndex: number }
   | { kind: "deckSearch"; handIndex: number; discardHandIndex: number; discardedCardName: string };
 
