@@ -13,7 +13,9 @@ const DECK_TYPE_TO_ENERGY: Record<PokemonType, EnergyType> = {
   Psychic: "psychic",
   Fighting: "fighting",
   Darkness: "darkness",
-  Metal: "metal",
+  Steel: "steel",
+  Colorless: "colorless",
+  Dragon: "dragon",
 };
 
 export function getDeckById(deckId: string): PremadeDeck {
@@ -46,7 +48,7 @@ export function getDeckCoverCard(deck: PremadeDeck) {
 
 export function getDeckEnergyTypes(deck: PremadeDeck): EnergyType[] {
   const types = new Set<EnergyType>();
-  const displayOrder: EnergyType[] = ["grass", "fire", "water", "lightning", "psychic", "fighting", "darkness", "metal"];
+  const displayOrder: EnergyType[] = ["grass", "fire", "water", "lightning", "psychic", "fighting", "darkness", "steel", "colorless", "dragon"];
   deck.cardIds.forEach((cardId) => {
     const card = getCard(cardId);
     if (card.kind === "pokemon") types.add(DECK_TYPE_TO_ENERGY[card.type]);

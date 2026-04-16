@@ -20,7 +20,9 @@ const typeShadowColors: Record<PokemonType, string> = {
   Psychic: "rgba(184, 130, 216, 0.42)",
   Fighting: "rgba(184, 138, 96, 0.42)",
   Darkness: "rgba(68, 80, 99, 0.42)",
-  Metal: "rgba(127, 140, 155, 0.42)",
+  Steel: "rgba(127, 140, 155, 0.42)",
+  Colorless: "rgba(167, 173, 186, 0.42)",
+  Dragon: "rgba(212, 167, 44, 0.42)",
 };
 
 export function UmaCard({ pokemon, onInspect, hidden = false, isSelectable = false }: UmaCardProps) {

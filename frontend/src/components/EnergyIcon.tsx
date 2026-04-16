@@ -27,7 +27,9 @@ const fallbackColors: Record<EnergyType, string> = {
   psychic: "#d6519d",
   fighting: "#b26a4a",
   darkness: "#374151",
-  metal: "#94a3b8",
+  steel: "#94a3b8",
+  colorless: "#a7adba",
+  dragon: "#d4a72c",
 };
 
 const fallbackLabels: Record<EnergyType, string> = {
@@ -38,7 +40,9 @@ const fallbackLabels: Record<EnergyType, string> = {
   psychic: "P",
   fighting: "Fg",
   darkness: "D",
-  metal: "M",
+  steel: "M",
+  colorless: "C",
+  dragon: "Dr",
 };
 
 export function EnergyIcon({ type, size = "md" }: EnergyIconProps) {

@@ -37,7 +37,7 @@ function createSetupPreviewPokemon(cardId: string, uid: number): PokemonInstance
     stage: card.stage,
     hp: card.hp,
     maxHp: card.hp,
-    energies: { grass: 0, fire: 0, water: 0, lightning: 0, psychic: 0, fighting: 0, darkness: 0, metal: 0 },
+    energies: { grass: 0, fire: 0, water: 0, lightning: 0, psychic: 0, fighting: 0, darkness: 0, steel: 0, colorless: 0, dragon: 0 },
     enteredTurn: 0,
     evolvedTurn: null,
     tookDamageLastTurn: false,

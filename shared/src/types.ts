@@ -1,7 +1,7 @@
 export type SideId = "player" | "opponent";
 export type CoinFlipResult = "heads" | "tails";
-export type EnergyType = "grass" | "fire" | "water" | "lightning" | "psychic" | "fighting" | "darkness" | "metal";
-export type PokemonType = "Grass" | "Fire" | "Water" | "Lightning" | "Psychic" | "Fighting" | "Darkness" | "Metal";
+export type EnergyType = "grass" | "fire" | "water" | "lightning" | "psychic" | "fighting" | "darkness" | "steel" | "colorless" | "dragon";
+export type PokemonType = "Grass" | "Fire" | "Water" | "Lightning" | "Psychic" | "Fighting" | "Darkness" | "Steel" | "Colorless" | "Dragon";
 export type EnergyRequirement = EnergyType | "colorless";
 export type EnergyCost = Partial<Record<EnergyRequirement, number>>;
 export type TrainerType = "supporter" | "item" | "stadium";

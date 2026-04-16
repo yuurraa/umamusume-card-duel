@@ -24,7 +24,7 @@ import type {
 
 let nextPokemonId = 1;
 
-const ALL_ENERGY_TYPES: EnergyType[] = ["grass", "fire", "water", "lightning", "psychic", "fighting", "darkness", "metal"];
+const ALL_ENERGY_TYPES: EnergyType[] = ["grass", "fire", "water", "lightning", "psychic", "fighting", "darkness", "steel", "colorless", "dragon"];
 
 const POKEMON_TYPE_TO_ENERGY: Record<PokemonType, EnergyType> = {
   Grass: "grass",
@@ -34,7 +34,9 @@ const POKEMON_TYPE_TO_ENERGY: Record<PokemonType, EnergyType> = {
   Psychic: "psychic",
   Fighting: "fighting",
   Darkness: "darkness",
-  Metal: "metal",
+  Steel: "steel",
+  Colorless: "colorless",
+  Dragon: "dragon",
 };
 
 const ENERGY_LABELS: Record<EnergyType, string> = {
@@ -45,7 +47,9 @@ const ENERGY_LABELS: Record<EnergyType, string> = {
   psychic: "Psychic Energy",
   fighting: "Fighting Energy",
   darkness: "Darkness Energy",
-  metal: "Metal Energy",
+  steel: "Steel Energy",
+  colorless: "Colorless Energy",
+  dragon: "Dragon Energy",
 };
 
 export type PlayChoices = {
@@ -871,7 +875,7 @@ function performAttack(state: GameState, attackerId: SideId, healTargetUid?: num
   }
   if (defenderCard.weakness.type === attackerCard.type) damage += defenderCard.weakness.amount;
 
-  const reduction = Math.min(damage, (defenderCard.ability?.damageReduction ?? 0) + defender.active.nextTurnDamageReduction);
+  const reduction = Math.min(damage, attackDamageReductionFor(defender.active));
   damage = Math.max(0, damage - reduction);
   defender.active.hp = Math.max(0, defender.active.hp - damage);
   if (damage > 0) defender.active.tookDamageThisTurn = true;
@@ -910,6 +914,10 @@ function performAttack(state: GameState, attackerId: SideId, healTargetUid?: num
   log(state, `${actorName(attacker)} attacked with ${formatPokemonCardName(attackerCard)}'s ${attack.name} for ${damage} damage.`);
 
   resolveKnockout(state, attackerId, defenderId);
+}
+
+function attackDamageReductionFor(pokemon: PokemonInstance): number {
+  return (getPokemonCard(pokemon).ability?.damageReduction ?? 0) + pokemon.nextTurnDamageReduction;
 }
 
 function resolveKnockout(state: GameState, attackerId: SideId, defenderId: SideId): void {

@@ -9,7 +9,7 @@ type DragPayload =
   | { kind: "active-retreat"; pokemonUid: number };
 
 const TEXT_PREFIX = "umaduel:";
-const ENERGY_TYPES: EnergyType[] = ["grass", "fire", "water", "lightning", "psychic", "fighting", "darkness", "metal"];
+const ENERGY_TYPES: EnergyType[] = ["grass", "fire", "water", "lightning", "psychic", "fighting", "darkness", "steel", "colorless", "dragon"];
 
 function encodeDragPayload(payload: DragPayload): string {
   switch (payload.kind) {

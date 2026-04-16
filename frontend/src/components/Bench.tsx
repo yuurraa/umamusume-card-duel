@@ -38,7 +38,9 @@ const benchTypeColors: Record<PokemonType, string> = {
   Psychic: "#b882d8",
   Fighting: "#b88a60",
   Darkness: "#445063",
-  Metal: "#7f8c9b",
+  Steel: "#7f8c9b",
+  Colorless: "#a7adba",
+  Dragon: "#d4a72c",
 };
 
 const slotStyle: CSSProperties = {
