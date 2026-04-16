@@ -148,7 +148,7 @@ export function playHandCard(state: GameState, handIndex: number, choices: PlayC
   if (!play.canPlay) return next;
   if (play.type === "evolve" && card.kind === "pokemon" && choices.pokemonTargetUid !== undefined) {
     const chosenTarget = findOwnPokemonByUid(side, choices.pokemonTargetUid);
-    if (!chosenTarget || !isValidEvolutionTarget(next, chosenTarget, card)) return next;
+    if (!chosenTarget || !isValidEvolutionTarget(next, side, chosenTarget, card)) return next;
   }
   side.hand.splice(handIndex, 1);
   resolveCardPlay(next, side, card, play, adjustHandChoices(choices, handIndex));
@@ -387,7 +387,7 @@ function pluralize(amount: number, singular: string, plural = `${singular}s`): s
 }
 
 export function getEvolutionTargets(state: GameState, side: SideState, evolutionCard: PokemonCard): PokemonInstance[] {
-  return [side.active, ...side.bench].filter((pokemon): pokemon is PokemonInstance => Boolean(pokemon)).filter((pokemon) => isValidEvolutionTarget(state, pokemon, evolutionCard));
+  return [side.active, ...side.bench].filter((pokemon): pokemon is PokemonInstance => Boolean(pokemon)).filter((pokemon) => isValidEvolutionTarget(state, side, pokemon, evolutionCard));
 }
 
 export function getAllPokemon(side: SideState): PokemonInstance[] {
@@ -552,7 +552,7 @@ function makeSide(id: SideId, title: string, deck: string[], energyPool: EnergyT
     energyAttachmentsThisTurn: 0,
     bonusEnergyAttachments: 0,
     retreatCostReduction: 0,
-    attackDamageBonus: 0,
+    activeAttackDamageBonus: 0,
     usedSupporterThisTurn: false,
     usedRetreatThisTurn: false,
     usedAbilityNamesThisTurn: [],
@@ -599,7 +599,7 @@ function startTurn(state: GameState, sideId: SideId, skipDraw = false): void {
   side.energyAttachmentsThisTurn = 0;
   side.bonusEnergyAttachments = 0;
   side.retreatCostReduction = 0;
-  side.attackDamageBonus = 0;
+  side.activeAttackDamageBonus = 0;
   side.usedSupporterThisTurn = false;
   side.usedRetreatThisTurn = false;
   side.usedAbilityNamesThisTurn = [];
@@ -661,7 +661,7 @@ function resolveCardPlay(state: GameState, side: SideState, card: Card, play: Pl
     log(state, `${actorName(side)} benched ${formatPokemonCardName(card)}.`);
   } else if (play.type === "evolve" && card.kind === "pokemon") {
     const chosenTarget = choices.pokemonTargetUid !== undefined ? findOwnPokemonByUid(side, choices.pokemonTargetUid) : undefined;
-    if (choices.pokemonTargetUid !== undefined && (!chosenTarget || !isValidEvolutionTarget(state, chosenTarget, card))) return;
+    if (choices.pokemonTargetUid !== undefined && (!chosenTarget || !isValidEvolutionTarget(state, side, chosenTarget, card))) return;
     const target = chosenTarget ?? play.target;
     evolvePokemon(state, side, target, card);
   } else if (play.type === "trainer" && card.kind === "trainer") {
@@ -691,12 +691,18 @@ function findEvolutionTarget(state: GameState, side: SideState, evolutionCard: P
   return getEvolutionTargets(state, side, evolutionCard)[0];
 }
 
-function isValidEvolutionTarget(state: GameState, pokemon: PokemonInstance, evolutionCard: PokemonCard): boolean {
+function isValidEvolutionTarget(state: GameState, side: SideState, pokemon: PokemonInstance, evolutionCard: PokemonCard): boolean {
+  if (isSideFirstTurn(state, side.id)) return false;
   if (pokemon.species !== evolutionCard.evolvesFrom) return false;
   if (pokemon.stage !== evolutionCard.stage - 1) return false;
   if (pokemon.enteredTurn === state.turnNumber) return false;
   if (pokemon.evolvedTurn === state.turnNumber) return false;
   return true;
+}
+
+function isSideFirstTurn(state: GameState, sideId: SideId): boolean {
+  if (sideId === state.firstPlayer) return state.turnNumber === 1;
+  return state.firstPlayer === "player" ? state.turnNumber === 1 : state.turnNumber === 2;
 }
 
 function evolvePokemon(state: GameState, side: SideState, pokemon: PokemonInstance, evolutionCard: PokemonCard): void {
@@ -706,7 +712,7 @@ function evolvePokemon(state: GameState, side: SideState, pokemon: PokemonInstan
   pokemon.species = evolutionCard.species;
   pokemon.stage = evolutionCard.stage;
   pokemon.maxHp = evolutionCard.hp;
-  pokemon.hp = Math.max(10, evolutionCard.hp - damage);
+  pokemon.hp = evolutionCard.hp - damage;
   pokemon.evolvedTurn = state.turnNumber;
   pokemon.enteredTurn = Math.min(pokemon.enteredTurn, state.turnNumber - 1);
   log(state, `${actorName(side)} evolved ${previousName} into ${formatPokemonCardName(evolutionCard)}.`);
@@ -721,7 +727,7 @@ function applyTrainer(
 ): void {
   if (trainer.effect.discardOtherCard) discardOtherCardForScout(state, side, choices.discardHandIndex);
   if (trainer.effect.retreatCostReduction) side.retreatCostReduction += trainer.effect.retreatCostReduction;
-  if (trainer.effect.attackDamageBonus) side.attackDamageBonus += trainer.effect.attackDamageBonus;
+  if (trainer.effect.activeAttackDamageBonus) side.activeAttackDamageBonus += trainer.effect.activeAttackDamageBonus;
   if (trainer.effect.extraEnergyAttach) {
     side.bonusEnergyAttachments += trainer.effect.extraEnergyAttach;
     for (let count = 0; count < trainer.effect.extraEnergyAttach; count += 1) {
@@ -859,7 +865,7 @@ function performAttack(state: GameState, attackerId: SideId, healTargetUid?: num
   const attackerCard = getPokemonCard(attacker.active);
   const attack = getPrimaryAttack(attackerCard);
   const defenderCard = getPokemonCard(defender.active);
-  let damage = attack.damage + attacker.attackDamageBonus;
+  let damage = attack.damage + attacker.activeAttackDamageBonus;
 
   if (attack.bonusIfTookDamageLastTurn && attacker.active.tookDamageLastTurn) {
     damage += attack.bonusIfTookDamageLastTurn;
@@ -921,14 +927,24 @@ function attackDamageReductionFor(pokemon: PokemonInstance): number {
 }
 
 function resolveKnockout(state: GameState, attackerId: SideId, defenderId: SideId): void {
-  const attacker = state.sides[attackerId];
   const defender = state.sides[defenderId];
   if (!defender.active) return;
   if (defender.active.hp > 0) return;
 
-  const knockedOut = defender.active;
+  if (!knockOutPokemon(state, attackerId, defenderId, defender.active)) return;
+  if (!state.gameOver) refreshContinuousEffects(state);
+}
+
+function knockOutPokemon(state: GameState, scoringSideId: SideId, knockedSideId: SideId, knockedOut: PokemonInstance): boolean {
+  const attacker = state.sides[scoringSideId];
+  const defender = state.sides[knockedSideId];
+  const activeKnockout = defender.active?.uid === knockedOut.uid;
+  const benchIndex = defender.bench.findIndex((pokemon) => pokemon.uid === knockedOut.uid);
+  if (!activeKnockout && benchIndex < 0) return false;
+
   const knockedCard = getPokemonCard(knockedOut);
-  defender.active = null;
+  if (activeKnockout) defender.active = null;
+  if (benchIndex >= 0) defender.bench.splice(benchIndex, 1);
   defender.bench = defender.bench.filter((pokemon) => pokemon.uid !== knockedOut.uid);
   defender.discard.push(knockedOut.cardId);
   attacker.points += 1;
@@ -936,36 +952,37 @@ function resolveKnockout(state: GameState, attackerId: SideId, defenderId: SideI
 
   if (attacker.points >= MAX_POINTS) {
     state.gameOver = true;
-    state.winner = attackerId;
+    state.winner = scoringSideId;
     state.currentSide = "done";
     log(state, `${actorName(attacker)} reached 3 points and won.`);
-    return;
+    return true;
   }
 
-  if (defender.bench.length === 0) {
+  if (!defender.active && defender.bench.length === 0) {
     state.gameOver = true;
-    state.winner = attackerId;
+    state.winner = scoringSideId;
     state.currentSide = "done";
     log(state, `${actorName(defender)} had no benched Umamusume. ${actorName(attacker)} won.`);
-    return;
+    return true;
   }
 
-  if (defenderId === "player") {
+  if (!activeKnockout) return true;
+
+  if (knockedSideId === "player") {
     state.pendingPlayerChoice = {
       kind: "promoteAfterKnockout",
-      resume: attackerId === "opponent" ? "finishOpponentTurn" : "none",
+      resume: state.currentSide === "opponent" ? "finishOpponentTurn" : "none",
     };
-    refreshContinuousEffects(state);
     log(state, "Choose your next active Umamusume.");
-    return;
+    return true;
   }
 
   const promotedIndex = choosePreferredActiveIndex(defender);
   const promoted = promotedIndex >= 0 ? defender.bench.splice(promotedIndex, 1)[0] : defender.bench.shift();
-  if (!promoted) return;
+  if (!promoted) return true;
   defender.active = promoted;
-  refreshContinuousEffects(state);
   log(state, `${actorName(defender)} promoted ${formatPokemonInstanceName(promoted)}.`);
+  return true;
 }
 
 function endTurn(state: GameState): void {
@@ -1049,7 +1066,7 @@ function shouldAiPlayTrainer(state: GameState, side: SideState, card: Card): boo
   if (card.kind !== "trainer") return false;
   if (!getPlayableAction(state, side, card.id).canPlay) return false;
   if (card.effect.gustOpponent) return getOpposingSide(state, side.id).bench.length > 0;
-  if (card.effect.attackDamageBonus) return true;
+  if (card.effect.activeAttackDamageBonus) return true;
   if (card.effect.extraEnergyAttach) return true;
   if (card.effect.retreatCostReduction) {
     const active = side.active;
@@ -1067,10 +1084,31 @@ function getOpposingSide(state: GameState, sideId: SideId): SideState {
 }
 
 function refreshContinuousEffects(state: GameState): void {
+  refreshContinuousHp(state);
+  resolveContinuousKnockouts(state);
+}
+
+function refreshContinuousHp(state: GameState): void {
   normalizeBoardState(state);
   const basicHpBonus = getStadiumBasicHpBonus(state);
   refreshSideContinuousEffects(state.sides.player, basicHpBonus);
   refreshSideContinuousEffects(state.sides.opponent, basicHpBonus);
+}
+
+function resolveContinuousKnockouts(state: GameState): void {
+  let resolvedKnockout = true;
+  while (resolvedKnockout && !state.gameOver) {
+    resolvedKnockout = false;
+    for (const sideId of ["player", "opponent"] as const) {
+      const side = state.sides[sideId];
+      const knockedOut = getAllPokemon(side).find((pokemon) => pokemon.hp <= 0);
+      if (!knockedOut) continue;
+      const scoringSideId: SideId = sideId === "player" ? "opponent" : "player";
+      resolvedKnockout = knockOutPokemon(state, scoringSideId, sideId, knockedOut);
+      if (resolvedKnockout) refreshContinuousHp(state);
+      break;
+    }
+  }
 }
 
 function normalizeBoardState(state: GameState): void {

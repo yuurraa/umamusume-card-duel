@@ -3,7 +3,7 @@ import type { GameState } from "../../../shared/src/types";
 import { NeutralButton } from "../components/NeutralButton";
 import { neutralButtonStyle, overlayBackdropStyle, overlaySurfaceStyle, previewKickerStyle } from "../styles/shared";
 
-export function GameOverModal({ game, onPlayAgain }: { game: GameState; onPlayAgain: () => void }) {
+export function GameOverModal({ game, onPlayAgain, onMainMenu }: { game: GameState; onPlayAgain: () => void; onMainMenu: () => void }) {
   const playerWon = game.winner === "player";
   const title = playerWon ? "You Win" : "Opponent Wins";
   const latest = game.log[0] ?? (playerWon ? "First to three points." : "The duel is over.");
@@ -19,6 +19,7 @@ export function GameOverModal({ game, onPlayAgain }: { game: GameState; onPlayAg
           <ScoreSummary label="Opponent" points={game.sides.opponent.points} accent="#26312d" />
         </div>
         <NeutralButton style={gameOverButtonStyle} onClick={onPlayAgain}>Play Again</NeutralButton>
+        <NeutralButton style={gameOverSecondaryButtonStyle} onClick={onMainMenu}>Main Menu</NeutralButton>
       </section>
     </div>
   );
@@ -92,5 +93,12 @@ const gameOverButtonStyle: CSSProperties = {
   ...neutralButtonStyle(true, false),
   width: "100%",
   marginTop: 18,
+  fontWeight: 950,
+};
+
+const gameOverSecondaryButtonStyle: CSSProperties = {
+  ...neutralButtonStyle(true, false),
+  width: "100%",
+  marginTop: 10,
   fontWeight: 950,
 };

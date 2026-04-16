@@ -135,6 +135,14 @@ export function App() {
     setScreen("match");
   };
 
+  const returnToMainMenu = () => {
+    setPendingSelection(null);
+    setPreviewTarget(null);
+    setActionNotice(null);
+    setMenuOpen(false);
+    setScreen("mainMenu");
+  };
+
   const quitApp = () => {
     window.close();
     window.setTimeout(() => {
@@ -510,7 +518,7 @@ export function App() {
         }}
       />
       {actionNotice && <ActionNotice notice={actionNotice} onClose={() => setActionNotice(null)} />}
-      {game.gameOver && <GameOverModal game={game} onPlayAgain={startNewGame} />}
+      {game.gameOver && <GameOverModal game={game} onPlayAgain={startNewGame} onMainMenu={returnToMainMenu} />}
     </main>
   );
 }

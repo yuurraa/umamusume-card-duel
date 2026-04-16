@@ -280,7 +280,7 @@ export const cards: Record<string, Card> = {
     label: "Trainer - Supporter",
     image: "/assets/trainer/supporter/aoi-kiryuin.png",
     text: "During this turn, attacks used by your Active Umamusume do +10 damage to your opponent's Active Umamusume.",
-    effect: { attackDamageBonus: 10 },
+    effect: { activeAttackDamageBonus: 10 },
   },
   teamCanopus: {
     id: "teamCanopus",

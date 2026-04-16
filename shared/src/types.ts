@@ -70,7 +70,7 @@ export type TrainerCard = {
     revealSearchedCard?: boolean;
     retreatCostReduction?: number;
     gustOpponent?: boolean;
-    attackDamageBonus?: number;
+    activeAttackDamageBonus?: number;
     extraEnergyAttach?: number;
     globalRetreatCostReduction?: number;
     basicHpBonus?: number;
@@ -119,7 +119,7 @@ export type SideState = {
   energyAttachmentsThisTurn: number;
   bonusEnergyAttachments: number;
   retreatCostReduction: number;
-  attackDamageBonus: number;
+  activeAttackDamageBonus: number;
   usedSupporterThisTurn: boolean;
   usedRetreatThisTurn: boolean;
   usedAbilityNamesThisTurn: string[];
