@@ -2,8 +2,8 @@ import { type CSSProperties, useState } from "react";
 import type { EnergyType } from "../../../shared/src/types";
 import { energyLabel } from "../game/engine";
 import { getDeckCoverCard, getDeckEnergyTypes } from "../utils/deck";
-import { NeutralButton } from "../components/NeutralButton";
-import { EnergyIcon } from "../components/EnergyIcon";
+import { NeutralButton } from "../components/buttons/NeutralButton";
+import { EnergyIcon } from "../components/cards/EnergyIcon";
 import type { PremadeDeck } from "../types/ui";
 
 export function DeckBrowserScreen({

@@ -1,11 +1,11 @@
 import { defaultPlayerDeckId, premadeDecks } from "../../../shared/src/gameData";
 import { getCard } from "../game/engine";
-import type { EnergyType, PokemonType } from "../../../shared/src/types";
+import type { EnergyType, UmamusumeType } from "../../../shared/src/types";
 import type { PremadeDeck } from "../types/ui";
 
 const EQUIPPED_DECK_STORAGE_KEY = "umamusume-tcg-pocket-equipped-deck";
 
-const DECK_TYPE_TO_ENERGY: Record<PokemonType, EnergyType> = {
+const DECK_TYPE_TO_ENERGY: Record<UmamusumeType, EnergyType> = {
   Grass: "grass",
   Fire: "fire",
   Water: "water",
@@ -42,7 +42,7 @@ export function pickRandomOpponentDeck(): PremadeDeck {
 
 export function getDeckCoverCard(deck: PremadeDeck) {
   const card = getCard(deck.coverCardId);
-  if (card.kind !== "pokemon") throw new Error(`Deck cover card must be a pokemon: ${deck.coverCardId}`);
+  if (card.kind !== "umamusume") throw new Error(`Deck cover card must be a umamusume: ${deck.coverCardId}`);
   return card;
 }
 
@@ -51,7 +51,7 @@ export function getDeckEnergyTypes(deck: PremadeDeck): EnergyType[] {
   const displayOrder: EnergyType[] = ["grass", "fire", "water", "lightning", "psychic", "fighting", "darkness", "steel", "colorless", "dragon"];
   deck.cardIds.forEach((cardId) => {
     const card = getCard(cardId);
-    if (card.kind === "pokemon") types.add(DECK_TYPE_TO_ENERGY[card.type]);
+    if (card.kind === "umamusume") types.add(DECK_TYPE_TO_ENERGY[card.type]);
   });
   return displayOrder.filter((type) => types.has(type));
 }

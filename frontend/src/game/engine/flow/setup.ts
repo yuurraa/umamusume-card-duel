@@ -1,0 +1,101 @@
+import { MAX_BENCH, OPENING_HAND, cards } from "../../../../../shared/src/gameData";
+import type { EnergyType, SideId, SideState, UmamusumeInstance } from "../../../../../shared/src/types";
+import { ALL_ENERGY_TYPES, UMAMUSUME_TYPE_TO_ENERGY } from "../core/constants";
+import { getCard, isBasicUmamusumeInDeck } from "../core/catalog";
+import { shuffle } from "../core/random";
+
+let nextUmamusumeId = 1;
+
+export function resetUmamusumeIdCounter(): void {
+  nextUmamusumeId = 1;
+}
+
+export function createUmamusume(cardId: string, turnNumber: number): UmamusumeInstance {
+  const card = getCard(cardId);
+  if (card.kind !== "umamusume") throw new Error(`Expected Umamusume card: ${cardId}`);
+  return {
+    uid: nextUmamusumeId++,
+    cardId,
+    species: card.species,
+    stage: card.stage,
+    hp: card.hp,
+    maxHp: card.hp,
+    energies: createEmptyEnergyRecord(),
+    enteredTurn: turnNumber,
+    evolvedTurn: null,
+    tookDamageLastTurn: false,
+    tookDamageThisTurn: false,
+    nextTurnDamageReduction: 0,
+    usedAbilityThisTurn: false,
+  };
+}
+
+export function buildOpeningSide(id: SideId, title: string, deckList: string[], autoSetupActive: boolean): SideState {
+  const { deck, hand } = drawOpeningHand(deckList);
+  const side = makeSide(id, title, deck, getDeckEnergyPool(deckList));
+  side.hand = hand;
+
+  if (autoSetupActive) {
+    const basicIndexes = hand
+      .map((cardId, index) => ({ cardId, index }))
+      .filter(({ cardId }) => isBasicUmamusumeInDeck(cardId))
+      .slice(0, MAX_BENCH + 1);
+    const activeEntry = basicIndexes[0];
+    if (activeEntry) {
+      side.active = createUmamusume(activeEntry.cardId, 0);
+      const benchEntries = basicIndexes.slice(1);
+      side.bench = benchEntries.map(({ cardId }) => createUmamusume(cardId, 0));
+      const taken = new Set(basicIndexes.map(({ index }) => index));
+      side.hand = side.hand.filter((_, index) => !taken.has(index));
+    }
+  }
+
+  return side;
+}
+
+function createEmptyEnergyRecord(): Record<EnergyType, number> {
+  return ALL_ENERGY_TYPES.reduce<Record<EnergyType, number>>((energies, type) => {
+    energies[type] = 0;
+    return energies;
+  }, {} as Record<EnergyType, number>);
+}
+
+function getDeckEnergyPool(deckList: string[]): EnergyType[] {
+  const pool = new Set<EnergyType>();
+  deckList.forEach((cardId) => {
+    const card = cards[cardId];
+    if (!card || card.kind !== "umamusume") return;
+    pool.add(UMAMUSUME_TYPE_TO_ENERGY[card.type]);
+  });
+  return pool.size > 0 ? [...pool] : ["psychic"];
+}
+
+function drawOpeningHand(deckList: string[]): { deck: string[]; hand: string[] } {
+  while (true) {
+    const deck = shuffle(deckList);
+    const hand = deck.splice(0, OPENING_HAND);
+    if (hand.some(isBasicUmamusumeInDeck)) return { deck, hand };
+  }
+}
+
+function makeSide(id: SideId, title: string, deck: string[], energyPool: EnergyType[]): SideState {
+  return {
+    id,
+    title,
+    energyPool,
+    deck,
+    discard: [],
+    hand: [],
+    active: null,
+    bench: [],
+    points: 0,
+    energyZone: [],
+    energyAttachmentsThisTurn: 0,
+    bonusEnergyAttachments: 0,
+    retreatCostReduction: 0,
+    activeAttackDamageBonus: 0,
+    usedSupporterThisTurn: false,
+    usedRetreatThisTurn: false,
+    usedAbilityNamesThisTurn: [],
+  };
+}

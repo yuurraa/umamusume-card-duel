@@ -8,7 +8,7 @@ export function formatNameList(names: string[]): string {
 }
 
 export function formatCardDisplayName(card: Card): string {
-  if (card.kind !== "pokemon") return card.name;
+  if (card.kind !== "umamusume") return card.name;
   const stageLabel = card.stage === 0 ? "Basic" : card.stage === 1 ? "Stage 1" : "Stage 2";
   return `${card.name} (${stageLabel})`;
 }

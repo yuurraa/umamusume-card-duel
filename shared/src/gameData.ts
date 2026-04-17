@@ -23,7 +23,7 @@ export const cards: Record<string, Card> = {
   matikanetannhauserBasic: {
     id: "matikanetannhauserBasic",
     owner: "player",
-    kind: "pokemon",
+    kind: "umamusume",
     name: "Matikanetannhauser",
     label: "Umamusume - Psychic - Basic",
     species: "Matikanetannhauser",
@@ -38,7 +38,7 @@ export const cards: Record<string, Card> = {
   matikanetannhauserStage1: {
     id: "matikanetannhauserStage1",
     owner: "player",
-    kind: "pokemon",
+    kind: "umamusume",
     name: "Matikanetannhauser",
     label: "Umamusume - Psychic - Stage 1",
     species: "Matikanetannhauser",
@@ -54,7 +54,7 @@ export const cards: Record<string, Card> = {
   matikanetannhauserStage2: {
     id: "matikanetannhauserStage2",
     owner: "player",
-    kind: "pokemon",
+    kind: "umamusume",
     name: "Matikanetannhauser",
     label: "Umamusume - Psychic - Stage 2",
     species: "Matikanetannhauser",
@@ -71,7 +71,7 @@ export const cards: Record<string, Card> = {
   niceNatureBasic: {
     id: "niceNatureBasic",
     owner: "player",
-    kind: "pokemon",
+    kind: "umamusume",
     name: "Nice Nature",
     label: "Umamusume - Grass - Basic",
     species: "Nice Nature",
@@ -87,7 +87,7 @@ export const cards: Record<string, Card> = {
   nishinoFlowerBasic: {
     id: "nishinoFlowerBasic",
     owner: "player",
-    kind: "pokemon",
+    kind: "umamusume",
     name: "Nishino Flower",
     label: "Umamusume - Grass - Basic",
     species: "Nishino Flower",
@@ -97,12 +97,12 @@ export const cards: Record<string, Card> = {
     portrait: "/assets/umamusume/nishino-flower-basic.png",
     weakness: { type: "Fire", amount: WEAKNESS_BONUS },
     retreat: "Colorless",
-    attacks: [{ name: "Budding Blossom", cost: { grass: 1 }, damage: 20, heal: 10, healTarget: "any", text: "Heal 10 damage from one of your Umamusume." }],
+    attacks: [{ name: "Budding Blossom", cost: { grass: 1 }, damage: 20, heal: 10, healTarget: "any", text: "Heal 10 damage from 1 of your Umamusume." }],
   },
   mihonoBourbonBasic: {
     id: "mihonoBourbonBasic",
     owner: "player",
-    kind: "pokemon",
+    kind: "umamusume",
     name: "Mihono Bourbon",
     label: "Umamusume - Steel - Basic",
     species: "Mihono Bourbon",
@@ -118,7 +118,7 @@ export const cards: Record<string, Card> = {
   mihonoBourbonStage1: {
     id: "mihonoBourbonStage1",
     owner: "player",
-    kind: "pokemon",
+    kind: "umamusume",
     name: "Mihono Bourbon",
     label: "Umamusume - Steel - Stage 1",
     species: "Mihono Bourbon",
@@ -135,7 +135,7 @@ export const cards: Record<string, Card> = {
   mihonoBourbonStage2: {
     id: "mihonoBourbonStage2",
     owner: "player",
-    kind: "pokemon",
+    kind: "umamusume",
     name: "Mihono Bourbon",
     label: "Umamusume - Steel - Stage 2",
     species: "Mihono Bourbon",
@@ -152,7 +152,7 @@ export const cards: Record<string, Card> = {
   haruUraraBasic: {
     id: "haruUraraBasic",
     owner: "player",
-    kind: "pokemon",
+    kind: "umamusume",
     name: "Haru Urara",
     label: "Umamusume - Psychic - Basic",
     species: "Haru Urara",
@@ -162,13 +162,13 @@ export const cards: Record<string, Card> = {
     portrait: "/assets/umamusume/haru-urara-basic.png",
     weakness: { type: "Darkness", amount: WEAKNESS_BONUS },
     retreat: "Colorless x3",
-    ability: { name: "Super-Duper Stoked", text: "Once during your turn, you may move a Psychic or Darkness Energy from one of your Benched Umamusume to your Active Umamusume. You cannot use more than 1 Super-Duper Stoked Ability during your turn.", moveBenchedEnergyToActive: ["psychic", "darkness"] },
+    ability: { name: "Super-Duper Stoked", text: "Once during your turn, you may move 1 Psychic or Darkness Energy from 1 of your Benched Umamusume to your Active Umamusume. You cannot use more than 1 Super-Duper Stoked Ability during your turn.", moveBenchedEnergyToActive: ["psychic", "darkness"] },
     attacks: [{ name: "Never Give Up!", cost: { colorless: 1 }, damage: 10, damagePerAttachedEnergy: { types: ["psychic", "darkness"], amount: 10 }, text: "For every Psychic or Darkness Energy attached to this Umamusume, this attack does +10 damage." }],
   },
   riceShowerBasic: {
     id: "riceShowerBasic",
     owner: "opponent",
-    kind: "pokemon",
+    kind: "umamusume",
     name: "Rice Shower",
     label: "Umamusume - Dark - Basic",
     species: "Rice Shower",
@@ -183,7 +183,7 @@ export const cards: Record<string, Card> = {
   riceShowerStage1: {
     id: "riceShowerStage1",
     owner: "opponent",
-    kind: "pokemon",
+    kind: "umamusume",
     name: "Rice Shower",
     label: "Umamusume - Dark - Stage 1",
     species: "Rice Shower",
@@ -199,7 +199,7 @@ export const cards: Record<string, Card> = {
   riceShowerStage2: {
     id: "riceShowerStage2",
     owner: "opponent",
-    kind: "pokemon",
+    kind: "umamusume",
     name: "Rice Shower",
     label: "Umamusume - Dark - Stage 2",
     species: "Rice Shower",
@@ -229,7 +229,7 @@ export const cards: Record<string, Card> = {
     name: "Carrot Hamburger Steak",
     label: "Trainer - Item",
     image: "/assets/trainer/item/carrot-hamburger-steak.png",
-    text: "Heal 20 damage from one of your Umamusume.",
+    text: "Heal 20 damage from 1 of your Umamusume.",
     effect: { heal: 20, healTarget: "any" },
   },
   carrotJelly: {
@@ -250,7 +250,7 @@ export const cards: Record<string, Card> = {
     label: "Trainer - Item",
     image: "/assets/trainer/item/3★-make-debut-scout.png",
     text: "You can use this card only if you discard 1 other card from your hand. Search your deck for an Umamusume and put her into your hand.",
-    effect: { discardOtherCard: true, searchPokemon: true },
+    effect: { discardOtherCard: true, searchUmamusume: true },
   },
   traineeScoutTicket: {
     id: "traineeScoutTicket",
@@ -260,7 +260,7 @@ export const cards: Record<string, Card> = {
     label: "Trainer - Item",
     image: "/assets/trainer/item/trainee-scout-ticket.png",
     text: "Put 1 random Basic Umamusume from your deck into your hand.",
-    effect: { searchRandomBasicPokemon: true },
+    effect: { searchRandomBasicUmamusume: true },
   },
   yayoiAkikawa: {
     id: "yayoiAkikawa",
@@ -289,8 +289,8 @@ export const cards: Record<string, Card> = {
     name: "Team Canopus",
     label: "Trainer - Supporter",
     image: "/assets/trainer/supporter/team-canopus.png",
-    text: "You may attach one extra Energy to your Active Umamusume this turn.",
-    effect: { extraEnergyAttach: 1 },
+    text: "You may attach 1 Energy from your Energy Zone to 1 of your Benched Umamusume.",
+    effect: { attachEnergyFromZoneToBench: 1 },
   },
   nakayamaTurf: {
     id: "nakayamaTurf",

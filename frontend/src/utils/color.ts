@@ -1,7 +1,7 @@
-import type { Card, PokemonType } from "../../../shared/src/types";
+import type { Card, UmamusumeType } from "../../../shared/src/types";
 import type { PreviewTone } from "../types/ui";
 
-export const typeAccentColors: Record<PokemonType, string> = {
+export const typeAccentColors: Record<UmamusumeType, string> = {
   Grass: "#7bc03e",
   Fire: "#e8885a",
   Water: "#5aa8e8",
@@ -19,7 +19,7 @@ export const neutralPreviewTone: PreviewTone = {
 };
 
 export function getPreviewTone(card: Card): PreviewTone {
-  if (card.kind !== "pokemon") return neutralPreviewTone;
+  if (card.kind !== "umamusume") return neutralPreviewTone;
   return { accent: typeAccentColors[card.type] };
 }
 

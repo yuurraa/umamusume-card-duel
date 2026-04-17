@@ -1,14 +1,19 @@
 import type { EnergyType } from "../../../shared/src/types";
 import type { premadeDecks } from "../../../shared/src/gameData";
 
+export type EnergyCountMap = Partial<Record<EnergyType, number>>;
+
 export type PendingSelection =
   | { kind: "attachEnergy" }
-  | { kind: "retreatTarget" }
+  | { kind: "zoneBenchAttachTarget"; handIndex: number }
+  | { kind: "retreatDiscard"; retreatCost: number; availableEnergyCounts: EnergyCountMap; selectedEnergyCounts: EnergyCountMap }
+  | { kind: "retreatTarget"; discardEnergyTypes: EnergyType[] }
   | { kind: "replaceActive" }
+  | { kind: "forceSwitchActive" }
   | { kind: "attackHealTarget" }
   | { kind: "healTarget"; handIndex: number }
   | { kind: "evolveTarget"; handIndex: number }
-  | { kind: "moveEnergyAbility"; abilityPokemonUid: number; energyTypes: EnergyType[] }
+  | { kind: "moveEnergyAbility"; abilityUmamusumeUid: number; energyTypes: EnergyType[] }
   | { kind: "discardForScout"; handIndex: number }
   | { kind: "deckSearch"; handIndex: number; discardHandIndex: number; discardedCardName: string };
 

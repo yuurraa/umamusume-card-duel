@@ -1,22 +1,23 @@
 import { type CSSProperties, useEffect, useRef, useState } from "react";
 import { MAX_BENCH, premadeDecks } from "../../shared/src/gameData";
-import { Hand } from "./components/Hand";
-import { SideBoard } from "./components/SideBoard";
+import { Hand } from "./components/boards/Hand";
+import { SideBoard } from "./components/boards/SideBoard";
 import {
   advanceOpponentTurnStep,
   attachPlayerEnergy,
   canAttack,
   canAttachEnergy,
   canRetreat,
-  canUsePokemonAbility,
+  canUseUmamusumeAbility,
   completePregameSetup,
   createGame,
-  getAllPokemon,
+  getAllUmamusume,
   getCard,
-  getDamagedPokemon,
+  getDamagedUmamusume,
+  getDisplayedRetreatCost,
   getEvolutionTargets,
   getPrimaryAttack,
-  getPokemonCard,
+  getUmamusumeCard,
   getPlayableAction,
   playerAttack,
   playerEndTurn,
@@ -26,29 +27,28 @@ import {
   resolvePendingPlayerChoice,
   usePlayerAbility,
 } from "./game/engine";
-import type { EnergyType, GameState, PokemonInstance } from "../../shared/src/types";
+import type { EnergyType, GameState, UmamusumeInstance } from "../../shared/src/types";
 import type { InspectTarget } from "./inspect";
 import type { ActionNoticeSource, AppScreen, PendingSelection } from "./types/ui";
 import { getDeckById, readEquippedDeckId, writeEquippedDeckId, pickRandomOpponentDeck } from "./utils/deck";
 import {
   createSetupPreviewSide,
   createSetupHiddenOpponentSide,
-  getSelectablePokemonUids,
+  getSelectableUmamusumeUids,
   getOpponentStepDelay,
   getOpponentBannerMessage,
-  getOpponentAttackNotice,
   getActionNotice,
-} from "./match/helpers";
-import { CardPreview } from "./match/CardPreview";
-import { PlayDropZone } from "./match/PlayDropZone";
-import { StadiumSlot } from "./match/StadiumSlot";
-import { PlayHandHeader } from "./match/HandControls";
-import { PregameSetupPanel } from "./match/PregameSetupPanel";
-import { GameOverModal } from "./match/GameOverModal";
-import { ChoiceModal } from "./match/ChoiceModal";
-import { SelectionPrompt } from "./match/SelectionPrompt";
-import { OpponentActionBanner } from "./match/OpponentActionBanner";
-import { ActionNotice } from "./match/ActionNotice";
+} from "./match/utils/helpers";
+import { CardPreview } from "./match/modals/CardPreview";
+import { PlayDropZone } from "./match/board/PlayDropZone";
+import { StadiumSlot } from "./match/board/StadiumSlot";
+import { PlayHandHeader } from "./match/controls/HandControls";
+import { PregameSetupPanel } from "./match/setup/PregameSetupPanel";
+import { GameOverModal } from "./match/modals/GameOverModal";
+import { ChoiceModal } from "./match/modals/ChoiceModal";
+import { SelectionPrompt } from "./match/controls/SelectionPrompt";
+import { OpponentActionBanner } from "./match/feedback/OpponentActionBanner";
+import { ActionNotice } from "./match/feedback/ActionNotice";
 import { MainMenuScreen } from "./screens/MainMenuScreen";
 import { DeckBrowserScreen } from "./screens/DeckBrowserScreen";
 
@@ -66,12 +66,14 @@ export function App() {
   const [setupActiveIndex, setSetupActiveIndex] = useState<number | null>(null);
   const [setupBenchIndexes, setSetupBenchIndexes] = useState<number[]>([]);
   const [menuOpen, setMenuOpen] = useState(false);
-  const previousSideRef = useRef<GameState["currentSide"] | null>(null);
+  const previousLogRef = useRef<string[]>(game.log);
   const equippedDeck = getDeckById(equippedDeckId);
   const player = game.sides.player;
   const nextPlayerEnergy = player.energyZone[0] ?? null;
-  const activePendingSelection = game.pendingPlayerChoice ? ({ kind: "replaceActive" } as PendingSelection) : pendingSelection;
-  const selectablePokemonUids = getSelectablePokemonUids(game, activePendingSelection);
+  const activePendingSelection = game.pendingPlayerChoice
+    ? ({ kind: game.pendingPlayerChoice.kind === "switchAfterGust" ? "forceSwitchActive" : "replaceActive" } as PendingSelection)
+    : pendingSelection;
+  const selectableUmamusumeUids = getSelectableUmamusumeUids(game, activePendingSelection);
   const abilityEnergyTypes = pendingSelection?.kind === "moveEnergyAbility" ? new Set(pendingSelection.energyTypes) : undefined;
   const hiddenOpponent = game.phase === "setup" && !game.setup?.opponentRevealed;
   const isBusyWithChoice = Boolean(pendingSelection || game.pendingPlayerChoice);
@@ -85,10 +87,39 @@ export function App() {
       }
     : {};
 
+  const adjustRetreatDiscard = (energyType: EnergyType, delta: 1 | -1) => {
+    setPendingSelection((current) => {
+      if (!current || current.kind !== "retreatDiscard") return current;
+      const available = current.availableEnergyCounts[energyType] ?? 0;
+      const selected = current.selectedEnergyCounts[energyType] ?? 0;
+      const selectedTotal = Object.values(current.selectedEnergyCounts).reduce((sum, count) => sum + (count ?? 0), 0);
+      if (delta === 1 && selectedTotal >= current.retreatCost) return current;
+      const nextSelected = Math.max(0, Math.min(available, selected + delta));
+      if (nextSelected === selected) return current;
+      return {
+        ...current,
+        selectedEnergyCounts: {
+          ...current.selectedEnergyCounts,
+          [energyType]: nextSelected,
+        },
+      };
+    });
+  };
+
+  const confirmRetreatDiscard = () => {
+    setPendingSelection((current) => {
+      if (!current || current.kind !== "retreatDiscard") return current;
+      const selectedCount = Object.values(current.selectedEnergyCounts).reduce((sum, count) => sum + (count ?? 0), 0);
+      if (selectedCount !== current.retreatCost) return current;
+      const discardEnergyTypes = RETREAT_ENERGY_ORDER.flatMap((energyType) => Array.from({ length: current.selectedEnergyCounts[energyType] ?? 0 }, () => energyType));
+      return { kind: "retreatTarget", discardEnergyTypes };
+    });
+  };
+
   const applySetupActive = (index: number) => {
     const cardId = player.hand[index];
     const card = cardId ? getCard(cardId) : null;
-    if (!card || card.kind !== "pokemon" || card.stage !== 0) return;
+    if (!card || card.kind !== "umamusume" || card.stage !== 0) return;
     setSetupActiveIndex(index);
     setSetupBenchIndexes((current) => current.filter((entry) => entry !== index));
   };
@@ -96,7 +127,7 @@ export function App() {
   const promoteSetupBenchToActive = (index: number) => {
     const cardId = player.hand[index];
     const card = cardId ? getCard(cardId) : null;
-    if (!card || card.kind !== "pokemon" || card.stage !== 0) return;
+    if (!card || card.kind !== "umamusume" || card.stage !== 0) return;
     if (!setupBenchIndexes.includes(index)) {
       applySetupActive(index);
       return;
@@ -111,7 +142,7 @@ export function App() {
   const applySetupBench = (index: number) => {
     const cardId = player.hand[index];
     const card = cardId ? getCard(cardId) : null;
-    if (!card || card.kind !== "pokemon" || card.stage !== 0) return;
+    if (!card || card.kind !== "umamusume" || card.stage !== 0) return;
     if (index === setupActiveIndex) return;
     setSetupBenchIndexes((current) => {
       if (current.includes(index) || current.length >= MAX_BENCH) return current;
@@ -151,6 +182,21 @@ export function App() {
   };
 
   const clearSelection = () => setPendingSelection(null);
+  const toggleMenu = () => setMenuOpen((open) => !open);
+  const handleSurrender = () => {
+    setMenuOpen(false);
+    setGame(playerSurrender);
+  };
+  const cancelPendingSelection = () => {
+    if (game.pendingPlayerChoice) return;
+    if (pendingSelection?.kind === "zoneBenchAttachTarget") {
+      setGame((current) => playHandCard(current, pendingSelection.handIndex));
+      setPendingSelection(null);
+      setPreviewTarget(null);
+      return;
+    }
+    clearSelection();
+  };
   const openPreview = (target: InspectTarget) => setPreviewTarget(target);
   const closePreview = () => setPreviewTarget(null);
 
@@ -160,26 +206,27 @@ export function App() {
 
   useEffect(() => {
     if (!actionNotice) return undefined;
+    if (actionNotice.startsWith("KO:")) return undefined;
     const timeoutId = window.setTimeout(() => setActionNotice(null), 4200);
     return () => window.clearTimeout(timeoutId);
   }, [actionNotice]);
 
   useEffect(() => {
-    if (!previewTarget?.pokemon || !previewTarget.sideId) return;
+    if (!previewTarget?.umamusume || !previewTarget.sideId) return;
     if (game.phase === "setup") return;
     const liveSide = previewTarget.sideId === "player" ? game.sides.player : game.sides.opponent;
-    const livePokemon = getAllPokemon(liveSide).find((pokemon) => pokemon.uid === previewTarget.pokemon?.uid);
-    if (!livePokemon) {
+    const liveUmamusume = getAllUmamusume(liveSide).find((umamusume) => umamusume.uid === previewTarget.umamusume?.uid);
+    if (!liveUmamusume) {
       setPreviewTarget(null);
       return;
     }
-    const liveCard = getPokemonCard(livePokemon);
-    if (livePokemon !== previewTarget.pokemon || liveCard.id !== previewTarget.card.id) {
+    const liveCard = getUmamusumeCard(liveUmamusume);
+    if (liveUmamusume !== previewTarget.umamusume || liveCard.id !== previewTarget.card.id) {
       setPreviewTarget({
         ...previewTarget,
         card: liveCard,
-        pokemon: livePokemon,
-        isActive: liveSide.active?.uid === livePokemon.uid,
+        umamusume: liveUmamusume,
+        isActive: liveSide.active?.uid === liveUmamusume.uid,
       });
     }
   }, [game, previewTarget]);
@@ -212,12 +259,39 @@ export function App() {
   }, [game]);
 
   useEffect(() => {
-    const previousSide = previousSideRef.current;
-    previousSideRef.current = game.currentSide;
-    if (previousSide !== "opponent" || game.currentSide === "opponent" || game.gameOver) return;
-    const notice = getOpponentAttackNotice(game);
-    if (notice) setActionNotice(notice);
-  }, [game]);
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      if (screen !== "match" || game.gameOver) return;
+
+      event.preventDefault();
+      if (previewTarget) {
+        setPreviewTarget(null);
+        return;
+      }
+      setMenuOpen((open) => !open);
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [screen, game.gameOver, previewTarget]);
+
+  useEffect(() => {
+    const previousLog = previousLogRef.current;
+    const newEntries = getNewLogEntries(game.log, previousLog);
+    previousLogRef.current = game.log;
+    if (newEntries.length === 0) return;
+
+    const koEntry = newEntries.find((entry) => entry.includes("was knocked out"));
+    if (koEntry) {
+      const koCause = getKoCauseFromEntries(newEntries, koEntry);
+      setActionNotice(koCause ? `KO: ${koEntry} (${koCause})` : `KO: ${koEntry}`);
+      return;
+    }
+
+    if (actionNotice?.startsWith("KO:")) return;
+    const infoNotice = getInfoNoticeFromEntries(newEntries);
+    if (infoNotice) setActionNotice(infoNotice);
+  }, [game.log, actionNotice]);
 
   const applyPlayerGameUpdate = (update: (state: GameState) => GameState, noticeSource?: ActionNoticeSource) => {
     const next = update(game);
@@ -234,7 +308,7 @@ export function App() {
     const action = getPlayableAction(game, player, cardId);
     if (!action.canPlay) return;
 
-    if (card.kind === "pokemon" && card.stage > 0) {
+    if (card.kind === "umamusume" && card.stage > 0) {
       const targets = getEvolutionTargets(game, player, card);
       if (targets.length > 1) {
         setPendingSelection({ kind: "evolveTarget", handIndex });
@@ -252,7 +326,20 @@ export function App() {
       setPreviewTarget(null);
       return;
     }
-    if (card.kind === "trainer" && card.effect.searchRandomBasicPokemon) {
+    if (card.kind === "trainer" && card.effect.attachEnergyFromZoneToBench) {
+      if (player.energyZone.length > 0 && player.bench.length > 1) {
+        setPendingSelection({ kind: "zoneBenchAttachTarget", handIndex });
+        setPreviewTarget(null);
+        return;
+      }
+      if (player.energyZone.length > 0 && player.bench.length === 1) {
+        const benchTarget = player.bench[0];
+        if (!benchTarget) return;
+        setGame((current) => playHandCard(current, handIndex, { umamusumeTargetUid: benchTarget.uid }));
+        return;
+      }
+    }
+    if (card.kind === "trainer" && card.effect.searchRandomBasicUmamusume) {
       applyPlayerGameUpdate((current) => playHandCard(current, handIndex), { kind: "traineeScoutTicket" });
       return;
     }
@@ -280,16 +367,20 @@ export function App() {
     playCard(handIndex);
   };
 
-  const playHandCardOnPokemon = (handIndex: number, pokemonUid: number) => {
+  const playHandCardOnUmamusume = (handIndex: number, umamusumeUid: number) => {
     const cardId = player.hand[handIndex];
     if (!cardId || pendingSelection || game.phase !== "play" || game.pendingPlayerChoice) return;
     const card = getCard(cardId);
-    if (card.kind === "pokemon" && card.stage > 0) {
-      setGame((current) => playHandCard(current, handIndex, { pokemonTargetUid: pokemonUid }));
+    if (card.kind === "umamusume" && card.stage > 0) {
+      setGame((current) => playHandCard(current, handIndex, { umamusumeTargetUid: umamusumeUid }));
       return;
     }
     if (card.kind === "trainer" && card.effect.heal) {
-      setGame((current) => playHandCard(current, handIndex, { pokemonTargetUid: pokemonUid }));
+      setGame((current) => playHandCard(current, handIndex, { umamusumeTargetUid: umamusumeUid }));
+      return;
+    }
+    if (card.kind === "trainer" && card.effect.attachEnergyFromZoneToBench && player.bench.some((umamusume) => umamusume.uid === umamusumeUid)) {
+      setGame((current) => playHandCard(current, handIndex, { umamusumeTargetUid: umamusumeUid }));
     }
   };
 
@@ -297,50 +388,45 @@ export function App() {
     const cardId = player.hand[handIndex];
     if (!cardId || pendingSelection || game.phase !== "play" || game.pendingPlayerChoice) return;
     const card = getCard(cardId);
-    if (card.kind === "pokemon" && card.stage === 0) {
+    if (card.kind === "umamusume" && card.stage === 0) {
       setGame((current) => playHandCard(current, handIndex));
     }
   };
 
-  const attachEnergyByDrop = (pokemonUid: number) => {
+  const attachEnergyByDrop = (umamusumeUid: number) => {
     if (game.phase !== "play" || pendingSelection || game.pendingPlayerChoice) return;
-    setGame((current) => attachPlayerEnergy(current, pokemonUid));
+    setGame((current) => attachPlayerEnergy(current, umamusumeUid));
   };
 
-  const moveAbilityEnergyByDrop = (sourcePokemonUid: number, energyType: EnergyType) => {
+  const moveAbilityEnergyByDrop = (sourceUmamusumeUid: number, energyType: EnergyType) => {
     if (game.phase !== "play" || !pendingSelection || pendingSelection.kind !== "moveEnergyAbility" || game.pendingPlayerChoice) return;
     if (!pendingSelection.energyTypes.includes(energyType)) return;
-    setGame((current) => usePlayerAbility(current, pendingSelection.abilityPokemonUid, sourcePokemonUid, energyType));
+    setGame((current) => usePlayerAbility(current, pendingSelection.abilityUmamusumeUid, sourceUmamusumeUid, energyType));
     setPendingSelection(null);
     setPreviewTarget(null);
   };
 
-  const retreatByDrop = (benchPokemonUid: number) => {
-    if (game.phase !== "play" || pendingSelection || game.pendingPlayerChoice) return;
-    setGame((current) => playerRetreat(current, benchPokemonUid));
-  };
-
-  const selectPokemon = (pokemon: PokemonInstance) => {
+  const selectUmamusume = (umamusume: UmamusumeInstance) => {
     if (game.pendingPlayerChoice) {
-      setGame((current) => resolvePendingPlayerChoice(current, pokemon.uid));
+      setGame((current) => resolvePendingPlayerChoice(current, umamusume.uid));
       setPreviewTarget(null);
       return;
     }
     if (!pendingSelection) return;
     if (pendingSelection.kind === "attachEnergy") {
-      setGame((current) => attachPlayerEnergy(current, pokemon.uid));
+      setGame((current) => attachPlayerEnergy(current, umamusume.uid));
     } else if (pendingSelection.kind === "attackHealTarget") {
       const active = player.active;
-      const attack = active ? getPrimaryAttack(getPokemonCard(active)) : null;
+      const attack = active ? getPrimaryAttack(getUmamusumeCard(active)) : null;
       if (attack?.draw) {
-        applyPlayerGameUpdate((current) => playerAttack(current, pokemon.uid), { kind: "genericGain" });
+        applyPlayerGameUpdate((current) => playerAttack(current, umamusume.uid), { kind: "genericGain" });
       } else {
-        setGame((current) => playerAttack(current, pokemon.uid));
+        setGame((current) => playerAttack(current, umamusume.uid));
       }
     } else if (pendingSelection.kind === "retreatTarget") {
-      setGame((current) => playerRetreat(current, pokemon.uid));
-    } else if (pendingSelection.kind === "healTarget" || pendingSelection.kind === "evolveTarget") {
-      setGame((current) => playHandCard(current, pendingSelection.handIndex, { pokemonTargetUid: pokemon.uid }));
+      setGame((current) => playerRetreat(current, umamusume.uid, pendingSelection.discardEnergyTypes));
+    } else if (pendingSelection.kind === "healTarget" || pendingSelection.kind === "evolveTarget" || pendingSelection.kind === "zoneBenchAttachTarget") {
+      setGame((current) => playHandCard(current, pendingSelection.handIndex, { umamusumeTargetUid: umamusume.uid }));
     }
     setPendingSelection(null);
     setPreviewTarget(null);
@@ -381,19 +467,17 @@ export function App() {
             sideId="player"
             onInspect={openPreview}
             setupMode={game.phase === "setup"}
-            activeRetreatDraggable={game.phase === "play" && canRetreat(game, player) && !isBusyWithChoice}
-            selectablePokemonUids={game.phase === "play" ? selectablePokemonUids : undefined}
+            selectableUmamusumeUids={game.phase === "play" ? selectableUmamusumeUids : undefined}
             abilityEnergyTypes={abilityEnergyTypes}
-            onPokemonSelect={selectPokemon}
+            onUmamusumeSelect={selectUmamusume}
             onSetupDropActive={applySetupActive}
             onSetupDropBench={applySetupBench}
             onSetupPromoteToActive={promoteSetupBenchToActive}
-            onHandCardDropOnActive={playHandCardOnPokemon}
+            onHandCardDropOnActive={playHandCardOnUmamusume}
             onHandCardDropOnBenchSlot={playHandCardOnBenchSlot}
-            onHandCardDropOnPokemon={playHandCardOnPokemon}
-            onEnergyDropOnPokemon={attachEnergyByDrop}
+            onHandCardDropOnUmamusume={playHandCardOnUmamusume}
+            onEnergyDropOnUmamusume={attachEnergyByDrop}
             onAbilityEnergyDropOnActive={moveAbilityEnergyByDrop}
-            onRetreatDropOnPokemon={retreatByDrop}
             setupDragHandIndexByUid={setupDragHandIndexByUid}
           />
           <SideBoard
@@ -418,6 +502,11 @@ export function App() {
               game={game}
               activeIndex={setupActiveIndex}
               benchIndexes={setupBenchIndexes}
+              menuOpen={menuOpen}
+              log={game.log}
+              canSurrender={false}
+              onToggleMenu={toggleMenu}
+              onSurrender={handleSurrender}
               onSetActive={applySetupActive}
               onReady={() => {
                 if (setupActiveIndex === null) return;
@@ -429,6 +518,7 @@ export function App() {
             <>
               <PlayHandHeader
                 canAttach={canAttachEnergy(game, player) && !isBusyWithChoice}
+                energyRefreshKey={game.turnNumber}
                 energyType={nextPlayerEnergy}
                 extraCount={Math.max(0, player.energyZone.length - 1)}
                 canEndTurn={!game.gameOver && game.currentSide === "player" && !isBusyWithChoice}
@@ -436,11 +526,8 @@ export function App() {
                 menuOpen={menuOpen}
                 log={game.log}
                 canSurrender={!game.gameOver}
-                onToggleMenu={() => setMenuOpen((open) => !open)}
-                onSurrender={() => {
-                  setMenuOpen(false);
-                  setGame(playerSurrender);
-                }}
+                onToggleMenu={toggleMenu}
+                onSurrender={handleSurrender}
               />
               <Hand state={game} onInspect={openPreview} />
             </>
@@ -450,18 +537,26 @@ export function App() {
       {game.phase === "play" && game.currentSide === "opponent" && (
         <OpponentActionBanner message={getOpponentBannerMessage(game)} paused={Boolean(game.pendingPlayerChoice)} />
       )}
-      {activePendingSelection && <SelectionPrompt pending={activePendingSelection} onCancel={game.pendingPlayerChoice ? () => undefined : clearSelection} nextEnergyType={nextPlayerEnergy} />}
+      {activePendingSelection && (
+        <SelectionPrompt
+          pending={activePendingSelection}
+          onCancel={game.pendingPlayerChoice ? () => undefined : cancelPendingSelection}
+          nextEnergyType={nextPlayerEnergy}
+          onRetreatDiscardAdjust={adjustRetreatDiscard}
+          onConfirmRetreatDiscard={confirmRetreatDiscard}
+        />
+      )}
       <CardPreview
         state={game}
         target={previewTarget}
         canUseAttack={Boolean(player.active && previewTarget?.isActive && previewTarget.sideId === "player" && canAttack(game, player))}
         canUseRetreat={Boolean(player.active && previewTarget?.isActive && previewTarget.sideId === "player" && canRetreat(game, player))}
-        canUseAbility={Boolean(previewTarget?.pokemon && previewTarget.sideId === "player" && canUsePokemonAbility(game, player, previewTarget.pokemon.uid))}
+        canUseAbility={Boolean(previewTarget?.umamusume && previewTarget.sideId === "player" && canUseUmamusumeAbility(game, player, previewTarget.umamusume.uid))}
         onAttack={() => {
           if (!player.active) return;
-          const attack = getPrimaryAttack(getPokemonCard(player.active));
+          const attack = getPrimaryAttack(getUmamusumeCard(player.active));
           if (attack.heal && attack.healTarget === "any") {
-            const damagedTargets = getDamagedPokemon(player);
+            const damagedTargets = getDamagedUmamusume(player);
             if (damagedTargets.length > 0) {
               setPendingSelection({ kind: "attackHealTarget" });
               setPreviewTarget(null);
@@ -476,15 +571,32 @@ export function App() {
           setPreviewTarget(null);
         }}
         onRetreat={() => {
-          setPendingSelection({ kind: "retreatTarget" });
+          const active = player.active;
+          if (!active) return;
+          const retreatCost = getDisplayedRetreatCost(game, player, active);
+          if (retreatCost <= 0) {
+            setPendingSelection({ kind: "retreatTarget", discardEnergyTypes: [] });
+          } else {
+            const availableEnergyCounts = RETREAT_ENERGY_ORDER.reduce<Partial<Record<EnergyType, number>>>((counts, energyType) => {
+              const amount = active.energies[energyType];
+              if (amount > 0) counts[energyType] = amount;
+              return counts;
+            }, {});
+            setPendingSelection({
+              kind: "retreatDiscard",
+              retreatCost,
+              availableEnergyCounts,
+              selectedEnergyCounts: {},
+            });
+          }
           setPreviewTarget(null);
         }}
         onAbility={() => {
-          if (!previewTarget?.pokemon || previewTarget.sideId !== "player") return;
-          const ability = getPokemonCard(previewTarget.pokemon).ability;
+          if (!previewTarget?.umamusume || previewTarget.sideId !== "player") return;
+          const ability = getUmamusumeCard(previewTarget.umamusume).ability;
           if (!ability?.moveBenchedEnergyToActive) return;
           const energyTypes = Array.isArray(ability.moveBenchedEnergyToActive) ? ability.moveBenchedEnergyToActive : [ability.moveBenchedEnergyToActive];
-          setPendingSelection({ kind: "moveEnergyAbility", abilityPokemonUid: previewTarget.pokemon.uid, energyTypes });
+          setPendingSelection({ kind: "moveEnergyAbility", abilityUmamusumeUid: previewTarget.umamusume.uid, energyTypes });
           setPreviewTarget(null);
         }}
         onClose={closePreview}
@@ -517,7 +629,19 @@ export function App() {
           setPendingSelection(null);
         }}
       />
-      {actionNotice && <ActionNotice notice={actionNotice} onClose={() => setActionNotice(null)} />}
+      {actionNotice && (
+        <ActionNotice
+          notice={actionNotice}
+          tone={
+            actionNotice.startsWith("KO: Opponent's")
+              ? "info"
+              : actionNotice.startsWith("KO:")
+                ? "danger"
+                : "default"
+          }
+          onClose={() => setActionNotice(null)}
+        />
+      )}
       {game.gameOver && <GameOverModal game={game} onPlayAgain={startNewGame} onMainMenu={returnToMainMenu} />}
     </main>
   );
@@ -561,3 +685,55 @@ const handPanelStyle: CSSProperties = {
   padding: 10,
   boxShadow: "0 24px 80px rgba(17, 24, 39, 0.14)",
 };
+
+const RETREAT_ENERGY_ORDER: EnergyType[] = ["grass", "fire", "water", "lightning", "psychic", "fighting", "darkness", "steel", "colorless", "dragon"];
+
+function getNewLogEntries(currentLog: string[], previousLog: string[]): string[] {
+  if (previousLog.length === 0) return currentLog;
+
+  for (let startIndex = 0; startIndex < currentLog.length; startIndex += 1) {
+    if (currentLog[startIndex] !== previousLog[0]) continue;
+    const overlap = Math.min(currentLog.length - startIndex, previousLog.length);
+    let matches = true;
+    for (let index = 0; index < overlap; index += 1) {
+      if (currentLog[startIndex + index] !== previousLog[index]) {
+        matches = false;
+        break;
+      }
+    }
+    if (matches) return currentLog.slice(0, startIndex);
+  }
+
+  return currentLog;
+}
+
+function getKoCauseFromEntries(newEntries: string[], koEntry: string): string | null {
+  if (koEntry.includes(" by ")) return null;
+
+  const maxHpCause = newEntries.find((entry) => entry.includes("max HP was reduced"));
+  if (maxHpCause) return "max HP reduction";
+
+  const attackCause = newEntries.find((entry) => entry.includes("attacked with "));
+  if (!attackCause) return null;
+
+  const attackDetails = attackCause.replace(/^You attacked with /, "").replace(/^Opponent attacked with /, "");
+  return `attack: ${attackDetails}`;
+}
+
+function getInfoNoticeFromEntries(newEntries: string[]): string | null {
+  const healEntry = newEntries.find((entry) => entry.includes(" healed "));
+  if (healEntry) return healEntry;
+
+  const switchEntry = newEntries.find((entry) =>
+    entry.includes(" switched to ") || entry.includes(" retreated to ") || entry.includes(" promoted "),
+  );
+  if (switchEntry) return switchEntry;
+
+  const drawEntry = newEntries.find((entry) => entry.includes(" drew "));
+  if (drawEntry) return drawEntry;
+
+  const damageEntry = newEntries.find((entry) => entry.includes(" attacked with "));
+  if (damageEntry) return damageEntry;
+
+  return null;
+}

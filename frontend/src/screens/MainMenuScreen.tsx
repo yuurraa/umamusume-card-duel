@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import { NeutralButton } from "../components/NeutralButton";
+import { NeutralButton } from "../components/buttons/NeutralButton";
 import { DeckSummaryCard } from "./DeckBrowserScreen";
 import type { PremadeDeck } from "../types/ui";
 

@@ -1,8 +1,8 @@
-import type { PokemonCard, PokemonInstance, SideId, TrainerCard } from "../../shared/src/types";
+import type { UmamusumeCard, UmamusumeInstance, SideId, TrainerCard } from "../../shared/src/types";
 
 export type InspectTarget = {
-  card: PokemonCard | TrainerCard;
-  pokemon?: PokemonInstance;
+  card: UmamusumeCard | TrainerCard;
+  umamusume?: UmamusumeInstance;
   sideId?: SideId;
   isActive?: boolean;
 };

@@ -1,7 +1,7 @@
 export type SideId = "player" | "opponent";
 export type CoinFlipResult = "heads" | "tails";
 export type EnergyType = "grass" | "fire" | "water" | "lightning" | "psychic" | "fighting" | "darkness" | "steel" | "colorless" | "dragon";
-export type PokemonType = "Grass" | "Fire" | "Water" | "Lightning" | "Psychic" | "Fighting" | "Darkness" | "Steel" | "Colorless" | "Dragon";
+export type UmamusumeType = "Grass" | "Fire" | "Water" | "Lightning" | "Psychic" | "Fighting" | "Darkness" | "Steel" | "Colorless" | "Dragon";
 export type EnergyRequirement = EnergyType | "colorless";
 export type EnergyCost = Partial<Record<EnergyRequirement, number>>;
 export type TrainerType = "supporter" | "item" | "stadium";
@@ -34,18 +34,18 @@ export type Ability = {
   moveBenchedEnergyToActive?: EnergyType | EnergyType[];
 };
 
-export type PokemonCard = {
+export type UmamusumeCard = {
   id: string;
   owner: SideId;
-  kind: "pokemon";
+  kind: "umamusume";
   name: string;
   label: string;
   species: string;
-  type: PokemonType;
+  type: UmamusumeType;
   stage: number;
   hp: number;
   portrait: string;
-  weakness: { type: PokemonType; amount: number };
+  weakness: { type: UmamusumeType; amount: number };
   retreat: string;
   attacks: Attack[];
   evolvesFrom?: string;
@@ -65,21 +65,22 @@ export type TrainerCard = {
     heal?: number;
     healTarget?: "active" | "any";
     discardOtherCard?: boolean;
-    searchPokemon?: boolean;
-    searchRandomBasicPokemon?: boolean;
+    searchUmamusume?: boolean;
+    searchRandomBasicUmamusume?: boolean;
     revealSearchedCard?: boolean;
     retreatCostReduction?: number;
     gustOpponent?: boolean;
     activeAttackDamageBonus?: number;
     extraEnergyAttach?: number;
+    attachEnergyFromZoneToBench?: number;
     globalRetreatCostReduction?: number;
     basicHpBonus?: number;
   };
 };
 
-export type Card = PokemonCard | TrainerCard;
+export type Card = UmamusumeCard | TrainerCard;
 
-export type PokemonInstance = {
+export type UmamusumeInstance = {
   uid: number;
   cardId: string;
   species: string;
@@ -112,8 +113,8 @@ export type SideState = {
   deck: string[];
   discard: string[];
   hand: string[];
-  active: PokemonInstance | null;
-  bench: PokemonInstance[];
+  active: UmamusumeInstance | null;
+  bench: UmamusumeInstance[];
   points: number;
   energyZone: EnergyType[];
   energyAttachmentsThisTurn: number;
@@ -142,7 +143,7 @@ export type GameState = {
 
 export type PlayAction =
   | { canPlay: true; type: "benchBasic" }
-  | { canPlay: true; type: "evolve"; target: PokemonInstance }
+  | { canPlay: true; type: "evolve"; target: UmamusumeInstance }
   | { canPlay: true; type: "trainer" }
   | { canPlay: false; reason: string };
 

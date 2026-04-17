@@ -1,0 +1,127 @@
+import { MAX_HAND } from "../../../../../shared/src/gameData";
+import type { GameState, PendingPlayerChoice, SideId, SideState, TrainerCard, UmamusumeInstance } from "../../../../../shared/src/types";
+import { getCard, isUmamusumeInDeck } from "../core/catalog";
+import { actorLowerPossessive, actorName, energyLabel, formatCardName, formatUmamusumeInstanceName, pluralize } from "../core/labels";
+import { log } from "../core/log";
+import { findMostDamagedUmamusume, findOwnUmamusumeByUid } from "../core/umamusume";
+import { drawCards } from "./turn";
+import { rollEnergyFromPool } from "../core/random";
+import type { PlayChoices } from "../core/playTypes";
+
+export type SwitchAfterGustResume = Extract<PendingPlayerChoice, { kind: "switchAfterGust" }>["resume"];
+
+type SwitchOutOpponentActiveFn = (state: GameState, actingSideId: SideId, pendingChoiceResume?: SwitchAfterGustResume) => void;
+
+export function playStadium(state: GameState, side: SideState, stadium: TrainerCard): void {
+  if (state.stadium) {
+    const previous = state.stadium;
+    const previousCard = getCard(previous.cardId);
+    state.sides[previous.owner].discard.push(previous.cardId);
+    log(state, `${previousCard.name} left the Stadium Slot.`);
+  }
+  state.stadium = { cardId: stadium.id, owner: side.id };
+  log(state, `${actorName(side)} played ${stadium.name}.`);
+}
+
+export function applyTrainer(
+  state: GameState,
+  side: SideState,
+  trainer: TrainerCard,
+  choices: PlayChoices = {},
+  switchOutOpponentActive: SwitchOutOpponentActiveFn,
+  pendingChoiceResume: SwitchAfterGustResume = "none",
+): void {
+  if (trainer.effect.discardOtherCard) discardOtherCardForScout(state, side, choices.discardHandIndex);
+  if (trainer.effect.retreatCostReduction) side.retreatCostReduction += trainer.effect.retreatCostReduction;
+  if (trainer.effect.activeAttackDamageBonus) side.activeAttackDamageBonus += trainer.effect.activeAttackDamageBonus;
+  if (trainer.effect.extraEnergyAttach) {
+    side.bonusEnergyAttachments += trainer.effect.extraEnergyAttach;
+    for (let count = 0; count < trainer.effect.extraEnergyAttach; count += 1) {
+      side.energyZone.push(rollEnergyFromPool(side.energyPool));
+    }
+  }
+  if (trainer.effect.attachEnergyFromZoneToBench) {
+    attachEnergyFromZoneToBench(state, side, trainer, trainer.effect.attachEnergyFromZoneToBench, choices.umamusumeTargetUid);
+  }
+  if (trainer.effect.gustOpponent) switchOutOpponentActive(state, side.id, pendingChoiceResume);
+  if (trainer.effect.heal) {
+    const chosenTarget = choices.umamusumeTargetUid ? findOwnUmamusumeByUid(side, choices.umamusumeTargetUid) : undefined;
+    const target = trainer.effect.healTarget === "any" && chosenTarget
+      ? chosenTarget
+      : trainer.effect.healTarget === "any"
+        ? findMostDamagedUmamusume(side)
+        : side.active;
+    if (!target) return;
+    const before = target.hp;
+    target.hp = Math.min(target.maxHp, target.hp + trainer.effect.heal);
+    const healed = target.hp - before;
+    if (healed > 0) log(state, `${trainer.name} healed ${formatUmamusumeInstanceName(target)} for ${healed} HP.`);
+  }
+  if (trainer.effect.draw) {
+    const handBeforeDraw = side.hand.length;
+    drawCards(state, side, trainer.effect.draw);
+    const drawn = side.hand.length - handBeforeDraw;
+    if (drawn > 0) log(state, `${actorName(side)} drew ${drawn} ${pluralize(drawn, "card")}.`);
+  }
+  if (trainer.effect.searchUmamusume) searchUmamusumeFromDeck(state, side, choices.deckCardIndex, Boolean(trainer.effect.revealSearchedCard));
+  if (trainer.effect.searchRandomBasicUmamusume) searchRandomBasicUmamusumeFromDeck(state, side, Boolean(trainer.effect.revealSearchedCard));
+}
+
+export function hasDamagedHealingTarget(side: SideState, card: TrainerCard): boolean {
+  const targets = (card.effect.healTarget === "any" ? [side.active, ...side.bench] : [side.active]).filter((umamusume): umamusume is UmamusumeInstance => Boolean(umamusume));
+  return targets.some((umamusume) => umamusume.hp < umamusume.maxHp);
+}
+
+function attachEnergyFromZoneToBench(
+  state: GameState,
+  side: SideState,
+  trainer: TrainerCard,
+  count: number,
+  targetUid?: number,
+): void {
+  if (count <= 0 || side.energyZone.length === 0 || side.bench.length === 0) return;
+  const target = (targetUid ? side.bench.find((umamusume) => umamusume.uid === targetUid) : undefined) ?? side.bench[0];
+  if (!target) return;
+
+  for (let attached = 0; attached < count; attached += 1) {
+    const energyType = side.energyZone.shift();
+    if (!energyType) break;
+    target.energies[energyType] += 1;
+    log(state, `${trainer.name} attached 1 ${energyLabel(energyType)} from the Energy Zone to ${formatUmamusumeInstanceName(target)}.`);
+  }
+}
+
+function discardOtherCardForScout(state: GameState, side: SideState, discardHandIndex = 0): void {
+  const discarded = side.hand.splice(discardHandIndex, 1)[0];
+  if (!discarded) return;
+  side.discard.push(discarded);
+  log(state, `${actorName(side)} discarded ${formatCardName(getCard(discarded))}.`);
+}
+
+function searchUmamusumeFromDeck(state: GameState, side: SideState, deckCardIndex?: number, reveal = false): void {
+  const chosenCard = deckCardIndex === undefined ? undefined : side.deck[deckCardIndex];
+  const index = chosenCard && isUmamusumeInDeck(chosenCard) && deckCardIndex !== undefined ? deckCardIndex : side.deck.findIndex(isUmamusumeInDeck);
+  moveDeckCardToHand(state, side, index, reveal);
+}
+
+function searchRandomBasicUmamusumeFromDeck(state: GameState, side: SideState, reveal = false): void {
+  const candidates = side.deck
+    .map((cardId, index) => ({ card: getCard(cardId), index }))
+    .filter(({ card }) => card.kind === "umamusume" && card.stage === 0);
+  const chosen = candidates[Math.floor(Math.random() * candidates.length)];
+  moveDeckCardToHand(state, side, chosen?.index ?? -1, reveal);
+}
+
+function moveDeckCardToHand(state: GameState, side: SideState, deckIndex: number, reveal = false): void {
+  if (deckIndex < 0 || side.hand.length >= MAX_HAND) return;
+  const cardId = side.deck.splice(deckIndex, 1)[0];
+  if (!cardId) return;
+  side.hand.push(cardId);
+  const possessive = actorLowerPossessive(side);
+  log(
+    state,
+    reveal
+      ? `${actorName(side)} revealed ${formatCardName(getCard(cardId))} and added it to ${possessive} hand.`
+      : `${actorName(side)} added 1 card from ${possessive} deck to ${possessive} hand.`,
+  );
+}
