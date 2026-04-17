@@ -74,8 +74,12 @@ type PendingCoinAttack = {
   healTargetUid?: number;
 };
 
+const SCREEN_FADE_MS = 120;
+
 export function App() {
   const [screen, setScreen] = useState<AppScreen>("mainMenu");
+  const [pendingScreen, setPendingScreen] = useState<AppScreen | null>(null);
+  const [screenFadeOverlayOpacity, setScreenFadeOverlayOpacity] = useState(0);
   const [equippedDeckId, setEquippedDeckId] = useState(() => readEquippedDeckId());
   const [customisation, setCustomisation] = useState<CustomisationSettings>(() => readCustomisationSettings());
   const [opponentCustomisation, setOpponentCustomisation] = useState<CustomisationSettings>(() => getRandomCustomisationSettings());
@@ -204,9 +208,14 @@ export function App() {
     setGame(createGame(equippedDeck.cardIds, opponent.cardIds, opponent.name));
   };
 
+  const navigateToScreen = (nextScreen: AppScreen) => {
+    if (nextScreen === screen || pendingScreen) return;
+    setPendingScreen(nextScreen);
+  };
+
   const playEquippedDeck = () => {
     startNewGame();
-    setScreen("match");
+    navigateToScreen("match");
   };
 
   const returnToMainMenu = () => {
@@ -215,7 +224,7 @@ export function App() {
     setActionNotice(null);
     setDiscardOpen(false);
     setMenuOpen(false);
-    setScreen("mainMenu");
+    navigateToScreen("mainMenu");
   };
 
   const quitApp = () => {
@@ -287,6 +296,17 @@ export function App() {
     setDiscardOpen(false);
     setMenuOpen(false);
   }, [game.gameOver]);
+
+  useEffect(() => {
+    if (!pendingScreen || pendingScreen === screen) return;
+    setScreenFadeOverlayOpacity(1);
+    const timeoutId = window.setTimeout(() => {
+      setScreen(pendingScreen);
+      setPendingScreen(null);
+      window.requestAnimationFrame(() => setScreenFadeOverlayOpacity(0));
+    }, SCREEN_FADE_MS);
+    return () => window.clearTimeout(timeoutId);
+  }, [pendingScreen, screen]);
 
   useEffect(() => {
     if (game.phase !== "setup") return;
@@ -524,10 +544,11 @@ export function App() {
         <MainMenuScreen
           equippedDeck={equippedDeck}
           onPlay={playEquippedDeck}
-          onOpenDecks={() => setScreen("decks")}
-          onOpenCustomisation={() => setScreen("customisation")}
+          onOpenDecks={() => navigateToScreen("decks")}
+          onOpenCustomisation={() => navigateToScreen("customisation")}
           onQuit={quitApp}
         />
+        <div style={screenFadeOverlayStyle(screenFadeOverlayOpacity)} />
       </main>
     );
   }
@@ -539,8 +560,9 @@ export function App() {
           decks={premadeDecks}
           equippedDeckId={equippedDeck.id}
           onEquipDeck={(deckId) => setEquippedDeckId(deckId)}
-          onBack={() => setScreen("mainMenu")}
+          onBack={() => navigateToScreen("mainMenu")}
         />
+        <div style={screenFadeOverlayStyle(screenFadeOverlayOpacity)} />
       </main>
     );
   }
@@ -551,8 +573,9 @@ export function App() {
         <CustomisationScreen
           settings={customisation}
           onChange={setCustomisation}
-          onBack={() => setScreen("mainMenu")}
+          onBack={() => navigateToScreen("mainMenu")}
         />
+        <div style={screenFadeOverlayStyle(screenFadeOverlayOpacity)} />
       </main>
     );
   }
@@ -781,6 +804,7 @@ export function App() {
         />
       )}
       {game.gameOver && <GameOverModal game={game} onPlayAgain={startNewGame} onMainMenu={returnToMainMenu} />}
+      <div style={screenFadeOverlayStyle(screenFadeOverlayOpacity)} />
     </main>
   );
 }
@@ -799,6 +823,18 @@ function appStyle(isMenu = false, playmatImage?: string | null): CSSProperties {
     background: playmatImage
       ? `url("${playmatImage}") center / cover fixed no-repeat`
       : "radial-gradient(circle at 18% 8%, rgba(214, 81, 157, 0.2), transparent 28%), radial-gradient(circle at 84% 20%, rgba(63, 159, 92, 0.16), transparent 30%), linear-gradient(135deg, #101820 0%, #223733 54%, #4a2647 100%)",
+  };
+}
+
+function screenFadeOverlayStyle(opacity: number): CSSProperties {
+  return {
+    position: "fixed",
+    inset: 0,
+    zIndex: 200,
+    pointerEvents: "none",
+    background: "#000000",
+    opacity,
+    transition: `opacity ${SCREEN_FADE_MS}ms ease`,
   };
 }
 
