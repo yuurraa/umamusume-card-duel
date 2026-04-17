@@ -47,6 +47,7 @@ import { PlayHandHeader } from "./match/controls/HandControls";
 import { PregameSetupPanel } from "./match/setup/PregameSetupPanel";
 import { GameOverModal } from "./match/modals/GameOverModal";
 import { ChoiceModal } from "./match/modals/ChoiceModal";
+import { EndTurnWarningModal } from "./match/modals/EndTurnWarningModal";
 import { SelectionPrompt } from "./match/controls/SelectionPrompt";
 import { OpponentActionBanner } from "./match/feedback/OpponentActionBanner";
 import { ActionNotice } from "./match/feedback/ActionNotice";
@@ -92,6 +93,8 @@ export function App() {
   });
   const [previewTarget, setPreviewTarget] = useState<InspectTarget | null>(null);
   const [pendingSelection, setPendingSelection] = useState<PendingSelection | null>(null);
+  const [endTurnWarningActions, setEndTurnWarningActions] = useState<string[] | null>(null);
+  const [suppressEndTurnWarningForGame, setSuppressEndTurnWarningForGame] = useState(false);
   const [actionNotice, setActionNotice] = useState<string | null>(null);
   const [discardOpen, setDiscardOpen] = useState(false);
   const [coinFlipQueue, setCoinFlipQueue] = useState<CoinFlipEvent[]>([]);
@@ -115,7 +118,7 @@ export function App() {
   const selectableUmamusumeUids = getSelectableUmamusumeUids(game, activePendingSelection);
   const abilityEnergyTypes = pendingSelection?.kind === "moveEnergyAbility" ? new Set(pendingSelection.energyTypes) : undefined;
   const hiddenOpponent = game.phase === "setup" && !game.setup?.opponentRevealed;
-  const isBusyWithChoice = Boolean(pendingSelection || game.pendingPlayerChoice);
+  const isBusyWithChoice = Boolean(pendingSelection || game.pendingPlayerChoice || endTurnWarningActions);
   const isCoinFlipBlocking = Boolean(activeCoinFlip || coinFlipQueue.length > 0);
   const displayedPlayerSide = game.phase === "setup" ? createSetupPreviewSide(player, setupActiveIndex, setupBenchIndexes) : player;
   const displayedOpponentSide = hiddenOpponent ? createSetupHiddenOpponentSide(game.sides.opponent) : game.sides.opponent;
@@ -129,6 +132,16 @@ export function App() {
         ...Object.fromEntries(setupBenchIndexes.map((handIndex, order) => [-(order + 2), handIndex])),
       }
     : {};
+  const abilityReadyUmamusumeUids = game.phase === "play" && game.currentSide === "player" && !game.gameOver && !isBusyWithChoice
+    ? new Set(
+        getAllUmamusume(player)
+          .filter((umamusume) => canUseUmamusumeAbility(game, player, umamusume.uid))
+          .map((umamusume) => umamusume.uid),
+      )
+    : undefined;
+  const stadiumAbilityReady = game.phase === "play" && game.currentSide === "player" && !game.gameOver && !isBusyWithChoice
+    ? canUseStadium(game, player)
+    : false;
 
   const adjustRetreatDiscard = (energyType: EnergyType, delta: 1 | -1) => {
     setPendingSelection((current) => {
@@ -202,6 +215,7 @@ export function App() {
     setSetupBenchIndexes([]);
     setPendingSelection(null);
     setPreviewTarget(null);
+    setSuppressEndTurnWarningForGame(false);
     setActionNotice(null);
     setDiscardOpen(false);
     setMenuOpen(false);
@@ -222,6 +236,7 @@ export function App() {
 
   const returnToMainMenu = () => {
     setPendingSelection(null);
+    setEndTurnWarningActions(null);
     setPreviewTarget(null);
     setActionNotice(null);
     setDiscardOpen(false);
@@ -251,6 +266,18 @@ export function App() {
   };
   const openPreview = (target: InspectTarget) => setPreviewTarget(target);
   const closePreview = () => setPreviewTarget(null);
+
+  const handleEndTurn = () => {
+    if (game.phase !== "play" || game.currentSide !== "player" || game.gameOver || isBusyWithChoice) return;
+    const availableActions: string[] = [];
+    if (canAttachEnergy(game, player)) availableActions.push("attach Energy");
+    if (canAttack(game, player)) availableActions.push("attack");
+    if (availableActions.length > 0 && !suppressEndTurnWarningForGame) {
+      setEndTurnWarningActions(availableActions);
+      return;
+    }
+    setGame(playerEndTurn);
+  };
 
   useEffect(() => {
     writeEquippedDeckId(equippedDeck.id);
@@ -294,10 +321,20 @@ export function App() {
   useEffect(() => {
     if (!game.gameOver) return;
     setPendingSelection(null);
+    setEndTurnWarningActions(null);
     setPreviewTarget(null);
     setDiscardOpen(false);
     setMenuOpen(false);
   }, [game.gameOver]);
+
+  useEffect(() => {
+    if (!endTurnWarningActions) return;
+    if (game.phase !== "play" || game.currentSide !== "player" || game.gameOver || pendingSelection || game.pendingPlayerChoice) {
+      setEndTurnWarningActions(null);
+      return;
+    }
+    if (!canAttachEnergy(game, player) && !canAttack(game, player)) setEndTurnWarningActions(null);
+  }, [endTurnWarningActions, game, player, pendingSelection]);
 
   useEffect(() => {
     if (!pendingScreen || pendingScreen === screen) return;
@@ -346,6 +383,10 @@ export function App() {
 
       event.preventDefault();
       if (isCoinFlipBlocking) return;
+      if (endTurnWarningActions) {
+        setEndTurnWarningActions(null);
+        return;
+      }
       if (previewTarget) {
         setPreviewTarget(null);
         return;
@@ -375,7 +416,7 @@ export function App() {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [screen, game.gameOver, game.pendingPlayerChoice, isCoinFlipBlocking, previewTarget, discardOpen, pendingSelection, actionNotice, menuOpen]);
+  }, [screen, game.gameOver, game.pendingPlayerChoice, isCoinFlipBlocking, endTurnWarningActions, previewTarget, discardOpen, pendingSelection, actionNotice, menuOpen]);
 
   useEffect(() => {
     const previousLog = previousLogRef.current;
@@ -593,6 +634,7 @@ export function App() {
             sideId="player"
             onInspect={openPreview}
             setupMode={game.phase === "setup"}
+            abilityReadyUmamusumeUids={abilityReadyUmamusumeUids}
             selectableUmamusumeUids={game.phase === "play" ? selectableUmamusumeUids : undefined}
             abilityEnergyTypes={abilityEnergyTypes}
             onUmamusumeSelect={selectUmamusume}
@@ -617,7 +659,7 @@ export function App() {
           />
           {game.phase === "play" && (
             <>
-              <StadiumSlot state={game} onDropHandCard={playHandCardOnStadiumSlot} onInspect={openPreview} />
+              <StadiumSlot state={game} abilityReady={stadiumAbilityReady} onDropHandCard={playHandCardOnStadiumSlot} onInspect={openPreview} />
               <PlayDropZone onDropHandCard={playHandCardOnCenter} />
             </>
           )}
@@ -650,7 +692,7 @@ export function App() {
                 energyType={nextPlayerEnergy}
                 extraCount={Math.max(0, player.energyZone.length - 1)}
                 canEndTurn={!game.gameOver && game.currentSide === "player" && !isBusyWithChoice}
-                onEndTurn={() => setGame(playerEndTurn)}
+                onEndTurn={handleEndTurn}
                 menuOpen={menuOpen}
                 log={game.log}
                 canSurrender={!game.gameOver}
@@ -815,6 +857,16 @@ export function App() {
             { kind: "makeDebutScout", discardedCardName: pendingSelection.discardedCardName },
           );
           setPendingSelection(null);
+        }}
+      />
+      <EndTurnWarningModal
+        actions={endTurnWarningActions}
+        suppressForGame={suppressEndTurnWarningForGame}
+        onSuppressForGameChange={setSuppressEndTurnWarningForGame}
+        onCancel={() => setEndTurnWarningActions(null)}
+        onConfirm={() => {
+          setEndTurnWarningActions(null);
+          setGame(playerEndTurn);
         }}
       />
       {discardOpen && (

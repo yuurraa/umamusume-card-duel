@@ -11,6 +11,7 @@ type SideBoardProps = {
   side: SideState;
   sideId: SideId;
   onInspect: (target: InspectTarget) => void;
+  abilityReadyUmamusumeUids?: Set<number> | undefined;
   hidden?: boolean;
   hiddenBenchCount?: number;
   setupMode?: boolean;
@@ -45,6 +46,7 @@ export function SideBoard({
   side,
   sideId,
   onInspect,
+  abilityReadyUmamusumeUids,
   hidden = false,
   hiddenBenchCount,
   setupMode = false,
@@ -69,6 +71,7 @@ export function SideBoard({
   const activeCard = side.active ? getUmamusumeCard(side.active) : null;
   const hpPercent = side.active ? Math.max(0, Math.round((side.active.hp / side.active.maxHp) * 100)) : 0;
   const activeSelectable = Boolean(side.active && selectableUmamusumeUids?.has(side.active.uid));
+  const activeAbilityReady = Boolean(side.active && abilityReadyUmamusumeUids?.has(side.active.uid));
   const [activeDropHovered, setActiveDropHovered] = useState(false);
   const activeSetupHandIndex = side.active ? setupDragHandIndexByUid[side.active.uid] : undefined;
 
@@ -111,7 +114,9 @@ export function SideBoard({
         alignItems: "center",
         overflow: "visible",
         borderRadius: 12,
-        boxShadow: activeDropHovered ? `0 0 0 5px ${tone.hoverRingColor}, 0 0 36px ${tone.hoverGlowColor}` : "none",
+        boxShadow: activeDropHovered
+          ? `0 0 0 5px ${tone.hoverRingColor}, 0 0 36px ${tone.hoverGlowColor}`
+          : "none",
         transition: "box-shadow 120ms ease",
       }}
       draggable={setupMode && !hidden && activeSetupHandIndex !== undefined}
@@ -157,6 +162,7 @@ export function SideBoard({
         hidden={hidden}
         sleeveImage={sleeveImage}
         isSelectable={activeSelectable}
+        abilityReady={activeAbilityReady}
         onInspect={() => {
           if (hidden) return;
           if (activeSelectable) {
@@ -206,6 +212,7 @@ export function SideBoard({
         onInspect={onInspect}
         hidden={hidden}
         setupMode={setupMode}
+        abilityReadyUmamusumeUids={abilityReadyUmamusumeUids}
         selectableUmamusumeUids={selectableUmamusumeUids}
         abilityEnergyTypes={abilityEnergyTypes}
         onUmamusumeSelect={onUmamusumeSelect}

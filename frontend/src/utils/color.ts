@@ -1,5 +1,20 @@
-import type { Card, UmamusumeType } from "../../../shared/src/types";
+import type { Card, EnergyType, UmamusumeType } from "../../../shared/src/types";
 import type { PreviewTone } from "../types/ui";
+
+export const abilityRuby = "#a30f2a";
+
+export const energyAccentColors: Record<EnergyType, string> = {
+  grass: "#63b65f",
+  fire: "#ef7a3d",
+  water: "#4c93f0",
+  lightning: "#e6b93d",
+  psychic: "#d6519d",
+  fighting: "#b26a4a",
+  darkness: "#374151",
+  steel: "#94a3b8",
+  colorless: "#a7adba",
+  dragon: "#d4a72c",
+};
 
 export const typeAccentColors: Record<UmamusumeType, string> = {
   Grass: "#7bc03e",

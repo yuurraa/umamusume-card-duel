@@ -2,10 +2,12 @@ import { type CSSProperties, type DragEvent, useState } from "react";
 import type { GameState } from "../../../../shared/src/types";
 import type { InspectTarget } from "../../inspect";
 import { getCard } from "../../game/engine";
+import { AbilityReadyBadge } from "../../components/cards/AbilityReadyBadge";
 import { hasTextDragPayload, readDragPayload } from "../../components/drag/dragData";
 
-export function StadiumSlot({ state, onDropHandCard, onInspect }: {
+export function StadiumSlot({ state, abilityReady = false, onDropHandCard, onInspect }: {
   state: GameState;
+  abilityReady?: boolean;
   onDropHandCard: (handIndex: number) => void;
   onInspect: (target: InspectTarget) => void;
 }) {
@@ -25,7 +27,7 @@ export function StadiumSlot({ state, onDropHandCard, onInspect }: {
   return (
     <button
       type="button"
-      style={stadiumSlotStyle(hovered, Boolean(stadiumImage))}
+      style={stadiumSlotStyle(hovered, Boolean(stadiumImage), abilityReady)}
       onClick={() => {
         if (!stadium || stadium.kind !== "trainer") return;
         onInspect({ card: stadium });
@@ -49,13 +51,18 @@ export function StadiumSlot({ state, onDropHandCard, onInspect }: {
       aria-label={stadiumName}
     >
       {stadiumImage
-        ? <img style={stadiumImageStyle(hovered)} src={stadiumImage} alt={stadiumName} draggable={false} />
+        ? (
+          <>
+            <img style={stadiumImageStyle(hovered)} src={stadiumImage} alt={stadiumName} draggable={false} />
+            {abilityReady && <AbilityReadyBadge corner="topLeft" size="sm" />}
+          </>
+        )
         : <span style={stadiumEmptyTextStyle}>Stadium Slot</span>}
     </button>
   );
 }
 
-function stadiumSlotStyle(hovered: boolean, hasCard: boolean): CSSProperties {
+function stadiumSlotStyle(hovered: boolean, hasCard: boolean, abilityReady: boolean): CSSProperties {
   return {
     position: "absolute",
     left: "50%",

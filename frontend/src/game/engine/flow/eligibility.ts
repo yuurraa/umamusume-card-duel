@@ -40,7 +40,11 @@ export function canUseUmamusumeAbility(state: GameState, side: SideState, abilit
   const ability = getUmamusumeCard(abilityUmamusume).ability;
   if (!ability) return false;
   if (side.usedAbilityNamesThisTurn?.includes(ability.name)) return false;
-  if (ability.moveBenchedEnergyToActive) return getAbilityMoveEnergyTypes(ability).length > 0;
+  if (ability.moveBenchedEnergyToActive) {
+    const energyTypes = getAbilityMoveEnergyTypes(ability);
+    if (energyTypes.length === 0) return false;
+    return side.bench.some((umamusume) => energyTypes.some((energyType) => umamusume.energies[energyType] > 0));
+  }
   if (ability.discardToDraw) return side.hand.length >= ability.discardToDraw.discard;
   return false;
 }

@@ -1,12 +1,14 @@
 import { type CSSProperties, useState } from "react";
-import type { EnergyType, GameState } from "../../../../shared/src/types";
+import type { EnergyType, GameState, UmamusumeType } from "../../../../shared/src/types";
 import type { InspectTarget } from "../../inspect";
 import { energyLabel, getAllUmamusume, getCard, getDisplayedRetreatCost, getUmamusumeCard } from "../../game/engine";
-import { getPreviewTone } from "../../utils/color";
-import { overlayBackdropStyle, overlayButtonStyle, overlaySurfaceStyle, previewAccentButtonStyle, previewKickerStyle } from "../../styles/shared";
+import { UMAMUSUME_TYPE_TO_ENERGY } from "../../game/engine/core/constants";
+import { abilityRuby, alphaColor, energyAccentColors, getPreviewTone } from "../../utils/color";
+import { overlayBackdropStyle, overlayButtonStyle, overlaySurfaceStyle, previewKickerStyle } from "../../styles/shared";
 import { NeutralButton } from "../../components/buttons/NeutralButton";
 import { PreviewAccentButton } from "../../components/buttons/PreviewAccentButton";
 import { EnergyIcon } from "../../components/cards/EnergyIcon";
+import { AbilityReadyBadge } from "../../components/cards/AbilityReadyBadge";
 
 export function CardPreview({ state, target, canUseAttack, canUseRetreat, canUseAbility, onAttack, onRetreat, onAbility, onClose }: {
   state: GameState;
@@ -132,15 +134,16 @@ export function CardPreview({ state, target, canUseAttack, canUseRetreat, canUse
                 onMouseLeave={() => setAbilityHovered(false)}
                 onFocus={() => setAbilityHovered(true)}
                 onBlur={() => setAbilityHovered(false)}
-                style={abilityButtonStyle(canUseAbility, abilityHovered, previewTone.accent)}
+                style={abilityButtonStyle(canUseAbility, abilityHovered)}
               >
-                <div style={abilityKickerStyle(canUseAbility, abilityHovered)}>Ability</div>
+                {canUseAbility && <AbilityReadyBadge corner="topRight" size="sm" />}
+                <div style={abilityKickerStyle}>Ability</div>
                 <strong style={abilityNameStyle}>{card.ability.name}</strong>
                 <span style={abilityTextStyle}>{card.ability.text}</span>
               </button>
             ) : (
               <section style={abilitySectionStyle}>
-                <div style={previewKickerStyle}>Ability</div>
+                <div style={abilityKickerStyle}>Ability</div>
                 <strong style={abilityNameStyle}>{card.ability.name}</strong>
                 <span style={abilityTextStyle}>{card.ability.text}</span>
               </section>
@@ -151,12 +154,14 @@ export function CardPreview({ state, target, canUseAttack, canUseRetreat, canUse
             <section style={previewMovesStyle}>
               {card.attacks.map((attack, index) => {
                 const attackPreview = attackPreviews[index] ?? { damage: attack.damage, notes: [] as string[] };
+                const attackEnabled = canUseAttack && index === 0;
+                const attackAccent = getAttackEnergyAccent(card.type);
                 return (
                 <PreviewAccentButton
                   key={attack.name}
-                  accent={previewTone.accent}
-                  style={{ padding: 12, fontSize: 14 }}
-                  disabled={!canUseAttack || index !== 0}
+                  accent={attackAccent}
+                  style={({ hovered }) => attackPreviewButtonStyle(attackEnabled, hovered, attackAccent)}
+                  disabled={!attackEnabled}
                   onClick={onAttack}
                 >
                   <span style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
@@ -222,9 +227,10 @@ export function CardPreview({ state, target, canUseAttack, canUseRetreat, canUse
                 onMouseLeave={() => setAbilityHovered(false)}
                 onFocus={() => setAbilityHovered(true)}
                 onBlur={() => setAbilityHovered(false)}
-                style={abilityButtonStyle(canUseAbility, abilityHovered, previewTone.accent)}
+                style={abilityButtonStyle(canUseAbility, abilityHovered)}
               >
-                <div style={abilityKickerStyle(canUseAbility, abilityHovered)}>{card.trainerType}</div>
+                {canUseAbility && <AbilityReadyBadge corner="topRight" size="sm" />}
+                <div style={abilityKickerStyle}>{card.trainerType}</div>
                 <strong style={abilityNameStyle}>{card.name}</strong>
                 <span style={abilityTextStyle}>{card.text}</span>
               </button>
@@ -372,21 +378,45 @@ const colorlessPipStyle: CSSProperties = {
   boxSizing: "border-box",
 };
 
-const abilitySectionStyle: CSSProperties = { ...previewBlockStyle };
+const abilitySectionStyle: CSSProperties = {
+  ...previewBlockStyle,
+  position: "relative",
+  border: `1px solid ${alphaColor(abilityRuby, 0.74)}`,
+  background: abilityRuby,
+  color: "#ffffff",
+  boxShadow: `0 10px 24px ${alphaColor(abilityRuby, 0.18)}`,
+};
 
-function abilityButtonStyle(enabled: boolean, hovered: boolean, accent: string): CSSProperties {
+function abilityButtonStyle(enabled: boolean, hovered: boolean): CSSProperties {
   return {
-    ...previewAccentButtonStyle(enabled, hovered, accent),
+    ...abilitySectionStyle,
+    width: "100%",
     marginTop: 10,
+    border: enabled
+      ? `1px solid ${hovered ? "rgba(255, 214, 107, 0.9)" : alphaColor(abilityRuby, 0.74)}`
+      : "1px solid rgba(110, 86, 96, 0.82)",
+    background: enabled
+      ? hovered
+        ? "linear-gradient(180deg, #d61148 0%, #a30f2a 100%)"
+        : abilityRuby
+      : "linear-gradient(180deg, #675a63 0%, #4c424a 100%)",
+    color: enabled ? "#ffffff" : "rgba(255, 255, 255, 0.68)",
+    cursor: enabled ? "pointer" : "not-allowed",
+    textAlign: "left",
+    transform: enabled && hovered ? "translateY(-2px)" : undefined,
+    boxShadow: enabled && hovered
+      ? `0 0 0 2px rgba(255, 214, 107, 0.28), 0 18px 36px ${alphaColor(abilityRuby, 0.34)}`
+      : enabled
+        ? abilitySectionStyle.boxShadow
+        : "0 8px 18px rgba(17, 24, 39, 0.12)",
+    transition: "background 140ms ease, border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease, color 140ms ease",
   };
 }
 
-function abilityKickerStyle(enabled: boolean, hovered: boolean): CSSProperties {
-  return {
-    ...previewKickerStyle,
-    color: enabled && hovered ? "rgba(255, 255, 255, 0.78)" : previewKickerStyle.color,
-  };
-}
+const abilityKickerStyle: CSSProperties = {
+  ...previewKickerStyle,
+  color: "rgba(255, 255, 255, 0.78)",
+};
 
 const abilityNameStyle: CSSProperties = {
   display: "block",
@@ -414,6 +444,27 @@ const previewMovesStyle: CSSProperties = {
   gap: 8,
   marginTop: 12,
 };
+
+function attackPreviewButtonStyle(enabled: boolean, hovered: boolean, accent: string): CSSProperties {
+  return {
+    padding: 12,
+    fontSize: 14,
+    ...(enabled
+      ? {
+          border: `1px solid ${hovered ? "rgba(255, 255, 255, 0.92)" : alphaColor(accent, 0.82)}`,
+          background: hovered
+            ? `linear-gradient(180deg, ${alphaColor("#ffffff", 0.24)} 0%, ${alphaColor("#ffffff", 0)} 44%), ${accent}`
+            : accent,
+          color: "#ffffff",
+          transform: hovered ? "translateY(-2px)" : undefined,
+          boxShadow: hovered
+            ? `0 0 0 2px ${alphaColor(accent, 0.26)}, 0 18px 34px ${alphaColor(accent, 0.34)}`
+            : `0 12px 28px ${alphaColor(accent, 0.24)}`,
+          transition: "background 140ms ease, border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease",
+        }
+      : {}),
+  };
+}
 
 const modifierListStyle: CSSProperties = {
   display: "grid",
@@ -510,7 +561,7 @@ function getAttackPreview(
     const bonus = energyCount * attack.damagePerAttachedEnergy.amount;
     if (bonus > 0) {
       damage += bonus;
-      const energyTypes = formatEnergyTypeList(attack.damagePerAttachedEnergy.types);
+      const energyTypes = formatAttachedEnergyBonusTypes(attack.damagePerAttachedEnergy.types);
       notes.push(`+${bonus} damage - ${energyCount} ${energyTypes}`);
     }
   }
@@ -543,6 +594,16 @@ function formatEnergyTypeList(types: EnergyType[]): string {
   const labels = [...new Set(types)].map(energyLabel);
   if (labels.length <= 1) return `${labels[0] ?? "Energy"} Energy`;
   return `${labels.slice(0, -1).join("/")}/${labels[labels.length - 1]} Energy`;
+}
+
+function formatAttachedEnergyBonusTypes(types: EnergyType[]): string {
+  const labels = [...new Set(types)].map((type) => energyLabel(type).replace(/ Energy$/, ""));
+  if (labels.length <= 1) return `${labels[0] ?? "Energy"} Energy`;
+  return `${labels.slice(0, -1).join("/")}/${labels[labels.length - 1]} Energy`;
+}
+
+function getAttackEnergyAccent(type: UmamusumeType): string {
+  return energyAccentColors[UMAMUSUME_TYPE_TO_ENERGY[type]];
 }
 
 function getRetreatEffectLines(

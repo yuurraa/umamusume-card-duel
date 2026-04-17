@@ -1,6 +1,8 @@
 import { type CSSProperties, type ReactNode, useState } from "react";
 import { previewAccentButtonStyle } from "../../styles/shared";
 
+type PreviewAccentButtonStyle = CSSProperties | ((state: { enabled: boolean; hovered: boolean; accent: string }) => CSSProperties);
+
 export function PreviewAccentButton({
   children,
   onClick,
@@ -12,15 +14,16 @@ export function PreviewAccentButton({
   onClick?: () => void;
   disabled?: boolean;
   accent: string;
-  style?: CSSProperties;
+  style?: PreviewAccentButtonStyle;
 }) {
   const [hovered, setHovered] = useState(false);
   const enabled = !disabled;
+  const extraStyle = typeof style === "function" ? style({ enabled, hovered, accent }) : style;
 
   return (
     <button
       type="button"
-      style={{ ...previewAccentButtonStyle(enabled, hovered, accent), ...style }}
+      style={{ ...previewAccentButtonStyle(enabled, hovered, accent), ...extraStyle }}
       disabled={disabled}
       onClick={onClick}
       onMouseEnter={() => setHovered(true)}

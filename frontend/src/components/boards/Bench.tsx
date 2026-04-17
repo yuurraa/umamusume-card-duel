@@ -1,5 +1,6 @@
 import { type CSSProperties, type DragEvent, useState } from "react";
 import { AttachedEnergyPips, FaceDownCard } from "../cards/UmaCard";
+import { AbilityReadyBadge } from "../cards/AbilityReadyBadge";
 import { getAttachedEnergy } from "../cards/attachedEnergy";
 import { hasTextDragPayload, readDragPayload, writeDragPayload } from "../drag/dragData";
 import { getUmamusumeCard } from "../../game/engine";
@@ -10,6 +11,7 @@ import type { InspectTarget } from "../../inspect";
 type BenchProps = {
   side: SideState;
   onInspect: (target: InspectTarget) => void;
+  abilityReadyUmamusumeUids?: Set<number> | undefined;
   hidden?: boolean;
   hiddenBenchCount?: number;
   setupMode?: boolean;
@@ -55,6 +57,7 @@ const slotStyle: CSSProperties = {
 export function Bench({
   side,
   onInspect,
+  abilityReadyUmamusumeUids,
   hidden = false,
   hiddenBenchCount,
   setupMode = false,
@@ -175,6 +178,7 @@ export function Bench({
             onEnergyDropOnUmamusume={onEnergyDropOnUmamusume}
             hpPercent={hpPercent}
             fillColor={fillColor}
+            abilityReady={Boolean(abilityReadyUmamusumeUids?.has(umamusume.uid))}
             hoverBorderColor={hoverBorderColor}
             hoverBackground={hoverBackground}
             hoverRingColor={hoverRingColor}
@@ -191,10 +195,9 @@ export function Bench({
   );
 }
 
-function BenchSlot({ card, umamusume, side, hidden, setupMode, activeSetupHandIndex, setupDragHandIndex, onSetupPromoteToActive, onHandCardDropOnUmamusume, onEnergyDropOnUmamusume, hpPercent, fillColor, hoverBorderColor, hoverBackground, hoverRingColor, hoverGlowColor, isSelectable, abilityEnergyTypes, sleeveImage, onInspect, onUmamusumeSelect }: { card: ReturnType<typeof getUmamusumeCard>; umamusume: UmamusumeInstance; side: SideState; hidden: boolean; setupMode: boolean; activeSetupHandIndex: number | undefined; setupDragHandIndex: number | undefined; onSetupPromoteToActive?: ((handIndex: number) => void) | undefined; onHandCardDropOnUmamusume?: ((handIndex: number, umamusumeUid: number) => void) | undefined; onEnergyDropOnUmamusume?: ((umamusumeUid: number) => void) | undefined; hpPercent: number; fillColor: string; hoverBorderColor: string; hoverBackground: string; hoverRingColor: string; hoverGlowColor: string; isSelectable: boolean; abilityEnergyTypes?: Set<EnergyType> | undefined; sleeveImage?: string | null | undefined; onInspect: (target: InspectTarget) => void; onUmamusumeSelect?: ((umamusume: UmamusumeInstance) => void) | undefined }) {
+function BenchSlot({ card, umamusume, side, hidden, setupMode, activeSetupHandIndex, setupDragHandIndex, onSetupPromoteToActive, onHandCardDropOnUmamusume, onEnergyDropOnUmamusume, hpPercent, fillColor, abilityReady, hoverBorderColor, hoverBackground, hoverRingColor, hoverGlowColor, isSelectable, abilityEnergyTypes, sleeveImage, onInspect, onUmamusumeSelect }: { card: ReturnType<typeof getUmamusumeCard>; umamusume: UmamusumeInstance; side: SideState; hidden: boolean; setupMode: boolean; activeSetupHandIndex: number | undefined; setupDragHandIndex: number | undefined; onSetupPromoteToActive?: ((handIndex: number) => void) | undefined; onHandCardDropOnUmamusume?: ((handIndex: number, umamusumeUid: number) => void) | undefined; onEnergyDropOnUmamusume?: ((umamusumeUid: number) => void) | undefined; hpPercent: number; fillColor: string; abilityReady: boolean; hoverBorderColor: string; hoverBackground: string; hoverRingColor: string; hoverGlowColor: string; isSelectable: boolean; abilityEnergyTypes?: Set<EnergyType> | undefined; sleeveImage?: string | null | undefined; onInspect: (target: InspectTarget) => void; onUmamusumeSelect?: ((umamusume: UmamusumeInstance) => void) | undefined }) {
   const [hovered, setHovered] = useState(false);
   const [dropHovered, setDropHovered] = useState(false);
-
   return (
     <div style={slotStyle}>
       <button
@@ -212,7 +215,7 @@ function BenchSlot({ card, umamusume, side, hidden, setupMode, activeSetupHandIn
           filter: hovered ? "drop-shadow(0 18px 24px rgba(17, 24, 39, 0.22)) saturate(1.06)" : "drop-shadow(0 14px 18px rgba(17, 24, 39, 0.18))",
           transform: hovered ? "translateY(-6px) rotate(0.8deg) scale(1.035)" : "translateY(0) rotate(0deg) scale(1)",
           boxShadow: dropHovered ? `0 0 0 4px ${hoverRingColor}, 0 0 24px ${hoverGlowColor}` : "none",
-          transition: "transform 160ms ease, filter 160ms ease, box-shadow 120ms ease",
+          transition: "transform 160ms ease, filter 160ms ease, box-shadow 120ms ease, border-color 120ms ease",
         }}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
@@ -295,6 +298,7 @@ function BenchSlot({ card, umamusume, side, hidden, setupMode, activeSetupHandIn
               alt={card.name}
               draggable={false}
             />
+            {abilityReady && <AbilityReadyBadge corner="topLeft" size="sm" />}
             <AttachedEnergyPips energies={getAttachedEnergy(umamusume)} draggableEnergyTypes={abilityEnergyTypes} sourceUmamusumeUid={umamusume.uid} />
           </>
         )}
@@ -327,3 +331,12 @@ const hiddenBenchCardFrameStyle: CSSProperties = {
   width: "auto",
   aspectRatio: "745 / 1040",
 };
+
+function alphaColor(hex: string, alpha: number): string {
+  const normalized = hex.replace("#", "");
+  const value = Number.parseInt(normalized, 16);
+  const red = (value >> 16) & 255;
+  const green = (value >> 8) & 255;
+  const blue = value & 255;
+  return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
+}
