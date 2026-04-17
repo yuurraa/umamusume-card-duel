@@ -1,7 +1,7 @@
 import { type CSSProperties, useState } from "react";
 import type { EnergyType, GameState } from "../../../../shared/src/types";
 import type { InspectTarget } from "../../inspect";
-import { getDisplayedRetreatCost } from "../../game/engine";
+import { energyLabel, getAllUmamusume, getCard, getDisplayedRetreatCost, getUmamusumeCard } from "../../game/engine";
 import { getPreviewTone } from "../../utils/color";
 import { overlayBackdropStyle, overlayButtonStyle, overlaySurfaceStyle, previewAccentButtonStyle, previewKickerStyle } from "../../styles/shared";
 import { NeutralButton } from "../../components/buttons/NeutralButton";
@@ -30,6 +30,21 @@ export function CardPreview({ state, target, canUseAttack, canUseRetreat, canUse
   const attachedEnergy = energyEntries.flatMap(([type, amount]) => Array.from({ length: amount }, () => type)).reverse();
   const previewSide = target.sideId === "player" ? state.sides.player : state.sides.opponent;
   const retreatCost = umamusume ? getDisplayedRetreatCost(state, previewSide, umamusume) : 0;
+  const hpEffectLines = card.kind === "umamusume" && umamusume && target.sideId
+    ? getHpEffectLines(state, target.sideId, umamusume)
+    : [];
+  const retreatEffectLines = card.kind === "umamusume" && umamusume && target.sideId
+    ? getRetreatEffectLines(state, target.sideId, umamusume)
+    : [];
+  const hasRetreatEffectLines = retreatEffectLines.length > 0;
+  const miscEffects = card.kind === "umamusume" && umamusume && target.sideId
+    ? getMiscEffectGroups(umamusume)
+    : { buffs: [], debuffs: [] as string[] };
+  const attackPreviews = card.kind === "umamusume" && umamusume && target.sideId
+    ? card.attacks.map((attack) => getAttackPreview(state, target.sideId!, umamusume, attack))
+    : card.kind === "umamusume"
+      ? card.attacks.map((attack) => ({ damage: attack.damage, notes: attack.coinBonus ? [`+${attack.coinBonus} damage - heads`] : [] }))
+      : [];
 
   return (
     <div style={previewBackdropStyle} onClick={onClose}>
@@ -51,6 +66,13 @@ export function CardPreview({ state, target, canUseAttack, canUseRetreat, canUse
               <div style={{ height: 9, marginTop: 8, overflow: "hidden", borderRadius: 999, background: "#e2e8f0" }}>
                 <div style={{ height: "100%", width: `${hpPercent}%`, borderRadius: 999, background: previewTone.accent }} />
               </div>
+              {hpEffectLines.length > 0 && (
+                <div style={{ ...modifierListStyle, marginTop: 8 }}>
+                  {hpEffectLines.map((line) => (
+                    <span key={line} style={modifierLineStyle}>{line}</span>
+                  ))}
+                </div>
+              )}
             </section>
           )}
 
@@ -72,21 +94,32 @@ export function CardPreview({ state, target, canUseAttack, canUseRetreat, canUse
           )}
 
           {card.kind === "umamusume" && umamusume && (
-            <button
-              type="button"
-              disabled={!canUseRetreat}
-              onClick={onRetreat}
-              onMouseEnter={() => setRetreatHovered(true)}
-              onMouseLeave={() => setRetreatHovered(false)}
-              onFocus={() => setRetreatHovered(true)}
-              onBlur={() => setRetreatHovered(false)}
-              style={retreatButtonStyle(canUseRetreat, retreatHovered, previewTone.accent)}
-            >
-              <span>Retreat</span>
-              <span style={retreatCostContentStyle(canUseRetreat, retreatHovered, previewTone.accent)}>
-                <RetreatCostDisplay cost={retreatCost} />
-              </span>
-            </button>
+            <>
+              <button
+                type="button"
+                disabled={!canUseRetreat}
+                onClick={onRetreat}
+                onMouseEnter={() => setRetreatHovered(true)}
+                onMouseLeave={() => setRetreatHovered(false)}
+                onFocus={() => setRetreatHovered(true)}
+                onBlur={() => setRetreatHovered(false)}
+                style={retreatButtonStyle(canUseRetreat, retreatHovered, previewTone.accent, hasRetreatEffectLines)}
+              >
+                <div style={retreatTopRowStyle}>
+                  <span>Retreat</span>
+                  <span style={retreatCostContentStyle(canUseRetreat, retreatHovered, previewTone.accent)}>
+                    <RetreatCostDisplay cost={retreatCost} />
+                  </span>
+                </div>
+                {hasRetreatEffectLines && (
+                  <div style={{ ...modifierListStyle, marginTop: 6 }}>
+                    {retreatEffectLines.map((line) => (
+                      <span key={line} style={modifierLineStyle}>{line}</span>
+                    ))}
+                  </div>
+                )}
+              </button>
+            </>
           )}
 
           {card.kind === "umamusume" && card.ability && (
@@ -116,7 +149,9 @@ export function CardPreview({ state, target, canUseAttack, canUseRetreat, canUse
 
           {card.kind === "umamusume" && (
             <section style={previewMovesStyle}>
-              {card.attacks.map((attack, index) => (
+              {card.attacks.map((attack, index) => {
+                const attackPreview = attackPreviews[index] ?? { damage: attack.damage, notes: [] as string[] };
+                return (
                 <PreviewAccentButton
                   key={attack.name}
                   accent={previewTone.accent}
@@ -126,11 +161,54 @@ export function CardPreview({ state, target, canUseAttack, canUseRetreat, canUse
                 >
                   <span style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
                     <strong>{attack.name}</strong>
-                    <strong>{attack.damage}</strong>
+                    <strong>{attackPreview.damage}</strong>
                   </span>
-                  <span style={{ display: "block", marginTop: 4, color: "inherit", opacity: 0.82, fontSize: 12, lineHeight: 1.25 }}>{attack.text}</span>
+                  <span
+                    style={{
+                      display: "block",
+                      marginTop: 4,
+                      color: "inherit",
+                      opacity: 0.82,
+                      fontSize: 12,
+                      lineHeight: 1.25,
+                      overflowWrap: "anywhere",
+                      wordBreak: "break-word",
+                    }}
+                  >
+                    {attack.text}
+                  </span>
+                  {attackPreview.notes.length > 0 && (
+                    <div style={{ ...modifierListStyle, marginTop: 6 }}>
+                      {attackPreview.notes.map((line, noteIndex) => (
+                        <span key={`${attack.name}-${noteIndex}`} style={modifierLineStyle}>{line}</span>
+                      ))}
+                    </div>
+                  )}
                 </PreviewAccentButton>
-              ))}
+                );
+              })}
+            </section>
+          )}
+
+          {card.kind === "umamusume" && miscEffects.buffs.length > 0 && (
+            <section style={previewBlockStyle}>
+              <div style={previewKickerStyle}>Buffs</div>
+              <div style={{ ...modifierListStyle, marginTop: 6 }}>
+                {miscEffects.buffs.map((line) => (
+                  <span key={line} style={modifierLineStyle}>{line}</span>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {card.kind === "umamusume" && miscEffects.debuffs.length > 0 && (
+            <section style={previewBlockStyle}>
+              <div style={previewKickerStyle}>Debuffs</div>
+              <div style={{ ...modifierListStyle, marginTop: 6 }}>
+                {miscEffects.debuffs.map((line) => (
+                  <span key={line} style={modifierLineStyle}>{line}</span>
+                ))}
+              </div>
             </section>
           )}
 
@@ -206,6 +284,7 @@ const previewInfoStyle: CSSProperties = {
   border: "1px solid rgba(185, 198, 188, 0.9)",
   background: "rgba(238, 243, 238, 0.94)",
   padding: 16,
+  minWidth: 0,
 };
 
 const previewTitleStyle: CSSProperties = {
@@ -214,6 +293,8 @@ const previewTitleStyle: CSSProperties = {
   fontSize: 24,
   lineHeight: 1.05,
   fontWeight: 950,
+  overflowWrap: "anywhere",
+  wordBreak: "break-word",
 };
 
 const previewBlockStyle: CSSProperties = {
@@ -237,16 +318,25 @@ const previewEnergyRingStyle: CSSProperties = {
 
 import { neutralButtonStyle } from "../../styles/shared";
 
-function retreatButtonStyle(enabled: boolean, hovered: boolean, accent: string): CSSProperties {
+function retreatButtonStyle(enabled: boolean, hovered: boolean, accent: string, hasModifierLines: boolean): CSSProperties {
   return {
     ...neutralButtonStyle(enabled, hovered),
     width: "100%",
-    height: 44,
+    ...(hasModifierLines ? { height: "auto", minHeight: 58 } : { height: 44 }),
     marginTop: 12,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: "0 12px",
+    ...(hasModifierLines
+      ? {
+          display: "grid",
+          gap: 2,
+          alignItems: "start",
+          padding: "8px 12px",
+        }
+      : {
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "0 12px",
+        }),
     textAlign: "left",
     fontSize: 13,
     fontWeight: 900,
@@ -315,6 +405,8 @@ const abilityTextStyle: CSSProperties = {
   fontSize: 14,
   fontWeight: 800,
   lineHeight: 1.35,
+  overflowWrap: "anywhere",
+  wordBreak: "break-word",
 };
 
 const previewMovesStyle: CSSProperties = {
@@ -322,3 +414,173 @@ const previewMovesStyle: CSSProperties = {
   gap: 8,
   marginTop: 12,
 };
+
+const modifierListStyle: CSSProperties = {
+  display: "grid",
+  gap: 2,
+  width: "100%",
+  minWidth: 0,
+};
+
+const modifierLineStyle: CSSProperties = {
+  display: "block",
+  color: "#000000",
+  fontSize: 11,
+  fontWeight: 800,
+  lineHeight: 1.25,
+  opacity: 0.86,
+  overflowWrap: "anywhere",
+  wordBreak: "break-word",
+};
+
+const retreatTopRowStyle: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 8,
+  width: "100%",
+};
+
+function getHpEffectLines(state: GameState, sideId: "player" | "opponent", umamusume: NonNullable<InspectTarget["umamusume"]>): string[] {
+  const side = state.sides[sideId];
+  const card = getUmamusumeCard(umamusume);
+  const lines: string[] = [];
+
+  if (state.stadium) {
+    const stadiumCard = getTrainerCardFromState(state);
+    const basicHpBonus = stadiumCard?.effect.basicHpBonus ?? 0;
+    if (basicHpBonus > 0 && card.stage === 0) {
+      lines.push(`+${basicHpBonus} HP - ${stadiumCard?.name}`);
+    }
+  }
+
+  const activeHpBonus = getAllUmamusume(side).reduce((best, ally) => Math.max(best, getUmamusumeCard(ally).ability?.activeHpBonus ?? 0), 0);
+  if (side.active?.uid === umamusume.uid && activeHpBonus > 0) {
+    const activeHpSource = getAllUmamusume(side)
+      .map((ally) => getUmamusumeCard(ally))
+      .find((allyCard) => (allyCard.ability?.activeHpBonus ?? 0) === activeHpBonus)
+      ?.ability?.name;
+    lines.push(`+${activeHpBonus} HP - ${activeHpSource ?? "ally ability"}`);
+  }
+
+  return lines;
+}
+
+function getMiscEffectGroups(umamusume: NonNullable<InspectTarget["umamusume"]>): { buffs: string[]; debuffs: string[] } {
+  const card = getUmamusumeCard(umamusume);
+  const buffs: string[] = [];
+  const debuffs: string[] = [];
+
+  const abilityDamageReduction = card.ability?.damageReduction ?? 0;
+  if (abilityDamageReduction > 0) {
+    buffs.push(`-${abilityDamageReduction} damage taken - ${card.ability?.name}`);
+  }
+  if (umamusume.nextTurnDamageReduction > 0) {
+    buffs.push(`-${umamusume.nextTurnDamageReduction} damage taken - next attack this turn`);
+  }
+
+  return { buffs, debuffs };
+}
+
+function getAttackPreview(
+  state: GameState,
+  sideId: "player" | "opponent",
+  umamusume: NonNullable<InspectTarget["umamusume"]>,
+  attack: NonNullable<ReturnType<typeof getUmamusumeCard>["attacks"][number]>,
+): { damage: number; notes: string[] } {
+  const side = state.sides[sideId];
+  const opposing = state.sides[sideId === "player" ? "opponent" : "player"];
+  const card = getUmamusumeCard(umamusume);
+  let damage = attack.damage;
+  const notes: string[] = [];
+
+  const activeAttackBonus = side.active?.uid === umamusume.uid ? side.activeAttackDamageBonus : 0;
+  if (activeAttackBonus > 0) {
+    damage += activeAttackBonus;
+    notes.push(`+${activeAttackBonus} damage - Aoi Kiryuin`);
+  }
+
+  if (attack.bonusIfTookDamageLastTurn && umamusume.tookDamageLastTurn) {
+    damage += attack.bonusIfTookDamageLastTurn;
+    notes.push(`+${attack.bonusIfTookDamageLastTurn} damage - Took damage last turn`);
+  }
+
+  if (attack.damagePerAttachedEnergy) {
+    const energyCount = attack.damagePerAttachedEnergy.types.reduce((sum, type) => sum + umamusume.energies[type], 0);
+    const bonus = energyCount * attack.damagePerAttachedEnergy.amount;
+    if (bonus > 0) {
+      damage += bonus;
+      const energyTypes = formatEnergyTypeList(attack.damagePerAttachedEnergy.types);
+      notes.push(`+${bonus} damage - ${energyCount} ${energyTypes}`);
+    }
+  }
+
+  if (attack.damagePerUmamusumeInPlay) {
+    const umamusumeCount = attack.damagePerUmamusumeInPlay.side === "all"
+      ? getAllUmamusume(side).length + getAllUmamusume(opposing).length
+      : getAllUmamusume(side).length;
+    const bonus = umamusumeCount * attack.damagePerUmamusumeInPlay.amount;
+    if (bonus > 0) {
+      damage += bonus;
+      notes.push(`+${bonus} damage - ${umamusumeCount} in play`);
+    }
+  }
+
+  const conditionalAttackBonus = card.ability?.attackDamageBonusIfAttachedEnergy;
+  if (conditionalAttackBonus && umamusume.energies[conditionalAttackBonus.type] >= conditionalAttackBonus.min) {
+    damage += conditionalAttackBonus.amount;
+    notes.push(`+${conditionalAttackBonus.amount} damage - ${card.ability?.name}`);
+  }
+
+  if (attack.coinBonus) {
+    notes.push(`+${attack.coinBonus} damage - heads`);
+  }
+
+  return { damage, notes };
+}
+
+function formatEnergyTypeList(types: EnergyType[]): string {
+  const labels = [...new Set(types)].map(energyLabel);
+  if (labels.length <= 1) return `${labels[0] ?? "Energy"} Energy`;
+  return `${labels.slice(0, -1).join("/")}/${labels[labels.length - 1]} Energy`;
+}
+
+function getRetreatEffectLines(
+  state: GameState,
+  sideId: "player" | "opponent",
+  umamusume: NonNullable<InspectTarget["umamusume"]>,
+): string[] {
+  const side = state.sides[sideId];
+  const card = getUmamusumeCard(umamusume);
+  const baseCost = parseRetreatCost(card.retreat);
+  if (baseCost <= 0) return [];
+
+  const lines: string[] = [];
+  const stadiumCard = getTrainerCardFromState(state);
+  const globalReduction = Math.min(baseCost, stadiumCard?.effect.globalRetreatCostReduction ?? 0);
+  if (globalReduction > 0) {
+    lines.push(`-${globalReduction} Retreat - ${stadiumCard?.name}`);
+  }
+
+  if (side.active?.uid === umamusume.uid && side.retreatCostReduction > 0) {
+    const remainingAfterGlobal = Math.max(0, baseCost - globalReduction);
+    const localReduction = Math.min(remainingAfterGlobal, side.retreatCostReduction);
+    if (localReduction > 0) {
+      lines.push(`-${localReduction} Retreat - Carrot Jelly`);
+    }
+  }
+
+  return lines;
+}
+
+function getTrainerCardFromState(state: GameState) {
+  if (!state.stadium) return null;
+  const card = getCard(state.stadium.cardId);
+  return card.kind === "trainer" ? card : null;
+}
+
+function parseRetreatCost(retreat: string): number {
+  if (retreat === "Empty") return 0;
+  const amount = retreat.match(/x(\d+)/)?.[1];
+  return amount ? Number(amount) : 1;
+}
