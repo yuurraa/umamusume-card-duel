@@ -11,6 +11,7 @@ type HandProps = {
   setupActiveIndex?: number | null;
   setupBenchIndexes?: number[];
   onSetupChooseActive?: (index: number) => void;
+  onOpenDiscard?: () => void;
 };
 
 export function Hand({
@@ -19,39 +20,56 @@ export function Hand({
   mode = "play",
   setupActiveIndex = null,
   setupBenchIndexes = [],
+  onOpenDiscard,
 }: HandProps) {
   const player = state.sides.player;
   const isSetup = mode === "setup";
   const playerTurn = isSetup || (!state.gameOver && state.currentSide === "player");
   const hiddenSetupIndexes = isSetup ? new Set([setupActiveIndex, ...setupBenchIndexes].filter((index): index is number => index !== null)) : null;
+  const topDiscardCardId = player.discard[player.discard.length - 1] ?? null;
+  const topDiscardCard = topDiscardCardId ? getCard(topDiscardCardId) : null;
 
   return (
-    <div style={handStyle}>
-      {player.hand.map((cardId, index) => {
-        if (hiddenSetupIndexes?.has(index)) return null;
-        const card = getCard(cardId);
-        const action = getPlayableAction(state, player, cardId);
-        const isSetupBasic = isSetup && card.kind === "umamusume" && card.stage === 0;
-        const canDrag = isSetup ? isSetupBasic : playerTurn && action.canPlay;
-        const image = card.kind === "umamusume" ? card.portrait : card.image;
-        const shadow = card.kind === "umamusume"
-          ? "drop-shadow(0 18px 22px rgba(214, 81, 157, 0.22))"
-          : card.trainerType === "supporter"
-            ? "drop-shadow(0 18px 22px rgba(245, 158, 11, 0.22))"
-            : "drop-shadow(0 18px 22px rgba(63, 159, 92, 0.22))";
-        return (
-          <HandCard
-            key={`${cardId}-${index}`}
-            card={card}
-            handIndex={index}
-            image={image}
-            canDrag={canDrag}
-            shadow={shadow}
-            isSetup={isSetup}
-            onPrimaryAction={() => onInspect({ card })}
-          />
-        );
-      })}
+    <div style={handShellStyle}>
+      <PileSlot
+        label="Deck"
+        count={player.deck.length}
+        title={`${player.deck.length} cards left`}
+      />
+      <div style={handStyle}>
+        {player.hand.map((cardId, index) => {
+          if (hiddenSetupIndexes?.has(index)) return null;
+          const card = getCard(cardId);
+          const action = getPlayableAction(state, player, cardId);
+          const isSetupBasic = isSetup && card.kind === "umamusume" && card.stage === 0;
+          const canDrag = isSetup ? isSetupBasic : playerTurn && action.canPlay;
+          const image = card.kind === "umamusume" ? card.portrait : card.image;
+          const shadow = card.kind === "umamusume"
+            ? "drop-shadow(0 18px 22px rgba(214, 81, 157, 0.22))"
+            : card.trainerType === "supporter"
+              ? "drop-shadow(0 18px 22px rgba(245, 158, 11, 0.22))"
+              : "drop-shadow(0 18px 22px rgba(63, 159, 92, 0.22))";
+          return (
+            <HandCard
+              key={`${cardId}-${index}`}
+              card={card}
+              handIndex={index}
+              image={image}
+              canDrag={canDrag}
+              shadow={shadow}
+              isSetup={isSetup}
+              onPrimaryAction={() => onInspect({ card })}
+            />
+          );
+        })}
+      </div>
+      <PileSlot
+        label="Discard"
+        count={player.discard.length}
+        title={`${player.discard.length} ${player.discard.length === 1 ? "card" : "cards"} discarded`}
+        cardImage={topDiscardCard ? (topDiscardCard.kind === "umamusume" ? topDiscardCard.portrait : topDiscardCard.image) : undefined}
+        onClick={onOpenDiscard}
+      />
     </div>
   );
 }
@@ -107,6 +125,83 @@ function HandCard({
   );
 }
 
+function PileSlot({
+  label,
+  count,
+  title,
+  cardImage,
+  onClick,
+}: {
+  label: string;
+  count: number;
+  title: string;
+  cardImage?: string | undefined;
+  onClick?: (() => void) | undefined;
+}) {
+  const [hovered, setHovered] = useState(false);
+  const interactive = Boolean(onClick);
+  const content = (
+    <>
+      {cardImage && count > 0 ? (
+        <img style={pileCardImageStyle} src={cardImage} alt="" draggable={false} />
+      ) : (
+        <span style={pileCardBackStyle}>
+          <span style={pileCardBackMarkStyle}>D</span>
+        </span>
+      )}
+      <span style={pileCountBadgeStyle}>{count}</span>
+    </>
+  );
+
+  return (
+    <div style={pileSlotWrapStyle}>
+      {interactive ? (
+        <button
+          type="button"
+          title={title}
+          aria-label={title}
+          style={pileSlotButtonStyle(interactive, hovered)}
+          onClick={onClick}
+          onMouseEnter={() => setHovered(true)}
+          onMouseLeave={() => setHovered(false)}
+          onFocus={() => setHovered(true)}
+          onBlur={() => setHovered(false)}
+        >
+          {content}
+        </button>
+      ) : (
+        <div
+          title={title}
+          aria-label={title}
+          style={pileSlotButtonStyle(interactive, hovered)}
+          onMouseEnter={() => setHovered(true)}
+          onMouseLeave={() => setHovered(false)}
+        >
+          {content}
+        </div>
+      )}
+      <strong style={pileLabelStyle}>{label}</strong>
+      {hovered && <span style={pileTooltipStyle}>{getPileTooltip(label, count)}</span>}
+    </div>
+  );
+}
+
+function getPileTooltip(label: string, count: number): string {
+  if (label === "Discard") return `${count} ${count === 1 ? "card" : "cards"} discarded`;
+  return `${count} ${count === 1 ? "card" : "cards"} left`;
+}
+
+const PILE_SLOT_WIDTH = 112;
+const PILE_CARD_WIDTH = 92;
+const PILE_CARD_HEIGHT = 129;
+
+const handShellStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: `${PILE_SLOT_WIDTH}px minmax(0, 1fr) ${PILE_SLOT_WIDTH}px`,
+  gap: 12,
+  alignItems: "center",
+};
+
 const handStyle: CSSProperties = {
   height: 286,
   display: "flex",
@@ -114,6 +209,109 @@ const handStyle: CSSProperties = {
   justifyContent: "center",
   overflowX: "auto",
   padding: "16px 2px 8px",
+};
+
+const pileSlotWrapStyle: CSSProperties = {
+  position: "relative",
+  display: "grid",
+  justifyItems: "center",
+  gap: 8,
+};
+
+function pileSlotButtonStyle(interactive: boolean, hovered: boolean): CSSProperties {
+  return {
+    position: "relative",
+    width: PILE_CARD_WIDTH,
+    height: PILE_CARD_HEIGHT,
+    boxSizing: "border-box",
+    appearance: "none",
+    borderRadius: 8,
+    border: hovered ? "1px solid rgba(100, 113, 104, 0.42)" : "1px solid rgba(203, 213, 225, 0.88)",
+    background: "rgba(255, 255, 255, 0.88)",
+    padding: 5,
+    cursor: interactive ? "pointer" : "help",
+    boxShadow: hovered ? "0 16px 34px rgba(17, 24, 39, 0.16)" : "0 10px 24px rgba(17, 24, 39, 0.1)",
+    transform: hovered ? "translateY(-2px)" : undefined,
+    transition: "border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease",
+    opacity: interactive || hovered ? 1 : 0.94,
+  };
+}
+
+const pileCardImageStyle: CSSProperties = {
+  width: "100%",
+  height: "100%",
+  borderRadius: 6,
+  objectFit: "fill",
+  display: "block",
+};
+
+const pileCardBackStyle: CSSProperties = {
+  width: "100%",
+  height: "100%",
+  display: "grid",
+  placeItems: "center",
+  borderRadius: 6,
+  border: "1px solid rgba(255, 255, 255, 0.72)",
+  background: "linear-gradient(145deg, #17211c 0%, #284135 48%, #d6519d 100%)",
+  boxShadow: "inset 0 0 0 4px rgba(255,255,255,0.18)",
+};
+
+const pileCardBackMarkStyle: CSSProperties = {
+  width: 38,
+  height: 38,
+  display: "grid",
+  placeItems: "center",
+  borderRadius: "50%",
+  background: "rgba(255, 255, 255, 0.9)",
+  color: "#17211c",
+  fontSize: 18,
+  fontWeight: 950,
+  fontFamily: "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+  lineHeight: 1,
+};
+
+const pileCountBadgeStyle: CSSProperties = {
+  position: "absolute",
+  right: -7,
+  top: -7,
+  minWidth: 24,
+  height: 24,
+  display: "grid",
+  placeItems: "center",
+  padding: "0 6px",
+  borderRadius: 999,
+  border: "1px solid rgba(255, 255, 255, 0.88)",
+  background: "#17211c",
+  color: "#ffffff",
+  fontSize: 12,
+  fontWeight: 950,
+  boxShadow: "0 8px 18px rgba(17, 24, 39, 0.2)",
+};
+
+const pileLabelStyle: CSSProperties = {
+  color: "#47554c",
+  fontSize: 12,
+  fontWeight: 950,
+  textTransform: "uppercase",
+  letterSpacing: 0,
+};
+
+const pileTooltipStyle: CSSProperties = {
+  position: "absolute",
+  bottom: "calc(100% + 8px)",
+  left: "50%",
+  transform: "translateX(-50%)",
+  width: "max-content",
+  maxWidth: 160,
+  borderRadius: 8,
+  border: "1px solid rgba(203, 213, 225, 0.9)",
+  background: "rgba(255, 255, 255, 0.96)",
+  color: "#17211c",
+  padding: "6px 8px",
+  fontSize: 12,
+  fontWeight: 900,
+  boxShadow: "0 12px 28px rgba(17, 24, 39, 0.14)",
+  zIndex: 10,
 };
 
 const handCardButtonStyle: CSSProperties = {

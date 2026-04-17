@@ -11,7 +11,13 @@ type CombatDeps = {
   choosePreferredActiveIndex: (side: SideState) => number;
 };
 
-export function performAttack(state: GameState, attackerId: SideId, deps: CombatDeps, healTargetUid?: number): void {
+export function performAttack(
+  state: GameState,
+  attackerId: SideId,
+  deps: CombatDeps,
+  healTargetUid?: number,
+  forcedCoinResult?: "heads" | "tails",
+): void {
   const defenderId = attackerId === "player" ? "opponent" : "player";
   const attacker = state.sides[attackerId];
   const defender = state.sides[defenderId];
@@ -29,9 +35,10 @@ export function performAttack(state: GameState, attackerId: SideId, deps: Combat
     damage += bonusEnergyCount * attack.damagePerAttachedEnergy.amount;
   }
   if (attack.coinBonus) {
-    const heads = Math.random() >= 0.5;
+    const heads = forcedCoinResult ? forcedCoinResult === "heads" : Math.random() >= 0.5;
     if (heads) damage += attack.coinBonus;
-    log(state, `${attack.name}'s coin flip was ${heads ? `heads (+${attack.coinBonus})` : "tails"}.`);
+    const coinText = heads ? `heads (+${attack.coinBonus})` : "tails";
+    log(state, forcedCoinResult ? `${attack.name}'s coin result was ${coinText}.` : `${attack.name}'s coin flip was ${coinText}.`);
   }
   if (defenderCard.weakness.type === attackerCard.type) damage += defenderCard.weakness.amount;
 

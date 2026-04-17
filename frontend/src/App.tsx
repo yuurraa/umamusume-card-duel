@@ -27,7 +27,7 @@ import {
   resolvePendingPlayerChoice,
   usePlayerAbility,
 } from "./game/engine";
-import type { EnergyType, GameState, UmamusumeInstance } from "../../shared/src/types";
+import type { EnergyType, GameState, SideId, UmamusumeInstance } from "../../shared/src/types";
 import type { InspectTarget } from "./inspect";
 import type { ActionNoticeSource, AppScreen, PendingSelection } from "./types/ui";
 import { getDeckById, readEquippedDeckId, writeEquippedDeckId, pickRandomOpponentDeck } from "./utils/deck";
@@ -40,6 +40,7 @@ import {
   getActionNotice,
 } from "./match/utils/helpers";
 import { CardPreview } from "./match/modals/CardPreview";
+import { DiscardPileModal } from "./match/modals/DiscardPileModal";
 import { PlayDropZone } from "./match/board/PlayDropZone";
 import { StadiumSlot } from "./match/board/StadiumSlot";
 import { PlayHandHeader } from "./match/controls/HandControls";
@@ -49,8 +50,22 @@ import { ChoiceModal } from "./match/modals/ChoiceModal";
 import { SelectionPrompt } from "./match/controls/SelectionPrompt";
 import { OpponentActionBanner } from "./match/feedback/OpponentActionBanner";
 import { ActionNotice } from "./match/feedback/ActionNotice";
+import { CoinFlipOverlay } from "./match/feedback/CoinFlipOverlay";
 import { MainMenuScreen } from "./screens/MainMenuScreen";
 import { DeckBrowserScreen } from "./screens/DeckBrowserScreen";
+
+type CoinFlipEvent = {
+  id: number;
+  result: "heads" | "tails";
+  message: string;
+};
+
+type PendingCoinAttack = {
+  eventId: number;
+  attackerId: SideId;
+  result: "heads" | "tails";
+  healTargetUid?: number;
+};
 
 export function App() {
   const [screen, setScreen] = useState<AppScreen>("mainMenu");
@@ -63,10 +78,15 @@ export function App() {
   const [previewTarget, setPreviewTarget] = useState<InspectTarget | null>(null);
   const [pendingSelection, setPendingSelection] = useState<PendingSelection | null>(null);
   const [actionNotice, setActionNotice] = useState<string | null>(null);
+  const [discardOpen, setDiscardOpen] = useState(false);
+  const [coinFlipQueue, setCoinFlipQueue] = useState<CoinFlipEvent[]>([]);
+  const [activeCoinFlip, setActiveCoinFlip] = useState<CoinFlipEvent | null>(null);
+  const [pendingCoinAttack, setPendingCoinAttack] = useState<PendingCoinAttack | null>(null);
   const [setupActiveIndex, setSetupActiveIndex] = useState<number | null>(null);
   const [setupBenchIndexes, setSetupBenchIndexes] = useState<number[]>([]);
   const [menuOpen, setMenuOpen] = useState(false);
-  const previousLogRef = useRef<string[]>(game.log);
+  const previousLogRef = useRef<string[]>([]);
+  const coinFlipIdRef = useRef(1);
   const equippedDeck = getDeckById(equippedDeckId);
   const player = game.sides.player;
   const nextPlayerEnergy = player.energyZone[0] ?? null;
@@ -77,6 +97,7 @@ export function App() {
   const abilityEnergyTypes = pendingSelection?.kind === "moveEnergyAbility" ? new Set(pendingSelection.energyTypes) : undefined;
   const hiddenOpponent = game.phase === "setup" && !game.setup?.opponentRevealed;
   const isBusyWithChoice = Boolean(pendingSelection || game.pendingPlayerChoice);
+  const isCoinFlipBlocking = Boolean(activeCoinFlip || coinFlipQueue.length > 0);
   const displayedPlayerSide = game.phase === "setup" ? createSetupPreviewSide(player, setupActiveIndex, setupBenchIndexes) : player;
   const displayedOpponentSide = hiddenOpponent ? createSetupHiddenOpponentSide(game.sides.opponent) : game.sides.opponent;
   const hiddenOpponentBenchCount = hiddenOpponent ? game.sides.opponent.bench.length : undefined;
@@ -151,11 +172,16 @@ export function App() {
   };
 
   const startNewGame = () => {
+    previousLogRef.current = [];
+    setCoinFlipQueue([]);
+    setActiveCoinFlip(null);
+    setPendingCoinAttack(null);
     setSetupActiveIndex(null);
     setSetupBenchIndexes([]);
     setPendingSelection(null);
     setPreviewTarget(null);
     setActionNotice(null);
+    setDiscardOpen(false);
     setMenuOpen(false);
     const opponent = pickRandomOpponentDeck();
     setGame(createGame(equippedDeck.cardIds, opponent.cardIds, opponent.name));
@@ -170,6 +196,7 @@ export function App() {
     setPendingSelection(null);
     setPreviewTarget(null);
     setActionNotice(null);
+    setDiscardOpen(false);
     setMenuOpen(false);
     setScreen("mainMenu");
   };
@@ -182,19 +209,16 @@ export function App() {
   };
 
   const clearSelection = () => setPendingSelection(null);
-  const toggleMenu = () => setMenuOpen((open) => !open);
+  const toggleMenu = () => {
+    if (isCoinFlipBlocking) return;
+    setMenuOpen((open) => !open);
+  };
   const handleSurrender = () => {
     setMenuOpen(false);
     setGame(playerSurrender);
   };
   const cancelPendingSelection = () => {
     if (game.pendingPlayerChoice) return;
-    if (pendingSelection?.kind === "zoneBenchAttachTarget") {
-      setGame((current) => playHandCard(current, pendingSelection.handIndex));
-      setPendingSelection(null);
-      setPreviewTarget(null);
-      return;
-    }
     clearSelection();
   };
   const openPreview = (target: InspectTarget) => setPreviewTarget(target);
@@ -206,7 +230,7 @@ export function App() {
 
   useEffect(() => {
     if (!actionNotice) return undefined;
-    if (actionNotice.startsWith("KO:")) return undefined;
+    if (isBottomActionNotice(actionNotice)) return undefined;
     const timeoutId = window.setTimeout(() => setActionNotice(null), 4200);
     return () => window.clearTimeout(timeoutId);
   }, [actionNotice]);
@@ -239,6 +263,7 @@ export function App() {
     if (!game.gameOver) return;
     setPendingSelection(null);
     setPreviewTarget(null);
+    setDiscardOpen(false);
     setMenuOpen(false);
   }, [game.gameOver]);
 
@@ -251,12 +276,25 @@ export function App() {
   }, [game.phase, player.hand]);
 
   useEffect(() => {
-    if (game.phase !== "play" || game.currentSide !== "opponent" || game.gameOver || game.pendingPlayerChoice) return undefined;
+    if (isCoinFlipBlocking || game.phase !== "play" || game.currentSide !== "opponent" || game.gameOver || game.pendingPlayerChoice) return undefined;
     const timeoutId = window.setTimeout(() => {
+      const coinAttack = getPendingAttackCoinFlip(game, "opponent", coinFlipIdRef.current++);
+      if (coinAttack) {
+        setPendingCoinAttack({ eventId: coinAttack.id, attackerId: "opponent", result: coinAttack.result });
+        setActiveCoinFlip(coinAttack);
+        return;
+      }
       setGame((current) => advanceOpponentTurnStep(current));
     }, getOpponentStepDelay(game));
     return () => window.clearTimeout(timeoutId);
-  }, [game]);
+  }, [game, isCoinFlipBlocking]);
+
+  useEffect(() => {
+    if (activeCoinFlip || coinFlipQueue.length === 0) return;
+    const [nextFlip, ...rest] = coinFlipQueue;
+    setActiveCoinFlip(nextFlip ?? null);
+    setCoinFlipQueue(rest);
+  }, [coinFlipQueue, activeCoinFlip]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -264,8 +302,29 @@ export function App() {
       if (screen !== "match" || game.gameOver) return;
 
       event.preventDefault();
+      if (isCoinFlipBlocking) return;
       if (previewTarget) {
         setPreviewTarget(null);
+        return;
+      }
+      if (discardOpen) {
+        setDiscardOpen(false);
+        return;
+      }
+      if (pendingSelection?.kind === "discardForScout" || pendingSelection?.kind === "deckSearch") {
+        setPendingSelection(null);
+        return;
+      }
+      if (actionNotice && isBottomActionNotice(actionNotice)) {
+        setActionNotice(null);
+        return;
+      }
+      if (pendingSelection && !game.pendingPlayerChoice) {
+        setPendingSelection(null);
+        return;
+      }
+      if (menuOpen) {
+        setMenuOpen(false);
         return;
       }
       setMenuOpen((open) => !open);
@@ -273,13 +332,20 @@ export function App() {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [screen, game.gameOver, previewTarget]);
+  }, [screen, game.gameOver, game.pendingPlayerChoice, isCoinFlipBlocking, previewTarget, discardOpen, pendingSelection, actionNotice, menuOpen]);
 
   useEffect(() => {
     const previousLog = previousLogRef.current;
     const newEntries = getNewLogEntries(game.log, previousLog);
     previousLogRef.current = game.log;
     if (newEntries.length === 0) return;
+
+    const coinFlips = newEntries
+      .map((entry) => toCoinFlipEvent(entry, coinFlipIdRef.current++))
+      .filter((event): event is CoinFlipEvent => Boolean(event));
+    if (coinFlips.length > 0) {
+      setCoinFlipQueue((queue) => [...queue, ...coinFlips]);
+    }
 
     const koEntry = newEntries.find((entry) => entry.includes("was knocked out"));
     if (koEntry) {
@@ -327,15 +393,9 @@ export function App() {
       return;
     }
     if (card.kind === "trainer" && card.effect.attachEnergyFromZoneToBench) {
-      if (player.energyZone.length > 0 && player.bench.length > 1) {
+      if (player.bench.length > 0) {
         setPendingSelection({ kind: "zoneBenchAttachTarget", handIndex });
         setPreviewTarget(null);
-        return;
-      }
-      if (player.energyZone.length > 0 && player.bench.length === 1) {
-        const benchTarget = player.bench[0];
-        if (!benchTarget) return;
-        setGame((current) => playHandCard(current, handIndex, { umamusumeTargetUid: benchTarget.uid }));
         return;
       }
     }
@@ -418,7 +478,16 @@ export function App() {
     } else if (pendingSelection.kind === "attackHealTarget") {
       const active = player.active;
       const attack = active ? getPrimaryAttack(getUmamusumeCard(active)) : null;
-      if (attack?.draw) {
+      const coinAttack = getPendingAttackCoinFlip(game, "player", coinFlipIdRef.current++);
+      if (coinAttack) {
+        setPendingCoinAttack({
+          eventId: coinAttack.id,
+          attackerId: "player",
+          result: coinAttack.result,
+          healTargetUid: umamusume.uid,
+        });
+        setActiveCoinFlip(coinAttack);
+      } else if (attack?.draw) {
         applyPlayerGameUpdate((current) => playerAttack(current, umamusume.uid), { kind: "genericGain" });
       } else {
         setGame((current) => playerAttack(current, umamusume.uid));
@@ -529,13 +598,32 @@ export function App() {
                 onToggleMenu={toggleMenu}
                 onSurrender={handleSurrender}
               />
-              <Hand state={game} onInspect={openPreview} />
+              <Hand state={game} onInspect={openPreview} onOpenDiscard={() => setDiscardOpen(true)} />
             </>
           )}
         </section>
       </div>
       {game.phase === "play" && game.currentSide === "opponent" && (
         <OpponentActionBanner message={getOpponentBannerMessage(game)} paused={Boolean(game.pendingPlayerChoice)} />
+      )}
+      {activeCoinFlip && (
+        <CoinFlipOverlay
+          key={activeCoinFlip.id}
+          result={activeCoinFlip.result}
+          message={activeCoinFlip.message}
+          onContinue={() => {
+            const coinAttack = pendingCoinAttack?.eventId === activeCoinFlip.id ? pendingCoinAttack : null;
+            if (coinAttack) {
+              setGame((current) =>
+                coinAttack.attackerId === "player"
+                  ? playerAttack(current, coinAttack.healTargetUid, coinAttack.result)
+                  : advanceOpponentTurnStep(current, coinAttack.result),
+              );
+              setPendingCoinAttack(null);
+            }
+            setActiveCoinFlip(null);
+          }}
+        />
       )}
       {activePendingSelection && (
         <SelectionPrompt
@@ -562,6 +650,13 @@ export function App() {
               setPreviewTarget(null);
               return;
             }
+          }
+          const coinAttack = getPendingAttackCoinFlip(game, "player", coinFlipIdRef.current++);
+          if (coinAttack) {
+            setPendingCoinAttack({ eventId: coinAttack.id, attackerId: "player", result: coinAttack.result });
+            setActiveCoinFlip(coinAttack);
+            setPreviewTarget(null);
+            return;
           }
           if (attack.draw) {
             applyPlayerGameUpdate(playerAttack, { kind: "genericGain" });
@@ -629,16 +724,19 @@ export function App() {
           setPendingSelection(null);
         }}
       />
+      {discardOpen && (
+        <DiscardPileModal
+          cardIds={player.discard}
+          onInspect={(card) => setPreviewTarget({ card })}
+          onClose={() => setDiscardOpen(false)}
+        />
+      )}
       {actionNotice && (
         <ActionNotice
           notice={actionNotice}
-          tone={
-            actionNotice.startsWith("KO: Opponent's")
-              ? "info"
-              : actionNotice.startsWith("KO:")
-                ? "danger"
-                : "default"
-          }
+          tone={getActionNoticeTone(actionNotice)}
+          placement={isBottomActionNotice(actionNotice) ? "bottom" : "top"}
+          interactive={isBottomActionNotice(actionNotice)}
           onClose={() => setActionNotice(null)}
         />
       )}
@@ -736,4 +834,37 @@ function getInfoNoticeFromEntries(newEntries: string[]): string | null {
   if (damageEntry) return damageEntry;
 
   return null;
+}
+
+function isBottomActionNotice(notice: string): boolean {
+  return notice.startsWith("KO:") || notice.includes(" attacked with ");
+}
+
+function getActionNoticeTone(notice: string): "default" | "danger" | "info" {
+  if (notice.startsWith("KO: Opponent's")) return "info";
+  if (notice.startsWith("KO:")) return "danger";
+  return "default";
+}
+
+function getPendingAttackCoinFlip(state: GameState, attackerId: SideId, id: number): CoinFlipEvent | null {
+  if (state.phase !== "play") return null;
+  if (attackerId === "opponent" && (state.currentSide !== "opponent" || state.opponentTurnStep !== "attack")) return null;
+  if (attackerId === "player" && state.currentSide !== "player") return null;
+
+  const attacker = state.sides[attackerId];
+  if (!attacker.active) return null;
+  const attack = getPrimaryAttack(getUmamusumeCard(attacker.active));
+  if (!attack.coinBonus) return null;
+
+  const result = Math.random() >= 0.5 ? "heads" : "tails";
+  const bonusText = result === "heads" ? ` (+${attack.coinBonus})` : "";
+  return { id, result, message: `${attack.name}'s coin flip was ${result}${bonusText}.` };
+}
+
+function toCoinFlipEvent(entry: string, id: number): CoinFlipEvent | null {
+  if (!entry.toLowerCase().includes("coin flip was")) return null;
+  const resultMatch = entry.match(/\b(heads|tails)\b/i);
+  if (!resultMatch) return null;
+  const result = resultMatch[1]?.toLowerCase() === "tails" ? "tails" : "heads";
+  return { id, result, message: entry };
 }

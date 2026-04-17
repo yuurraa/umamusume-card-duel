@@ -119,10 +119,10 @@ export function attachPlayerEnergy(state: GameState, umamusumeUid?: number): Gam
   return next;
 }
 
-export function playerAttack(state: GameState, healTargetUid?: number): GameState {
+export function playerAttack(state: GameState, healTargetUid?: number, forcedCoinResult?: "heads" | "tails"): GameState {
   const next = cloneGame(state);
   if (!canAttack(next, next.sides.player)) return next;
-  performAttack(next, "player", { refreshContinuousEffects, choosePreferredActiveIndex }, healTargetUid);
+  performAttack(next, "player", { refreshContinuousEffects, choosePreferredActiveIndex }, healTargetUid, forcedCoinResult);
   if (next.pendingPlayerChoice) return next;
   if (!next.gameOver) advanceToNextTurn(next);
   return next;
@@ -147,7 +147,7 @@ export function playerSurrender(state: GameState): GameState {
   return next;
 }
 
-export function advanceOpponentTurnStep(state: GameState): GameState {
+export function advanceOpponentTurnStep(state: GameState, forcedAttackCoinResult?: "heads" | "tails"): GameState {
   const next = cloneGame(state);
   if (next.phase !== "play" || next.pendingPlayerChoice || next.gameOver || next.currentSide !== "opponent") return next;
   const opponent = next.sides.opponent;
@@ -192,7 +192,9 @@ export function advanceOpponentTurnStep(state: GameState): GameState {
     if (step === "attack") {
       refreshContinuousEffects(next);
       if (canAttack(next, opponent)) {
-        performAttack(next, "opponent", { refreshContinuousEffects, choosePreferredActiveIndex });
+        const attack = getPrimaryAttack(getUmamusumeCard(opponent.active));
+        if (attack.coinBonus && !forcedAttackCoinResult) return next;
+        performAttack(next, "opponent", { refreshContinuousEffects, choosePreferredActiveIndex }, undefined, forcedAttackCoinResult);
         if (next.pendingPlayerChoice) {
           next.opponentTurnStep = "finish";
           return next;
@@ -352,5 +354,4 @@ function resolveContinuousKnockouts(state: GameState): void {
     }
   }
 }
-
 

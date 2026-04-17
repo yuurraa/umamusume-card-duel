@@ -23,6 +23,9 @@ export function getPlayableAction(state: GameState, side: SideState, cardId: str
     if (card.effect.discardOtherCard && side.hand.length < 2) {
       return { canPlay: false, reason: "You need another card to discard." };
     }
+    if (card.effect.attachEnergyFromZoneToBench && side.bench.length === 0) {
+      return { canPlay: false, reason: "You need a benched Umamusume." };
+    }
     return { canPlay: true, type: "trainer" };
   }
   if (card.stage === 0) {

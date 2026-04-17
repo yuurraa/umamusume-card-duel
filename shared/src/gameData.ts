@@ -289,7 +289,7 @@ export const cards: Record<string, Card> = {
     name: "Team Canopus",
     label: "Trainer - Supporter",
     image: "/assets/trainer/supporter/team-canopus.png",
-    text: "You may attach 1 Energy from your Energy Zone to 1 of your Benched Umamusume.",
+    text: "Generate 1 random Energy in your Energy Zone and attach it to 1 of your Benched Umamusume.",
     effect: { attachEnergyFromZoneToBench: 1 },
   },
   nakayamaTurf: {

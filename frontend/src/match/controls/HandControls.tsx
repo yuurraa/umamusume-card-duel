@@ -55,12 +55,14 @@ export function MatchMenuControl({
   menuOpen,
   log,
   canSurrender,
+  placement = "top-start",
   onToggleMenu,
   onSurrender,
 }: {
   menuOpen: boolean;
   log: string[];
   canSurrender: boolean;
+  placement?: "top-start" | "top-end";
   onToggleMenu: () => void;
   onSurrender: () => void;
 }) {
@@ -82,7 +84,7 @@ export function MatchMenuControl({
         <span style={hamburgerLineStyle} />
         <span style={hamburgerLineStyle} />
       </button>
-      {menuOpen && <BattleMenu log={log} canSurrender={canSurrender} onSurrender={onSurrender} />}
+      {menuOpen && <BattleMenu placement={placement} log={log} canSurrender={canSurrender} onSurrender={onSurrender} />}
     </div>
   );
 }
@@ -123,9 +125,9 @@ function EnergyDragToken({ canDrag, refreshNonce, energyType, extraCount }: { ca
   );
 }
 
-function BattleMenu({ log, canSurrender, onSurrender }: { log: string[]; canSurrender: boolean; onSurrender: () => void }) {
+function BattleMenu({ placement, log, canSurrender, onSurrender }: { placement: "top-start" | "top-end"; log: string[]; canSurrender: boolean; onSurrender: () => void }) {
   return (
-    <section style={battleMenuStyle}>
+    <section style={battleMenuStyle(placement)}>
       <div style={battleMenuHeaderStyle}>
         <div>
           <div style={previewKickerStyle}>Menu</div>
@@ -216,19 +218,21 @@ const hamburgerLineStyle: CSSProperties = {
   display: "block",
 };
 
-const battleMenuStyle: CSSProperties = {
-  position: "absolute",
-  left: 0,
-  bottom: 54,
-  zIndex: 20,
-  width: 360,
-  maxWidth: "calc(100vw - 48px)",
-  borderRadius: 8,
-  border: "1px solid rgba(255, 255, 255, 0.76)",
-  background: "rgba(255, 255, 255, 0.94)",
-  boxShadow: "0 24px 70px rgba(17, 24, 39, 0.18)",
-  padding: 12,
-};
+function battleMenuStyle(placement: "top-start" | "top-end"): CSSProperties {
+  return {
+    position: "absolute",
+    ...(placement === "top-end" ? { right: 0 } : { left: 0 }),
+    bottom: 54,
+    zIndex: 20,
+    width: 360,
+    maxWidth: "calc(100vw - 48px)",
+    borderRadius: 8,
+    border: "1px solid rgba(255, 255, 255, 0.76)",
+    background: "rgba(255, 255, 255, 0.94)",
+    boxShadow: "0 24px 70px rgba(17, 24, 39, 0.18)",
+    padding: 12,
+  };
+}
 
 const battleMenuHeaderStyle: CSSProperties = {
   display: "flex",
@@ -274,6 +278,7 @@ function battleLogEntryStyle(index: number): CSSProperties {
     fontSize: 12,
     lineHeight: 1.35,
     fontWeight: 850,
+    overflowWrap: "anywhere",
   };
 }
 

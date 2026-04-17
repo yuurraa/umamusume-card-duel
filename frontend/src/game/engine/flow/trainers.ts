@@ -31,7 +31,7 @@ export function applyTrainer(
   switchOutOpponentActive: SwitchOutOpponentActiveFn,
   pendingChoiceResume: SwitchAfterGustResume = "none",
 ): void {
-  if (trainer.effect.discardOtherCard) discardOtherCardForScout(state, side, choices.discardHandIndex);
+  const discardedCardName = trainer.effect.discardOtherCard ? discardOtherCardForScout(state, side, choices.discardHandIndex) : null;
   if (trainer.effect.retreatCostReduction) side.retreatCostReduction += trainer.effect.retreatCostReduction;
   if (trainer.effect.activeAttackDamageBonus) side.activeAttackDamageBonus += trainer.effect.activeAttackDamageBonus;
   if (trainer.effect.extraEnergyAttach) {
@@ -65,6 +65,7 @@ export function applyTrainer(
   }
   if (trainer.effect.searchUmamusume) searchUmamusumeFromDeck(state, side, choices.deckCardIndex, Boolean(trainer.effect.revealSearchedCard));
   if (trainer.effect.searchRandomBasicUmamusume) searchRandomBasicUmamusumeFromDeck(state, side, Boolean(trainer.effect.revealSearchedCard));
+  if (discardedCardName) log(state, `${actorName(side)} discarded ${discardedCardName}.`);
 }
 
 export function hasDamagedHealingTarget(side: SideState, card: TrainerCard): boolean {
@@ -79,23 +80,22 @@ function attachEnergyFromZoneToBench(
   count: number,
   targetUid?: number,
 ): void {
-  if (count <= 0 || side.energyZone.length === 0 || side.bench.length === 0) return;
+  if (count <= 0 || side.bench.length === 0) return;
   const target = (targetUid ? side.bench.find((umamusume) => umamusume.uid === targetUid) : undefined) ?? side.bench[0];
   if (!target) return;
 
   for (let attached = 0; attached < count; attached += 1) {
-    const energyType = side.energyZone.shift();
-    if (!energyType) break;
+    const energyType = rollEnergyFromPool(side.energyPool);
     target.energies[energyType] += 1;
-    log(state, `${trainer.name} attached 1 ${energyLabel(energyType)} from the Energy Zone to ${formatUmamusumeInstanceName(target)}.`);
+    log(state, `${trainer.name} generated 1 ${energyLabel(energyType)} in the Energy Zone and attached it to ${formatUmamusumeInstanceName(target)}.`);
   }
 }
 
-function discardOtherCardForScout(state: GameState, side: SideState, discardHandIndex = 0): void {
+function discardOtherCardForScout(state: GameState, side: SideState, discardHandIndex = 0): string | null {
   const discarded = side.hand.splice(discardHandIndex, 1)[0];
-  if (!discarded) return;
+  if (!discarded) return null;
   side.discard.push(discarded);
-  log(state, `${actorName(side)} discarded ${formatCardName(getCard(discarded))}.`);
+  return formatCardName(getCard(discarded));
 }
 
 function searchUmamusumeFromDeck(state: GameState, side: SideState, deckCardIndex?: number, reveal = false): void {
@@ -120,7 +120,9 @@ function moveDeckCardToHand(state: GameState, side: SideState, deckIndex: number
   const possessive = actorLowerPossessive(side);
   log(
     state,
-    reveal
+    side.id === "player"
+      ? `${actorName(side)} added ${formatCardName(getCard(cardId))} from ${possessive} deck to ${possessive} hand.`
+      : reveal
       ? `${actorName(side)} revealed ${formatCardName(getCard(cardId))} and added it to ${possessive} hand.`
       : `${actorName(side)} added 1 card from ${possessive} deck to ${possessive} hand.`,
   );

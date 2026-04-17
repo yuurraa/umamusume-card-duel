@@ -1,6 +1,5 @@
-import type { CSSProperties } from "react";
+import { useState, type CSSProperties } from "react";
 import { getCard, isUmamusumeInDeck } from "../../game/engine";
-import { formatCardDisplayName } from "../../utils/format";
 import { NeutralButton } from "../../components/buttons/NeutralButton";
 import { buttonStyle, overlayBackdropStyle, overlaySurfaceStyle, overlayButtonStyle, previewKickerStyle } from "../../styles/shared";
 import type { PendingSelection } from "../../types/ui";
@@ -32,15 +31,15 @@ export function ChoiceModal({
   const emptyCopy = "There are no eligible Umamusume in your deck.";
 
   return (
-    <div style={choiceBackdropStyle}>
-      <section style={choiceShellStyle}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+    <div style={choiceBackdropStyle} onClick={onCancel}>
+      <section style={choiceShellStyle} onClick={(event) => event.stopPropagation()}>
+        <header style={choiceHeaderStyle}>
           <div>
             <div style={previewKickerStyle}>{kicker}</div>
             <h2 style={choiceTitleStyle}>{title}</h2>
           </div>
           <NeutralButton style={smallButtonStyle} onClick={onCancel}>Cancel</NeutralButton>
-        </div>
+        </header>
         {options.length === 0 && !isDiscard ? (
           <div style={emptyChoiceStyle}>
             <strong>{emptyCopy}</strong>
@@ -52,12 +51,13 @@ export function ChoiceModal({
             {options.map(({ cardId, index }) => {
               const card = getCard(cardId);
               const image = card.kind === "umamusume" ? card.portrait : card.image;
-              const displayName = formatCardDisplayName(card);
               return (
-                <button key={`${cardId}-${index}`} type="button" style={choiceCardStyle} onClick={() => (isDiscard ? onChooseHand(index) : onChooseDeck(index))}>
-                  <img style={choiceImageStyle} src={image} alt={card.name} />
-                  <strong style={choiceNameStyle}>{displayName}</strong>
-                </button>
+                <ChoiceCardButton
+                  key={`${cardId}-${index}`}
+                  image={image}
+                  name={card.name}
+                  onClick={() => (isDiscard ? onChooseHand(index) : onChooseDeck(index))}
+                />
               );
             })}
           </div>
@@ -67,14 +67,42 @@ export function ChoiceModal({
   );
 }
 
+function ChoiceCardButton({ image, name, onClick }: { image: string; name: string; onClick: () => void }) {
+  const [hovered, setHovered] = useState(false);
+  return (
+    <button
+      type="button"
+      aria-label={`Choose ${name}`}
+      style={choiceCardStyle(hovered)}
+      onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onFocus={() => setHovered(true)}
+      onBlur={() => setHovered(false)}
+    >
+      <img style={choiceImageStyle} src={image} alt="" draggable={false} />
+    </button>
+  );
+}
+
 const choiceBackdropStyle: CSSProperties = { ...overlayBackdropStyle, zIndex: 60 };
 
 const choiceShellStyle: CSSProperties = {
   ...overlaySurfaceStyle,
-  width: "min(980px, 100%)",
-  maxHeight: "86vh",
-  overflow: "auto",
-  padding: 18,
+  width: "min(940px, calc(100vw - 64px))",
+  maxHeight: "min(320px, calc(100vh - 64px))",
+  display: "grid",
+  gridTemplateRows: "auto minmax(0, 1fr)",
+  gap: 12,
+  padding: 16,
+  background: "rgba(255, 255, 255, 0.96)",
+};
+
+const choiceHeaderStyle: CSSProperties = {
+  display: "flex",
+  alignItems: "flex-start",
+  justifyContent: "space-between",
+  gap: 16,
 };
 
 const choiceTitleStyle: CSSProperties = {
@@ -87,10 +115,14 @@ const choiceTitleStyle: CSSProperties = {
 const smallButtonStyle: CSSProperties = { ...overlayButtonStyle };
 
 const choiceGridStyle: CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fill, minmax(148px, 1fr))",
+  minHeight: 0,
+  height: 220,
+  overflowX: "auto",
+  overflowY: "hidden",
+  display: "flex",
+  alignItems: "center",
   gap: 12,
-  marginTop: 14,
+  padding: "14px 6px 12px",
 };
 
 const emptyChoiceStyle: CSSProperties = {
@@ -111,28 +143,26 @@ const emptyChoiceSubtextStyle: CSSProperties = {
   lineHeight: 1.35,
 };
 
-const choiceCardStyle: CSSProperties = {
-  minHeight: 238,
-  borderRadius: 8,
-  border: "1px solid rgba(100, 113, 104, 0.2)",
-  background: "rgba(247, 250, 248, 0.9)",
-  padding: 8,
-  cursor: "pointer",
-  textAlign: "left",
-  boxShadow: "0 12px 28px rgba(17, 24, 39, 0.12)",
-};
+function choiceCardStyle(hovered: boolean): CSSProperties {
+  return {
+    flex: "0 0 auto",
+    width: 140,
+    height: 196,
+    border: 0,
+    borderRadius: 8,
+    background: "transparent",
+    padding: 0,
+    cursor: "pointer",
+    filter: hovered ? "drop-shadow(0 18px 22px rgba(17, 24, 39, 0.18)) saturate(1.06)" : "drop-shadow(0 12px 18px rgba(17, 24, 39, 0.12))",
+    transform: hovered ? "translateY(-8px) rotate(0.6deg) scale(1.03)" : "translateY(0) rotate(0deg) scale(1)",
+    transition: "transform 170ms ease, filter 170ms ease",
+  };
+}
 
 const choiceImageStyle: CSSProperties = {
   width: "100%",
-  height: 192,
+  height: "100%",
+  borderRadius: 8,
   objectFit: "contain",
   display: "block",
-};
-
-const choiceNameStyle: CSSProperties = {
-  display: "block",
-  marginTop: 8,
-  color: "#17211c",
-  fontSize: 12,
-  textAlign: "center",
 };

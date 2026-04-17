@@ -102,7 +102,7 @@ function shouldAiPlayTrainer(state: GameState, side: SideState, card: Card): boo
   if (!getPlayableAction(state, side, card.id).canPlay) return false;
   if (card.effect.gustOpponent) return getOpposingSide(state, side.id).bench.length > 0;
   if (card.effect.activeAttackDamageBonus) return true;
-  if (card.effect.attachEnergyFromZoneToBench) return side.energyZone.length > 0 && side.bench.length > 0;
+  if (card.effect.attachEnergyFromZoneToBench) return side.bench.length > 0;
   if (card.effect.extraEnergyAttach) return true;
   if (card.effect.retreatCostReduction) {
     const active = side.active;

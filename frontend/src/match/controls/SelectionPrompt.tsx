@@ -22,7 +22,7 @@ export function SelectionPrompt({ pending, onCancel, nextEnergyType, onRetreatDi
         ? <AttachPromptContent energyType={nextEnergyType} />
         : "Choose 1 of your Umamusume to receive this turn's Energy."
     : pending.kind === "zoneBenchAttachTarget"
-      ? "Choose 1 of your Benched Umamusume to receive 1 Energy from your Energy Zone, or cancel to skip."
+      ? "Choose 1 of your Benched Umamusume to receive 1 random Energy from Team Canopus."
     : pending.kind === "moveEnergyAbility"
       ? <MoveEnergyPromptContent energyTypes={pending.energyTypes} />
     : pending.kind === "retreatDiscard"

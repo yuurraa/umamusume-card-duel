@@ -46,6 +46,7 @@ export function PregameSetupPanel({
             menuOpen={menuOpen}
             log={log}
             canSurrender={canSurrender}
+            placement="top-end"
             onToggleMenu={onToggleMenu}
             onSurrender={onSurrender}
           />
