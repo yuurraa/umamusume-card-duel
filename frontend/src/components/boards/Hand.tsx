@@ -1,4 +1,4 @@
-import { type CSSProperties, type DragEvent, useState } from "react";
+import { type CSSProperties, type DragEvent, type PointerEvent, useId, useRef, useState } from "react";
 import { getCard, getPlayableAction } from "../../game/engine";
 import type { Card, GameState } from "../../../../shared/src/types";
 import type { InspectTarget } from "../../inspect";
@@ -25,21 +25,71 @@ export function Hand({
   sleeveImage = null,
 }: HandProps) {
   const player = state.sides.player;
+  const handScrollerClassName = `hand-scroller-${useId().replace(/:/g, "")}`;
+  const handScrollRef = useRef<HTMLDivElement | null>(null);
+  const handPanRef = useRef<{ active: boolean; pointerId: number; startX: number; startScrollLeft: number } | null>(null);
+  const [isHandPanning, setIsHandPanning] = useState(false);
   const isSetup = mode === "setup";
   const playerTurn = isSetup || (!state.gameOver && state.currentSide === "player");
   const hiddenSetupIndexes = isSetup ? new Set([setupActiveIndex, ...setupBenchIndexes].filter((index): index is number => index !== null)) : null;
   const topDiscardCardId = player.discard[player.discard.length - 1] ?? null;
   const topDiscardCard = topDiscardCardId ? getCard(topDiscardCardId) : null;
 
+  const stopHandPan = () => {
+    handPanRef.current = null;
+    setIsHandPanning(false);
+  };
+
+  const handleHandPointerDown = (event: PointerEvent<HTMLDivElement>) => {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    const container = handScrollRef.current;
+    if (!container || container.scrollWidth <= container.clientWidth) return;
+    if (event.target instanceof HTMLElement && event.target.closest("button")) return;
+    handPanRef.current = {
+      active: true,
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startScrollLeft: container.scrollLeft,
+    };
+    setIsHandPanning(true);
+    event.currentTarget.setPointerCapture(event.pointerId);
+    event.preventDefault();
+  };
+
+  const handleHandPointerMove = (event: PointerEvent<HTMLDivElement>) => {
+    const pan = handPanRef.current;
+    const container = handScrollRef.current;
+    if (!pan || !container || !pan.active || pan.pointerId !== event.pointerId) return;
+    const deltaX = event.clientX - pan.startX;
+    container.scrollLeft = pan.startScrollLeft - deltaX;
+  };
+
+  const handleHandPointerUp = (event: PointerEvent<HTMLDivElement>) => {
+    const pan = handPanRef.current;
+    if (!pan || pan.pointerId !== event.pointerId) return;
+    stopHandPan();
+  };
+
   return (
     <div style={handShellStyle}>
+      <style>{`.${handScrollerClassName}{scrollbar-width:none;-ms-overflow-style:none;}.${handScrollerClassName}::-webkit-scrollbar{display:none;width:0;height:0;}`}</style>
       <PileSlot
         label="Deck"
         count={player.deck.length}
         title={`${player.deck.length} cards left`}
         sleeveImage={sleeveImage}
       />
-      <div style={handStyle}>
+      <div
+        ref={handScrollRef}
+        className={handScrollerClassName}
+        style={{ ...handStyle, cursor: isHandPanning ? "grabbing" : "grab" }}
+        onPointerDown={handleHandPointerDown}
+        onPointerMove={handleHandPointerMove}
+        onPointerUp={handleHandPointerUp}
+        onPointerCancel={stopHandPan}
+        onPointerLeave={stopHandPan}
+      >
+        <div style={handEdgeSpacerStyle} aria-hidden="true" />
         {player.hand.map((cardId, index) => {
           if (hiddenSetupIndexes?.has(index)) return null;
           const card = getCard(cardId);
@@ -65,6 +115,7 @@ export function Hand({
             />
           );
         })}
+        <div style={handEdgeSpacerStyle} aria-hidden="true" />
       </div>
       <PileSlot
         label="Discard"
@@ -111,7 +162,8 @@ function HandCard({
           ...handCardButtonStyle,
           filter: activeHover ? `${shadow} saturate(1.06)` : shadow,
           cursor: canDrag ? "grab" : "pointer",
-          transform: activeHover ? "translateY(-10px) rotate(0.8deg) scale(1.035)" : "translateY(0) rotate(0deg) scale(1)",
+          transform: activeHover ? "translateY(-6px) rotate(0.8deg) scale(1.03)" : "translateY(0) rotate(0deg) scale(1)",
+          transformOrigin: "center bottom",
           transition: "transform 170ms ease, filter 170ms ease",
         }}
         onMouseEnter={() => setHovered(true)}
@@ -202,9 +254,9 @@ function getPileTooltip(label: string, count: number): string {
   return `${count} ${count === 1 ? "card" : "cards"} left`;
 }
 
-const PILE_SLOT_WIDTH = 112;
-const PILE_CARD_WIDTH = 92;
-const PILE_CARD_HEIGHT = 129;
+const PILE_SLOT_WIDTH = 200;
+const PILE_CARD_WIDTH = 143;
+const PILE_CARD_HEIGHT = 200;
 
 const handShellStyle: CSSProperties = {
   display: "grid",
@@ -214,12 +266,21 @@ const handShellStyle: CSSProperties = {
 };
 
 const handStyle: CSSProperties = {
-  height: 286,
+  height: 326,
   display: "flex",
+  alignItems: "center",
   gap: 12,
-  justifyContent: "center",
+  justifyContent: "flex-start",
   overflowX: "auto",
-  padding: "10px 2px 0px",
+  boxSizing: "border-box",
+  padding: "16px 12px",
+  touchAction: "pan-x",
+};
+
+const handEdgeSpacerStyle: CSSProperties = {
+  flex: "1 0 0",
+  minWidth: 12,
+  pointerEvents: "none",
 };
 
 const pileSlotWrapStyle: CSSProperties = {
@@ -232,8 +293,9 @@ const pileSlotWrapStyle: CSSProperties = {
 function pileSlotButtonStyle(interactive: boolean, hovered: boolean): CSSProperties {
   return {
     position: "relative",
-    width: PILE_CARD_WIDTH,
     height: PILE_CARD_HEIGHT,
+    width: PILE_CARD_WIDTH,
+    aspectRatio: "745 / 1040",
     boxSizing: "border-box",
     appearance: "none",
     borderRadius: 8,

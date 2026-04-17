@@ -96,18 +96,6 @@ export function getOpponentAttackNotice(game: GameState): string | null {
   return game.log.find((entry) => entry.startsWith("Opponent attacked with ") || entry === "Opponent did not attack.") ?? null;
 }
 
-export function getActionNotice(previous: GameState, next: GameState, source: ActionNoticeSource): string | null {
-  const gainedCards = getHandAdditions(previous.sides.player.hand, next.sides.player.hand).map((cardId) => formatCardDisplayName(getCard(cardId)));
-  if (source.kind === "makeDebutScout") {
-    return gainedCards.length > 0
-      ? `You discarded ${source.discardedCardName} and obtained ${formatNameList(gainedCards)}.`
-      : `You discarded ${source.discardedCardName} and obtained no Umamusume.`;
-  }
-  if (gainedCards.length > 0) return `You obtained ${formatNameList(gainedCards)}.`;
-  if (source.kind === "traineeScoutTicket") return "You have no more Basic Umamusume in your deck.";
-  return null;
-}
-
 function getHandAdditions(previousHand: string[], nextHand: string[]): string[] {
   const previousCounts = new Map<string, number>();
   previousHand.forEach((cardId) => previousCounts.set(cardId, (previousCounts.get(cardId) ?? 0) + 1));

@@ -36,8 +36,6 @@ import {
   createSetupHiddenOpponentSide,
   getSelectableUmamusumeUids,
   getOpponentStepDelay,
-  getOpponentBannerMessage,
-  getActionNotice,
 } from "./match/utils/helpers";
 import { CardPreview } from "./match/modals/CardPreview";
 import { DiscardPileModal } from "./match/modals/DiscardPileModal";
@@ -373,21 +371,17 @@ export function App() {
     const koEntry = newEntries.find((entry) => entry.includes("was knocked out"));
     if (koEntry) {
       const koCause = getKoCauseFromEntries(newEntries, koEntry);
-      setActionNotice(koCause ? `KO: ${koEntry} (${koCause})` : `KO: ${koEntry}`);
+      setActionNotice(formatKoActionNotice(koEntry, koCause));
       return;
     }
 
-    if (actionNotice?.startsWith("KO:")) return;
-    const infoNotice = getInfoNoticeFromEntries(newEntries);
-    if (infoNotice) setActionNotice(infoNotice);
+    if (actionNotice?.startsWith("KO |")) return;
   }, [game.log, actionNotice]);
 
   const applyPlayerGameUpdate = (update: (state: GameState) => GameState, noticeSource?: ActionNoticeSource) => {
     const next = update(game);
     setGame(next);
     if (!noticeSource) return;
-    const notice = getActionNotice(game, next, noticeSource);
-    setActionNotice(notice);
   };
 
   const playCard = (handIndex: number) => {
@@ -612,7 +606,7 @@ export function App() {
               benchIndexes={setupBenchIndexes}
               menuOpen={menuOpen}
               log={game.log}
-              canSurrender={false}
+              canSurrender={!game.gameOver}
               onToggleMenu={toggleMenu}
               onSurrender={handleSurrender}
               onSetActive={applySetupActive}
@@ -648,9 +642,10 @@ export function App() {
           )}
         </section>
       </div>
-      {game.phase === "play" && game.currentSide === "opponent" && (
-        <OpponentActionBanner message={getOpponentBannerMessage(game)} paused={Boolean(game.pendingPlayerChoice)} />
-      )}
+      {(() => {
+        const topBanner = getTopActionBanner(game);
+        return topBanner ? <OpponentActionBanner title={topBanner.title} message={topBanner.message} paused={topBanner.paused} /> : null;
+      })()}
       {activeCoinFlip && (
         <CoinFlipOverlay
           key={activeCoinFlip.id}
@@ -880,31 +875,48 @@ function getKoCauseFromEntries(newEntries: string[], koEntry: string): string | 
   return `attack: ${attackDetails}`;
 }
 
-function getInfoNoticeFromEntries(newEntries: string[]): string | null {
-  const healEntry = newEntries.find((entry) => entry.includes(" healed "));
-  if (healEntry) return healEntry;
-
-  const switchEntry = newEntries.find((entry) =>
-    entry.includes(" switched to ") || entry.includes(" retreated to ") || entry.includes(" promoted "),
-  );
-  if (switchEntry) return switchEntry;
-
-  const drawEntry = newEntries.find((entry) => entry.includes(" drew "));
-  if (drawEntry) return drawEntry;
-
-  const damageEntry = newEntries.find((entry) => entry.includes(" attacked with "));
-  if (damageEntry) return damageEntry;
-
-  return null;
+function formatKoActionNotice(koEntry: string, koCause: string | null): string {
+  const normalizedEntry = koEntry.endsWith(".") ? koEntry.slice(0, -1) : koEntry;
+  return koCause
+    ? `KO | ${normalizedEntry} | Cause: ${koCause}`
+    : `KO | ${normalizedEntry}`;
 }
 
+function getTopActionBanner(game: GameState): { title: string; message: string; paused: boolean } | null {
+  if (game.phase !== "play" || game.gameOver) return null;
+
+  if (game.pendingPlayerChoice && game.currentSide === "opponent") {
+    return {
+      title: "Opponent is waiting",
+      message: game.log[0] ?? "Choose your next active Umamusume.",
+      paused: true,
+    };
+  }
+
+  const latest = game.log[0];
+  if (game.currentSide === "player") {
+    return {
+      title: "Your turn",
+      message: latest?.startsWith("You ") ? latest : "Your turn.",
+      paused: false,
+    };
+  }
+
+  return {
+    title: "Opponent turn",
+    message: latest && (latest.includes("Opponent") || latest.includes("coin flip")) ? latest : "Opponent planned their turn.",
+    paused: false,
+  };
+}
+
+
 function isBottomActionNotice(notice: string): boolean {
-  return notice.startsWith("KO:") || notice.includes(" attacked with ");
+  return notice.startsWith("KO |");
 }
 
 function getActionNoticeTone(notice: string): "default" | "danger" | "info" {
-  if (notice.startsWith("KO: Opponent's")) return "info";
-  if (notice.startsWith("KO:")) return "danger";
+  if (notice.startsWith("KO | Opponent's")) return "info";
+  if (notice.startsWith("KO |")) return "danger";
   return "default";
 }
 

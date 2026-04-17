@@ -1,12 +1,12 @@
 import type { CSSProperties } from "react";
 import { previewKickerStyle } from "../../styles/shared";
 
-export function OpponentActionBanner({ message, paused }: { message: string; paused: boolean }) {
+export function OpponentActionBanner({ title, message, paused }: { title: string; message: string; paused: boolean }) {
   return (
     <section style={opponentActionBannerStyle}>
       <span style={opponentPulseStyle(paused)} />
       <div style={{ minWidth: 0 }}>
-        <div style={previewKickerStyle}>{paused ? "Opponent is waiting" : "Opponent turn"}</div>
+        <div style={previewKickerStyle}>{title}</div>
         <strong style={opponentActionTextStyle}>{message}</strong>
       </div>
     </section>

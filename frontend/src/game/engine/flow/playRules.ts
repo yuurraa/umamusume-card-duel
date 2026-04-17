@@ -3,7 +3,7 @@ import type { Card, GameState, PlayAction, SideState } from "../../../../../shar
 import { getCard } from "../core/catalog";
 import { evolveUmamusume, findEvolutionTarget, isValidEvolutionTarget } from "./evolution";
 import { actorName, formatUmamusumeCardName } from "../core/labels";
-import { log } from "../core/log";
+import { log, logPrimaryFirst } from "../core/log";
 import { findOwnUmamusumeByUid } from "../core/umamusume";
 import { createUmamusume } from "./setup";
 import { applyTrainer, playStadium } from "./trainers";
@@ -71,9 +71,10 @@ export function resolveCardPlay(
       playStadium(state, side, card);
       return;
     }
-    applyTrainer(state, side, card, choices, switchOutOpponentActive);
-    if (card.trainerType === "supporter") side.usedSupporterThisTurn = true;
-    side.discard.push(card.id);
-    log(state, `${actorName(side)} played ${card.name}.`);
+    logPrimaryFirst(state, `${actorName(side)} played ${card.name}.`, () => {
+      applyTrainer(state, side, card, choices, switchOutOpponentActive);
+      if (card.trainerType === "supporter") side.usedSupporterThisTurn = true;
+      side.discard.push(card.id);
+    });
   }
 }

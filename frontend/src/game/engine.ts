@@ -137,7 +137,7 @@ export function playerEndTurn(state: GameState): GameState {
 
 export function playerSurrender(state: GameState): GameState {
   const next = cloneGame(state);
-  if (next.phase !== "play" || next.gameOver) return next;
+  if (next.gameOver || next.currentSide === "done") return next;
   next.pendingPlayerChoice = null;
   next.opponentTurnStep = null;
   next.gameOver = true;

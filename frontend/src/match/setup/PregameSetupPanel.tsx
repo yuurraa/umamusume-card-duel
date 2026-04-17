@@ -33,17 +33,14 @@ export function PregameSetupPanel({
   onInspect: (target: InspectTarget) => void;
   sleeveImage?: string | null;
 }) {
-  const coinFlipCopy = game.firstPlayer === "player" ? "Heads. You are going first." : "Tails. Opponent is going first.";
-
   return (
     <div style={pregamePanelStyle}>
       <div style={pregamePanelHeaderStyle}>
         <div>
-          <div style={previewKickerStyle}>Preparation Phase</div>
-          <h2 style={pregameTitleStyle}>{coinFlipCopy}</h2>
-          <p style={pregameBodyStyle}>Move a Basic Umamusume to the Active Spot, as well as any Basic Umamusume to your bench.</p>
+          <h2 style={pregameTitleStyle}>Preparation Phase</h2>
         </div>
         <div style={pregameActionRowStyle}>
+          <NeutralButton style={attackButtonStyle(activeIndex !== null)} disabled={activeIndex === null} onClick={onReady}>Ready</NeutralButton>
           <MatchMenuControl
             menuOpen={menuOpen}
             log={log}
@@ -52,7 +49,6 @@ export function PregameSetupPanel({
             onToggleMenu={onToggleMenu}
             onSurrender={onSurrender}
           />
-          <NeutralButton style={attackButtonStyle(activeIndex !== null)} disabled={activeIndex === null} onClick={onReady}>Ready</NeutralButton>
         </div>
       </div>
       <Hand
@@ -71,30 +67,22 @@ export function PregameSetupPanel({
 const pregamePanelStyle: CSSProperties = {
   display: "grid",
   background: "rgba(148, 163, 184, 0.08)",
-  gap: 16,
+  gap: 0,
 };
 
 const pregamePanelHeaderStyle: CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
   alignItems: "flex-start",
-  gap: 16,
+  gap: 5,
 };
 
 const pregameTitleStyle: CSSProperties = {
   margin: "2px 0 0",
   color: "#000000",
-  fontSize: 26,
+  fontSize: 30,
   lineHeight: 1.05,
   fontWeight: 950,
-};
-
-const pregameBodyStyle: CSSProperties = {
-  margin: "8px 0 0",
-  color: "#000000",
-  fontSize: 14,
-  fontWeight: 800,
-  lineHeight: 1.4,
 };
 
 const pregameActionRowStyle: CSSProperties = {

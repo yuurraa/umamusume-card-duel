@@ -83,7 +83,11 @@ export function Bench({
         if (hidden && index < visibleBenchCount) {
           return (
             <div key={`bench-hidden-${index}`} style={slotStyle}>
-              <FaceDownCard sleeveImage={sleeveImage} />
+              <div style={hiddenBenchCardWrapStyle}>
+                <div style={hiddenBenchCardFrameStyle}>
+                  <FaceDownCard sleeveImage={sleeveImage} />
+                </div>
+              </div>
               <div style={{ height: 22, borderRadius: 8, background: "rgba(238, 243, 238, 0.56)", padding: 4, boxShadow: "0 6px 14px rgba(17, 24, 39, 0.1)", display: "grid", placeItems: "center", color: "#000000", fontSize: 9, fontWeight: 900, backdropFilter: "blur(4px)" }}>
                 Hidden
               </div>
@@ -278,7 +282,11 @@ function BenchSlot({ card, umamusume, side, hidden, setupMode, activeSetupHandIn
         aria-label={`Inspect benched ${card.name}`}
       >
         {hidden ? (
-          <FaceDownCard sleeveImage={sleeveImage} />
+          <div style={hiddenBenchCardWrapStyle}>
+            <div style={hiddenBenchCardFrameStyle}>
+              <FaceDownCard sleeveImage={sleeveImage} />
+            </div>
+          </div>
         ) : (
           <>
             <img
@@ -306,3 +314,16 @@ function BenchSlot({ card, umamusume, side, hidden, setupMode, activeSetupHandIn
     </div>
   );
 }
+
+const hiddenBenchCardWrapStyle: CSSProperties = {
+  width: "100%",
+  height: "100%",
+  display: "grid",
+  placeItems: "center",
+};
+
+const hiddenBenchCardFrameStyle: CSSProperties = {
+  height: "100%",
+  width: "auto",
+  aspectRatio: "745 / 1040",
+};

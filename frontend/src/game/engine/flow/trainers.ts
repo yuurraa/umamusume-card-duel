@@ -2,7 +2,7 @@ import { MAX_HAND } from "../../../../../shared/src/gameData";
 import type { GameState, PendingPlayerChoice, SideId, SideState, TrainerCard, UmamusumeInstance } from "../../../../../shared/src/types";
 import { getCard, isUmamusumeInDeck } from "../core/catalog";
 import { actorLowerPossessive, actorName, energyLabel, formatCardName, formatUmamusumeInstanceName, pluralize } from "../core/labels";
-import { log } from "../core/log";
+import { log, logPrimaryFirst } from "../core/log";
 import { findMostDamagedUmamusume, findOwnUmamusumeByUid } from "../core/umamusume";
 import { drawCards } from "./turn";
 import { rollEnergyFromPool } from "../core/random";
@@ -13,14 +13,15 @@ export type SwitchAfterGustResume = Extract<PendingPlayerChoice, { kind: "switch
 type SwitchOutOpponentActiveFn = (state: GameState, actingSideId: SideId, pendingChoiceResume?: SwitchAfterGustResume) => void;
 
 export function playStadium(state: GameState, side: SideState, stadium: TrainerCard): void {
-  if (state.stadium) {
-    const previous = state.stadium;
-    const previousCard = getCard(previous.cardId);
-    state.sides[previous.owner].discard.push(previous.cardId);
-    log(state, `${previousCard.name} left the Stadium Slot.`);
-  }
-  state.stadium = { cardId: stadium.id, owner: side.id };
-  log(state, `${actorName(side)} played ${stadium.name}.`);
+  logPrimaryFirst(state, `${actorName(side)} played ${stadium.name}.`, () => {
+    if (state.stadium) {
+      const previous = state.stadium;
+      const previousCard = getCard(previous.cardId);
+      state.sides[previous.owner].discard.push(previous.cardId);
+      log(state, `${previousCard.name} left the Stadium Slot.`);
+    }
+    state.stadium = { cardId: stadium.id, owner: side.id };
+  });
 }
 
 export function applyTrainer(
@@ -58,10 +59,15 @@ export function applyTrainer(
     if (healed > 0) log(state, `${trainer.name} healed ${formatUmamusumeInstanceName(target)} for ${healed} HP.`);
   }
   if (trainer.effect.draw) {
-    const handBeforeDraw = side.hand.length;
-    drawCards(state, side, trainer.effect.draw);
-    const drawn = side.hand.length - handBeforeDraw;
-    if (drawn > 0) log(state, `${actorName(side)} drew ${drawn} ${pluralize(drawn, "card")}.`);
+    const drawnCardIds = drawCards(state, side, trainer.effect.draw);
+    if (drawnCardIds.length > 0) {
+      if (side.id === "player") {
+        log(state, `${actorName(side)} drew ${formatCardNameList(drawnCardIds)}.`);
+      } else {
+        const drawn = drawnCardIds.length;
+        log(state, `${actorName(side)} drew ${drawn} ${pluralize(drawn, "card")}.`);
+      }
+    }
   }
   if (trainer.effect.searchUmamusume) searchUmamusumeFromDeck(state, side, choices.deckCardIndex, Boolean(trainer.effect.revealSearchedCard));
   if (trainer.effect.searchRandomBasicUmamusume) searchRandomBasicUmamusumeFromDeck(state, side, Boolean(trainer.effect.revealSearchedCard));
@@ -126,4 +132,12 @@ function moveDeckCardToHand(state: GameState, side: SideState, deckIndex: number
       ? `${actorName(side)} revealed ${formatCardName(getCard(cardId))} and added it to ${possessive} hand.`
       : `${actorName(side)} added 1 card from ${possessive} deck to ${possessive} hand.`,
   );
+}
+
+function formatCardNameList(cardIds: string[]): string {
+  const names = cardIds.map((cardId) => formatCardName(getCard(cardId)));
+  if (names.length === 0) return "0 cards";
+  if (names.length === 1) return names[0] ?? "1 card";
+  if (names.length === 2) return `${names[0]} and ${names[1]}`;
+  return `${names.slice(0, -1).join(", ")}, and ${names[names.length - 1]}`;
 }

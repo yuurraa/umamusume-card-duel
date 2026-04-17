@@ -15,19 +15,22 @@ export function prepareUmamusumeForTurn(side: SideState): void {
   });
 }
 
-export function drawCards(state: GameState, side: SideState, amount: number): void {
+export function drawCards(state: GameState, side: SideState, amount: number): string[] {
+  const drawnCardIds: string[] = [];
   for (let count = 0; count < amount; count += 1) {
     if (side.hand.length >= MAX_HAND) {
       log(state, `${actorPossessive(side)} hand was full.`);
-      return;
+      return drawnCardIds;
     }
     const card = side.deck.shift();
     if (!card) {
       log(state, `${actorName(side)} could not draw, but there was no deck-out loss.`);
-      return;
+      return drawnCardIds;
     }
     side.hand.push(card);
+    drawnCardIds.push(card);
   }
+  return drawnCardIds;
 }
 
 export function applyStartAbilities(state: GameState, side: SideState): void {

@@ -34,19 +34,20 @@ export function PlayHandHeader({
 }) {
   return (
     <div style={playHandHeaderStyle}>
+      <EnergyDragToken canDrag={canAttach} refreshNonce={energyRefreshKey} energyType={energyType} extraCount={extraCount} />
       <div style={playHandActionRowStyle}>
+        <NeutralButton style={endTurnButtonStyle(canEndTurn)} disabled={!canEndTurn} onClick={onEndTurn}>
+          End Turn
+        </NeutralButton>
         <MatchMenuControl
           menuOpen={menuOpen}
           log={log}
           canSurrender={canSurrender}
+          placement="top-end"
           onToggleMenu={onToggleMenu}
           onSurrender={onSurrender}
         />
-        <EnergyDragToken canDrag={canAttach} refreshNonce={energyRefreshKey} energyType={energyType} extraCount={extraCount} />
       </div>
-      <NeutralButton style={endTurnButtonStyle(canEndTurn)} disabled={!canEndTurn} onClick={onEndTurn}>
-        End Turn
-      </NeutralButton>
     </div>
   );
 }
@@ -157,8 +158,8 @@ const playHandHeaderStyle: CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
   alignItems: "center",
-  gap: 12,
-  marginBottom: 6,
+  gap: 0,
+  marginBottom: 0,
   zIndex: 6,
 };
 

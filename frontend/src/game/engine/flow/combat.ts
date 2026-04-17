@@ -1,7 +1,7 @@
 import { MAX_POINTS } from "../../../../../shared/src/gameData";
 import type { EnergyType, GameState, SideId, SideState, UmamusumeInstance } from "../../../../../shared/src/types";
-import { getPrimaryAttack, getUmamusumeCard } from "../core/catalog";
-import { actorName, actorPossessive, energyLabel, formatUmamusumeCardName, formatUmamusumeInstanceName, pluralize } from "../core/labels";
+import { getCard, getPrimaryAttack, getUmamusumeCard } from "../core/catalog";
+import { actorName, actorPossessive, energyLabel, formatCardName, formatUmamusumeCardName, formatUmamusumeInstanceName, pluralize } from "../core/labels";
 import { log } from "../core/log";
 import { findMostDamagedUmamusume, findOwnUmamusumeByUid } from "../core/umamusume";
 import { drawCards } from "./turn";
@@ -54,8 +54,15 @@ export function performAttack(
   }
 
   if (attack.draw) {
-    drawCards(state, attacker, attack.draw);
-    log(state, `${actorName(attacker)} drew ${attack.draw} ${pluralize(attack.draw, "card")}.`);
+    const drawnCardIds = drawCards(state, attacker, attack.draw);
+    if (drawnCardIds.length > 0) {
+      if (attacker.id === "player") {
+        log(state, `${actorName(attacker)} drew ${formatCardNameList(drawnCardIds)}.`);
+      } else {
+        const drawn = drawnCardIds.length;
+        log(state, `${actorName(attacker)} drew ${drawn} ${pluralize(drawn, "card")}.`);
+      }
+    }
   }
   if (attack.heal) {
     const chosenTarget = healTargetUid !== undefined ? findOwnUmamusumeByUid(attacker, healTargetUid) : undefined;
@@ -131,7 +138,7 @@ export function knockOutUmamusume(
       kind: "promoteAfterKnockout",
       resume: state.currentSide === "opponent" ? "finishOpponentTurn" : "none",
     };
-    log(state, "Choose your next active Umamusume.");
+    log(state, "Choose your next Active Umamusume.");
     return true;
   }
 
@@ -154,4 +161,12 @@ function resolveKnockout(state: GameState, attackerId: SideId, defenderId: SideI
 
   if (!knockOutUmamusume(state, attackerId, defenderId, defender.active, deps.choosePreferredActiveIndex, cause)) return;
   if (!state.gameOver) deps.refreshContinuousEffects(state);
+}
+
+function formatCardNameList(cardIds: string[]): string {
+  const names = cardIds.map((cardId) => formatCardName(getCard(cardId)));
+  if (names.length === 0) return "0 cards";
+  if (names.length === 1) return names[0] ?? "1 card";
+  if (names.length === 2) return `${names[0]} and ${names[1]}`;
+  return `${names.slice(0, -1).join(", ")}, and ${names[names.length - 1]}`;
 }
