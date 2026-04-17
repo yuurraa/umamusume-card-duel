@@ -52,9 +52,9 @@ function actionNoticeStyle(tone: ActionNoticeTone, placement: ActionNoticePlacem
         ? "1px solid rgba(37, 99, 235, 0.34)"
         : overlaySurfaceStyle.border,
     background: isDanger
-      ? "linear-gradient(180deg, rgba(254, 242, 242, 0.98) 0%, rgba(255, 255, 255, 0.96) 100%)"
+      ? "linear-gradient(180deg, rgba(254, 226, 226, 0.94) 0%, rgba(248, 232, 232, 0.9) 100%)"
       : isInfo
-        ? "linear-gradient(180deg, rgba(239, 246, 255, 0.98) 0%, rgba(255, 255, 255, 0.96) 100%)"
+        ? "linear-gradient(180deg, rgba(219, 234, 254, 0.94) 0%, rgba(229, 237, 248, 0.9) 100%)"
         : overlaySurfaceStyle.background,
     boxShadow: isDanger
       ? "0 22px 68px rgba(220, 38, 38, 0.18)"
@@ -75,7 +75,7 @@ function actionNoticeTextStyle(tone: ActionNoticeTone): CSSProperties {
     wordBreak: "break-word",
     lineHeight: 1.35,
     textAlign: "center",
-    color: tone === "danger" ? "#7f1d1d" : tone === "info" ? "#1e3a8a" : "#17211c",
+    color: tone === "danger" ? "#7f1d1d" : tone === "info" ? "#1e3a8a" : "#000000",
   };
 }
 

@@ -59,7 +59,7 @@ export function CardPreview({ state, target, canUseAttack, canUseRetreat, canUse
               <div style={previewKickerStyle}>Attached Energy</div>
               <div style={{ display: "flex", minHeight: 38, alignItems: "center", gap: 6, marginTop: 8 }}>
                 {attachedEnergy.length === 0 ? (
-                  <span style={{ color: "#647168", fontSize: 12, fontWeight: 800 }}>None</span>
+                  <span style={{ color: "#000000", fontSize: 12, fontWeight: 800 }}>None</span>
                 ) : (
                   attachedEnergy.map((type, index) => (
                     <span key={`${type}-${index}`} style={previewEnergyRingStyle}>
@@ -137,7 +137,7 @@ export function CardPreview({ state, target, canUseAttack, canUseRetreat, canUse
           {card.kind === "trainer" && (
             <section style={previewBlockStyle}>
               <div style={previewKickerStyle}>{card.trainerType}</div>
-              <p style={{ margin: "6px 0 0", color: "#17211c", fontSize: 14, fontWeight: 800, lineHeight: 1.35 }}>{card.text}</p>
+              <p style={{ margin: "6px 0 0", color: "#000000", fontSize: 14, fontWeight: 800, lineHeight: 1.35 }}>{card.text}</p>
             </section>
           )}
         </aside>
@@ -186,14 +186,14 @@ const previewImageStyle: CSSProperties = {
 
 const previewInfoStyle: CSSProperties = {
   ...overlaySurfaceStyle,
-  border: "1px solid rgba(203, 213, 225, 0.9)",
-  background: "#ffffff",
+  border: "1px solid rgba(185, 198, 188, 0.9)",
+  background: "rgba(238, 243, 238, 0.94)",
   padding: 16,
 };
 
 const previewTitleStyle: CSSProperties = {
   margin: "2px 0 14px",
-  color: "#17211c",
+  color: "#000000",
   fontSize: 24,
   lineHeight: 1.05,
   fontWeight: 950,
@@ -202,8 +202,8 @@ const previewTitleStyle: CSSProperties = {
 const previewBlockStyle: CSSProperties = {
   marginTop: 10,
   borderRadius: 8,
-  border: "1px solid rgba(226, 232, 240, 0.95)",
-  background: "#ffffff",
+  border: "1px solid rgba(185, 198, 188, 0.9)",
+  background: "rgba(238, 243, 238, 0.82)",
   padding: 10,
 };
 
@@ -213,8 +213,8 @@ const previewEnergyRingStyle: CSSProperties = {
   display: "grid",
   placeItems: "center",
   borderRadius: "50%",
-  border: "1px solid white",
-  background: "white",
+  border: "1px solid rgba(217, 225, 218, 0.9)",
+  background: "rgba(238, 243, 238, 0.9)",
   boxShadow: "0 8px 18px rgba(17,24,39,0.14)",
 };
 

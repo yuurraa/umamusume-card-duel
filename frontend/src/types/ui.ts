@@ -22,7 +22,7 @@ export type ActionNoticeSource =
   | { kind: "traineeScoutTicket" }
   | { kind: "makeDebutScout"; discardedCardName: string };
 
-export type AppScreen = "mainMenu" | "decks" | "match";
+export type AppScreen = "mainMenu" | "decks" | "customisation" | "match";
 
 export type PreviewTone = {
   accent: string;

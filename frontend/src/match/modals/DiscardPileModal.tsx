@@ -78,7 +78,7 @@ const discardModalStyle: CSSProperties = {
   gridTemplateRows: "auto minmax(0, 1fr)",
   gap: 12,
   padding: 16,
-  background: "rgba(255, 255, 255, 0.96)",
+  background: "rgba(238, 243, 238, 0.94)",
 };
 
 const discardHeaderStyle: CSSProperties = {
@@ -90,7 +90,7 @@ const discardHeaderStyle: CSSProperties = {
 
 const discardTitleStyle: CSSProperties = {
   margin: "2px 0 0",
-  color: "#17211c",
+  color: "#000000",
   fontSize: 24,
   lineHeight: 1.05,
   fontWeight: 950,
@@ -138,9 +138,9 @@ const discardCardImageStyle: CSSProperties = {
 
 const emptyDiscardStyle: CSSProperties = {
   borderRadius: 8,
-  border: "1px dashed rgba(100, 113, 104, 0.28)",
-  background: "rgba(248, 250, 252, 0.86)",
-  color: "#647168",
+  border: "1px dashed rgba(0, 0, 0, 0.45)",
+  background: "rgba(238, 243, 238, 0.86)",
+  color: "#000000",
   padding: 18,
   fontSize: 14,
   fontWeight: 850,

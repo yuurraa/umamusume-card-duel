@@ -10,13 +10,14 @@ export function GameOverModal({ game, onPlayAgain, onMainMenu }: { game: GameSta
 
   return (
     <div style={gameOverBackdropStyle}>
-      <section style={gameOverShellStyle}>
+      <section style={gameOverShellStyle(playerWon)}>
+        <div style={resultBadgeStyle(playerWon)}>{playerWon ? "Victory" : "Defeat"}</div>
         <div style={previewKickerStyle}>Duel Finished</div>
         <h2 style={gameOverTitleStyle}>{title}</h2>
         <p style={gameOverBodyStyle}>{latest}</p>
         <div style={gameOverScoreRowStyle}>
-          <ScoreSummary label="You" points={game.sides.player.points} accent="#d6519d" />
-          <ScoreSummary label="Opponent" points={game.sides.opponent.points} accent="#26312d" />
+          <ScoreSummary label="You" points={game.sides.player.points} highlighted={playerWon} />
+          <ScoreSummary label="Opponent" points={game.sides.opponent.points} highlighted={!playerWon} />
         </div>
         <NeutralButton style={gameOverButtonStyle} onClick={onPlayAgain}>Play Again</NeutralButton>
         <NeutralButton style={gameOverSecondaryButtonStyle} onClick={onMainMenu}>Main Menu</NeutralButton>
@@ -25,27 +26,61 @@ export function GameOverModal({ game, onPlayAgain, onMainMenu }: { game: GameSta
   );
 }
 
-function ScoreSummary({ label, points, accent }: { label: string; points: number; accent: string }) {
+function ScoreSummary({ label, points, highlighted }: { label: string; points: number; highlighted: boolean }) {
   return (
-    <div style={scoreSummaryStyle}>
+    <div style={scoreSummaryStyle(highlighted)}>
       <span style={scoreSummaryLabelStyle}>{label}</span>
-      <strong style={{ ...scoreSummaryPointsStyle, color: accent }}>{points}</strong>
+      <strong style={scoreSummaryPointsStyle}>{points}</strong>
     </div>
   );
 }
 
 const gameOverBackdropStyle: CSSProperties = { ...overlayBackdropStyle, zIndex: 80 };
 
-const gameOverShellStyle: CSSProperties = {
-  ...overlaySurfaceStyle,
-  width: "min(420px, 100%)",
-  padding: 20,
-  textAlign: "center",
-};
+function gameOverShellStyle(playerWon: boolean): CSSProperties {
+  const hue = playerWon
+    ? {
+        border: "rgba(22, 101, 52, 0.42)",
+        top: "rgba(220, 252, 231, 0.96)",
+        bottom: "rgba(187, 247, 208, 0.9)",
+        glow: "rgba(22, 101, 52, 0.22)",
+      }
+    : {
+        border: "rgba(153, 27, 27, 0.42)",
+        top: "rgba(254, 226, 226, 0.96)",
+        bottom: "rgba(254, 202, 202, 0.9)",
+        glow: "rgba(153, 27, 27, 0.22)",
+      };
+
+  return {
+    ...overlaySurfaceStyle,
+    width: "min(460px, 100%)",
+    padding: 22,
+    textAlign: "center",
+    border: `1px solid ${hue.border}`,
+    background: `linear-gradient(180deg, ${hue.top} 0%, ${hue.bottom} 100%)`,
+    boxShadow: `0 26px 80px ${hue.glow}, 0 22px 68px rgba(17, 24, 39, 0.2)`,
+  };
+}
+
+function resultBadgeStyle(playerWon: boolean): CSSProperties {
+  return {
+    width: "max-content",
+    margin: "0 auto 10px",
+    borderRadius: 999,
+    border: "1px solid rgba(0, 0, 0, 0.2)",
+    background: playerWon ? "rgba(134, 239, 172, 0.68)" : "rgba(252, 165, 165, 0.68)",
+    color: "#000000",
+    padding: "6px 12px",
+    fontSize: 12,
+    fontWeight: 950,
+    textTransform: "uppercase",
+  };
+}
 
 const gameOverTitleStyle: CSSProperties = {
   margin: "4px 0 0",
-  color: "#17211c",
+  color: "#000000",
   fontSize: 34,
   lineHeight: 1,
   fontWeight: 950,
@@ -53,7 +88,7 @@ const gameOverTitleStyle: CSSProperties = {
 
 const gameOverBodyStyle: CSSProperties = {
   margin: "12px 0 0",
-  color: "#47554c",
+  color: "#000000",
   fontSize: 14,
   lineHeight: 1.4,
   fontWeight: 850,
@@ -66,16 +101,18 @@ const gameOverScoreRowStyle: CSSProperties = {
   gap: 10,
 };
 
-const scoreSummaryStyle: CSSProperties = {
-  borderRadius: 8,
-  border: "1px solid rgba(100,113,104,0.14)",
-  background: "rgba(247,250,248,0.86)",
-  padding: 12,
-};
+function scoreSummaryStyle(highlighted: boolean): CSSProperties {
+  return {
+    borderRadius: 8,
+    border: highlighted ? "2px solid rgba(0, 0, 0, 0.34)" : "1px solid rgba(0, 0, 0, 0.14)",
+    background: highlighted ? "rgba(255, 255, 255, 0.32)" : "rgba(238, 243, 238, 0.52)",
+    padding: highlighted ? 11 : 12,
+  };
+}
 
 const scoreSummaryLabelStyle: CSSProperties = {
   display: "block",
-  color: "#647168",
+  color: "#000000",
   fontSize: 11,
   fontWeight: 900,
   textTransform: "uppercase",
@@ -84,6 +121,7 @@ const scoreSummaryLabelStyle: CSSProperties = {
 const scoreSummaryPointsStyle: CSSProperties = {
   display: "block",
   marginTop: 4,
+  color: "#000000",
   fontSize: 26,
   lineHeight: 1,
   fontWeight: 950,

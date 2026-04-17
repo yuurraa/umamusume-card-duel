@@ -26,8 +26,8 @@ const opponentActionBannerStyle: CSSProperties = {
   transform: "translateX(-50%)",
   padding: "10px 14px",
   borderRadius: 8,
-  border: "1px solid rgba(255, 255, 255, 0.74)",
-  background: "rgba(255, 255, 255, 0.9)",
+  border: "1px solid rgba(217, 225, 218, 0.86)",
+  background: "rgba(238, 243, 238, 0.9)",
   boxShadow: "0 18px 48px rgba(17, 24, 39, 0.18)",
   pointerEvents: "none",
 };
@@ -49,7 +49,7 @@ function opponentPulseStyle(paused: boolean): CSSProperties {
 const opponentActionTextStyle: CSSProperties = {
   display: "block",
   marginTop: 2,
-  color: "#17211c",
+  color: "#000000",
   fontSize: 14,
   lineHeight: 1.25,
   fontWeight: 950,

@@ -26,6 +26,7 @@ type SideBoardProps = {
   onEnergyDropOnUmamusume?: ((umamusumeUid: number) => void) | undefined;
   onAbilityEnergyDropOnActive?: ((sourceUmamusumeUid: number, energyType: EnergyType) => void) | undefined;
   setupDragHandIndexByUid?: Record<number, number>;
+  sleeveImage?: string | null | undefined;
 };
 
 type SideTone = {
@@ -59,6 +60,7 @@ export function SideBoard({
   onEnergyDropOnUmamusume,
   onAbilityEnergyDropOnActive,
   setupDragHandIndexByUid = {},
+  sleeveImage = null,
 }: SideBoardProps) {
   const isPlayer = sideId === "player";
   const activeType = hidden ? null : side.active ? getUmamusumeCard(side.active).type : null;
@@ -153,6 +155,7 @@ export function SideBoard({
       <UmaCard
         umamusume={side.active}
         hidden={hidden}
+        sleeveImage={sleeveImage}
         isSelectable={activeSelectable}
         onInspect={() => {
           if (hidden) return;
@@ -217,6 +220,7 @@ export function SideBoard({
         hoverBackground={tone.hoverBackground}
         hoverRingColor={tone.hoverRingColor}
         hoverGlowColor={tone.hoverGlowColor}
+        sleeveImage={sleeveImage}
         {...(hiddenBenchCount !== undefined ? { hiddenBenchCount } : {})}
       />
     </div>
@@ -249,7 +253,7 @@ export function SideBoard({
 
 function HealthBar({ hp, maxHp, percent, color }: { hp: number; maxHp: number; percent: number; color: string }) {
   return (
-    <div style={{ boxSizing: "border-box", height: 48, borderRadius: 8, background: "rgba(255, 255, 255, 0.82)", border: "1px solid rgba(255, 255, 255, 0.72)", padding: 8, boxShadow: "0 12px 30px rgba(17, 24, 39, 0.12)" }}>
+    <div style={{ boxSizing: "border-box", height: 48, borderRadius: 8, background: "rgba(238, 243, 238, 0.68)", border: "1px solid rgba(217, 225, 218, 0.72)", color: "#000000", padding: 8, boxShadow: "0 12px 30px rgba(17, 24, 39, 0.12)", backdropFilter: "blur(5px)" }}>
       <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, lineHeight: "12px", fontWeight: 900 }}>
         <span>{hp}/{maxHp}</span>
         <span>{percent}%</span>
@@ -263,7 +267,7 @@ function HealthBar({ hp, maxHp, percent, color }: { hp: number; maxHp: number; p
 
 function HiddenHealthBar() {
   return (
-    <div style={{ boxSizing: "border-box", height: 48, borderRadius: 8, background: "rgba(255, 255, 255, 0.82)", border: "1px solid rgba(255, 255, 255, 0.72)", padding: 8, boxShadow: "0 12px 30px rgba(17, 24, 39, 0.12)", display: "grid", placeItems: "center", color: "#647168", fontSize: 12, fontWeight: 900 }}>
+    <div style={{ boxSizing: "border-box", height: 48, borderRadius: 8, background: "rgba(238, 243, 238, 0.68)", border: "1px solid rgba(217, 225, 218, 0.72)", padding: 8, boxShadow: "0 12px 30px rgba(17, 24, 39, 0.12)", display: "grid", placeItems: "center", color: "#000000", fontSize: 12, fontWeight: 900, backdropFilter: "blur(5px)" }}>
       Face Down
     </div>
   );
@@ -271,7 +275,7 @@ function HiddenHealthBar() {
 
 function EmptyHealthBar() {
   return (
-    <div style={{ boxSizing: "border-box", height: 48, borderRadius: 8, border: "1px dashed #cbd5e1", background: "rgba(255, 255, 255, 0.42)", display: "grid", placeItems: "center", color: "#647168", fontSize: 12, fontWeight: 900 }}>
+    <div style={{ boxSizing: "border-box", height: 48, borderRadius: 8, border: "1px dashed rgba(0, 0, 0, 0.45)", background: "rgba(238, 243, 238, 0.34)", display: "grid", placeItems: "center", color: "#000000", fontSize: 12, fontWeight: 900, backdropFilter: "blur(4px)" }}>
       No Active
     </div>
   );
@@ -279,7 +283,7 @@ function EmptyHealthBar() {
 
 function ScorePips({ points, fillColor }: { points: number; fillColor: string }) {
   return (
-    <div style={{ display: "flex", gap: 8, alignItems: "center", height: 36, borderRadius: 999, border: "1px solid rgba(255, 255, 255, 0.72)", background: "rgba(255, 255, 255, 0.72)", padding: "0 12px", boxShadow: "0 8px 18px rgba(17, 24, 39, 0.1)" }} aria-label={`${points} of ${MAX_POINTS} points`}>
+    <div style={{ display: "flex", gap: 8, alignItems: "center", height: 36, borderRadius: 999, border: "1px solid rgba(217, 225, 218, 0.72)", background: "rgba(238, 243, 238, 0.56)", padding: "0 12px", boxShadow: "0 8px 18px rgba(17, 24, 39, 0.1)", backdropFilter: "blur(5px)" }} aria-label={`${points} of ${MAX_POINTS} points`}>
       {Array.from({ length: MAX_POINTS }, (_, index) => (
         <span
           key={index}
@@ -288,7 +292,7 @@ function ScorePips({ points, fillColor }: { points: number; fillColor: string })
             height: 16,
             borderRadius: "50%",
             border: `2px solid ${index < points ? fillColor : "#cbd5e1"}`,
-            background: index < points ? fillColor : "#ffffff",
+            background: index < points ? fillColor : "rgba(238, 243, 238, 0.9)",
             boxShadow: "0 3px 8px rgba(17, 24, 39, 0.12)",
           }}
         />
@@ -364,7 +368,7 @@ const neutralTone: SideTone = {
   accent: "#94a3b8",
   fillColor: "#b4bfcc",
   borderColor: "rgba(148, 163, 184, 0.24)",
-  surfaceBackground: "linear-gradient(180deg, rgba(148, 163, 184, 0.06) 0%, rgba(255, 255, 255, 0.92) 100%)",
+  surfaceBackground: "rgba(148, 163, 184, 0.08)",
   glowBackground: "rgba(148, 163, 184, 0.12)",
   hoverBorderColor: "rgba(148, 163, 184, 0.5)",
   hoverBackground: "rgba(148, 163, 184, 0.1)",
@@ -379,7 +383,7 @@ function getTypeTone(type: UmamusumeType | null): SideTone {
     accent: base,
     fillColor: base,
     borderColor: alphaColor(base, 0.3),
-    surfaceBackground: `linear-gradient(180deg, ${alphaColor(base, 0.08)} 0%, rgba(255, 255, 255, 0.92) 100%)`,
+    surfaceBackground: `linear-gradient(180deg, ${alphaColor(base, 0.1)} 0%, rgba(238, 243, 238, 0.3) 100%)`,
     glowBackground: alphaColor(base, 0.18),
     hoverBorderColor: alphaColor(base, 0.6),
     hoverBackground: alphaColor(base, 0.12),
@@ -410,9 +414,9 @@ const emptyActiveSpotStyle: CSSProperties = {
   display: "grid",
   placeItems: "center",
   borderRadius: 8,
-  border: "1px dashed #cbd5e1",
-  background: "rgba(255, 255, 255, 0.42)",
-  color: "#647168",
+  border: "1px dashed rgba(0, 0, 0, 0.45)",
+  background: "rgba(238, 243, 238, 0.3)",
+  color: "#000000",
   fontSize: 16,
   fontWeight: 900,
 };

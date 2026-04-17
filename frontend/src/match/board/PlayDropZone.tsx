@@ -16,8 +16,8 @@ export function PlayDropZone({ onDropHandCard }: { onDropHandCard: (handIndex: n
     <div
       style={{
         ...playDropZoneStyle,
-        borderColor: hovered ? "rgba(100, 113, 104, 0.6)" : playDropZoneStyle.borderColor,
-        background: hovered ? "rgba(247, 250, 248, 0.96)" : playDropZoneStyle.background,
+        borderColor: hovered ? "rgba(0, 0, 0, 0.65)" : playDropZoneStyle.borderColor,
+        background: hovered ? "rgba(238, 243, 238, 0.9)" : playDropZoneStyle.background,
       }}
       onDragOver={(event) => {
         if (!hasTextDragPayload(event)) return;
@@ -48,9 +48,9 @@ const playDropZoneStyle: CSSProperties = {
   display: "grid",
   placeItems: "center",
   borderRadius: "50%",
-  border: "2px dashed rgba(100, 113, 104, 0.32)",
-  background: "rgba(255, 255, 255, 0.86)",
-  color: "#647168",
+  border: "2px dashed rgba(0, 0, 0, 0.45)",
+  background: "rgba(238, 243, 238, 0.74)",
+  color: "#000000",
   fontSize: 13,
   fontWeight: 900,
   textAlign: "center",

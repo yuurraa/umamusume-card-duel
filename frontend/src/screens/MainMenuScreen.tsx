@@ -7,11 +7,13 @@ export function MainMenuScreen({
   equippedDeck,
   onPlay,
   onOpenDecks,
+  onOpenCustomisation,
   onQuit,
 }: {
   equippedDeck: PremadeDeck;
   onPlay: () => void;
   onOpenDecks: () => void;
+  onOpenCustomisation: () => void;
   onQuit: () => void;
 }) {
   return (
@@ -26,6 +28,7 @@ export function MainMenuScreen({
           <div style={menuButtonColumnStyle}>
             <NeutralButton style={menuPrimaryButtonStyle} onClick={onPlay}>Play</NeutralButton>
             <NeutralButton style={menuPrimaryButtonStyle} onClick={onOpenDecks}>Decks</NeutralButton>
+            <NeutralButton style={menuPrimaryButtonStyle} onClick={onOpenCustomisation}>Customisation</NeutralButton>
             <NeutralButton style={menuPrimaryButtonStyle} onClick={onQuit}>Quit</NeutralButton>
           </div>
         </div>
@@ -46,6 +49,7 @@ const menuScreenStyle: CSSProperties = {
   position: "absolute",
   inset: 0,
   display: "flex",
+  flexWrap: "wrap",
   alignItems: "center",
   justifyContent: "center",
   overflow: "hidden",
@@ -55,47 +59,47 @@ const menuHeroStyle: CSSProperties = {
   display: "grid",
   justifyItems: "center",
   textAlign: "center",
-  gap: 20,
+  gap: 40,
 };
 
 const titleRowStyle: CSSProperties = {
-  position: "relative",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
+  maxWidth: "min(850px, calc(100vw - 28px))",
+  borderRadius: 999,
+  border: "1px solid rgba(176, 187, 178, 0.86)",
+  background: "linear-gradient(180deg, rgba(244, 248, 245, 0.46) 0%, rgba(228, 236, 230, 0.36) 48%, rgba(212, 222, 214, 0.34) 100%)",
+  boxShadow: "inset 0 2px 10px rgba(255, 255, 255, 0.45), inset 0 -8px 16px rgba(124, 139, 127, 0.22), 0 24px 62px rgba(17, 24, 39, 0.2)",
+  padding: "30px 25px",
+  backdropFilter: "blur(7px)",
 };
 
 const headerImageBase: CSSProperties = {
-  position: "absolute",
-  top: "50%",
-  width: "clamp(112px, 8vw, 112px)",
+  flex: "0 0 auto",
+  width: "clamp(68px, 14vw, 110px)",
+  padding: "0 64px",
   height: "auto",
   objectFit: "contain",
-  transform: "translateY(-50%)",
   filter: "drop-shadow(0 10px 20px rgba(17, 24, 39, 0.14))",
 };
 
 const headerImageLeftStyle: CSSProperties = {
   ...headerImageBase,
-  right: "100%",
-  marginRight: -120,
-  transform: "translateY(-50%) scaleX(-1)",
+  transform: "scaleX(-1)",
 };
 
 const headerImageRightStyle: CSSProperties = {
   ...headerImageBase,
-  left: "100%",
-  marginLeft: -120,
 };
 
 const menuTitleStyle: CSSProperties = {
   margin: 0,
-  color: "#17211c",
+  color: "#000000",
   maxWidth: 900,
-  fontSize: "clamp(48px, 9vw, 88px)",
+  fontSize: "clamp(36px, 7vw, 72px)",
   lineHeight: 0.92,
   fontWeight: 950,
-  paddingBottom: 20,
   textWrap: "balance",
 };
 
@@ -104,10 +108,11 @@ const menuActionPanelStyle: CSSProperties = {
   placeItems: "center",
   minWidth: 280,
   padding: 12,
-  borderRadius: 18,
-  border: "1px solid rgba(203, 213, 225, 0.9)",
-  background: "rgba(255, 255, 255, 0.96)",
-  boxShadow: "0 20px 60px rgba(17, 24, 39, 0.1)",
+  borderRadius: 8,
+  border: "1px solid rgba(217, 225, 218, 0.72)",
+  background: "rgba(238, 243, 238, 0.3)",
+  boxShadow: "0 20px 60px rgba(17, 24, 39, 0.18)",
+  backdropFilter: "blur(7px)",
 };
 
 const menuButtonColumnStyle: CSSProperties = {

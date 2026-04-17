@@ -95,7 +95,7 @@ const choiceShellStyle: CSSProperties = {
   gridTemplateRows: "auto minmax(0, 1fr)",
   gap: 12,
   padding: 16,
-  background: "rgba(255, 255, 255, 0.96)",
+  background: "rgba(238, 243, 238, 0.94)",
 };
 
 const choiceHeaderStyle: CSSProperties = {
@@ -131,13 +131,13 @@ const emptyChoiceStyle: CSSProperties = {
   gap: 12,
   justifyItems: "start",
   borderRadius: 8,
-  border: "1px solid rgba(100,113,104,0.18)",
-  background: "rgba(247,250,248,0.85)",
+  border: "1px solid rgba(0, 0, 0, 0.18)",
+  background: "rgba(238, 243, 238, 0.85)",
   padding: 16,
 };
 
 const emptyChoiceSubtextStyle: CSSProperties = {
-  color: "#647168",
+  color: "#000000",
   fontSize: 13,
   fontWeight: 800,
   lineHeight: 1.35,

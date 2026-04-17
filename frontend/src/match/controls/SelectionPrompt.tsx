@@ -181,6 +181,7 @@ const selectionPromptTextStyle: CSSProperties = {
   wordBreak: "break-word",
   lineHeight: 1.35,
   textAlign: "center",
+  color: "#000000",
 };
 
 const selectionPromptButtonStyle: CSSProperties = {
@@ -217,8 +218,8 @@ const retreatDiscardRowStyle: CSSProperties = {
   justifyContent: "space-between",
   gap: 8,
   borderRadius: 8,
-  border: "1px solid rgba(203, 213, 225, 0.9)",
-  background: "rgba(255, 255, 255, 0.9)",
+  border: "1px solid rgba(185, 198, 188, 0.9)",
+  background: "rgba(238, 243, 238, 0.82)",
   padding: "6px 10px",
 };
 
@@ -228,6 +229,7 @@ const retreatDiscardLabelStyle: CSSProperties = {
   gap: 8,
   fontSize: 13,
   fontWeight: 850,
+  color: "#000000",
 };
 
 const retreatDiscardCounterWrapStyle: CSSProperties = {
@@ -240,9 +242,9 @@ const retreatAdjustButtonStyle: CSSProperties = {
   width: 24,
   height: 24,
   borderRadius: 6,
-  border: "1px solid rgba(203, 213, 225, 0.95)",
-  background: "rgba(255, 255, 255, 0.96)",
-  color: "#17211c",
+  border: "1px solid rgba(185, 198, 188, 0.95)",
+  background: "rgba(238, 243, 238, 0.9)",
+  color: "#000000",
   fontSize: 14,
   fontWeight: 900,
   lineHeight: 1,
@@ -255,4 +257,5 @@ const retreatCountTextStyle: CSSProperties = {
   textAlign: "center",
   fontSize: 12,
   fontWeight: 900,
+  color: "#000000",
 };

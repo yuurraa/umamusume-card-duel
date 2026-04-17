@@ -181,10 +181,10 @@ function endTurnButtonStyle(_enabled: boolean): CSSProperties {
 function menuButtonStyle(active: boolean, hovered: boolean): CSSProperties {
   const ringBorder = active
     ? (hovered ? "1px solid rgba(23, 33, 28, 0.58)" : "1px solid rgba(23, 33, 28, 0.32)")
-    : (hovered ? "1px solid rgba(100, 113, 104, 0.42)" : "1px solid rgba(255, 255, 255, 0.82)");
+    : (hovered ? "1px solid rgba(0, 0, 0, 0.36)" : "1px solid rgba(217, 225, 218, 0.82)");
   const ringBackground = active
     ? (hovered ? "#0f1713" : "#17211c")
-    : (hovered ? "rgba(241, 245, 249, 0.98)" : "rgba(255, 255, 255, 0.92)");
+    : (hovered ? "rgba(238, 243, 238, 0.9)" : "rgba(238, 243, 238, 0.82)");
   const ringShadow = active
     ? (hovered ? "0 14px 30px rgba(23, 33, 28, 0.24)" : "0 12px 26px rgba(23, 33, 28, 0.18)")
     : (hovered ? "0 12px 24px rgba(17, 24, 39, 0.14)" : "0 8px 18px rgba(17, 24, 39, 0.08)");
@@ -200,7 +200,7 @@ function menuButtonStyle(active: boolean, hovered: boolean): CSSProperties {
     borderRadius: "50%",
     border: ringBorder,
     background: ringBackground,
-    color: active ? "#ffffff" : "#17211c",
+    color: active ? "#ffffff" : "#000000",
     cursor: "pointer",
     boxShadow: ringShadow,
     transform: hovered ? "translateY(-1px)" : undefined,
@@ -227,8 +227,8 @@ function battleMenuStyle(placement: "top-start" | "top-end"): CSSProperties {
     width: 360,
     maxWidth: "calc(100vw - 48px)",
     borderRadius: 8,
-    border: "1px solid rgba(255, 255, 255, 0.76)",
-    background: "rgba(255, 255, 255, 0.94)",
+    border: "1px solid rgba(217, 225, 218, 0.86)",
+    background: "rgba(238, 243, 238, 0.86)",
     boxShadow: "0 24px 70px rgba(17, 24, 39, 0.18)",
     padding: 12,
   };
@@ -244,7 +244,7 @@ const battleMenuHeaderStyle: CSSProperties = {
 const battleMenuTitleStyle: CSSProperties = {
   display: "block",
   marginTop: 2,
-  color: "#17211c",
+  color: "#000000",
   fontSize: 18,
   lineHeight: 1.1,
   fontWeight: 950,
@@ -271,9 +271,9 @@ const battleLogListStyle: CSSProperties = {
 function battleLogEntryStyle(index: number): CSSProperties {
   return {
     borderRadius: 8,
-    border: "1px solid rgba(100,113,104,0.12)",
+    border: "1px solid rgba(0, 0, 0, 0.12)",
     background: index === 0 ? "rgba(214, 81, 157, 0.1)" : "rgba(247,250,248,0.82)",
-    color: "#17211c",
+    color: "#000000",
     padding: "8px 10px",
     fontSize: 12,
     lineHeight: 1.35,
@@ -284,8 +284,8 @@ function battleLogEntryStyle(index: number): CSSProperties {
 
 const battleLogEmptyStyle: CSSProperties = {
   borderRadius: 8,
-  border: "1px dashed rgba(100,113,104,0.24)",
-  color: "#647168",
+  border: "1px dashed rgba(0, 0, 0, 0.45)",
+  color: "#000000",
   padding: 12,
   fontSize: 12,
   fontWeight: 850,
@@ -308,7 +308,7 @@ function energyTokenStyle(enabled: boolean, energyType: EnergyType | null, hover
   const glowColor = energyType ? energyGlowColors[energyType] : null;
   const borderColor = glowColor
     ? alphaColor(glowColor, refreshing ? 0.58 : hovered ? 0.52 : 0.34)
-    : "rgba(255, 255, 255, 0.82)";
+    : "rgba(217, 225, 218, 0.82)";
   const tokenShadow = glowColor
     ? (refreshing
       ? `0 0 0 4px ${alphaColor(glowColor, 0.24)}, 0 16px 34px ${alphaColor(glowColor, 0.4)}`
@@ -325,7 +325,7 @@ function energyTokenStyle(enabled: boolean, energyType: EnergyType | null, hover
     placeItems: "center",
     borderRadius: "50%",
     border: `1px solid ${borderColor}`,
-    background: "rgba(255, 255, 255, 0.92)",
+    background: "rgba(238, 243, 238, 0.82)",
     boxShadow: tokenShadow,
     cursor: enabled ? "grab" : "not-allowed",
     opacity: enabled ? 1 : 0.46,
@@ -336,7 +336,7 @@ function energyTokenStyle(enabled: boolean, energyType: EnergyType | null, hover
 }
 
 const energyTokenEmptyStyle: CSSProperties = {
-  color: "#647168",
+  color: "#000000",
   fontSize: 16,
   fontWeight: 900,
 };

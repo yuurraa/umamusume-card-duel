@@ -6,14 +6,14 @@ export type NeutralButtonTone = "default" | "danger";
 export function neutralButtonStyle(enabled: boolean, hovered: boolean, tone: NeutralButtonTone = "default"): CSSProperties {
   const isDanger = tone === "danger";
   const borderColor = hovered && enabled
-    ? (isDanger ? "rgba(220, 38, 38, 0.42)" : "rgba(100, 113, 104, 0.34)")
-    : (isDanger ? "rgba(248, 113, 113, 0.36)" : "rgba(203, 213, 225, 0.9)");
+    ? (isDanger ? "rgba(220, 38, 38, 0.42)" : "rgba(0, 0, 0, 0.34)")
+    : (isDanger ? "rgba(248, 113, 113, 0.36)" : "rgba(185, 198, 188, 0.9)");
   const backgroundColor = hovered && enabled
-    ? (isDanger ? "rgba(254, 226, 226, 0.96)" : "rgba(241, 245, 249, 0.98)")
-    : "rgba(255, 255, 255, 0.92)";
+    ? (isDanger ? "rgba(254, 226, 226, 0.92)" : "rgba(238, 243, 238, 0.9)")
+    : "rgba(238, 243, 238, 0.82)";
   const textColor = enabled
-    ? (isDanger ? (hovered ? "#991b1b" : "#7f1d1d") : "#17211c")
-    : "#647168";
+    ? (isDanger ? (hovered ? "#991b1b" : "#7f1d1d") : "#000000")
+    : "#000000";
   const buttonShadow = hovered && enabled
     ? (isDanger ? "0 16px 36px rgba(220, 38, 38, 0.2)" : "0 16px 36px rgba(17, 24, 39, 0.14)")
     : "0 12px 28px rgba(17, 24, 39, 0.1)";
@@ -45,10 +45,10 @@ export function previewAccentButtonStyle(enabled: boolean, hovered: boolean, acc
   return {
     width: "100%",
     borderRadius: 8,
-    border: enabled ? `1px solid ${hovered ? accent : "rgba(203, 213, 225, 0.9)"}` : "1px solid rgba(203, 213, 225, 0.9)",
-    background: enabled && hovered ? accent : "#ffffff",
+    border: enabled ? `1px solid ${hovered ? accent : "rgba(185, 198, 188, 0.9)"}` : "1px solid rgba(185, 198, 188, 0.9)",
+    background: enabled && hovered ? accent : "rgba(238, 243, 238, 0.9)",
     padding: 10,
-    color: enabled ? (hovered ? "#ffffff" : "#17211c") : "#647168",
+    color: enabled ? (hovered ? "#ffffff" : "#000000") : "#000000",
     textAlign: "left",
     fontSize: 13,
     fontWeight: 900,
@@ -61,9 +61,9 @@ export function previewAccentButtonStyle(enabled: boolean, hovered: boolean, acc
 
 export const overlaySurfaceStyle: CSSProperties = {
   borderRadius: 12,
-  border: "1px solid rgba(203, 213, 225, 0.9)",
-  background: "linear-gradient(180deg, rgba(248, 250, 252, 0.98) 0%, rgba(255, 255, 255, 0.95) 100%)",
-  color: "#17211c",
+  border: "1px solid rgba(185, 198, 188, 0.9)",
+  background: "linear-gradient(180deg, rgba(238, 243, 238, 0.94) 0%, rgba(231, 238, 232, 0.9) 100%)",
+  color: "#000000",
   boxShadow: "0 22px 68px rgba(17, 24, 39, 0.2)",
 };
 
@@ -83,7 +83,7 @@ export const overlayBackdropStyle: CSSProperties = {
 };
 
 export const previewKickerStyle: CSSProperties = {
-  color: "#647168",
+  color: "#000000",
   fontSize: 11,
   fontWeight: 900,
   letterSpacing: 0,

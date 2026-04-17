@@ -12,6 +12,7 @@ type HandProps = {
   setupBenchIndexes?: number[];
   onSetupChooseActive?: (index: number) => void;
   onOpenDiscard?: () => void;
+  sleeveImage?: string | null | undefined;
 };
 
 export function Hand({
@@ -21,6 +22,7 @@ export function Hand({
   setupActiveIndex = null,
   setupBenchIndexes = [],
   onOpenDiscard,
+  sleeveImage = null,
 }: HandProps) {
   const player = state.sides.player;
   const isSetup = mode === "setup";
@@ -35,6 +37,7 @@ export function Hand({
         label="Deck"
         count={player.deck.length}
         title={`${player.deck.length} cards left`}
+        sleeveImage={sleeveImage}
       />
       <div style={handStyle}>
         {player.hand.map((cardId, index) => {
@@ -130,12 +133,14 @@ function PileSlot({
   count,
   title,
   cardImage,
+  sleeveImage,
   onClick,
 }: {
   label: string;
   count: number;
   title: string;
   cardImage?: string | undefined;
+  sleeveImage?: string | null | undefined;
   onClick?: (() => void) | undefined;
 }) {
   const [hovered, setHovered] = useState(false);
@@ -144,6 +149,12 @@ function PileSlot({
     <>
       {cardImage && count > 0 ? (
         <img style={pileCardImageStyle} src={cardImage} alt="" draggable={false} />
+      ) : sleeveImage ? (
+        <span style={pileImageClipStyle}>
+          <img style={pileSleeveImageStyle} src={sleeveImage} alt="" draggable={false} />
+        </span>
+      ) : label === "Discard" ? (
+        <span style={pileEmptySlotStyle}>Empty</span>
       ) : (
         <span style={pileCardBackStyle}>
           <span style={pileCardBackMarkStyle}>D</span>
@@ -208,7 +219,7 @@ const handStyle: CSSProperties = {
   gap: 12,
   justifyContent: "center",
   overflowX: "auto",
-  padding: "16px 2px 8px",
+  padding: "10px 2px 0px",
 };
 
 const pileSlotWrapStyle: CSSProperties = {
@@ -226,23 +237,56 @@ function pileSlotButtonStyle(interactive: boolean, hovered: boolean): CSSPropert
     boxSizing: "border-box",
     appearance: "none",
     borderRadius: 8,
-    border: hovered ? "1px solid rgba(100, 113, 104, 0.42)" : "1px solid rgba(203, 213, 225, 0.88)",
-    background: "rgba(255, 255, 255, 0.88)",
-    padding: 5,
+    border: hovered ? "1px solid rgba(0, 0, 0, 0.36)" : "1px solid rgba(185, 198, 188, 0.88)",
+    background: "rgba(238, 243, 238, 0.82)",
+    padding: 0,
     cursor: interactive ? "pointer" : "help",
     boxShadow: hovered ? "0 16px 34px rgba(17, 24, 39, 0.16)" : "0 10px 24px rgba(17, 24, 39, 0.1)",
     transform: hovered ? "translateY(-2px)" : undefined,
     transition: "border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease",
     opacity: interactive || hovered ? 1 : 0.94,
+    textShadow: "0 0 0",
   };
 }
 
 const pileCardImageStyle: CSSProperties = {
   width: "100%",
   height: "100%",
-  borderRadius: 6,
-  objectFit: "fill",
+  borderRadius: 8,
+  objectFit: "contain",
   display: "block",
+};
+
+const pileImageClipStyle: CSSProperties = {
+  width: "100%",
+  height: "100%",
+  display: "block",
+  overflow: "hidden",
+  position: "relative",
+  borderRadius: 8,
+};
+
+const pileSleeveImageStyle: CSSProperties = {
+  position: "absolute",
+  inset: "-6%",
+  width: "112%",
+  height: "112%",
+  objectFit: "cover",
+  display: "block",
+};
+
+const pileEmptySlotStyle: CSSProperties = {
+  width: "100%",
+  height: "100%",
+  display: "grid",
+  placeItems: "center",
+  borderRadius: 8,
+  border: "1px dashed rgba(0, 0, 0, 0.45)",
+  background: "rgba(238, 243, 238, 0.3)",
+  color: "#000000",
+  fontSize: 12,
+  fontWeight: 950,
+  textTransform: "uppercase",
 };
 
 const pileCardBackStyle: CSSProperties = {
@@ -250,8 +294,8 @@ const pileCardBackStyle: CSSProperties = {
   height: "100%",
   display: "grid",
   placeItems: "center",
-  borderRadius: 6,
-  border: "1px solid rgba(255, 255, 255, 0.72)",
+  borderRadius: 8,
+  border: "1px solid rgba(217, 225, 218, 0.72)",
   background: "linear-gradient(145deg, #17211c 0%, #284135 48%, #d6519d 100%)",
   boxShadow: "inset 0 0 0 4px rgba(255,255,255,0.18)",
 };
@@ -262,8 +306,8 @@ const pileCardBackMarkStyle: CSSProperties = {
   display: "grid",
   placeItems: "center",
   borderRadius: "50%",
-  background: "rgba(255, 255, 255, 0.9)",
-  color: "#17211c",
+  background: "rgba(238, 243, 238, 0.9)",
+  color: "#000000",
   fontSize: 18,
   fontWeight: 950,
   fontFamily: "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
@@ -280,8 +324,8 @@ const pileCountBadgeStyle: CSSProperties = {
   placeItems: "center",
   padding: "0 6px",
   borderRadius: 999,
-  border: "1px solid rgba(255, 255, 255, 0.88)",
-  background: "#17211c",
+  border: "1px solid rgba(0, 0, 0, 0.18)",
+  background: "#000000",
   color: "#ffffff",
   fontSize: 12,
   fontWeight: 950,
@@ -289,7 +333,7 @@ const pileCountBadgeStyle: CSSProperties = {
 };
 
 const pileLabelStyle: CSSProperties = {
-  color: "#47554c",
+  color: "#000000",
   fontSize: 12,
   fontWeight: 950,
   textTransform: "uppercase",
@@ -304,9 +348,9 @@ const pileTooltipStyle: CSSProperties = {
   width: "max-content",
   maxWidth: 160,
   borderRadius: 8,
-  border: "1px solid rgba(203, 213, 225, 0.9)",
-  background: "rgba(255, 255, 255, 0.96)",
-  color: "#17211c",
+  border: "1px solid rgba(185, 198, 188, 0.9)",
+  background: "rgba(238, 243, 238, 0.94)",
+  color: "#000000",
   padding: "6px 8px",
   fontSize: 12,
   fontWeight: 900,

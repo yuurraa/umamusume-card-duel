@@ -18,6 +18,7 @@ export function PregameSetupPanel({
   onSetActive,
   onReady,
   onInspect,
+  sleeveImage,
 }: {
   game: GameState;
   activeIndex: number | null;
@@ -30,6 +31,7 @@ export function PregameSetupPanel({
   onSetActive: (index: number) => void;
   onReady: () => void;
   onInspect: (target: InspectTarget) => void;
+  sleeveImage?: string | null;
 }) {
   const coinFlipCopy = game.firstPlayer === "player" ? "Heads. You are going first." : "Tails. Opponent is going first.";
 
@@ -60,6 +62,7 @@ export function PregameSetupPanel({
         setupBenchIndexes={benchIndexes}
         onSetupChooseActive={onSetActive}
         onInspect={onInspect}
+        sleeveImage={sleeveImage}
       />
     </div>
   );
@@ -67,6 +70,7 @@ export function PregameSetupPanel({
 
 const pregamePanelStyle: CSSProperties = {
   display: "grid",
+  background: "rgba(148, 163, 184, 0.08)",
   gap: 16,
 };
 
@@ -79,6 +83,7 @@ const pregamePanelHeaderStyle: CSSProperties = {
 
 const pregameTitleStyle: CSSProperties = {
   margin: "2px 0 0",
+  color: "#000000",
   fontSize: 26,
   lineHeight: 1.05,
   fontWeight: 950,
@@ -86,7 +91,7 @@ const pregameTitleStyle: CSSProperties = {
 
 const pregameBodyStyle: CSSProperties = {
   margin: "8px 0 0",
-  color: "#47554c",
+  color: "#000000",
   fontSize: 14,
   fontWeight: 800,
   lineHeight: 1.4,

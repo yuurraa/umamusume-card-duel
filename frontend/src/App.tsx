@@ -53,6 +53,15 @@ import { ActionNotice } from "./match/feedback/ActionNotice";
 import { CoinFlipOverlay } from "./match/feedback/CoinFlipOverlay";
 import { MainMenuScreen } from "./screens/MainMenuScreen";
 import { DeckBrowserScreen } from "./screens/DeckBrowserScreen";
+import { CustomisationScreen } from "./screens/CustomisationScreen";
+import {
+  getSelectedPlaymat,
+  getSelectedSleeve,
+  getRandomCustomisationSettings,
+  readCustomisationSettings,
+  writeCustomisationSettings,
+  type CustomisationSettings,
+} from "./utils/customisation";
 
 type CoinFlipEvent = {
   id: number;
@@ -70,6 +79,8 @@ type PendingCoinAttack = {
 export function App() {
   const [screen, setScreen] = useState<AppScreen>("mainMenu");
   const [equippedDeckId, setEquippedDeckId] = useState(() => readEquippedDeckId());
+  const [customisation, setCustomisation] = useState<CustomisationSettings>(() => readCustomisationSettings());
+  const [opponentCustomisation, setOpponentCustomisation] = useState<CustomisationSettings>(() => getRandomCustomisationSettings());
   const [game, setGame] = useState(() => {
     const playerDeck = getDeckById(readEquippedDeckId());
     const opponent = pickRandomOpponentDeck();
@@ -88,6 +99,10 @@ export function App() {
   const previousLogRef = useRef<string[]>([]);
   const coinFlipIdRef = useRef(1);
   const equippedDeck = getDeckById(equippedDeckId);
+  const selectedPlaymat = getSelectedPlaymat(customisation);
+  const selectedSleeve = getSelectedSleeve(customisation);
+  const opponentPlaymat = getSelectedPlaymat(opponentCustomisation);
+  const opponentSleeve = getSelectedSleeve(opponentCustomisation);
   const player = game.sides.player;
   const nextPlayerEnergy = player.energyZone[0] ?? null;
   const activePendingSelection = game.pendingPlayerChoice
@@ -101,6 +116,9 @@ export function App() {
   const displayedPlayerSide = game.phase === "setup" ? createSetupPreviewSide(player, setupActiveIndex, setupBenchIndexes) : player;
   const displayedOpponentSide = hiddenOpponent ? createSetupHiddenOpponentSide(game.sides.opponent) : game.sides.opponent;
   const hiddenOpponentBenchCount = hiddenOpponent ? game.sides.opponent.bench.length : undefined;
+  const isPlayPhase = game.phase === "play";
+  const showPlayerPlaymat = !isPlayPhase || game.currentSide === "player";
+  const showOpponentPlaymat = isPlayPhase && game.currentSide === "opponent";
   const setupDragHandIndexByUid = game.phase === "setup"
     ? {
         ...(setupActiveIndex !== null ? { [-1]: setupActiveIndex } : {}),
@@ -183,6 +201,7 @@ export function App() {
     setActionNotice(null);
     setDiscardOpen(false);
     setMenuOpen(false);
+    setOpponentCustomisation(getRandomCustomisationSettings());
     const opponent = pickRandomOpponentDeck();
     setGame(createGame(equippedDeck.cardIds, opponent.cardIds, opponent.name));
   };
@@ -227,6 +246,10 @@ export function App() {
   useEffect(() => {
     writeEquippedDeckId(equippedDeck.id);
   }, [equippedDeck.id]);
+
+  useEffect(() => {
+    writeCustomisationSettings(customisation);
+  }, [customisation]);
 
   useEffect(() => {
     if (!actionNotice) return undefined;
@@ -503,11 +526,12 @@ export function App() {
 
   if (screen === "mainMenu") {
     return (
-      <main style={appStyle(true)}>
+      <main style={appStyle(true, selectedPlaymat.image)}>
         <MainMenuScreen
           equippedDeck={equippedDeck}
           onPlay={playEquippedDeck}
           onOpenDecks={() => setScreen("decks")}
+          onOpenCustomisation={() => setScreen("customisation")}
           onQuit={quitApp}
         />
       </main>
@@ -516,7 +540,7 @@ export function App() {
 
   if (screen === "decks") {
     return (
-      <main style={appStyle()}>
+      <main style={appStyle(false, selectedPlaymat.image)}>
         <DeckBrowserScreen
           decks={premadeDecks}
           equippedDeckId={equippedDeck.id}
@@ -527,8 +551,22 @@ export function App() {
     );
   }
 
+  if (screen === "customisation") {
+    return (
+      <main style={appStyle(false, selectedPlaymat.image)}>
+        <CustomisationScreen
+          settings={customisation}
+          onChange={setCustomisation}
+          onBack={() => setScreen("mainMenu")}
+        />
+      </main>
+    );
+  }
+
   return (
-    <main style={appStyle()}>
+    <main style={appStyle(false)}>
+      <div style={matchBackgroundLayerStyle(selectedPlaymat.image, showPlayerPlaymat ? 1 : 0)} />
+      <div style={matchBackgroundLayerStyle(opponentPlaymat.image, showOpponentPlaymat ? 1 : 0)} />
       <div style={contentStyle}>
         <section style={duelGridStyle}>
           <SideBoard
@@ -555,6 +593,7 @@ export function App() {
             sideId="opponent"
             hidden={hiddenOpponent}
             onInspect={openPreview}
+            sleeveImage={opponentSleeve.image}
             {...(hiddenOpponentBenchCount !== undefined ? { hiddenBenchCount: hiddenOpponentBenchCount } : {})}
           />
           {game.phase === "play" && (
@@ -582,6 +621,7 @@ export function App() {
                 setGame((current) => completePregameSetup(current, setupActiveIndex, setupBenchIndexes));
               }}
               onInspect={openPreview}
+              sleeveImage={selectedSleeve.image}
             />
           ) : (
             <>
@@ -598,7 +638,12 @@ export function App() {
                 onToggleMenu={toggleMenu}
                 onSurrender={handleSurrender}
               />
-              <Hand state={game} onInspect={openPreview} onOpenDiscard={() => setDiscardOpen(true)} />
+              <Hand
+                state={game}
+                onInspect={openPreview}
+                onOpenDiscard={() => setDiscardOpen(true)}
+                sleeveImage={selectedSleeve.image}
+              />
             </>
           )}
         </section>
@@ -745,7 +790,7 @@ export function App() {
   );
 }
 
-function appStyle(isMenu = false): CSSProperties {
+function appStyle(isMenu = false, playmatImage?: string | null): CSSProperties {
   return {
     height: isMenu ? "100%" : "auto",
     minHeight: "100%",
@@ -753,20 +798,36 @@ function appStyle(isMenu = false): CSSProperties {
     overflow: isMenu ? "hidden" : "clip",
     padding: isMenu ? 0 : 16,
     boxSizing: "border-box",
-    color: "#17211c",
+    color: "#000000",
+    textShadow: "1px 1px 1px rgba(255, 255, 255, 0.6)",
     fontFamily: "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-    background: "#eef3f1",
+    background: playmatImage
+      ? `url("${playmatImage}") center / cover fixed no-repeat`
+      : "radial-gradient(circle at 18% 8%, rgba(214, 81, 157, 0.2), transparent 28%), radial-gradient(circle at 84% 20%, rgba(63, 159, 92, 0.16), transparent 30%), linear-gradient(135deg, #101820 0%, #223733 54%, #4a2647 100%)",
   };
 }
 
 const contentStyle: CSSProperties = {
   position: "relative",
+  zIndex: 1,
   maxWidth: 1760,
   margin: "0 auto",
   display: "flex",
   flexDirection: "column",
   gap: 16,
 };
+
+function matchBackgroundLayerStyle(playmatImage: string | null | undefined, opacity: number): CSSProperties {
+  return {
+    position: "absolute",
+    inset: 0,
+    zIndex: 0,
+    pointerEvents: "none",
+    opacity,
+    transition: "opacity 420ms ease",
+    background: playmatImage ? `url("${playmatImage}") center / cover fixed no-repeat` : "none",
+  };
+}
 
 const duelGridStyle: CSSProperties = {
   position: "relative",
@@ -778,10 +839,11 @@ const duelGridStyle: CSSProperties = {
 
 const handPanelStyle: CSSProperties = {
   borderRadius: 8,
-  border: "1px solid rgba(255, 255, 255, 0.72)",
-  background: "rgba(255, 255, 255, 0.78)",
+  border: "1px solid rgba(217, 225, 218, 0.46)",
+  background: "rgba(148, 163, 184, 0.08)",
   padding: 10,
   boxShadow: "0 24px 80px rgba(17, 24, 39, 0.14)",
+  backdropFilter: "blur(7px)",
 };
 
 const RETREAT_ENERGY_ORDER: EnergyType[] = ["grass", "fire", "water", "lightning", "psychic", "fighting", "darkness", "steel", "colorless", "dragon"];

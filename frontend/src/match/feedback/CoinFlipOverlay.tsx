@@ -191,6 +191,7 @@ const coinFaceLabelStyle: CSSProperties = {
   lineHeight: 1,
   fontWeight: 950,
   textTransform: "uppercase",
+  textShadow: "0 0 0 ",
 };
 
 const coinEdgeStyle: CSSProperties = {
@@ -207,6 +208,7 @@ const coinResultStyle: CSSProperties = {
   fontSize: 26,
   lineHeight: 1,
   fontWeight: 950,
+  textShadow: "0 0 0",
 };
 
 const coinMessageStyle: CSSProperties = {
@@ -216,6 +218,7 @@ const coinMessageStyle: CSSProperties = {
   lineHeight: 1.35,
   fontWeight: 800,
   color: "rgba(226, 232, 240, 0.96)",
+  textShadow: "0 0 0",
 };
 
 const coinCountdownStyle: CSSProperties = {
@@ -224,4 +227,5 @@ const coinCountdownStyle: CSSProperties = {
   lineHeight: 1.3,
   fontWeight: 900,
   color: "rgba(226, 232, 240, 0.72)",
+  textShadow: "0 0 0",
 };

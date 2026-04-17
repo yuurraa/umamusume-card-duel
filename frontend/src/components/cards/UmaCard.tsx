@@ -10,6 +10,7 @@ type UmaCardProps = {
   onInspect?: () => void;
   hidden?: boolean;
   isSelectable?: boolean;
+  sleeveImage?: string | null | undefined;
 };
 
 const typeShadowColors: Record<UmamusumeType, string> = {
@@ -25,7 +26,7 @@ const typeShadowColors: Record<UmamusumeType, string> = {
   Dragon: "rgba(212, 167, 44, 0.42)",
 };
 
-export function UmaCard({ umamusume, onInspect, hidden = false, isSelectable = false }: UmaCardProps) {
+export function UmaCard({ umamusume, onInspect, hidden = false, isSelectable = false, sleeveImage = null }: UmaCardProps) {
   const [hovered, setHovered] = useState(false);
   const card = getUmamusumeCard(umamusume);
   const shadowColor = hidden ? "rgba(17, 24, 39, 0.24)" : typeShadowColors[card.type];
@@ -63,7 +64,7 @@ export function UmaCard({ umamusume, onInspect, hidden = false, isSelectable = f
       aria-label={hidden ? "Face-down card" : `Inspect ${card.name}`}
     >
       {hidden ? (
-        <div style={hiddenCardStyle}>Face Down</div>
+        <FaceDownCard sleeveImage={sleeveImage} fontSize={18} />
       ) : (
         <>
           <img
@@ -75,6 +76,18 @@ export function UmaCard({ umamusume, onInspect, hidden = false, isSelectable = f
         </>
       )}
     </button>
+  );
+}
+
+export function FaceDownCard({ sleeveImage, fontSize = 12 }: { sleeveImage?: string | null | undefined; fontSize?: number }) {
+  return (
+    <div style={hiddenCardStyle(fontSize)}>
+      {sleeveImage ? (
+        <img style={hiddenSleeveImageStyle} src={sleeveImage} alt="" draggable={false} />
+      ) : (
+        "Face Down"
+      )}
+    </div>
   );
 }
 
@@ -125,8 +138,8 @@ export function AttachedEnergyPips({
             display: "grid",
             placeItems: "center",
             borderRadius: "50%",
-            border: "1px solid white",
-            background: "rgba(255, 255, 255, 0.72)",
+            border: "1px solid rgba(217, 225, 218, 0.9)",
+            background: "rgba(238, 243, 238, 0.74)",
             boxShadow: "0 8px 16px rgba(17, 24, 39, 0.22)",
             cursor: draggableEnergyTypes?.has(type) ? "grab" : "default",
           }}
@@ -138,16 +151,29 @@ export function AttachedEnergyPips({
   );
 }
 
-const hiddenCardStyle: CSSProperties = {
-  width: "100%",
-  height: "100%",
-  display: "grid",
-  placeItems: "center",
-  borderRadius: 8,
-  border: "1px solid rgba(23, 33, 28, 0.2)",
-  background: "linear-gradient(180deg, #26312d 0%, #17211c 100%)",
-  color: "#ffffff",
-  fontSize: 18,
-  fontWeight: 950,
-  letterSpacing: 0.3,
+function hiddenCardStyle(fontSize: number): CSSProperties {
+  return {
+    width: "100%",
+    height: "100%",
+    display: "grid",
+    placeItems: "center",
+    position: "relative",
+    overflow: "hidden",
+    borderRadius: 8,
+    border: "1px solid rgba(23, 33, 28, 0.2)",
+    background: "linear-gradient(180deg, #26312d 0%, #17211c 100%)",
+    color: "#ffffff",
+    fontSize,
+    fontWeight: 950,
+    letterSpacing: 0.3,
+  };
+}
+
+const hiddenSleeveImageStyle: CSSProperties = {
+  position: "absolute",
+  inset: "-6%",
+  width: "112%",
+  height: "112%",
+  objectFit: "cover",
+  display: "block",
 };
