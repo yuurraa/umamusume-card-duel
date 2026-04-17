@@ -8,6 +8,7 @@ import {
   canAttack,
   canAttachEnergy,
   canRetreat,
+  canUseStadium,
   canUseUmamusumeAbility,
   completePregameSetup,
   createGame,
@@ -23,6 +24,7 @@ import {
   playerEndTurn,
   playerRetreat,
   playerSurrender,
+  playerUseStadium,
   playHandCard,
   resolvePendingPlayerChoice,
   usePlayerAbility,
@@ -702,7 +704,15 @@ export function App() {
         target={previewTarget}
         canUseAttack={Boolean(player.active && previewTarget?.isActive && previewTarget.sideId === "player" && canAttack(game, player))}
         canUseRetreat={Boolean(player.active && previewTarget?.isActive && previewTarget.sideId === "player" && canRetreat(game, player))}
-        canUseAbility={Boolean(previewTarget?.umamusume && previewTarget.sideId === "player" && canUseUmamusumeAbility(game, player, previewTarget.umamusume.uid))}
+        canUseAbility={Boolean(
+          (previewTarget?.umamusume && previewTarget.sideId === "player" && canUseUmamusumeAbility(game, player, previewTarget.umamusume.uid))
+          || (
+            previewTarget?.card.kind === "trainer"
+            && previewTarget.card.trainerType === "stadium"
+            && Boolean(previewTarget.card.effect.shuffleHandIntoDeckDraw)
+            && canUseStadium(game, player)
+          )
+        )}
         onAttack={() => {
           if (!player.active) return;
           const attack = getPrimaryAttack(getUmamusumeCard(player.active));
@@ -750,11 +760,26 @@ export function App() {
           setPreviewTarget(null);
         }}
         onAbility={() => {
+          if (
+            previewTarget?.card.kind === "trainer"
+            && previewTarget.card.trainerType === "stadium"
+            && previewTarget.card.effect.shuffleHandIntoDeckDraw
+          ) {
+            setGame(playerUseStadium);
+            setPreviewTarget(null);
+            return;
+          }
           if (!previewTarget?.umamusume || previewTarget.sideId !== "player") return;
           const ability = getUmamusumeCard(previewTarget.umamusume).ability;
-          if (!ability?.moveBenchedEnergyToActive) return;
-          const energyTypes = Array.isArray(ability.moveBenchedEnergyToActive) ? ability.moveBenchedEnergyToActive : [ability.moveBenchedEnergyToActive];
-          setPendingSelection({ kind: "moveEnergyAbility", abilityUmamusumeUid: previewTarget.umamusume.uid, energyTypes });
+          if (!ability) return;
+          if (ability.moveBenchedEnergyToActive) {
+            const energyTypes = Array.isArray(ability.moveBenchedEnergyToActive) ? ability.moveBenchedEnergyToActive : [ability.moveBenchedEnergyToActive];
+            setPendingSelection({ kind: "moveEnergyAbility", abilityUmamusumeUid: previewTarget.umamusume.uid, energyTypes });
+          } else if (ability.discardToDraw && player.hand.length >= ability.discardToDraw.discard) {
+            setPendingSelection({ kind: "discardForAbility", abilityUmamusumeUid: previewTarget.umamusume.uid });
+          } else {
+            return;
+          }
           setPreviewTarget(null);
         }}
         onClose={closePreview}
@@ -765,6 +790,11 @@ export function App() {
         deck={player.deck}
         onCancel={clearSelection}
         onChooseHand={(discardHandIndex) => {
+          if (pendingSelection?.kind === "discardForAbility") {
+            setGame((current) => usePlayerAbility(current, pendingSelection.abilityUmamusumeUid, pendingSelection.abilityUmamusumeUid, undefined, discardHandIndex));
+            setPendingSelection(null);
+            return;
+          }
           if (!pendingSelection || pendingSelection.kind !== "discardForScout") return;
           const discardedCardId = player.hand[discardHandIndex];
           const discardedCardName = discardedCardId ? getCard(discardedCardId).name : "that card";

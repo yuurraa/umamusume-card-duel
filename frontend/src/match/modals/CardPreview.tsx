@@ -90,7 +90,7 @@ export function CardPreview({ state, target, canUseAttack, canUseRetreat, canUse
           )}
 
           {card.kind === "umamusume" && card.ability && (
-            card.ability.moveBenchedEnergyToActive ? (
+            card.ability.moveBenchedEnergyToActive || card.ability.discardToDraw ? (
               <button
                 type="button"
                 disabled={!canUseAbility}
@@ -135,10 +135,27 @@ export function CardPreview({ state, target, canUseAttack, canUseRetreat, canUse
           )}
 
           {card.kind === "trainer" && (
-            <section style={previewBlockStyle}>
-              <div style={previewKickerStyle}>{card.trainerType}</div>
-              <p style={{ margin: "6px 0 0", color: "#000000", fontSize: 14, fontWeight: 800, lineHeight: 1.35 }}>{card.text}</p>
-            </section>
+            card.trainerType === "stadium" && card.effect.shuffleHandIntoDeckDraw ? (
+              <button
+                type="button"
+                disabled={!canUseAbility}
+                onClick={onAbility}
+                onMouseEnter={() => setAbilityHovered(true)}
+                onMouseLeave={() => setAbilityHovered(false)}
+                onFocus={() => setAbilityHovered(true)}
+                onBlur={() => setAbilityHovered(false)}
+                style={abilityButtonStyle(canUseAbility, abilityHovered, previewTone.accent)}
+              >
+                <div style={abilityKickerStyle(canUseAbility, abilityHovered)}>{card.trainerType}</div>
+                <strong style={abilityNameStyle}>{card.name}</strong>
+                <span style={abilityTextStyle}>{card.text}</span>
+              </button>
+            ) : (
+              <section style={previewBlockStyle}>
+                <div style={previewKickerStyle}>{card.trainerType}</div>
+                <p style={{ margin: "6px 0 0", color: "#000000", fontSize: 14, fontWeight: 800, lineHeight: 1.35 }}>{card.text}</p>
+              </section>
+            )
           )}
         </aside>
       </div>

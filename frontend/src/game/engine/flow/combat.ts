@@ -3,7 +3,7 @@ import type { EnergyType, GameState, SideId, SideState, UmamusumeInstance } from
 import { getCard, getPrimaryAttack, getUmamusumeCard } from "../core/catalog";
 import { actorName, actorPossessive, energyLabel, formatCardName, formatUmamusumeCardName, formatUmamusumeInstanceName, pluralize } from "../core/labels";
 import { log } from "../core/log";
-import { findMostDamagedUmamusume, findOwnUmamusumeByUid } from "../core/umamusume";
+import { findMostDamagedUmamusume, findOwnUmamusumeByUid, getAllUmamusume } from "../core/umamusume";
 import { drawCards } from "./turn";
 
 type CombatDeps = {
@@ -34,13 +34,23 @@ export function performAttack(
     const bonusEnergyCount = attack.damagePerAttachedEnergy.types.reduce((sum, type) => sum + attacker.active!.energies[type], 0);
     damage += bonusEnergyCount * attack.damagePerAttachedEnergy.amount;
   }
+  if (attack.damagePerUmamusumeInPlay) {
+    const inPlayCount = attack.damagePerUmamusumeInPlay.side === "all"
+      ? getAllUmamusume(attacker).length + getAllUmamusume(defender).length
+      : getAllUmamusume(attacker).length;
+    damage += inPlayCount * attack.damagePerUmamusumeInPlay.amount;
+  }
+  const conditionalAttackBonus = attackerCard.ability?.attackDamageBonusIfAttachedEnergy;
+  if (conditionalAttackBonus && attacker.active.energies[conditionalAttackBonus.type] >= conditionalAttackBonus.min) {
+    damage += conditionalAttackBonus.amount;
+  }
   if (attack.coinBonus) {
     const heads = forcedCoinResult ? forcedCoinResult === "heads" : Math.random() >= 0.5;
     if (heads) damage += attack.coinBonus;
     const coinText = heads ? `heads (+${attack.coinBonus})` : "tails";
     log(state, forcedCoinResult ? `${attack.name}'s coin result was ${coinText}.` : `${attack.name}'s coin flip was ${coinText}.`);
   }
-  if (defenderCard.weakness.type === attackerCard.type) damage += defenderCard.weakness.amount;
+  if (damage > 0 && defenderCard.weakness.type === attackerCard.type) damage += defenderCard.weakness.amount;
 
   const reduction = Math.min(damage, attackDamageReductionFor(defender.active));
   damage = Math.max(0, damage - reduction);

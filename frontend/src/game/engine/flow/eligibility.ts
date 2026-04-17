@@ -38,7 +38,9 @@ export function canUseUmamusumeAbility(state: GameState, side: SideState, abilit
   const abilityUmamusume = findOwnUmamusumeByUid(side, abilityUmamusumeUid);
   if (!abilityUmamusume || abilityUmamusume.usedAbilityThisTurn) return false;
   const ability = getUmamusumeCard(abilityUmamusume).ability;
-  if (!ability?.moveBenchedEnergyToActive) return false;
+  if (!ability) return false;
   if (side.usedAbilityNamesThisTurn?.includes(ability.name)) return false;
-  return getAbilityMoveEnergyTypes(ability).length > 0;
+  if (ability.moveBenchedEnergyToActive) return getAbilityMoveEnergyTypes(ability).length > 0;
+  if (ability.discardToDraw) return side.hand.length >= ability.discardToDraw.discard;
+  return false;
 }

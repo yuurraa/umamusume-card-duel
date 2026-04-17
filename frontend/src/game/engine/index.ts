@@ -11,7 +11,7 @@ export { retreatCost, getGlobalRetreatCostReduction, effectiveRetreatCost, payRe
 export { resetUmamusumeIdCounter, createUmamusume, buildOpeningSide } from "./flow/setup";
 export { isPlayerTurn, canAttachEnergy, canAttachEnergyToUmamusume, canAttack, canRetreat, canUseUmamusumeAbility } from "./flow/eligibility";
 export { prepareUmamusumeForTurn, drawCards, applyStartAbilities, startTurn, endTurn } from "./flow/turn";
-export { playStadium, applyTrainer, hasDamagedHealingTarget } from "./flow/trainers";
+export { playStadium, canUseStadium, useStadium, applyTrainer, hasDamagedHealingTarget } from "./flow/trainers";
 export { getOpposingSide, refreshContinuousHp, normalizeBoardState, switchOutOpponentActive, choosePreferredActiveIndex } from "./flow/board";
 export { getPlayableAction, adjustHandChoices, resolveCardPlay } from "./flow/playRules";
 export { aiPlayOneBasic, aiEvolveOne, aiAttachOneEnergy, aiPlayOneTrainer } from "./flow/ai";

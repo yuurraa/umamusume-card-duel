@@ -4,6 +4,9 @@ import type { EnergyType, UmamusumeType } from "../../../shared/src/types";
 import type { PremadeDeck } from "../types/ui";
 
 const EQUIPPED_DECK_STORAGE_KEY = "umamusume-tcg-pocket-equipped-deck";
+const LEGACY_DECK_ID_MAP: Record<string, string> = {
+  agnesTachyon: "agnesDigital",
+};
 
 const DECK_TYPE_TO_ENERGY: Record<UmamusumeType, EnergyType> = {
   Grass: "grass",
@@ -19,7 +22,8 @@ const DECK_TYPE_TO_ENERGY: Record<UmamusumeType, EnergyType> = {
 };
 
 export function getDeckById(deckId: string): PremadeDeck {
-  return premadeDecks.find((deck) => deck.id === deckId)
+  const resolvedDeckId = LEGACY_DECK_ID_MAP[deckId] ?? deckId;
+  return premadeDecks.find((deck) => deck.id === resolvedDeckId)
     ?? premadeDecks.find((deck) => deck.id === defaultPlayerDeckId)
     ?? premadeDecks[0]
     ?? { id: defaultPlayerDeckId, name: "Deck", coverCardId: "mihonoBourbonStage2", cardIds: [] };
@@ -28,7 +32,9 @@ export function getDeckById(deckId: string): PremadeDeck {
 export function readEquippedDeckId(): string {
   if (typeof window === "undefined") return defaultPlayerDeckId;
   const stored = window.localStorage.getItem(EQUIPPED_DECK_STORAGE_KEY);
-  return stored && premadeDecks.some((deck) => deck.id === stored) ? stored : defaultPlayerDeckId;
+  if (!stored) return defaultPlayerDeckId;
+  const resolvedDeckId = LEGACY_DECK_ID_MAP[stored] ?? stored;
+  return premadeDecks.some((deck) => deck.id === resolvedDeckId) ? resolvedDeckId : defaultPlayerDeckId;
 }
 
 export function writeEquippedDeckId(deckId: string): void {

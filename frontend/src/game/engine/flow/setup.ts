@@ -96,6 +96,7 @@ function makeSide(id: SideId, title: string, deck: string[], energyPool: EnergyT
     activeAttackDamageBonus: 0,
     usedSupporterThisTurn: false,
     usedRetreatThisTurn: false,
+    usedStadiumThisTurn: false,
     usedAbilityNamesThisTurn: [],
   };
 }

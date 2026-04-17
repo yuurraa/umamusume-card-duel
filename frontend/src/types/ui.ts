@@ -14,6 +14,7 @@ export type PendingSelection =
   | { kind: "healTarget"; handIndex: number }
   | { kind: "evolveTarget"; handIndex: number }
   | { kind: "moveEnergyAbility"; abilityUmamusumeUid: number; energyTypes: EnergyType[] }
+  | { kind: "discardForAbility"; abilityUmamusumeUid: number }
   | { kind: "discardForScout"; handIndex: number }
   | { kind: "deckSearch"; handIndex: number; discardHandIndex: number; discardedCardName: string };
 

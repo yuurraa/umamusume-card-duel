@@ -23,6 +23,10 @@ export type Attack = {
     types: EnergyType[];
     amount: number;
   };
+  damagePerUmamusumeInPlay?: {
+    side: "own" | "all";
+    amount: number;
+  };
 };
 
 export type Ability = {
@@ -32,6 +36,15 @@ export type Ability = {
   activeHpBonus?: number;
   damageReduction?: number;
   moveBenchedEnergyToActive?: EnergyType | EnergyType[];
+  attackDamageBonusIfAttachedEnergy?: {
+    type: EnergyType;
+    min: number;
+    amount: number;
+  };
+  discardToDraw?: {
+    discard: number;
+    draw: number;
+  };
 };
 
 export type UmamusumeCard = {
@@ -75,6 +88,7 @@ export type TrainerCard = {
     attachEnergyFromZoneToBench?: number;
     globalRetreatCostReduction?: number;
     basicHpBonus?: number;
+    shuffleHandIntoDeckDraw?: number;
   };
 };
 
@@ -123,6 +137,7 @@ export type SideState = {
   activeAttackDamageBonus: number;
   usedSupporterThisTurn: boolean;
   usedRetreatThisTurn: boolean;
+  usedStadiumThisTurn: boolean;
   usedAbilityNamesThisTurn: string[];
 };
 

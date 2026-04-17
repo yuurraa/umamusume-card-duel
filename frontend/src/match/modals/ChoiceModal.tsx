@@ -21,12 +21,12 @@ export function ChoiceModal({
   onChooseDeck: (deckIndex: number) => void;
   onResolveEmptyDeckSearch: () => void;
 }) {
-  if (!pending || (pending.kind !== "discardForScout" && pending.kind !== "deckSearch")) return null;
-  const isDiscard = pending.kind === "discardForScout";
+  if (!pending || (pending.kind !== "discardForScout" && pending.kind !== "discardForAbility" && pending.kind !== "deckSearch")) return null;
+  const isDiscard = pending.kind === "discardForScout" || pending.kind === "discardForAbility";
   const options = isDiscard
-    ? hand.map((cardId, index) => ({ cardId, index })).filter(({ index }) => index !== pending.handIndex)
+    ? hand.map((cardId, index) => ({ cardId, index })).filter(({ index }) => pending.kind !== "discardForScout" || index !== pending.handIndex)
     : deck.map((cardId, index) => ({ cardId, index })).filter(({ cardId }) => isUmamusumeInDeck(cardId));
-  const kicker = isDiscard ? "Discard Cost" : "Deck Search";
+  const kicker = pending.kind === "discardForAbility" ? "Ability Cost" : isDiscard ? "Discard Cost" : "Deck Search";
   const title = isDiscard ? "Choose 1 card to discard" : "Choose 1 Umamusume";
   const emptyCopy = "There are no eligible Umamusume in your deck.";
 

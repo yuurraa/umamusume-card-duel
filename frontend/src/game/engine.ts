@@ -16,6 +16,7 @@ import {
   energyLabel,
   formatUmamusumeCardName,
   formatUmamusumeInstanceName,
+  pluralize,
 } from "./engine/core/labels";
 import { attachedEnergyCount, findOwnUmamusumeByUid, getAllUmamusume, getDamagedUmamusume } from "./engine/core/umamusume";
 import { log } from "./engine/core/log";
@@ -24,12 +25,13 @@ import { attachEnergy, getAbilityMoveEnergyTypes } from "./engine/flow/energy";
 import { effectiveRetreatCost, getDisplayedRetreatCost, payRetreatCost, payRetreatCostBySelection } from "./engine/flow/retreat";
 import { buildOpeningSide, createUmamusume, resetUmamusumeIdCounter } from "./engine/flow/setup";
 import { canAttachEnergy, canAttachEnergyToUmamusume, canAttack, canRetreat, canUseUmamusumeAbility, isPlayerTurn } from "./engine/flow/eligibility";
-import { endTurn, startTurn } from "./engine/flow/turn";
+import { drawCards, endTurn, startTurn } from "./engine/flow/turn";
 import type { PlayChoices } from "./engine/core/playTypes";
 import { choosePreferredActiveIndex, normalizeBoardState, refreshContinuousHp, switchOutOpponentActive } from "./engine/flow/board";
 import { adjustHandChoices, getPlayableAction, resolveCardPlay } from "./engine/flow/playRules";
 import { aiAttachOneEnergy, aiEvolveOne, aiPlayOneBasic, aiPlayOneTrainer } from "./engine/flow/ai";
 import { knockOutUmamusume, performAttack } from "./engine/flow/combat";
+import { canUseStadium, useStadium } from "./engine/flow/trainers";
 
 export type { PlayChoices };
 
@@ -51,6 +53,7 @@ export {
   canAttack,
   canRetreat,
   canUseUmamusumeAbility,
+  canUseStadium,
   isPlayerTurn,
   getPlayableAction,
 };
@@ -135,6 +138,15 @@ export function playerEndTurn(state: GameState): GameState {
   return next;
 }
 
+export function playerUseStadium(state: GameState): GameState {
+  const next = cloneGame(state);
+  const side = next.sides.player;
+  if (!canUseStadium(next, side)) return next;
+  if (!useStadium(next, side)) return next;
+  if (!next.gameOver) advanceToNextTurn(next);
+  return next;
+}
+
 export function playerSurrender(state: GameState): GameState {
   const next = cloneGame(state);
   if (next.gameOver || next.currentSide === "done") return next;
@@ -199,6 +211,10 @@ export function advanceOpponentTurnStep(state: GameState, forcedAttackCoinResult
           next.opponentTurnStep = "finish";
           return next;
         }
+      } else if (canUseStadium(next, opponent) && useStadium(next, opponent)) {
+        next.opponentTurnStep = null;
+        if (!next.gameOver) advanceToNextTurn(next);
+        return next;
       } else {
         log(next, "Opponent did not attack.");
       }
@@ -240,7 +256,13 @@ export function playerRetreat(state: GameState, benchUmamusumeUid?: number, disc
   return next;
 }
 
-export function usePlayerAbility(state: GameState, abilityUmamusumeUid: number, sourceUmamusumeUid: number, selectedEnergyType?: EnergyType): GameState {
+export function usePlayerAbility(
+  state: GameState,
+  abilityUmamusumeUid: number,
+  sourceUmamusumeUid: number,
+  selectedEnergyType?: EnergyType,
+  discardHandIndex?: number,
+): GameState {
   const next = cloneGame(state);
   const side = next.sides.player;
   if (!canUseUmamusumeAbility(next, side, abilityUmamusumeUid) || !side.active) return next;
@@ -248,20 +270,42 @@ export function usePlayerAbility(state: GameState, abilityUmamusumeUid: number, 
   if (!abilityUmamusume) return next;
   const abilityCard = getUmamusumeCard(abilityUmamusume);
   const ability = abilityCard.ability;
-  const energyTypes = getAbilityMoveEnergyTypes(ability);
-  const source = side.bench.find((umamusume) => umamusume.uid === sourceUmamusumeUid && energyTypes.some((energyType) => umamusume.energies[energyType] > 0));
-  if (!source) return next;
-  const availableEnergyTypes = energyTypes.filter((type) => source.energies[type] > 0);
-  const energyType = selectedEnergyType
-    ? availableEnergyTypes.includes(selectedEnergyType) ? selectedEnergyType : undefined
-    : availableEnergyTypes.length === 1 ? availableEnergyTypes[0] : undefined;
-  if (!ability || !energyType) return next;
-  source.energies[energyType] -= 1;
-  side.active.energies[energyType] += 1;
-  abilityUmamusume.usedAbilityThisTurn = true;
-  side.usedAbilityNamesThisTurn ??= [];
-  if (!side.usedAbilityNamesThisTurn.includes(ability.name)) side.usedAbilityNamesThisTurn.push(ability.name);
-  log(next, `${formatUmamusumeCardName(abilityCard)}'s ${ability.name} moved 1 ${energyLabel(energyType)} to the active spot.`);
+  if (!ability) return next;
+
+  if (ability.moveBenchedEnergyToActive) {
+    const energyTypes = getAbilityMoveEnergyTypes(ability);
+    const source = side.bench.find((umamusume) => umamusume.uid === sourceUmamusumeUid && energyTypes.some((energyType) => umamusume.energies[energyType] > 0));
+    if (!source) return next;
+    const availableEnergyTypes = energyTypes.filter((type) => source.energies[type] > 0);
+    const energyType = selectedEnergyType
+      ? availableEnergyTypes.includes(selectedEnergyType) ? selectedEnergyType : undefined
+      : availableEnergyTypes.length === 1 ? availableEnergyTypes[0] : undefined;
+    if (!energyType) return next;
+    source.energies[energyType] -= 1;
+    side.active.energies[energyType] += 1;
+    abilityUmamusume.usedAbilityThisTurn = true;
+    side.usedAbilityNamesThisTurn ??= [];
+    if (!side.usedAbilityNamesThisTurn.includes(ability.name)) side.usedAbilityNamesThisTurn.push(ability.name);
+    log(next, `${formatUmamusumeCardName(abilityCard)}'s ${ability.name} moved 1 ${energyLabel(energyType)} to the active spot.`);
+    return next;
+  }
+
+  if (ability.discardToDraw) {
+    if (side.hand.length < ability.discardToDraw.discard) return next;
+    const resolvedDiscardIndex = discardHandIndex !== undefined && discardHandIndex >= 0 && discardHandIndex < side.hand.length
+      ? discardHandIndex
+      : 0;
+    const discardedCardId = side.hand.splice(resolvedDiscardIndex, 1)[0];
+    if (!discardedCardId) return next;
+    side.discard.push(discardedCardId);
+    const drawn = drawCards(next, side, ability.discardToDraw.draw).length;
+    abilityUmamusume.usedAbilityThisTurn = true;
+    side.usedAbilityNamesThisTurn ??= [];
+    if (!side.usedAbilityNamesThisTurn.includes(ability.name)) side.usedAbilityNamesThisTurn.push(ability.name);
+    log(next, `${formatUmamusumeCardName(abilityCard)}'s ${ability.name} discarded 1 card and drew ${drawn} ${pluralize(drawn, "card")}.`);
+    return next;
+  }
+
   return next;
 }
 

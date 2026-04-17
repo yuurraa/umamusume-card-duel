@@ -11,7 +11,7 @@ import { getOpposingSide } from "./board";
 import { effectiveRetreatCost } from "./retreat";
 import { attachedEnergyCount } from "../core/umamusume";
 import { createUmamusume } from "./setup";
-import { log } from "../core/log";
+import { log, logPrimaryFirst } from "../core/log";
 
 type AiTrainerDeps = {
   refreshContinuousEffects: (state: GameState) => void;
@@ -83,17 +83,18 @@ export function aiPlayOneTrainer(
     return true;
   }
   const target = card.effect.attachEnergyFromZoneToBench ? getAiBenchEnergyAttachTarget(side) : undefined;
-  applyTrainer(
-    state,
-    side,
-    card,
-    target ? { umamusumeTargetUid: target.uid } : {},
-    deps.switchOutOpponentActive,
-    pendingChoiceResume,
-  );
-  if (card.trainerType === "supporter") side.usedSupporterThisTurn = true;
-  side.discard.push(card.id);
-  log(state, `${actorName(side)} played ${card.name}.`);
+  logPrimaryFirst(state, `${actorName(side)} played ${card.name}.`, () => {
+    applyTrainer(
+      state,
+      side,
+      card,
+      target ? { umamusumeTargetUid: target.uid } : {},
+      deps.switchOutOpponentActive,
+      pendingChoiceResume,
+    );
+    if (card.trainerType === "supporter") side.usedSupporterThisTurn = true;
+    side.discard.push(card.id);
+  });
   return true;
 }
 

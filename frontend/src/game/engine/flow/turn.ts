@@ -59,6 +59,7 @@ export function startTurn(
   side.activeAttackDamageBonus = 0;
   side.usedSupporterThisTurn = false;
   side.usedRetreatThisTurn = false;
+  side.usedStadiumThisTurn = false;
   side.usedAbilityNamesThisTurn = [];
   prepareUmamusumeForTurn(side);
   side.energyZone = [];

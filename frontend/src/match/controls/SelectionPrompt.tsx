@@ -41,6 +41,8 @@ export function SelectionPrompt({ pending, onCancel, nextEnergyType, onRetreatDi
           ? "Choose the Umamusume that should evolve."
           : pending.kind === "discardForScout"
             ? "Choose one other card from your hand to discard."
+            : pending.kind === "discardForAbility"
+              ? "Choose 1 card from your hand to discard."
           : "Choose an Umamusume from your deck.";
 
   return (

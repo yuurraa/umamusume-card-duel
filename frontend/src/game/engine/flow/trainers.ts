@@ -5,7 +5,7 @@ import { actorLowerPossessive, actorName, energyLabel, formatCardName, formatUma
 import { log, logPrimaryFirst } from "../core/log";
 import { findMostDamagedUmamusume, findOwnUmamusumeByUid } from "../core/umamusume";
 import { drawCards } from "./turn";
-import { rollEnergyFromPool } from "../core/random";
+import { rollEnergyFromPool, shuffle } from "../core/random";
 import type { PlayChoices } from "../core/playTypes";
 
 export type SwitchAfterGustResume = Extract<PendingPlayerChoice, { kind: "switchAfterGust" }>["resume"];
@@ -22,6 +22,35 @@ export function playStadium(state: GameState, side: SideState, stadium: TrainerC
     }
     state.stadium = { cardId: stadium.id, owner: side.id };
   });
+}
+
+export function canUseStadium(state: GameState, side: SideState): boolean {
+  if (state.phase !== "play" || state.pendingPlayerChoice || state.gameOver || state.currentSide !== side.id) return false;
+  if (side.usedStadiumThisTurn) return false;
+  if (!state.stadium) return false;
+  const stadium = getCard(state.stadium.cardId);
+  if (stadium.kind !== "trainer" || stadium.trainerType !== "stadium") return false;
+  return Boolean(stadium.effect.shuffleHandIntoDeckDraw && stadium.effect.shuffleHandIntoDeckDraw > 0);
+}
+
+export function useStadium(state: GameState, side: SideState): boolean {
+  if (!canUseStadium(state, side) || !state.stadium) return false;
+  const stadium = getCard(state.stadium.cardId);
+  if (stadium.kind !== "trainer") return false;
+  const drawAmount = stadium.effect.shuffleHandIntoDeckDraw ?? 0;
+  if (drawAmount <= 0) return false;
+
+  const shuffledFromHand = side.hand.length;
+  side.deck = shuffle([...side.deck, ...side.hand]);
+  side.hand = [];
+
+  const drawnCardIds = drawCards(state, side, drawAmount);
+  side.usedStadiumThisTurn = true;
+  log(
+    state,
+    `${actorName(side)} used ${stadium.name}, shuffled ${shuffledFromHand} ${pluralize(shuffledFromHand, "card")} from hand into deck, and drew ${drawnCardIds.length} ${pluralize(drawnCardIds.length, "card")}. ${actorName(side)}'s turn ended.`,
+  );
+  return true;
 }
 
 export function applyTrainer(
