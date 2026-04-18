@@ -18,8 +18,7 @@ export type PendingSelection =
   | { kind: "rainbowUncapEvolution"; handIndex: number; umamusumeUid: number }
   | { kind: "moveEnergyAbility"; abilityUmamusumeUid: number; energyTypes: EnergyType[] }
   | { kind: "discardForAbility"; abilityUmamusumeUid: number }
-  | { kind: "discardForScout"; handIndex: number }
-  | { kind: "deckSearch"; handIndex: number; discardHandIndex: number; discardedCardName: string };
+  | { kind: "discardForScout"; handIndex: number };
 
 export type ActionNoticeSource =
   | { kind: "genericGain" }

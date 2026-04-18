@@ -1,4 +1,4 @@
-import { useState, type CSSProperties } from "react";
+import { useId, useRef, useState, type CSSProperties, type PointerEvent } from "react";
 import type { Card } from "../../../../shared/src/types";
 import { getCard } from "../../game/engine";
 import { NeutralButton } from "../../components/buttons/NeutralButton";
@@ -14,10 +14,50 @@ export function DiscardPileModal({
   onClose: () => void;
 }) {
   const cards = cardIds.map(getCard).reverse();
+  const discardScrollerClassName = `discard-scroller-${useId().replace(/:/g, "")}`;
+  const discardScrollRef = useRef<HTMLDivElement | null>(null);
+  const discardPanRef = useRef<{ active: boolean; pointerId: number; startX: number; startScrollLeft: number } | null>(null);
+  const [isDiscardPanning, setIsDiscardPanning] = useState(false);
+
+  const stopDiscardPan = () => {
+    discardPanRef.current = null;
+    setIsDiscardPanning(false);
+  };
+
+  const handleDiscardPointerDown = (event: PointerEvent<HTMLDivElement>) => {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    const container = discardScrollRef.current;
+    if (!container || container.scrollWidth <= container.clientWidth) return;
+    if (event.target instanceof HTMLElement && event.target.closest("button")) return;
+    discardPanRef.current = {
+      active: true,
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startScrollLeft: container.scrollLeft,
+    };
+    setIsDiscardPanning(true);
+    event.currentTarget.setPointerCapture(event.pointerId);
+    event.preventDefault();
+  };
+
+  const handleDiscardPointerMove = (event: PointerEvent<HTMLDivElement>) => {
+    const pan = discardPanRef.current;
+    const container = discardScrollRef.current;
+    if (!pan || !container || !pan.active || pan.pointerId !== event.pointerId) return;
+    const deltaX = event.clientX - pan.startX;
+    container.scrollLeft = pan.startScrollLeft - deltaX;
+  };
+
+  const handleDiscardPointerUp = (event: PointerEvent<HTMLDivElement>) => {
+    const pan = discardPanRef.current;
+    if (!pan || pan.pointerId !== event.pointerId) return;
+    stopDiscardPan();
+  };
 
   return (
     <div style={discardBackdropStyle} onClick={onClose}>
       <section style={discardModalStyle} onClick={(event) => event.stopPropagation()}>
+        <style>{`.${discardScrollerClassName}{scrollbar-width:none;-ms-overflow-style:none;}.${discardScrollerClassName}::-webkit-scrollbar{display:none;width:0;height:0;}`}</style>
         <header style={discardHeaderStyle}>
           <div>
             <div style={previewKickerStyle}>Discard Pile</div>
@@ -28,7 +68,16 @@ export function DiscardPileModal({
         {cards.length === 0 ? (
           <div style={emptyDiscardStyle}>No cards have been discarded yet.</div>
         ) : (
-          <div style={discardGridStyle}>
+          <div
+            ref={discardScrollRef}
+            className={discardScrollerClassName}
+            style={{ ...discardGridStyle, cursor: isDiscardPanning ? "grabbing" : "grab" }}
+            onPointerDown={handleDiscardPointerDown}
+            onPointerMove={handleDiscardPointerMove}
+            onPointerUp={handleDiscardPointerUp}
+            onPointerCancel={stopDiscardPan}
+            onPointerLeave={stopDiscardPan}
+          >
             {cards.map((card, index) => {
               const image = card.kind === "umamusume" ? card.portrait : card.image;
               return (

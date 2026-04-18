@@ -315,11 +315,14 @@ export function usePlayerAbility(
     const discardedCardId = side.hand.splice(resolvedDiscardIndex, 1)[0];
     if (!discardedCardId) return next;
     side.discard.push(discardedCardId);
-    const drawn = drawCards(next, side, ability.discardToDraw.draw).length;
+    const drawnCardIds = drawCards(next, side, ability.discardToDraw.draw);
+    const drawn = drawnCardIds.length;
     abilityUmamusume.usedAbilityThisTurn = true;
     side.usedAbilityNamesThisTurn ??= [];
     if (!side.usedAbilityNamesThisTurn.includes(ability.name)) side.usedAbilityNamesThisTurn.push(ability.name);
-    log(next, `${formatUmamusumeCardName(abilityCard)}'s ${ability.name} discarded 1 card and drew ${drawn} ${pluralize(drawn, "card")}.`);
+    const discardedCard = getCard(discardedCardId);
+    const drawnText = drawn > 0 ? formatCardNameList(drawnCardIds) : `0 ${pluralize(0, "card")}`;
+    log(next, `${formatUmamusumeCardName(abilityCard)}'s ${ability.name} discarded ${discardedCard.name} and drew ${drawnText}.`);
     return next;
   }
 
@@ -414,4 +417,12 @@ function resolveContinuousKnockouts(state: GameState): void {
       break;
     }
   }
+}
+
+function formatCardNameList(cardIds: string[]): string {
+  const names = cardIds.map((cardId) => getCard(cardId).name);
+  if (names.length === 0) return "0 cards";
+  if (names.length === 1) return names[0] ?? "1 card";
+  if (names.length === 2) return `${names[0]} and ${names[1]}`;
+  return `${names.slice(0, -1).join(", ")}, and ${names[names.length - 1]}`;
 }

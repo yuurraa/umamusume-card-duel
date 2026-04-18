@@ -164,7 +164,7 @@ function HandCard({
   onPrimaryAction: () => void;
 }) {
   const [hovered, setHovered] = useState(false);
-  const activeHover = hovered;
+  const activeHover = hovered && (canDrag || isSelectable);
 
   const handleDragStart = (event: DragEvent<HTMLButtonElement>) => {
     if (!canDrag) return;
@@ -178,7 +178,7 @@ function HandCard({
         type="button"
         style={{
           ...handCardButtonStyle,
-          boxShadow: isSelectable ? "0 0 0 4px rgba(184, 130, 216, 0.32), 0 0 28px rgba(184, 130, 216, 0.42)" : "none",
+          boxShadow: "none",
           filter: activeHover ? `${shadow} saturate(1.06)` : shadow,
           cursor: canDrag ? "grab" : "pointer",
           transform: activeHover ? "translateY(-6px) rotate(0.8deg) scale(1.03)" : "translateY(0) rotate(0deg) scale(1)",

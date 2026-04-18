@@ -79,6 +79,7 @@ export function Bench({
   sleeveImage = null,
 }: BenchProps) {
   const [hoveredSlot, setHoveredSlot] = useState<number | null>(null);
+  const isChoosingUmamusume = Boolean(selectableUmamusumeUids);
   const visibleBenchCount = hidden ? (hiddenBenchCount ?? side.bench.length) : side.bench.length;
 
   return (
@@ -185,6 +186,7 @@ export function Bench({
             hoverRingColor={hoverRingColor}
             hoverGlowColor={hoverGlowColor}
             isSelectable={Boolean(selectableUmamusumeUids?.has(umamusume.uid))}
+            isDimmed={isChoosingUmamusume && !selectableUmamusumeUids?.has(umamusume.uid)}
             abilityEnergyTypes={abilityEnergyTypes}
             sleeveImage={sleeveImage}
             onInspect={onInspect}
@@ -196,9 +198,10 @@ export function Bench({
   );
 }
 
-function BenchSlot({ card, umamusume, side, hidden, setupMode, activeSetupHandIndex, setupDragHandIndex, onSetupPromoteToActive, onHandCardDropOnUmamusume, onEnergyDropOnUmamusume, hpPercent, fillColor, abilityReady, hoverBorderColor, hoverBackground, hoverRingColor, hoverGlowColor, isSelectable, abilityEnergyTypes, sleeveImage, onInspect, onUmamusumeSelect }: { card: ReturnType<typeof getUmamusumeCard>; umamusume: UmamusumeInstance; side: SideState; hidden: boolean; setupMode: boolean; activeSetupHandIndex: number | undefined; setupDragHandIndex: number | undefined; onSetupPromoteToActive?: ((handIndex: number) => void) | undefined; onHandCardDropOnUmamusume?: ((handIndex: number, umamusumeUid: number) => void) | undefined; onEnergyDropOnUmamusume?: ((umamusumeUid: number) => void) | undefined; hpPercent: number; fillColor: string; abilityReady: boolean; hoverBorderColor: string; hoverBackground: string; hoverRingColor: string; hoverGlowColor: string; isSelectable: boolean; abilityEnergyTypes?: Set<EnergyType> | undefined; sleeveImage?: string | null | undefined; onInspect: (target: InspectTarget) => void; onUmamusumeSelect?: ((umamusume: UmamusumeInstance) => void) | undefined }) {
+function BenchSlot({ card, umamusume, side, hidden, setupMode, activeSetupHandIndex, setupDragHandIndex, onSetupPromoteToActive, onHandCardDropOnUmamusume, onEnergyDropOnUmamusume, hpPercent, fillColor, abilityReady, hoverBorderColor, hoverBackground, hoverRingColor, hoverGlowColor, isSelectable, isDimmed, abilityEnergyTypes, sleeveImage, onInspect, onUmamusumeSelect }: { card: ReturnType<typeof getUmamusumeCard>; umamusume: UmamusumeInstance; side: SideState; hidden: boolean; setupMode: boolean; activeSetupHandIndex: number | undefined; setupDragHandIndex: number | undefined; onSetupPromoteToActive?: ((handIndex: number) => void) | undefined; onHandCardDropOnUmamusume?: ((handIndex: number, umamusumeUid: number) => void) | undefined; onEnergyDropOnUmamusume?: ((umamusumeUid: number) => void) | undefined; hpPercent: number; fillColor: string; abilityReady: boolean; hoverBorderColor: string; hoverBackground: string; hoverRingColor: string; hoverGlowColor: string; isSelectable: boolean; isDimmed: boolean; abilityEnergyTypes?: Set<EnergyType> | undefined; sleeveImage?: string | null | undefined; onInspect: (target: InspectTarget) => void; onUmamusumeSelect?: ((umamusume: UmamusumeInstance) => void) | undefined }) {
   const [hovered, setHovered] = useState(false);
   const [dropHovered, setDropHovered] = useState(false);
+  const activeHover = hovered && !isDimmed;
   return (
     <div style={slotStyle}>
       <button
@@ -212,15 +215,20 @@ function BenchSlot({ card, umamusume, side, hidden, setupMode, activeSetupHandIn
           borderRadius: 8,
           background: dropHovered ? hoverBackground : "transparent",
           cursor: "pointer",
+          opacity: isDimmed ? 0.45 : 1,
           overflow: "visible",
-          filter: hovered ? "drop-shadow(0 18px 24px rgba(17, 24, 39, 0.22)) saturate(1.06)" : "drop-shadow(0 14px 18px rgba(17, 24, 39, 0.18))",
-          transform: hovered ? "translateY(-6px) rotate(0.8deg) scale(1.035)" : "translateY(0) rotate(0deg) scale(1)",
+          filter: activeHover ? "drop-shadow(0 18px 24px rgba(17, 24, 39, 0.22)) saturate(1.06)" : "drop-shadow(0 14px 18px rgba(17, 24, 39, 0.18))",
+          transform: activeHover ? "translateY(-6px) rotate(0.8deg) scale(1.035)" : "translateY(0) rotate(0deg) scale(1)",
           boxShadow: dropHovered ? `0 0 0 4px ${hoverRingColor}, 0 0 24px ${hoverGlowColor}` : "none",
-          transition: "transform 160ms ease, filter 160ms ease, box-shadow 120ms ease, border-color 120ms ease",
+          transition: "opacity 160ms ease, transform 160ms ease, filter 160ms ease, box-shadow 120ms ease, border-color 120ms ease",
         }}
-        onMouseEnter={() => setHovered(true)}
+        onMouseEnter={() => {
+          if (!isDimmed) setHovered(true);
+        }}
         onMouseLeave={() => setHovered(false)}
-        onFocus={() => setHovered(true)}
+        onFocus={() => {
+          if (!isDimmed) setHovered(true);
+        }}
         onBlur={() => setHovered(false)}
         draggable={setupMode && setupDragHandIndex !== undefined && !hidden}
         onDragStart={(event) => {

@@ -48,7 +48,10 @@ export function CardPreview({ state, target, canUseAttack, canUseRetreat, canUse
   const attackPreviews = card.kind === "umamusume" && umamusume && target.sideId
     ? card.attacks.map((attack) => getAttackPreview(state, target.sideId!, umamusume, attack))
     : card.kind === "umamusume"
-      ? card.attacks.map((attack) => ({ damage: attack.damage, notes: attack.coinBonus ? [`+${attack.coinBonus} damage - heads`] : [] }))
+      ? card.attacks.map((attack) => ({
+        damage: isNonDamagingAttack(attack) ? null : attack.damage,
+        notes: isNonDamagingAttack(attack) ? [] : attack.coinBonus ? [`+${attack.coinBonus} damage - heads`] : [],
+      }))
       : [];
 
   return (
@@ -176,7 +179,7 @@ export function CardPreview({ state, target, canUseAttack, canUseRetreat, canUse
           {card.kind === "umamusume" && (
             <section style={previewMovesStyle}>
               {card.attacks.map((attack, index) => {
-                const attackPreview = attackPreviews[index] ?? { damage: attack.damage, notes: [] as string[] };
+                const attackPreview = attackPreviews[index] ?? { damage: isNonDamagingAttack(attack) ? null : attack.damage, notes: [] as string[] };
                 const attackEnabled = canUseAttack && index === 0;
                 const attackAccent = getAttackEnergyAccent(card.type);
                 return (
@@ -189,7 +192,7 @@ export function CardPreview({ state, target, canUseAttack, canUseRetreat, canUse
                 >
                   <span style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
                     <strong>{attack.name}</strong>
-                    <strong>{attackPreview.damage}</strong>
+                    {attackPreview.damage !== null && <strong>{attackPreview.damage}</strong>}
                   </span>
                   <span
                     style={{
@@ -589,15 +592,16 @@ function getAttackPreview(
   sideId: "player" | "opponent",
   umamusume: NonNullable<InspectTarget["umamusume"]>,
   attack: NonNullable<ReturnType<typeof getUmamusumeCard>["attacks"][number]>,
-): { damage: number; notes: string[] } {
+): { damage: number | null; notes: string[] } {
   const side = state.sides[sideId];
   const opposing = state.sides[sideId === "player" ? "opponent" : "player"];
   const card = getUmamusumeCard(umamusume);
+  const nonDamagingAttack = isNonDamagingAttack(attack);
   let damage = attack.damage;
   const notes: string[] = [];
 
   const activeAttackBonus = side.active?.uid === umamusume.uid ? side.activeAttackDamageBonus : 0;
-  if (activeAttackBonus > 0) {
+  if (!nonDamagingAttack && activeAttackBonus > 0) {
     damage += activeAttackBonus;
     notes.push(`+${activeAttackBonus} damage - Aoi Kiryuin`);
   }
@@ -629,16 +633,24 @@ function getAttackPreview(
   }
 
   const conditionalAttackBonus = card.ability?.attackDamageBonusIfAttachedEnergy;
-  if (conditionalAttackBonus && umamusume.energies[conditionalAttackBonus.type] >= conditionalAttackBonus.min) {
+  if (!nonDamagingAttack && conditionalAttackBonus && umamusume.energies[conditionalAttackBonus.type] >= conditionalAttackBonus.min) {
     damage += conditionalAttackBonus.amount;
     notes.push(`+${conditionalAttackBonus.amount} damage - ${card.ability?.name}`);
   }
 
-  if (attack.coinBonus) {
+  if (!nonDamagingAttack && attack.coinBonus) {
     notes.push(`+${attack.coinBonus} damage - heads`);
   }
 
-  return { damage, notes };
+  return { damage: nonDamagingAttack ? null : damage, notes };
+}
+
+function isNonDamagingAttack(attack: NonNullable<ReturnType<typeof getUmamusumeCard>["attacks"][number]>): boolean {
+  return attack.damage <= 0
+    && !attack.coinBonus
+    && !attack.bonusIfTookDamageLastTurn
+    && !attack.damagePerAttachedEnergy
+    && !attack.damagePerUmamusumeInPlay;
 }
 
 function formatEnergyTypeList(types: EnergyType[]): string {

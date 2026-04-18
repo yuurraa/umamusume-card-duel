@@ -46,10 +46,10 @@ export function SelectionPrompt({ pending, onCancel, nextEnergyType, onRetreatDi
           : pending.kind === "rainbowUncapEvolution"
             ? "Choose the Stage 2 card from your hand to evolve into."
           : pending.kind === "discardForScout"
-            ? "Choose one other card from your hand to discard."
+            ? "Choose one other card from your hand to discard. Then a Umamusume will be added from your deck."
             : pending.kind === "discardForAbility"
               ? "Choose 1 card from your hand to discard."
-          : "Choose an Umamusume from your deck.";
+          : "Choose your next action.";
 
   return (
     <section style={selectionPromptStyle(isRetreatDiscard)}>

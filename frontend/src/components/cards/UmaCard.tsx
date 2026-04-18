@@ -13,6 +13,7 @@ type UmaCardProps = {
   onToolInspect?: (toolCardId: string) => void;
   hidden?: boolean;
   isSelectable?: boolean;
+  isDimmed?: boolean;
   abilityReady?: boolean;
   sleeveImage?: string | null | undefined;
 };
@@ -30,10 +31,20 @@ const typeShadowColors: Record<UmamusumeType, string> = {
   Dragon: "rgba(212, 167, 44, 0.42)",
 };
 
-export function UmaCard({ umamusume, onInspect, onToolInspect, hidden = false, isSelectable = false, abilityReady = false, sleeveImage = null }: UmaCardProps) {
+export function UmaCard({
+  umamusume,
+  onInspect,
+  onToolInspect,
+  hidden = false,
+  isSelectable = false,
+  isDimmed = false,
+  abilityReady = false,
+  sleeveImage = null,
+}: UmaCardProps) {
   const [hovered, setHovered] = useState(false);
   const card = getUmamusumeCard(umamusume);
   const shadowColor = hidden ? "rgba(17, 24, 39, 0.24)" : typeShadowColors[card.type];
+  const activeHover = hovered && !hidden && !isDimmed;
 
   return (
     <button
@@ -48,20 +59,21 @@ export function UmaCard({ umamusume, onInspect, onToolInspect, hidden = false, i
         borderRadius: 8,
         background: "transparent",
         cursor: "pointer",
+        opacity: isDimmed ? 0.45 : 1,
         filter: hidden
           ? `drop-shadow(0 18px 28px ${shadowColor})`
-          : hovered
+          : activeHover
             ? `drop-shadow(0 34px 52px ${shadowColor}) saturate(1.06)`
             : `drop-shadow(0 28px 42px ${shadowColor})`,
-        transform: hidden ? "none" : hovered ? "translateY(-10px) rotate(0.8deg) scale(1.025)" : "translateY(0) rotate(0deg) scale(1)",
-        transition: "transform 180ms ease, filter 180ms ease",
+        transform: hidden ? "none" : activeHover ? "translateY(-10px) rotate(0.8deg) scale(1.025)" : "translateY(0) rotate(0deg) scale(1)",
+        transition: "opacity 160ms ease, transform 180ms ease, filter 180ms ease",
       }}
       onMouseEnter={() => {
-        if (!hidden) setHovered(true);
+        if (!hidden && !isDimmed) setHovered(true);
       }}
       onMouseLeave={() => setHovered(false)}
       onFocus={() => {
-        if (!hidden) setHovered(true);
+        if (!hidden && !isDimmed) setHovered(true);
       }}
       onBlur={() => setHovered(false)}
       onClick={hidden ? undefined : onInspect}

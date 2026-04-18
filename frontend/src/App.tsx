@@ -49,7 +49,6 @@ import { StadiumSlot } from "./match/board/StadiumSlot";
 import { PlayHandHeader } from "./match/controls/HandControls";
 import { PregameSetupPanel } from "./match/setup/PregameSetupPanel";
 import { GameOverModal } from "./match/modals/GameOverModal";
-import { ChoiceModal } from "./match/modals/ChoiceModal";
 import { EndTurnWarningModal } from "./match/modals/EndTurnWarningModal";
 import { SelectionPrompt } from "./match/controls/SelectionPrompt";
 import { OpponentActionBanner } from "./match/feedback/OpponentActionBanner";
@@ -125,6 +124,10 @@ export function App() {
           .filter((umamusume) => umamusume.uid === pendingSelection.umamusumeUid)
           .flatMap((umamusume) => getRainbowUncapEvolutionHandOptions(player, umamusume).map((option) => option.handIndex)),
       )
+    : pendingSelection?.kind === "discardForAbility"
+      ? new Set(player.hand.map((_, index) => index))
+      : pendingSelection?.kind === "discardForScout"
+        ? new Set(player.hand.map((_, index) => index).filter((index) => index !== pendingSelection.handIndex))
     : undefined;
   const abilityEnergyTypes = pendingSelection?.kind === "moveEnergyAbility" ? new Set(pendingSelection.energyTypes) : undefined;
   const hiddenOpponent = game.phase === "setup" && !game.setup?.opponentRevealed;
@@ -405,7 +408,7 @@ export function App() {
         setDiscardOpen(false);
         return;
       }
-      if (pendingSelection?.kind === "discardForScout" || pendingSelection?.kind === "deckSearch") {
+      if (pendingSelection?.kind === "discardForScout") {
         setPendingSelection(null);
         return;
       }
@@ -584,14 +587,33 @@ export function App() {
   };
 
   const chooseHandCard = (handIndex: number) => {
-    if (!pendingSelection || pendingSelection.kind !== "rainbowUncapEvolution") return;
+    if (!pendingSelection) return;
     if (!selectableHandIndexes?.has(handIndex)) return;
-    setGame((current) => playHandCard(current, pendingSelection.handIndex, {
-      umamusumeTargetUid: pendingSelection.umamusumeUid,
-      rainbowEvolutionHandIndex: handIndex,
-    }));
-    setPendingSelection(null);
-    setPreviewTarget(null);
+    if (pendingSelection.kind === "rainbowUncapEvolution") {
+      setGame((current) => playHandCard(current, pendingSelection.handIndex, {
+        umamusumeTargetUid: pendingSelection.umamusumeUid,
+        rainbowEvolutionHandIndex: handIndex,
+      }));
+      setPendingSelection(null);
+      setPreviewTarget(null);
+      return;
+    }
+    if (pendingSelection.kind === "discardForAbility") {
+      setGame((current) => usePlayerAbility(current, pendingSelection.abilityUmamusumeUid, pendingSelection.abilityUmamusumeUid, undefined, handIndex));
+      setPendingSelection(null);
+      setPreviewTarget(null);
+      return;
+    }
+    if (pendingSelection.kind === "discardForScout") {
+      const discardedCardId = player.hand[handIndex];
+      const discardedCardName = discardedCardId ? getCard(discardedCardId).name : "that card";
+      applyPlayerGameUpdate(
+        (current) => playHandCard(current, pendingSelection.handIndex, { discardHandIndex: handIndex }),
+        { kind: "makeDebutScout", discardedCardName },
+      );
+      setPendingSelection(null);
+      setPreviewTarget(null);
+    }
   };
 
   const selectUmamusume = (umamusume: UmamusumeInstance) => {
@@ -693,6 +715,7 @@ export function App() {
             setupMode={game.phase === "setup"}
             abilityReadyUmamusumeUids={abilityReadyUmamusumeUids}
             selectableUmamusumeUids={game.phase === "play" ? selectableUmamusumeUids : undefined}
+            dimUnselectableActive={pendingSelection?.kind !== "retreatTarget"}
             abilityEnergyTypes={abilityEnergyTypes}
             onUmamusumeSelect={selectUmamusume}
             onSetupDropActive={applySetupActive}
@@ -885,39 +908,6 @@ export function App() {
         }}
         onInspect={openPreview}
         onClose={closePreview}
-      />
-      <ChoiceModal
-        pending={pendingSelection}
-        hand={player.hand}
-        deck={player.deck}
-        onCancel={clearSelection}
-        onChooseHand={(discardHandIndex) => {
-          if (pendingSelection?.kind === "discardForAbility") {
-            setGame((current) => usePlayerAbility(current, pendingSelection.abilityUmamusumeUid, pendingSelection.abilityUmamusumeUid, undefined, discardHandIndex));
-            setPendingSelection(null);
-            return;
-          }
-          if (!pendingSelection || pendingSelection.kind !== "discardForScout") return;
-          const discardedCardId = player.hand[discardHandIndex];
-          const discardedCardName = discardedCardId ? getCard(discardedCardId).name : "that card";
-          setPendingSelection({ kind: "deckSearch", handIndex: pendingSelection.handIndex, discardHandIndex, discardedCardName });
-        }}
-        onChooseDeck={(deckCardIndex) => {
-          if (!pendingSelection || pendingSelection.kind !== "deckSearch") return;
-          applyPlayerGameUpdate(
-            (current) => playHandCard(current, pendingSelection.handIndex, { discardHandIndex: pendingSelection.discardHandIndex, deckCardIndex }),
-            { kind: "makeDebutScout", discardedCardName: pendingSelection.discardedCardName },
-          );
-          setPendingSelection(null);
-        }}
-        onResolveEmptyDeckSearch={() => {
-          if (!pendingSelection || pendingSelection.kind !== "deckSearch") return;
-          applyPlayerGameUpdate(
-            (current) => playHandCard(current, pendingSelection.handIndex, { discardHandIndex: pendingSelection.discardHandIndex }),
-            { kind: "makeDebutScout", discardedCardName: pendingSelection.discardedCardName },
-          );
-          setPendingSelection(null);
-        }}
       />
       <EndTurnWarningModal
         actions={endTurnWarningActions}

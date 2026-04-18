@@ -27,6 +27,7 @@ type SideBoardProps = {
   onEnergyDropOnUmamusume?: ((umamusumeUid: number) => void) | undefined;
   onAbilityEnergyDropOnActive?: ((sourceUmamusumeUid: number, energyType: EnergyType) => void) | undefined;
   setupDragHandIndexByUid?: Record<number, number>;
+  dimUnselectableActive?: boolean | undefined;
   sleeveImage?: string | null | undefined;
 };
 
@@ -62,6 +63,7 @@ export function SideBoard({
   onEnergyDropOnUmamusume,
   onAbilityEnergyDropOnActive,
   setupDragHandIndexByUid = {},
+  dimUnselectableActive = true,
   sleeveImage = null,
 }: SideBoardProps) {
   const isPlayer = sideId === "player";
@@ -71,6 +73,7 @@ export function SideBoard({
   const activeCard = side.active ? getUmamusumeCard(side.active) : null;
   const hpPercent = side.active ? Math.max(0, Math.round((side.active.hp / side.active.maxHp) * 100)) : 0;
   const activeSelectable = Boolean(side.active && selectableUmamusumeUids?.has(side.active.uid));
+  const isChoosingUmamusume = Boolean(selectableUmamusumeUids);
   const activeAbilityReady = Boolean(side.active && abilityReadyUmamusumeUids?.has(side.active.uid));
   const [activeDropHovered, setActiveDropHovered] = useState(false);
   const activeSetupHandIndex = side.active ? setupDragHandIndexByUid[side.active.uid] : undefined;
@@ -162,6 +165,7 @@ export function SideBoard({
         hidden={hidden}
         sleeveImage={sleeveImage}
         isSelectable={activeSelectable}
+        isDimmed={dimUnselectableActive && isChoosingUmamusume && !activeSelectable}
         abilityReady={activeAbilityReady}
         onInspect={() => {
           if (hidden) return;
