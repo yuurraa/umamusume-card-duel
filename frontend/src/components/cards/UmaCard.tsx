@@ -1,6 +1,7 @@
 import { type CSSProperties, useState } from "react";
 import { EnergyIcon } from "./EnergyIcon";
 import { AbilityReadyBadge } from "./AbilityReadyBadge";
+import { AttachedToolBadge } from "./AttachedToolBadge";
 import { getAttachedEnergy } from "../cards/attachedEnergy";
 import { writeDragPayload } from "../drag/dragData";
 import { getUmamusumeCard } from "../../game/engine";
@@ -9,6 +10,7 @@ import type { EnergyType, UmamusumeInstance, UmamusumeType } from "../../../../s
 type UmaCardProps = {
   umamusume: UmamusumeInstance;
   onInspect?: () => void;
+  onToolInspect?: (toolCardId: string) => void;
   hidden?: boolean;
   isSelectable?: boolean;
   abilityReady?: boolean;
@@ -28,7 +30,7 @@ const typeShadowColors: Record<UmamusumeType, string> = {
   Dragon: "rgba(212, 167, 44, 0.42)",
 };
 
-export function UmaCard({ umamusume, onInspect, hidden = false, isSelectable = false, abilityReady = false, sleeveImage = null }: UmaCardProps) {
+export function UmaCard({ umamusume, onInspect, onToolInspect, hidden = false, isSelectable = false, abilityReady = false, sleeveImage = null }: UmaCardProps) {
   const [hovered, setHovered] = useState(false);
   const card = getUmamusumeCard(umamusume);
   const shadowColor = hidden ? "rgba(17, 24, 39, 0.24)" : typeShadowColors[card.type];
@@ -75,6 +77,7 @@ export function UmaCard({ umamusume, onInspect, hidden = false, isSelectable = f
             alt={card.name}
           />
           {abilityReady && <AbilityReadyBadge corner="topLeft" />}
+          <AttachedToolBadge toolCardId={umamusume.toolCardId} onInspect={onToolInspect} />
           <AttachedEnergyPips energies={getAttachedEnergy(umamusume)} size="lg" />
         </>
       )}

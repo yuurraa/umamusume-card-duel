@@ -1,9 +1,10 @@
 import { type CSSProperties, type DragEvent, useState } from "react";
 import { AttachedEnergyPips, FaceDownCard } from "../cards/UmaCard";
 import { AbilityReadyBadge } from "../cards/AbilityReadyBadge";
+import { AttachedToolBadge } from "../cards/AttachedToolBadge";
 import { getAttachedEnergy } from "../cards/attachedEnergy";
 import { hasTextDragPayload, readDragPayload, writeDragPayload } from "../drag/dragData";
-import { getUmamusumeCard } from "../../game/engine";
+import { getCard, getUmamusumeCard } from "../../game/engine";
 import { MAX_BENCH } from "../../../../shared/src/gameData";
 import type { EnergyType, UmamusumeInstance, UmamusumeType, SideState } from "../../../../shared/src/types";
 import type { InspectTarget } from "../../inspect";
@@ -299,6 +300,14 @@ function BenchSlot({ card, umamusume, side, hidden, setupMode, activeSetupHandIn
               draggable={false}
             />
             {abilityReady && <AbilityReadyBadge corner="topLeft" size="sm" />}
+            <AttachedToolBadge
+              toolCardId={umamusume.toolCardId}
+              size="sm"
+              onInspect={(toolCardId) => {
+                const tool = getCard(toolCardId);
+                if (tool.kind === "trainer") onInspect({ card: tool });
+              }}
+            />
             <AttachedEnergyPips energies={getAttachedEnergy(umamusume)} draggableEnergyTypes={abilityEnergyTypes} sourceUmamusumeUid={umamusume.uid} />
           </>
         )}

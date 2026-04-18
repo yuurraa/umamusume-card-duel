@@ -100,6 +100,7 @@ export function applyTrainer(
   }
   if (trainer.effect.searchUmamusume) searchUmamusumeFromDeck(state, side, choices.deckCardIndex, Boolean(trainer.effect.revealSearchedCard));
   if (trainer.effect.searchRandomBasicUmamusume) searchRandomBasicUmamusumeFromDeck(state, side, Boolean(trainer.effect.revealSearchedCard));
+  if (trainer.effect.randomBasicUmamusumeFromDiscard) moveRandomBasicUmamusumeFromDiscardToHand(state, side);
   if (discardedCardName) log(state, `${actorName(side)} discarded ${discardedCardName}.`);
 }
 
@@ -145,6 +146,19 @@ function searchRandomBasicUmamusumeFromDeck(state: GameState, side: SideState, r
     .filter(({ card }) => card.kind === "umamusume" && card.stage === 0);
   const chosen = candidates[Math.floor(Math.random() * candidates.length)];
   moveDeckCardToHand(state, side, chosen?.index ?? -1, reveal);
+}
+
+function moveRandomBasicUmamusumeFromDiscardToHand(state: GameState, side: SideState): void {
+  if (side.hand.length >= MAX_HAND) return;
+  const candidates = side.discard
+    .map((cardId, index) => ({ card: getCard(cardId), index }))
+    .filter(({ card }) => card.kind === "umamusume" && card.stage === 0);
+  const chosen = candidates[Math.floor(Math.random() * candidates.length)];
+  if (!chosen) return;
+  const [cardId] = side.discard.splice(chosen.index, 1);
+  if (!cardId) return;
+  side.hand.push(cardId);
+  log(state, `${actorName(side)} put ${formatCardName(getCard(cardId))} from discard into ${actorLowerPossessive(side)} hand.`);
 }
 
 function moveDeckCardToHand(state: GameState, side: SideState, deckIndex: number, reveal = false): void {

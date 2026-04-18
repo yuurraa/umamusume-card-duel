@@ -4,7 +4,7 @@ export type EnergyType = "grass" | "fire" | "water" | "lightning" | "psychic" | 
 export type UmamusumeType = "Grass" | "Fire" | "Water" | "Lightning" | "Psychic" | "Fighting" | "Darkness" | "Steel" | "Colorless" | "Dragon";
 export type EnergyRequirement = EnergyType | "colorless";
 export type EnergyCost = Partial<Record<EnergyRequirement, number>>;
-export type TrainerType = "supporter" | "item" | "stadium";
+export type TrainerType = "supporter" | "item" | "stadium" | "tool";
 export type OpponentTurnStep = "bench" | "trainerBefore" | "evolve" | "attach" | "trainerAfter" | "attack" | "finish";
 
 export type Attack = {
@@ -89,6 +89,11 @@ export type TrainerCard = {
     globalRetreatCostReduction?: number;
     basicHpBonus?: number;
     shuffleHandIntoDeckDraw?: number;
+    randomBasicUmamusumeFromDiscard?: boolean;
+    rainbowUncapCrystal?: boolean;
+    toolDamageReduction?: number;
+    toolCounterDamage?: number;
+    disableTools?: boolean;
   };
 };
 
@@ -108,6 +113,7 @@ export type UmamusumeInstance = {
   tookDamageThisTurn: boolean;
   nextTurnDamageReduction: number;
   usedAbilityThisTurn: boolean;
+  toolCardId: string | null;
 };
 
 export type PendingPlayerChoice =
@@ -159,6 +165,7 @@ export type GameState = {
 export type PlayAction =
   | { canPlay: true; type: "benchBasic" }
   | { canPlay: true; type: "evolve"; target: UmamusumeInstance }
+  | { canPlay: true; type: "attachTool"; target: UmamusumeInstance }
   | { canPlay: true; type: "trainer" }
   | { canPlay: false; reason: string };
 

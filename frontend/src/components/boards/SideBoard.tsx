@@ -2,7 +2,7 @@ import { type CSSProperties, type DragEvent, useState } from "react";
 import { Bench } from "./Bench";
 import { hasTextDragPayload, readDragPayload, writeDragPayload } from "../drag/dragData";
 import { UmaCard } from "../cards/UmaCard";
-import { getUmamusumeCard } from "../../game/engine";
+import { getCard, getUmamusumeCard } from "../../game/engine";
 import { MAX_POINTS } from "../../../../shared/src/gameData";
 import type { EnergyType, UmamusumeInstance, UmamusumeType, SideId, SideState } from "../../../../shared/src/types";
 import type { InspectTarget } from "../../inspect";
@@ -170,6 +170,10 @@ export function SideBoard({
             return;
           }
           onInspect({ card: activeCard!, umamusume: side.active!, sideId, isActive: true });
+        }}
+        onToolInspect={(toolCardId) => {
+          const tool = getCard(toolCardId);
+          if (tool.kind === "trainer") onInspect({ card: tool });
         }}
       />
     </div>

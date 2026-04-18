@@ -1,5 +1,5 @@
 import type { GameState, UmamusumeInstance, SideState } from "../../../../shared/src/types";
-import { canAttachEnergyToUmamusume, getAllUmamusume, getCard, getDamagedUmamusume, getEvolutionTargets } from "../../game/engine";
+import { canAttachEnergyToUmamusume, getAllUmamusume, getCard, getDamagedUmamusume, getEvolutionTargets, getRainbowUncapTargets, getToolTargets } from "../../game/engine";
 import type { ActionNoticeSource, PendingSelection } from "../../types/ui";
 import { formatCardDisplayName, formatNameList } from "../../utils/format";
 
@@ -44,6 +44,7 @@ function createSetupPreviewUmamusume(cardId: string, uid: number): UmamusumeInst
     tookDamageThisTurn: false,
     nextTurnDamageReduction: 0,
     usedAbilityThisTurn: false,
+    toolCardId: null,
   };
 }
 
@@ -77,6 +78,9 @@ export function getSelectableUmamusumeUids(game: GameState, pending: PendingSele
     if (!card || card.kind !== "umamusume") return undefined;
     return new Set(getEvolutionTargets(game, player, card).map((umamusume) => umamusume.uid));
   }
+  if (pending.kind === "toolTarget") return new Set(getToolTargets(player).map((umamusume) => umamusume.uid));
+  if (pending.kind === "rainbowUncapTarget") return new Set(getRainbowUncapTargets(game, player).map((umamusume) => umamusume.uid));
+  if (pending.kind === "rainbowUncapEvolution") return undefined;
   return undefined;
 }
 

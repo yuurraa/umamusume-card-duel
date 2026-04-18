@@ -27,6 +27,7 @@ export function createUmamusume(cardId: string, turnNumber: number): UmamusumeIn
     tookDamageThisTurn: false,
     nextTurnDamageReduction: 0,
     usedAbilityThisTurn: false,
+    toolCardId: null,
   };
 }
 

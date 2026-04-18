@@ -12,6 +12,8 @@ type HandProps = {
   setupBenchIndexes?: number[];
   onSetupChooseActive?: (index: number) => void;
   onOpenDiscard?: () => void;
+  selectableHandIndexes?: Set<number> | undefined;
+  onChooseHandCard?: ((handIndex: number) => void) | undefined;
   sleeveImage?: string | null | undefined;
 };
 
@@ -22,6 +24,8 @@ export function Hand({
   setupActiveIndex = null,
   setupBenchIndexes = [],
   onOpenDiscard,
+  selectableHandIndexes,
+  onChooseHandCard,
   sleeveImage = null,
 }: HandProps) {
   const player = state.sides.player;
@@ -95,7 +99,9 @@ export function Hand({
           const card = getCard(cardId);
           const action = getPlayableAction(state, player, cardId);
           const isSetupBasic = isSetup && card.kind === "umamusume" && card.stage === 0;
-          const canDrag = isSetup ? isSetupBasic : playerTurn && action.canPlay;
+          const isSelectable = selectableHandIndexes?.has(index) ?? false;
+          const isChoosingHandCard = Boolean(selectableHandIndexes);
+          const canDrag = isChoosingHandCard ? false : isSetup ? isSetupBasic : playerTurn && action.canPlay;
           const image = card.kind === "umamusume" ? card.portrait : card.image;
           const shadow = card.kind === "umamusume"
             ? "drop-shadow(0 18px 22px rgba(214, 81, 157, 0.22))"
@@ -111,7 +117,15 @@ export function Hand({
               canDrag={canDrag}
               shadow={shadow}
               isSetup={isSetup}
-              onPrimaryAction={() => onInspect({ card })}
+              isSelectable={isSelectable}
+              isDimmed={isChoosingHandCard && !isSelectable}
+              onPrimaryAction={() => {
+                if (isSelectable) {
+                  onChooseHandCard?.(index);
+                  return;
+                }
+                onInspect({ card });
+              }}
             />
           );
         })}
@@ -136,6 +150,8 @@ function HandCard({
   shadow,
   isSetup,
   onPrimaryAction,
+  isSelectable,
+  isDimmed,
 }: {
   card: Card;
   handIndex: number;
@@ -143,6 +159,8 @@ function HandCard({
   canDrag: boolean;
   shadow: string;
   isSetup: boolean;
+  isSelectable: boolean;
+  isDimmed: boolean;
   onPrimaryAction: () => void;
 }) {
   const [hovered, setHovered] = useState(false);
@@ -155,16 +173,17 @@ function HandCard({
   };
 
   return (
-    <div style={{ position: "relative", width: 184, height: 258, flex: "0 0 auto", opacity: canDrag ? 1 : 0.62 }}>
+    <div style={{ position: "relative", width: 184, height: 258, flex: "0 0 auto", opacity: isDimmed ? 0.4 : canDrag || isSelectable ? 1 : 0.62 }}>
       <button
         type="button"
         style={{
           ...handCardButtonStyle,
+          boxShadow: isSelectable ? "0 0 0 4px rgba(184, 130, 216, 0.32), 0 0 28px rgba(184, 130, 216, 0.42)" : "none",
           filter: activeHover ? `${shadow} saturate(1.06)` : shadow,
           cursor: canDrag ? "grab" : "pointer",
           transform: activeHover ? "translateY(-6px) rotate(0.8deg) scale(1.03)" : "translateY(0) rotate(0deg) scale(1)",
           transformOrigin: "center bottom",
-          transition: "transform 170ms ease, filter 170ms ease",
+          transition: "transform 170ms ease, filter 170ms ease, box-shadow 170ms ease",
         }}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}

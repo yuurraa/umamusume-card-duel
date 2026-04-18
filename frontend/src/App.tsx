@@ -18,8 +18,11 @@ import {
   getDisplayedRetreatCost,
   getEvolutionTargets,
   getPrimaryAttack,
+  getRainbowUncapEvolutionHandOptions,
+  getRainbowUncapTargets,
   getUmamusumeCard,
   getPlayableAction,
+  getToolTargets,
   playerAttack,
   playerEndTurn,
   playerRetreat,
@@ -116,6 +119,13 @@ export function App() {
     ? ({ kind: game.pendingPlayerChoice.kind === "switchAfterGust" ? "forceSwitchActive" : "replaceActive" } as PendingSelection)
     : pendingSelection;
   const selectableUmamusumeUids = getSelectableUmamusumeUids(game, activePendingSelection);
+  const selectableHandIndexes = pendingSelection?.kind === "rainbowUncapEvolution"
+    ? new Set(
+        getAllUmamusume(player)
+          .filter((umamusume) => umamusume.uid === pendingSelection.umamusumeUid)
+          .flatMap((umamusume) => getRainbowUncapEvolutionHandOptions(player, umamusume).map((option) => option.handIndex)),
+      )
+    : undefined;
   const abilityEnergyTypes = pendingSelection?.kind === "moveEnergyAbility" ? new Set(pendingSelection.energyTypes) : undefined;
   const hiddenOpponent = game.phase === "setup" && !game.setup?.opponentRevealed;
   const isBusyWithChoice = Boolean(pendingSelection || game.pendingPlayerChoice || endTurnWarningActions);
@@ -479,6 +489,22 @@ export function App() {
         return;
       }
     }
+    if (card.kind === "trainer" && card.trainerType === "tool") {
+      const targets = getToolTargets(player);
+      if (targets.length > 1) {
+        setPendingSelection({ kind: "toolTarget", handIndex });
+        setPreviewTarget(null);
+        return;
+      }
+    }
+    if (card.kind === "trainer" && card.effect.rainbowUncapCrystal) {
+      const targets = getRainbowUncapTargets(game, player);
+      if (targets.length > 0) {
+        setPendingSelection({ kind: "rainbowUncapTarget", handIndex });
+        setPreviewTarget(null);
+        return;
+      }
+    }
     if (card.kind === "trainer" && card.effect.searchRandomBasicUmamusume) {
       applyPlayerGameUpdate((current) => playHandCard(current, handIndex), { kind: "traineeScoutTicket" });
       return;
@@ -521,6 +547,17 @@ export function App() {
     }
     if (card.kind === "trainer" && card.effect.attachEnergyFromZoneToBench && player.bench.some((umamusume) => umamusume.uid === umamusumeUid)) {
       setGame((current) => playHandCard(current, handIndex, { umamusumeTargetUid: umamusumeUid }));
+      return;
+    }
+    if (card.kind === "trainer" && card.trainerType === "tool") {
+      setGame((current) => playHandCard(current, handIndex, { umamusumeTargetUid: umamusumeUid }));
+      return;
+    }
+    if (card.kind === "trainer" && card.effect.rainbowUncapCrystal) {
+      const target = getRainbowUncapTargets(game, player).find((umamusume) => umamusume.uid === umamusumeUid);
+      if (!target) return;
+      setPendingSelection({ kind: "rainbowUncapEvolution", handIndex, umamusumeUid });
+      setPreviewTarget(null);
     }
   };
 
@@ -542,6 +579,17 @@ export function App() {
     if (game.phase !== "play" || !pendingSelection || pendingSelection.kind !== "moveEnergyAbility" || game.pendingPlayerChoice) return;
     if (!pendingSelection.energyTypes.includes(energyType)) return;
     setGame((current) => usePlayerAbility(current, pendingSelection.abilityUmamusumeUid, sourceUmamusumeUid, energyType));
+    setPendingSelection(null);
+    setPreviewTarget(null);
+  };
+
+  const chooseHandCard = (handIndex: number) => {
+    if (!pendingSelection || pendingSelection.kind !== "rainbowUncapEvolution") return;
+    if (!selectableHandIndexes?.has(handIndex)) return;
+    setGame((current) => playHandCard(current, pendingSelection.handIndex, {
+      umamusumeTargetUid: pendingSelection.umamusumeUid,
+      rainbowEvolutionHandIndex: handIndex,
+    }));
     setPendingSelection(null);
     setPreviewTarget(null);
   };
@@ -574,7 +622,16 @@ export function App() {
       }
     } else if (pendingSelection.kind === "retreatTarget") {
       setGame((current) => playerRetreat(current, umamusume.uid, pendingSelection.discardEnergyTypes));
-    } else if (pendingSelection.kind === "healTarget" || pendingSelection.kind === "evolveTarget" || pendingSelection.kind === "zoneBenchAttachTarget") {
+    } else if (pendingSelection.kind === "rainbowUncapTarget") {
+      setPendingSelection({ kind: "rainbowUncapEvolution", handIndex: pendingSelection.handIndex, umamusumeUid: umamusume.uid });
+      setPreviewTarget(null);
+      return;
+    } else if (
+      pendingSelection.kind === "healTarget"
+      || pendingSelection.kind === "evolveTarget"
+      || pendingSelection.kind === "zoneBenchAttachTarget"
+      || pendingSelection.kind === "toolTarget"
+    ) {
       setGame((current) => playHandCard(current, pendingSelection.handIndex, { umamusumeTargetUid: umamusume.uid }));
     }
     setPendingSelection(null);
@@ -702,6 +759,8 @@ export function App() {
               <Hand
                 state={game}
                 onInspect={openPreview}
+                selectableHandIndexes={selectableHandIndexes}
+                onChooseHandCard={chooseHandCard}
                 onOpenDiscard={() => setDiscardOpen(true)}
                 sleeveImage={selectedSleeve.image}
               />
@@ -824,6 +883,7 @@ export function App() {
           }
           setPreviewTarget(null);
         }}
+        onInspect={openPreview}
         onClose={closePreview}
       />
       <ChoiceModal

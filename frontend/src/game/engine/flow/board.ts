@@ -84,7 +84,10 @@ function normalizeSideBoard(side: SideState): void {
   });
 
   if (overflow.length > 0) {
-    overflow.forEach((umamusume) => side.discard.push(umamusume.cardId));
+    overflow.forEach((umamusume) => {
+      side.discard.push(umamusume.cardId);
+      if (umamusume.toolCardId) side.discard.push(umamusume.toolCardId);
+    });
   }
   side.bench = cleanBench;
 }

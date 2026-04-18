@@ -13,6 +13,9 @@ export type PendingSelection =
   | { kind: "attackHealTarget" }
   | { kind: "healTarget"; handIndex: number }
   | { kind: "evolveTarget"; handIndex: number }
+  | { kind: "toolTarget"; handIndex: number }
+  | { kind: "rainbowUncapTarget"; handIndex: number }
+  | { kind: "rainbowUncapEvolution"; handIndex: number; umamusumeUid: number }
   | { kind: "moveEnergyAbility"; abilityUmamusumeUid: number; energyTypes: EnergyType[] }
   | { kind: "discardForAbility"; abilityUmamusumeUid: number }
   | { kind: "discardForScout"; handIndex: number }

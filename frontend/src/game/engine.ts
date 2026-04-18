@@ -28,7 +28,7 @@ import { canAttachEnergy, canAttachEnergyToUmamusume, canAttack, canRetreat, can
 import { drawCards, endTurn, startTurn } from "./engine/flow/turn";
 import type { PlayChoices } from "./engine/core/playTypes";
 import { choosePreferredActiveIndex, normalizeBoardState, refreshContinuousHp, switchOutOpponentActive } from "./engine/flow/board";
-import { adjustHandChoices, getPlayableAction, resolveCardPlay } from "./engine/flow/playRules";
+import { adjustHandChoices, getPlayableAction, getRainbowUncapEvolutionHandOptions, getRainbowUncapTargets, getToolTargets, resolveCardPlay } from "./engine/flow/playRules";
 import { aiAttachOneEnergy, aiEvolveOne, aiPlayOneBasic, aiPlayOneTrainer } from "./engine/flow/ai";
 import { knockOutUmamusume, performAttack } from "./engine/flow/combat";
 import { canUseStadium, useStadium } from "./engine/flow/trainers";
@@ -56,6 +56,9 @@ export {
   canUseStadium,
   isPlayerTurn,
   getPlayableAction,
+  getRainbowUncapEvolutionHandOptions,
+  getRainbowUncapTargets,
+  getToolTargets,
 };
 
 export function createGame(playerDeck = playerDeckList, opponentDeck = opponentDeckList, opponentName = "Opponent"): GameState {
@@ -103,6 +106,20 @@ export function playHandCard(state: GameState, handIndex: number, choices: PlayC
   if (play.type === "evolve" && card.kind === "umamusume" && choices.umamusumeTargetUid !== undefined) {
     const chosenTarget = findOwnUmamusumeByUid(side, choices.umamusumeTargetUid);
     if (!chosenTarget || !isValidEvolutionTarget(next, side, chosenTarget, card)) return next;
+  }
+  if (play.type === "attachTool" && choices.umamusumeTargetUid !== undefined) {
+    const chosenTarget = findOwnUmamusumeByUid(side, choices.umamusumeTargetUid);
+    if (!chosenTarget || chosenTarget.toolCardId) return next;
+  }
+  if (card.kind === "trainer" && card.effect.rainbowUncapCrystal && choices.umamusumeTargetUid !== undefined) {
+    const target = getRainbowUncapTargets(next, side).find((umamusume) => umamusume.uid === choices.umamusumeTargetUid);
+    if (!target) return next;
+    if (
+      choices.rainbowEvolutionHandIndex !== undefined
+      && !getRainbowUncapEvolutionHandOptions(side, target).some((option) => option.handIndex === choices.rainbowEvolutionHandIndex)
+    ) {
+      return next;
+    }
   }
   side.hand.splice(handIndex, 1);
   resolveCardPlay(next, side, card, play, adjustHandChoices(choices, handIndex), switchOutOpponentActive);
@@ -398,4 +415,3 @@ function resolveContinuousKnockouts(state: GameState): void {
     }
   }
 }
-

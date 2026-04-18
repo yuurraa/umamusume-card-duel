@@ -52,11 +52,18 @@ export function performAttack(
   }
   if (damage > 0 && defenderCard.weakness.type === attackerCard.type) damage += defenderCard.weakness.amount;
 
-  const reduction = Math.min(damage, attackDamageReductionFor(defender.active));
+  const reduction = Math.min(damage, attackDamageReductionFor(state, defender.active));
   damage = Math.max(0, damage - reduction);
   defender.active.hp = Math.max(0, defender.active.hp - damage);
   if (damage > 0) defender.active.tookDamageThisTurn = true;
   if (reduction > 0) log(state, `${actorPossessive(defender)} damage reduction prevented ${reduction} damage.`);
+  const counterDamage = damage > 0 ? activeToolCounterDamage(state, defender.active) : 0;
+  if (counterDamage > 0 && attacker.active) {
+    attacker.active.hp = Math.max(0, attacker.active.hp - counterDamage);
+    attacker.active.tookDamageThisTurn = true;
+    const toolName = defender.active.toolCardId ? getCard(defender.active.toolCardId).name : "Boxing Gloves";
+    log(state, `${toolName} did ${counterDamage} damage to ${actorPossessive(attacker)} Attacking Umamusume.`);
+  }
 
   if (attack.preventDamageNextTurn) {
     attacker.active.nextTurnDamageReduction = Math.max(attacker.active.nextTurnDamageReduction, attack.preventDamageNextTurn);
@@ -98,6 +105,11 @@ export function performAttack(
   log(state, `${actorName(attacker)} attacked with ${formatUmamusumeCardName(attackerCard)}'s ${attack.name} for ${damage} damage.`);
 
   resolveKnockout(state, attackerId, defenderId, deps, `${formatUmamusumeCardName(attackerCard)}'s ${attack.name}`);
+  if (!state.gameOver && attacker.active && attacker.active.hp <= 0) {
+    if (knockOutUmamusume(state, defenderId, attackerId, attacker.active, deps.choosePreferredActiveIndex, "Boxing Gloves")) {
+      deps.refreshContinuousEffects(state);
+    }
+  }
 }
 
 export function knockOutUmamusume(
@@ -119,6 +131,7 @@ export function knockOutUmamusume(
   if (benchIndex >= 0) defender.bench.splice(benchIndex, 1);
   defender.bench = defender.bench.filter((umamusume) => umamusume.uid !== knockedOut.uid);
   defender.discard.push(knockedOut.cardId);
+  if (knockedOut.toolCardId) defender.discard.push(knockedOut.toolCardId);
   attacker.points += 1;
   const knockedOwner = knockedSideId === "player" ? "Your" : "Opponent's";
   const sourceOwner = scoringSideId === "player" ? "your" : "opponent's";
@@ -160,8 +173,26 @@ export function knockOutUmamusume(
   return true;
 }
 
-function attackDamageReductionFor(umamusume: UmamusumeInstance): number {
-  return (getUmamusumeCard(umamusume).ability?.damageReduction ?? 0) + umamusume.nextTurnDamageReduction;
+function attackDamageReductionFor(state: GameState, umamusume: UmamusumeInstance): number {
+  return (getUmamusumeCard(umamusume).ability?.damageReduction ?? 0) + umamusume.nextTurnDamageReduction + activeToolDamageReduction(state, umamusume);
+}
+
+function activeToolDamageReduction(state: GameState, umamusume: UmamusumeInstance): number {
+  if (areToolsDisabled(state) || !umamusume.toolCardId) return 0;
+  const tool = getCard(umamusume.toolCardId);
+  return tool.kind === "trainer" ? tool.effect.toolDamageReduction ?? 0 : 0;
+}
+
+function activeToolCounterDamage(state: GameState, umamusume: UmamusumeInstance): number {
+  if (areToolsDisabled(state) || !umamusume.toolCardId) return 0;
+  const tool = getCard(umamusume.toolCardId);
+  return tool.kind === "trainer" ? tool.effect.toolCounterDamage ?? 0 : 0;
+}
+
+function areToolsDisabled(state: GameState): boolean {
+  if (!state.stadium) return false;
+  const stadium = getCard(state.stadium.cardId);
+  return stadium.kind === "trainer" && Boolean(stadium.effect.disableTools);
 }
 
 function resolveKnockout(state: GameState, attackerId: SideId, defenderId: SideId, deps: CombatDeps, cause?: string): void {

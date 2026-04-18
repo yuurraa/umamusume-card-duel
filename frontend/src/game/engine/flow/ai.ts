@@ -12,6 +12,7 @@ import { effectiveRetreatCost } from "./retreat";
 import { attachedEnergyCount } from "../core/umamusume";
 import { createUmamusume } from "./setup";
 import { log, logPrimaryFirst } from "../core/log";
+import { getToolTargets } from "./playRules";
 
 type AiTrainerDeps = {
   refreshContinuousEffects: (state: GameState) => void;
@@ -82,6 +83,13 @@ export function aiPlayOneTrainer(
     deps.refreshContinuousEffects(state);
     return true;
   }
+  if (card.trainerType === "tool") {
+    const target = getToolTargets(side)[0];
+    if (!target) return false;
+    target.toolCardId = card.id;
+    log(state, `${actorName(side)} attached ${card.name} to ${formatUmamusumeCardName(getUmamusumeCard(target))}.`);
+    return true;
+  }
   const target = card.effect.attachEnergyFromZoneToBench ? getAiBenchEnergyAttachTarget(side) : undefined;
   logPrimaryFirst(state, `${actorName(side)} played ${card.name}.`, () => {
     applyTrainer(
@@ -101,6 +109,7 @@ export function aiPlayOneTrainer(
 function shouldAiPlayTrainer(state: GameState, side: SideState, card: Card): boolean {
   if (card.kind !== "trainer") return false;
   if (!getPlayableAction(state, side, card.id).canPlay) return false;
+  if (card.trainerType === "tool") return getToolTargets(side).length > 0;
   if (card.effect.gustOpponent) return getOpposingSide(state, side.id).bench.length > 0;
   if (card.effect.activeAttackDamageBonus) return true;
   if (card.effect.attachEnergyFromZoneToBench) return side.bench.length > 0;

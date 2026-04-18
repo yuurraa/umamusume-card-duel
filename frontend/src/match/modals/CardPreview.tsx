@@ -9,8 +9,9 @@ import { NeutralButton } from "../../components/buttons/NeutralButton";
 import { PreviewAccentButton } from "../../components/buttons/PreviewAccentButton";
 import { EnergyIcon } from "../../components/cards/EnergyIcon";
 import { AbilityReadyBadge } from "../../components/cards/AbilityReadyBadge";
+import { AttachedToolBadge } from "../../components/cards/AttachedToolBadge";
 
-export function CardPreview({ state, target, canUseAttack, canUseRetreat, canUseAbility, onAttack, onRetreat, onAbility, onClose }: {
+export function CardPreview({ state, target, canUseAttack, canUseRetreat, canUseAbility, onAttack, onRetreat, onAbility, onInspect, onClose }: {
   state: GameState;
   target: InspectTarget | null;
   canUseAttack: boolean;
@@ -19,6 +20,7 @@ export function CardPreview({ state, target, canUseAttack, canUseRetreat, canUse
   onAttack: () => void;
   onRetreat: () => void;
   onAbility: () => void;
+  onInspect: (target: InspectTarget) => void;
   onClose: () => void;
 }) {
   const [abilityHovered, setAbilityHovered] = useState(false);
@@ -30,6 +32,7 @@ export function CardPreview({ state, target, canUseAttack, canUseRetreat, canUse
   const hpPercent = umamusume ? Math.max(0, Math.round((umamusume.hp / umamusume.maxHp) * 100)) : 0;
   const energyEntries = umamusume ? (Object.entries(umamusume.energies) as [EnergyType, number][]) : [];
   const attachedEnergy = energyEntries.flatMap(([type, amount]) => Array.from({ length: amount }, () => type)).reverse();
+  const attachedTool = umamusume?.toolCardId ? getCard(umamusume.toolCardId) : null;
   const previewSide = target.sideId === "player" ? state.sides.player : state.sides.opponent;
   const retreatCost = umamusume ? getDisplayedRetreatCost(state, previewSide, umamusume) : 0;
   const hpEffectLines = card.kind === "umamusume" && umamusume && target.sideId
@@ -40,7 +43,7 @@ export function CardPreview({ state, target, canUseAttack, canUseRetreat, canUse
     : [];
   const hasRetreatEffectLines = retreatEffectLines.length > 0;
   const miscEffects = card.kind === "umamusume" && umamusume && target.sideId
-    ? getMiscEffectGroups(umamusume)
+    ? getMiscEffectGroups(state, umamusume)
     : { buffs: [], debuffs: [] as string[] };
   const attackPreviews = card.kind === "umamusume" && umamusume && target.sideId
     ? card.attacks.map((attack) => getAttackPreview(state, target.sideId!, umamusume, attack))
@@ -91,6 +94,26 @@ export function CardPreview({ state, target, canUseAttack, canUseRetreat, canUse
                     </span>
                   ))
                 )}
+              </div>
+            </section>
+          )}
+
+          {umamusume && attachedTool?.kind === "trainer" && (
+            <section style={previewBlockStyle}>
+              <div style={previewKickerStyle}>Attached Tool</div>
+              <div style={attachedToolRowStyle}>
+                <AttachedToolBadge
+                  toolCardId={umamusume.toolCardId}
+                  variant="inline"
+                  size="sm"
+                  onInspect={(toolCardId) => {
+                    const tool = getCard(toolCardId);
+                    if (tool.kind === "trainer") onInspect({ card: tool });
+                  }}
+                />
+                <span style={attachedToolNameStyle}>
+                  {attachedTool.name}{areToolsDisabled(state) ? " (No Effect - Tracen Gym)" : ""}
+                </span>
               </div>
             </section>
           )}
@@ -322,6 +345,23 @@ const previewEnergyRingStyle: CSSProperties = {
   boxShadow: "0 8px 18px rgba(17,24,39,0.14)",
 };
 
+const attachedToolRowStyle: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 10,
+  minHeight: 34,
+  marginTop: 8,
+};
+
+const attachedToolNameStyle: CSSProperties = {
+  color: "#000000",
+  fontSize: 13,
+  fontWeight: 900,
+  lineHeight: 1.25,
+  overflowWrap: "anywhere",
+  wordBreak: "break-word",
+};
+
 import { neutralButtonStyle } from "../../styles/shared";
 
 function retreatButtonStyle(enabled: boolean, hovered: boolean, accent: string, hasModifierLines: boolean): CSSProperties {
@@ -517,20 +557,31 @@ function getHpEffectLines(state: GameState, sideId: "player" | "opponent", umamu
   return lines;
 }
 
-function getMiscEffectGroups(umamusume: NonNullable<InspectTarget["umamusume"]>): { buffs: string[]; debuffs: string[] } {
+function getMiscEffectGroups(state: GameState, umamusume: NonNullable<InspectTarget["umamusume"]>): { buffs: string[]; debuffs: string[] } {
   const card = getUmamusumeCard(umamusume);
   const buffs: string[] = [];
   const debuffs: string[] = [];
 
   const abilityDamageReduction = card.ability?.damageReduction ?? 0;
   if (abilityDamageReduction > 0) {
-    buffs.push(`-${abilityDamageReduction} damage taken - ${card.ability?.name}`);
+    buffs.push(`-${abilityDamageReduction} Damage Taken - ${card.ability?.name}`);
   }
   if (umamusume.nextTurnDamageReduction > 0) {
-    buffs.push(`-${umamusume.nextTurnDamageReduction} damage taken - next attack this turn`);
+    buffs.push(`-${umamusume.nextTurnDamageReduction} Damage Taken - Next Attack This Turn`);
+  }
+  if (!areToolsDisabled(state) && umamusume.toolCardId) {
+    const tool = getCard(umamusume.toolCardId);
+    if (tool.kind === "trainer" && tool.effect.toolDamageReduction) buffs.push(`-${tool.effect.toolDamageReduction} Damage Reduction - ${tool.name}`);
+    if (tool.kind === "trainer" && tool.effect.toolCounterDamage) buffs.push(`${tool.effect.toolCounterDamage} Counter Damage - ${tool.name}`);
   }
 
   return { buffs, debuffs };
+}
+
+function areToolsDisabled(state: GameState): boolean {
+  if (!state.stadium) return false;
+  const stadium = getCard(state.stadium.cardId);
+  return stadium.kind === "trainer" && Boolean(stadium.effect.disableTools);
 }
 
 function getAttackPreview(
