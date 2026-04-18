@@ -13,6 +13,8 @@ import type {
 import { cloneGame } from "./engine/core/stateClone";
 import { getCard, getUmamusumeCard, getPrimaryAttack, isBasicUmamusumeInDeck, isUmamusumeInDeck } from "./engine/core/catalog";
 import {
+  actorLowerPossessive,
+  actorName,
   energyLabel,
   formatUmamusumeCardName,
   formatUmamusumeInstanceName,
@@ -304,6 +306,29 @@ export function usePlayerAbility(
     side.usedAbilityNamesThisTurn ??= [];
     if (!side.usedAbilityNamesThisTurn.includes(ability.name)) side.usedAbilityNamesThisTurn.push(ability.name);
     log(next, `${formatUmamusumeCardName(abilityCard)}'s ${ability.name} moved 1 ${energyLabel(energyType)} to the active spot.`);
+    return next;
+  }
+
+  if (ability.coinFlipDrawOrActiveDamageCounter) {
+    const heads = Math.random() >= 0.5;
+    abilityUmamusume.usedAbilityThisTurn = true;
+    side.usedAbilityNamesThisTurn ??= [];
+    if (!side.usedAbilityNamesThisTurn.includes(ability.name)) side.usedAbilityNamesThisTurn.push(ability.name);
+    log(next, `${actorName(side)} used ${formatUmamusumeCardName(abilityCard)}'s ${ability.name}.`);
+    if (heads) {
+      const drawnCardIds = drawCards(next, side, ability.coinFlipDrawOrActiveDamageCounter.draw);
+      const drawnText = drawnCardIds.length > 0 ? formatCardNameList(drawnCardIds) : `0 ${pluralize(0, "card")}`;
+      log(next, "Flip a coin and got 1x heads.");
+      log(next, `${actorName(side)} drew ${drawnText}.`);
+      return next;
+    }
+    const damage = ability.coinFlipDrawOrActiveDamageCounter.damageOnTails;
+    side.active.hp = Math.max(0, side.active.hp - damage);
+    side.active.tookDamageThisTurn = damage > 0;
+    log(next, "Flip a coin and got 1x tails.");
+    log(next, `${actorName(side)} put 1 damage counter on ${actorLowerPossessive(side)} Active Umamusume.`);
+    normalizeBoardState(next);
+    refreshContinuousEffects(next);
     return next;
   }
 

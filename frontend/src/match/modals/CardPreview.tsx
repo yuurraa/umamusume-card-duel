@@ -50,7 +50,7 @@ export function CardPreview({ state, target, canUseAttack, canUseRetreat, canUse
     : card.kind === "umamusume"
       ? card.attacks.map((attack) => ({
         damage: isNonDamagingAttack(attack) ? null : attack.damage,
-        notes: isNonDamagingAttack(attack) ? [] : attack.coinBonus ? [`+${attack.coinBonus} damage - heads`] : [],
+        notes: isNonDamagingAttack(attack) ? [] : attack.coinBonus ? [`+${attack.coinBonus} damage - Heads`] : [],
       }))
       : [];
 
@@ -151,7 +151,7 @@ export function CardPreview({ state, target, canUseAttack, canUseRetreat, canUse
           )}
 
           {card.kind === "umamusume" && card.ability && (
-            card.ability.moveBenchedEnergyToActive || card.ability.discardToDraw ? (
+            card.ability.moveBenchedEnergyToActive || card.ability.discardToDraw || card.ability.coinFlipDrawOrActiveDamageCounter ? (
               <button
                 type="button"
                 disabled={!canUseAbility}
@@ -639,7 +639,10 @@ function getAttackPreview(
   }
 
   if (!nonDamagingAttack && attack.coinBonus) {
-    notes.push(`+${attack.coinBonus} damage - heads`);
+    notes.push(`+${attack.coinBonus} damage - Heads`);
+  }
+  if (attack.drawOnHeads) {
+    notes.push(`Draw ${attack.drawOnHeads} ${attack.drawOnHeads === 1 ? "Card" : "Cards"} - Heads`);
   }
 
   return { damage: nonDamagingAttack ? null : damage, notes };

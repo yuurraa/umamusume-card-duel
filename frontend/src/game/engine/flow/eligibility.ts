@@ -46,5 +46,6 @@ export function canUseUmamusumeAbility(state: GameState, side: SideState, abilit
     return side.bench.some((umamusume) => energyTypes.some((energyType) => umamusume.energies[energyType] > 0));
   }
   if (ability.discardToDraw) return side.hand.length >= ability.discardToDraw.discard;
+  if (ability.coinFlipDrawOrActiveDamageCounter) return true;
   return false;
 }

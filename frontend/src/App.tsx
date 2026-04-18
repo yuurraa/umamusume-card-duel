@@ -715,7 +715,6 @@ export function App() {
             setupMode={game.phase === "setup"}
             abilityReadyUmamusumeUids={abilityReadyUmamusumeUids}
             selectableUmamusumeUids={game.phase === "play" ? selectableUmamusumeUids : undefined}
-            dimUnselectableActive={pendingSelection?.kind !== "retreatTarget"}
             abilityEnergyTypes={abilityEnergyTypes}
             onUmamusumeSelect={selectUmamusume}
             onSetupDropActive={applySetupActive}
@@ -901,6 +900,8 @@ export function App() {
             setPendingSelection({ kind: "moveEnergyAbility", abilityUmamusumeUid: previewTarget.umamusume.uid, energyTypes });
           } else if (ability.discardToDraw && player.hand.length >= ability.discardToDraw.discard) {
             setPendingSelection({ kind: "discardForAbility", abilityUmamusumeUid: previewTarget.umamusume.uid });
+          } else if (ability.coinFlipDrawOrActiveDamageCounter) {
+            setGame((current) => usePlayerAbility(current, previewTarget.umamusume!.uid, previewTarget.umamusume!.uid));
           } else {
             return;
           }
@@ -1096,15 +1097,16 @@ function getPendingAttackCoinFlip(state: GameState, attackerId: SideId, id: numb
   const attacker = state.sides[attackerId];
   if (!attacker.active) return null;
   const attack = getPrimaryAttack(getUmamusumeCard(attacker.active));
-  if (!attack.coinBonus) return null;
+  if (!attack.coinBonus && !attack.drawOnHeads) return null;
 
   const result = Math.random() >= 0.5 ? "heads" : "tails";
-  const bonusText = result === "heads" ? ` (+${attack.coinBonus})` : "";
-  return { id, result, message: `${attack.name}'s coin flip was ${result}${bonusText}.` };
+  const actor = attackerId === "player" ? "You" : "Opponent";
+  return { id, result, message: `${actor} flipped a coin and got 1x ${result}.` };
 }
 
 function toCoinFlipEvent(entry: string, id: number): CoinFlipEvent | null {
-  if (!entry.toLowerCase().includes("coin flip was")) return null;
+  const lowered = entry.toLowerCase();
+  if (!lowered.includes("coin flip was") && !lowered.includes("flipped a coin and got") && !lowered.includes("flip a coin and got")) return null;
   const resultMatch = entry.match(/\b(heads|tails)\b/i);
   if (!resultMatch) return null;
   const result = resultMatch[1]?.toLowerCase() === "tails" ? "tails" : "heads";

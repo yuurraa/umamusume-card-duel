@@ -27,7 +27,7 @@ export function performAttack(
   const nonDamagingAttack = isNonDamagingAttack(attack);
   const defenderCard = getUmamusumeCard(defender.active);
   let damage = attack.damage + (nonDamagingAttack ? 0 : attacker.activeAttackDamageBonus);
-  let coinMessage: string | null = null;
+  let coinFlipHeads: boolean | null = null;
 
   if (attack.bonusIfTookDamageLastTurn && attacker.active.tookDamageLastTurn) {
     damage += attack.bonusIfTookDamageLastTurn;
@@ -46,18 +46,23 @@ export function performAttack(
   if (!nonDamagingAttack && conditionalAttackBonus && attacker.active.energies[conditionalAttackBonus.type] >= conditionalAttackBonus.min) {
     damage += conditionalAttackBonus.amount;
   }
-  if (attack.coinBonus) {
+  if (attack.coinBonus || attack.drawOnHeads) {
     const heads = forcedCoinResult ? forcedCoinResult === "heads" : Math.random() >= 0.5;
-    if (heads) damage += attack.coinBonus;
-    const coinText = heads ? `heads (+${attack.coinBonus})` : "tails";
-    coinMessage = forcedCoinResult ? `${attack.name}'s coin result was ${coinText}.` : `${attack.name}'s coin flip was ${coinText}.`;
+    coinFlipHeads = heads;
+    if (heads && attack.coinBonus) damage += attack.coinBonus;
   }
   if (damage > 0 && defenderCard.weakness.type === attackerCard.type) damage += defenderCard.weakness.amount;
 
   const reduction = Math.min(damage, attackDamageReductionFor(state, defender.active));
   damage = Math.max(0, damage - reduction);
-  log(state, `${actorName(attacker)} attacked with ${formatUmamusumeCardName(attackerCard)}'s ${attack.name} for ${damage} damage.`);
-  if (coinMessage) log(state, coinMessage);
+  if (damage <= 0) {
+    log(state, `${actorName(attacker)} used ${formatUmamusumeCardName(attackerCard)}'s ${attack.name}.`);
+  } else {
+    log(state, `${actorName(attacker)} attacked with ${formatUmamusumeCardName(attackerCard)}'s ${attack.name} for ${damage} damage.`);
+  }
+  if (coinFlipHeads !== null) {
+    log(state, `Flip a coin and got 1x ${coinFlipHeads ? "heads" : "tails"}.`);
+  }
   defender.active.hp = Math.max(0, defender.active.hp - damage);
   if (damage > 0) defender.active.tookDamageThisTurn = true;
   if (reduction > 0) log(state, `${actorPossessive(defender)} damage reduction prevented ${reduction} damage.`);
@@ -76,6 +81,17 @@ export function performAttack(
 
   if (attack.draw) {
     const drawnCardIds = drawCards(state, attacker, attack.draw);
+    if (drawnCardIds.length > 0) {
+      if (attacker.id === "player") {
+        log(state, `${actorName(attacker)} drew ${formatCardNameList(drawnCardIds)}.`);
+      } else {
+        const drawn = drawnCardIds.length;
+        log(state, `${actorName(attacker)} drew ${drawn} ${pluralize(drawn, "card")}.`);
+      }
+    }
+  }
+  if (attack.drawOnHeads && coinFlipHeads) {
+    const drawnCardIds = drawCards(state, attacker, attack.drawOnHeads);
     if (drawnCardIds.length > 0) {
       if (attacker.id === "player") {
         log(state, `${actorName(attacker)} drew ${formatCardNameList(drawnCardIds)}.`);

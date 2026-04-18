@@ -13,6 +13,7 @@ export type Attack = {
   damage: number;
   text: string;
   coinBonus?: number;
+  drawOnHeads?: number;
   draw?: number;
   heal?: number;
   healTarget?: "self" | "any";
@@ -44,6 +45,10 @@ export type Ability = {
   discardToDraw?: {
     discard: number;
     draw: number;
+  };
+  coinFlipDrawOrActiveDamageCounter?: {
+    draw: number;
+    damageOnTails: number;
   };
 };
 
