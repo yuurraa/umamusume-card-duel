@@ -1,7 +1,7 @@
 import { useEffect, useState, type CSSProperties } from "react";
 import type { EnergyType } from "../../../../shared/src/types";
 import { energyLabel } from "../../game/engine";
-import { writeDragPayload } from "../../components/drag/dragData";
+import { applyDragPreview, writeDragPayload } from "../../components/drag/dragData";
 import { EnergyIcon } from "../../components/cards/EnergyIcon";
 import { NeutralButton } from "../../components/buttons/NeutralButton";
 import { attackButtonStyle } from "../../styles/shared";
@@ -112,6 +112,7 @@ function EnergyDragToken({ canDrag, refreshNonce, energyType, extraCount }: { ca
         if (!canDrag) return;
         event.dataTransfer.effectAllowed = "move";
         writeDragPayload(event.dataTransfer, { kind: "energy-token" });
+        applyDragPreview(event);
       }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}

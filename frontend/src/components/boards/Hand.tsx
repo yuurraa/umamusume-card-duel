@@ -2,7 +2,7 @@ import { type CSSProperties, type DragEvent, type PointerEvent, useId, useRef, u
 import { getCard, getPlayableAction } from "../../game/engine";
 import type { Card, GameState } from "../../../../shared/src/types";
 import type { InspectTarget } from "../../inspect";
-import { writeDragPayload } from "../drag/dragData";
+import { applyDragPreview, writeDragPayload } from "../drag/dragData";
 import { uiTextColor, uiTextShadow } from "../../styles/shared";
 
 type HandProps = {
@@ -171,10 +171,24 @@ function HandCard({
     if (!canDrag) return;
     event.dataTransfer.effectAllowed = "move";
     writeDragPayload(event.dataTransfer, isSetup ? { kind: "setup-hand", handIndex } : { kind: "hand-card", handIndex });
+    applyDragPreview(event, { width: 184, height: 258 });
   };
 
   return (
-    <div style={{ position: "relative", width: 184, height: 258, flex: "0 0 auto", opacity: isDimmed ? 0.4 : canDrag || isSelectable ? 1 : 0.62 }}>
+    <div
+      style={{
+        position: "relative",
+        width: 184,
+        height: 258,
+        flex: "0 0 auto",
+        opacity: 1,
+        filter: isDimmed
+          ? "grayscale(0.92) brightness(0.86)"
+          : canDrag || isSelectable
+            ? "none"
+            : "grayscale(0.86) brightness(0.84)",
+      }}
+    >
       <button
         type="button"
         style={{

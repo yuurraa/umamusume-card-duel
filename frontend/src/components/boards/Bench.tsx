@@ -1,9 +1,9 @@
-import { type CSSProperties, type DragEvent, useState } from "react";
+import { type CSSProperties, type DragEvent, useEffect, useRef, useState } from "react";
 import { AttachedEnergyPips, FaceDownCard } from "../cards/UmaCard";
 import { AbilityReadyBadge } from "../cards/AbilityReadyBadge";
 import { AttachedToolBadge } from "../cards/AttachedToolBadge";
 import { getAttachedEnergy } from "../cards/attachedEnergy";
-import { hasTextDragPayload, readDragPayload, writeDragPayload } from "../drag/dragData";
+import { applyDragPreview, hasTextDragPayload, readDragPayload, writeDragPayload } from "../drag/dragData";
 import { getCard, getUmamusumeCard } from "../../game/engine";
 import { MAX_BENCH } from "../../../../shared/src/gameData";
 import type { EnergyType, UmamusumeInstance, UmamusumeType, SideState } from "../../../../shared/src/types";
@@ -32,6 +32,15 @@ type BenchProps = {
   hoverRingColor?: string;
   hoverGlowColor?: string;
   sleeveImage?: string | null | undefined;
+  animateSetupReveal?: boolean;
+  setupRevealToken?: number;
+  animateOnNewCards?: boolean;
+};
+
+type ExitingBenchCard = {
+  uid: number;
+  index: number;
+  umamusume: UmamusumeInstance;
 };
 
 const benchTypeColors: Record<UmamusumeType, string> = {
@@ -78,23 +87,137 @@ export function Bench({
   hoverRingColor = "rgba(196, 125, 164, 0.26)",
   hoverGlowColor = "rgba(196, 125, 164, 0.32)",
   sleeveImage = null,
+  animateSetupReveal = false,
+  setupRevealToken = 0,
+  animateOnNewCards = false,
 }: BenchProps) {
   const [hoveredSlot, setHoveredSlot] = useState<number | null>(null);
+  const [playedBenchRevealOrderByUid, setPlayedBenchRevealOrderByUid] = useState<Record<number, number>>({});
+  const [benchShiftOffsetByUid, setBenchShiftOffsetByUid] = useState<Record<number, number>>({});
+  const [exitingBenchCards, setExitingBenchCards] = useState<ExitingBenchCard[]>([]);
+  const revealClearTimeoutRef = useRef<number | null>(null);
+  const exitingClearTimeoutRef = useRef<number | null>(null);
+  const shiftClearTimeoutRef = useRef<number | null>(null);
+  const shiftAnimationFrameRef = useRef<number | null>(null);
+  const previousBenchUidsRef = useRef<Set<number>>(new Set(side.bench.map((umamusume) => umamusume.uid)));
+  const previousActiveUidRef = useRef<number | null>(side.active?.uid ?? null);
+  const previousBenchOrderRef = useRef<number[]>(side.bench.map((umamusume) => umamusume.uid));
+  const previousBenchByUidRef = useRef<Map<number, UmamusumeInstance>>(new Map(side.bench.map((umamusume) => [umamusume.uid, umamusume])));
   const isChoosingUmamusume = Boolean(selectableUmamusumeUids);
   const visibleBenchCount = hidden ? (hiddenBenchCount ?? side.bench.length) : side.bench.length;
 
+  useEffect(() => {
+    if (!animateOnNewCards) {
+      previousBenchUidsRef.current = new Set(side.bench.map((umamusume) => umamusume.uid));
+      previousActiveUidRef.current = side.active?.uid ?? null;
+      return;
+    }
+
+    const currentBenchUids = side.bench.map((umamusume) => umamusume.uid);
+    const previousBenchUids = previousBenchUidsRef.current;
+    const previousActiveUid = previousActiveUidRef.current;
+    const newlyBenchedUids = currentBenchUids.filter((uid) => !previousBenchUids.has(uid) && uid !== previousActiveUid);
+
+    if (newlyBenchedUids.length > 0) {
+      const revealOrderByUid = Object.fromEntries(newlyBenchedUids.map((uid, order) => [uid, order])) as Record<number, number>;
+      setPlayedBenchRevealOrderByUid(revealOrderByUid);
+      if (revealClearTimeoutRef.current !== null) window.clearTimeout(revealClearTimeoutRef.current);
+      revealClearTimeoutRef.current = window.setTimeout(() => {
+        setPlayedBenchRevealOrderByUid({});
+        revealClearTimeoutRef.current = null;
+      }, 1100);
+    }
+
+    previousBenchUidsRef.current = new Set(currentBenchUids);
+    previousActiveUidRef.current = side.active?.uid ?? null;
+  }, [animateOnNewCards, side.active?.uid, side.bench]);
+
+  useEffect(() => () => {
+    if (revealClearTimeoutRef.current !== null) window.clearTimeout(revealClearTimeoutRef.current);
+    if (exitingClearTimeoutRef.current !== null) window.clearTimeout(exitingClearTimeoutRef.current);
+    if (shiftClearTimeoutRef.current !== null) window.clearTimeout(shiftClearTimeoutRef.current);
+    if (shiftAnimationFrameRef.current !== null) window.cancelAnimationFrame(shiftAnimationFrameRef.current);
+  }, []);
+
+  useEffect(() => {
+    const currentBenchOrder = side.bench.map((umamusume) => umamusume.uid);
+    const currentBenchUidSet = new Set(currentBenchOrder);
+    const previousBenchOrder = previousBenchOrderRef.current;
+    const previousBenchByUid = previousBenchByUidRef.current;
+
+    if (!hidden && !setupMode) {
+      const removed = previousBenchOrder
+        .filter((uid) => !currentBenchUidSet.has(uid))
+        .map((uid) => {
+          const removedUmamusume = previousBenchByUid.get(uid);
+          const index = previousBenchOrder.indexOf(uid);
+          if (!removedUmamusume || index < 0) return null;
+          return { uid, index, umamusume: removedUmamusume } satisfies ExitingBenchCard;
+        })
+        .filter((entry): entry is ExitingBenchCard => Boolean(entry));
+
+      if (removed.length > 0) {
+        setExitingBenchCards(removed);
+        if (exitingClearTimeoutRef.current !== null) window.clearTimeout(exitingClearTimeoutRef.current);
+        exitingClearTimeoutRef.current = window.setTimeout(() => {
+          setExitingBenchCards([]);
+          exitingClearTimeoutRef.current = null;
+        }, 620);
+      }
+
+      const shiftedOffsets = currentBenchOrder.reduce<Record<number, number>>((offsets, uid, newIndex) => {
+        const previousIndex = previousBenchOrder.indexOf(uid);
+        if (previousIndex > newIndex) offsets[uid] = (previousIndex - newIndex) * 200;
+        return offsets;
+      }, {});
+
+      if (Object.keys(shiftedOffsets).length > 0) {
+        setBenchShiftOffsetByUid(shiftedOffsets);
+        if (shiftAnimationFrameRef.current !== null) window.cancelAnimationFrame(shiftAnimationFrameRef.current);
+        shiftAnimationFrameRef.current = window.requestAnimationFrame(() => {
+          shiftAnimationFrameRef.current = window.requestAnimationFrame(() => {
+            setBenchShiftOffsetByUid((current) => {
+              const next = { ...current };
+              Object.keys(shiftedOffsets).forEach((uid) => { next[Number(uid)] = 0; });
+              return next;
+            });
+            shiftAnimationFrameRef.current = null;
+          });
+        });
+        if (shiftClearTimeoutRef.current !== null) window.clearTimeout(shiftClearTimeoutRef.current);
+        shiftClearTimeoutRef.current = window.setTimeout(() => {
+          setBenchShiftOffsetByUid((current) => {
+            const next = { ...current };
+            Object.keys(shiftedOffsets).forEach((uid) => { delete next[Number(uid)]; });
+            return next;
+          });
+          shiftClearTimeoutRef.current = null;
+        }, 360);
+      }
+    }
+
+    previousBenchOrderRef.current = currentBenchOrder;
+    previousBenchByUidRef.current = new Map(side.bench.map((umamusume) => [umamusume.uid, umamusume]));
+  }, [hidden, setupMode, side.bench]);
+
   return (
-    <div style={{ display: "grid", gridTemplateRows: `repeat(${MAX_BENCH}, 188px)`, gap: 12, overflow: "visible" }}>
+    <div style={{ position: "relative", display: "grid", gridTemplateRows: `repeat(${MAX_BENCH}, 188px)`, gap: 12, overflow: "visible" }}>
       {Array.from({ length: MAX_BENCH }, (_, index) => {
         if (hidden && index < visibleBenchCount) {
           return (
-            <div key={`bench-hidden-${index}`} style={slotStyle}>
+            <div
+              key={`bench-hidden-${index}-${animateSetupReveal ? setupRevealToken : 0}`}
+              style={{
+                ...slotStyle,
+                animation: animateSetupReveal ? `setup-reveal-slide-up 320ms cubic-bezier(0.2, 0.8, 0.2, 1) ${180 + index * 120}ms both` : undefined,
+              }}
+            >
               <div style={hiddenBenchCardWrapStyle}>
                 <div style={hiddenBenchCardFrameStyle}>
                   <FaceDownCard sleeveImage={sleeveImage} />
                 </div>
               </div>
-              <div style={{ height: 22, borderRadius: 8, background: "rgba(238, 243, 238, 0.56)", padding: 4, boxShadow: "0 6px 14px rgba(17, 24, 39, 0.1)", display: "grid", placeItems: "center", color: uiTextColor, textShadow: uiTextShadow, fontSize: 9, fontWeight: 900, backdropFilter: "blur(4px)" }}>
+              <div style={{ height: 22, borderRadius: 8, background: "rgba(238, 243, 238, 0.3)", padding: 4, boxShadow: "0 6px 14px rgba(17, 24, 39, 0.1)", display: "grid", placeItems: "center", color: uiTextColor, textShadow: uiTextShadow, fontSize: 9, fontWeight: 900, backdropFilter: "blur(4px)" }}>
                 Hidden
               </div>
             </div>
@@ -191,21 +314,64 @@ export function Bench({
             isDimmed={isChoosingUmamusume && !selectableUmamusumeUids?.has(umamusume.uid)}
             abilityEnergyTypes={abilityEnergyTypes}
             sleeveImage={sleeveImage}
+            revealOrder={playedBenchRevealOrderByUid[umamusume.uid]}
+            shiftOffset={benchShiftOffsetByUid[umamusume.uid]}
             onInspect={onInspect}
             onUmamusumeSelect={onUmamusumeSelect}
           />
+        );
+      })}
+      {!hidden && exitingBenchCards.map((entry) => {
+        const card = getUmamusumeCard(entry.umamusume);
+        return (
+          <div
+            key={`bench-exit-${entry.uid}`}
+            style={{
+              position: "absolute",
+              left: 0,
+              top: entry.index * 200,
+              width: 164,
+              height: 188,
+              pointerEvents: "none",
+              zIndex: 6,
+            }}
+          >
+            <div style={{ ...slotStyle, animation: "bench-ko-card-exit 620ms cubic-bezier(0.2, 0.8, 0.2, 1) both" }}>
+              <div style={{ position: "relative", height: 158, width: "100%", borderRadius: 8, overflow: "visible", filter: "drop-shadow(0 14px 18px rgba(17, 24, 39, 0.18))" }}>
+                <img
+                  style={{ width: "100%", height: "100%", borderRadius: 8, objectFit: "contain", display: "block" }}
+                  src={card.portrait}
+                  alt=""
+                  draggable={false}
+                />
+              </div>
+              <div style={{ height: 22, borderRadius: 8, background: "rgba(238, 243, 238, 0.3)", color: uiTextColor, textShadow: uiTextShadow, padding: 4, boxShadow: "0 6px 14px rgba(17, 24, 39, 0.1)", backdropFilter: "blur(4px)", animation: "bench-ko-hp-exit 220ms ease-in both" }}>
+                <div style={{ height: 7, fontSize: 9, lineHeight: "7px", fontWeight: 900 }}>{Math.max(0, entry.umamusume.hp)}/{entry.umamusume.maxHp}</div>
+                <div style={{ marginTop: 3, height: 5, overflow: "hidden", borderRadius: 999, background: "rgba(238, 243, 238, 0.3)" }}>
+                  <div style={{ width: `${Math.max(0, Math.round((entry.umamusume.hp / entry.umamusume.maxHp) * 100))}%`, height: "100%", borderRadius: 999, background: benchTypeColors[card.type] }} />
+                </div>
+              </div>
+            </div>
+          </div>
         );
       })}
     </div>
   );
 }
 
-function BenchSlot({ card, umamusume, side, hidden, setupMode, activeSetupHandIndex, setupDragHandIndex, onSetupPromoteToActive, onHandCardDropOnUmamusume, onEnergyDropOnUmamusume, hpPercent, fillColor, abilityReady, hoverBorderColor, hoverBackground, hoverRingColor, hoverGlowColor, isSelectable, isDimmed, abilityEnergyTypes, sleeveImage, onInspect, onUmamusumeSelect }: { card: ReturnType<typeof getUmamusumeCard>; umamusume: UmamusumeInstance; side: SideState; hidden: boolean; setupMode: boolean; activeSetupHandIndex: number | undefined; setupDragHandIndex: number | undefined; onSetupPromoteToActive?: ((handIndex: number) => void) | undefined; onHandCardDropOnUmamusume?: ((handIndex: number, umamusumeUid: number) => void) | undefined; onEnergyDropOnUmamusume?: ((umamusumeUid: number) => void) | undefined; hpPercent: number; fillColor: string; abilityReady: boolean; hoverBorderColor: string; hoverBackground: string; hoverRingColor: string; hoverGlowColor: string; isSelectable: boolean; isDimmed: boolean; abilityEnergyTypes?: Set<EnergyType> | undefined; sleeveImage?: string | null | undefined; onInspect: (target: InspectTarget) => void; onUmamusumeSelect?: ((umamusume: UmamusumeInstance) => void) | undefined }) {
+function BenchSlot({ card, umamusume, side, hidden, setupMode, activeSetupHandIndex, setupDragHandIndex, onSetupPromoteToActive, onHandCardDropOnUmamusume, onEnergyDropOnUmamusume, hpPercent, fillColor, abilityReady, hoverBorderColor, hoverBackground, hoverRingColor, hoverGlowColor, isSelectable, isDimmed, abilityEnergyTypes, sleeveImage, revealOrder, shiftOffset, onInspect, onUmamusumeSelect }: { card: ReturnType<typeof getUmamusumeCard>; umamusume: UmamusumeInstance; side: SideState; hidden: boolean; setupMode: boolean; activeSetupHandIndex: number | undefined; setupDragHandIndex: number | undefined; onSetupPromoteToActive?: ((handIndex: number) => void) | undefined; onHandCardDropOnUmamusume?: ((handIndex: number, umamusumeUid: number) => void) | undefined; onEnergyDropOnUmamusume?: ((umamusumeUid: number) => void) | undefined; hpPercent: number; fillColor: string; abilityReady: boolean; hoverBorderColor: string; hoverBackground: string; hoverRingColor: string; hoverGlowColor: string; isSelectable: boolean; isDimmed: boolean; abilityEnergyTypes?: Set<EnergyType> | undefined; sleeveImage?: string | null | undefined; revealOrder?: number | undefined; shiftOffset?: number | undefined; onInspect: (target: InspectTarget) => void; onUmamusumeSelect?: ((umamusume: UmamusumeInstance) => void) | undefined }) {
   const [hovered, setHovered] = useState(false);
   const [dropHovered, setDropHovered] = useState(false);
   const activeHover = hovered && !isDimmed;
   return (
-    <div style={slotStyle}>
+    <div
+      style={{
+        ...slotStyle,
+        transform: shiftOffset !== undefined ? `translateY(${shiftOffset}px)` : undefined,
+        transition: shiftOffset !== undefined ? "transform 280ms cubic-bezier(0.2, 0.8, 0.2, 1)" : undefined,
+        animation: revealOrder !== undefined ? `setup-reveal-slide-up 320ms cubic-bezier(0.2, 0.8, 0.2, 1) ${revealOrder * 120}ms both` : undefined,
+      }}
+    >
       <button
         type="button"
         style={{
@@ -237,6 +403,7 @@ function BenchSlot({ card, umamusume, side, hidden, setupMode, activeSetupHandIn
           if (!setupMode || setupDragHandIndex === undefined || hidden) return;
           event.dataTransfer.effectAllowed = "move";
           writeDragPayload(event.dataTransfer, { kind: "setup-hand", handIndex: setupDragHandIndex });
+          applyDragPreview(event, { width: 184, height: 258 });
         }}
         onDragOver={(event) => {
           if (hidden) return;
@@ -323,11 +490,11 @@ function BenchSlot({ card, umamusume, side, hidden, setupMode, activeSetupHandIn
         )}
       </button>
       {hidden ? (
-        <div style={{ height: 22, borderRadius: 8, background: "rgba(238, 243, 238, 0.56)", padding: 4, boxShadow: "0 6px 14px rgba(17, 24, 39, 0.1)", display: "grid", placeItems: "center", color: uiTextColor, textShadow: uiTextShadow, fontSize: 9, fontWeight: 900, backdropFilter: "blur(4px)" }}>
+        <div style={{ height: 22, borderRadius: 8, background: "rgba(238, 243, 238, 0.3)", padding: 4, boxShadow: "0 6px 14px rgba(17, 24, 39, 0.1)", display: "grid", placeItems: "center", color: uiTextColor, textShadow: uiTextShadow, fontSize: 9, fontWeight: 900, backdropFilter: "blur(4px)", animation: revealOrder !== undefined ? `hp-bar-appear 220ms ease-out ${80 + revealOrder * 120}ms both` : undefined }}>
           Hidden
         </div>
       ) : (
-          <div style={{ height: 22, borderRadius: 8, background: "rgba(238, 243, 238, 0.3)", color: uiTextColor, textShadow: uiTextShadow, padding: 4, boxShadow: "0 6px 14px rgba(17, 24, 39, 0.1)", backdropFilter: "blur(4px)" }}>
+          <div style={{ height: 22, borderRadius: 8, background: "rgba(238, 243, 238, 0.3)", color: uiTextColor, textShadow: uiTextShadow, padding: 4, boxShadow: "0 6px 14px rgba(17, 24, 39, 0.1)", backdropFilter: "blur(4px)", animation: revealOrder !== undefined ? `hp-bar-appear 220ms ease-out ${80 + revealOrder * 120}ms both` : undefined }}>
             <div style={{ height: 7, fontSize: 9, lineHeight: "7px", fontWeight: 900 }}>{umamusume.hp}/{umamusume.maxHp}</div>
             <div style={{ marginTop: 3, height: 5, overflow: "hidden", borderRadius: 999, background: "rgba(238, 243, 238, 0.3)" }}>
               <div style={{ width: `${hpPercent}%`, height: "100%", borderRadius: 999, background: fillColor, transition: "width 180ms ease" }} />

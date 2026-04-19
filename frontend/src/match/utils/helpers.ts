@@ -21,6 +21,10 @@ export function createSetupHiddenOpponentSide(side: SideState): SideState {
   return { ...side, bench: [] };
 }
 
+export function createSetupEmptyOpponentSide(side: SideState): SideState {
+  return { ...side, active: null, bench: [] };
+}
+
 function getSetupPreviewUmamusumeCardId(cardId?: string): string | null {
   if (!cardId) return null;
   const card = getCard(cardId);

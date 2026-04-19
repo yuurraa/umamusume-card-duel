@@ -38,6 +38,7 @@ import type { ActionNoticeSource, AppScreen, PendingSelection } from "./types/ui
 import { getDeckById, readEquippedDeckId, writeEquippedDeckId, pickRandomOpponentDeck } from "./utils/deck";
 import {
   createSetupPreviewSide,
+  createSetupEmptyOpponentSide,
   createSetupHiddenOpponentSide,
   getSelectableUmamusumeUids,
   getOpponentStepDelay,
@@ -108,7 +109,9 @@ export function App() {
   const [setupActiveIndex, setSetupActiveIndex] = useState<number | null>(null);
   const [setupBenchIndexes, setSetupBenchIndexes] = useState<number[]>([]);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [opponentSetupRevealToken, setOpponentSetupRevealToken] = useState(0);
   const previousLogRef = useRef<string[]>([]);
+  const wasSetupCoinFlipBlockingRef = useRef(false);
   const coinFlipIdRef = useRef(1);
   const equippedDeck = getDeckById(equippedDeckId);
   const selectedPlaymat = getSelectedPlaymat(customisation);
@@ -142,9 +145,15 @@ export function App() {
   const hiddenOpponent = game.phase === "setup" && !game.setup?.opponentRevealed;
   const isBusyWithChoice = Boolean(pendingSelection || game.pendingPlayerChoice || endTurnWarningActions);
   const isCoinFlipBlocking = Boolean(activeCoinFlip || coinFlipQueue.length > 0);
+  const hideOpponentSetupBoard = game.phase === "setup" && isCoinFlipBlocking;
+  const opponentBoardHidden = hiddenOpponent && !hideOpponentSetupBoard;
   const displayedPlayerSide = game.phase === "setup" ? createSetupPreviewSide(player, setupActiveIndex, setupBenchIndexes) : player;
-  const displayedOpponentSide = hiddenOpponent ? createSetupHiddenOpponentSide(game.sides.opponent) : game.sides.opponent;
-  const hiddenOpponentBenchCount = hiddenOpponent ? game.sides.opponent.bench.length : undefined;
+  const displayedOpponentSide = hideOpponentSetupBoard
+    ? createSetupEmptyOpponentSide(game.sides.opponent)
+    : hiddenOpponent
+      ? createSetupHiddenOpponentSide(game.sides.opponent)
+      : game.sides.opponent;
+  const hiddenOpponentBenchCount = opponentBoardHidden ? game.sides.opponent.bench.length : undefined;
   const isPlayPhase = game.phase === "play";
   const showPlayerPlaymat = !isPlayPhase || game.currentSide === "player";
   const showOpponentPlaymat = isPlayPhase && game.currentSide === "opponent";
@@ -335,6 +344,14 @@ export function App() {
       });
     }
   }, [game, previewTarget]);
+
+  useEffect(() => {
+    const setupCoinFlipBlocking = game.phase === "setup" && isCoinFlipBlocking;
+    if (wasSetupCoinFlipBlockingRef.current && !setupCoinFlipBlocking && hiddenOpponent) {
+      setOpponentSetupRevealToken((current) => current + 1);
+    }
+    wasSetupCoinFlipBlockingRef.current = setupCoinFlipBlocking;
+  }, [game.phase, hiddenOpponent, isCoinFlipBlocking]);
 
   useEffect(() => {
     if (game.pendingPlayerChoice) setPreviewTarget(null);
@@ -541,7 +558,9 @@ export function App() {
     const cardId = player.hand[handIndex];
     if (!cardId) return;
     const card = getCard(cardId);
+    if (card.kind === "umamusume") return;
     if (card.kind !== "trainer" || card.effect.heal) return;
+    if (card.trainerType === "tool") return;
     if (card.trainerType === "stadium") return;
     playCard(handIndex);
   };
@@ -780,11 +799,13 @@ export function App() {
             key={hiddenOpponent ? "opponent-setup-hidden" : "opponent-live"}
             side={displayedOpponentSide}
             sideId="opponent"
-            hidden={hiddenOpponent}
+            hidden={opponentBoardHidden}
             onInspect={openPreview}
             selectableUmamusumeUids={game.phase === "play" ? opponentSelectableUmamusumeUids : undefined}
             onUmamusumeSelect={selectUmamusume}
             sleeveImage={opponentSleeve.image}
+            animateSetupReveal={game.phase === "setup" && opponentBoardHidden && opponentSetupRevealToken > 0}
+            setupRevealToken={opponentSetupRevealToken}
             {...(hiddenOpponentBenchCount !== undefined ? { hiddenBenchCount: hiddenOpponentBenchCount } : {})}
           />
           {game.phase === "play" && (

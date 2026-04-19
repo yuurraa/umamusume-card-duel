@@ -1,4 +1,4 @@
-import { type CSSProperties, type DragEvent, useState } from "react";
+import { type CSSProperties, type DragEvent, useEffect, useRef, useState } from "react";
 import type { GameState } from "../../../../shared/src/types";
 import type { InspectTarget } from "../../inspect";
 import { getCard } from "../../game/engine";
@@ -13,9 +13,19 @@ export function StadiumSpot({ state, abilityReady = false, onDropHandCard, onIns
   onInspect: (target: InspectTarget) => void;
 }) {
   const [hovered, setHovered] = useState(false);
+  const [opponentStadiumRevealToken, setOpponentStadiumRevealToken] = useState(0);
+  const previousStadiumCardIdRef = useRef<string | null>(state.stadium?.cardId ?? null);
   const stadium = state.stadium ? getCard(state.stadium.cardId) : null;
   const stadiumImage = stadium?.kind === "trainer" ? stadium.image : null;
   const stadiumName = stadium?.kind === "trainer" ? stadium.name : "Stadium Spot";
+
+  useEffect(() => {
+    const previousCardId = previousStadiumCardIdRef.current;
+    const currentCardId = state.stadium?.cardId ?? null;
+    const newlyPlayedStadium = previousCardId !== currentCardId && currentCardId !== null;
+    if (newlyPlayedStadium) setOpponentStadiumRevealToken((current) => current + 1);
+    previousStadiumCardIdRef.current = currentCardId;
+  }, [state.stadium]);
 
   const handleDrop = (event: DragEvent<HTMLButtonElement>) => {
     event.preventDefault();
@@ -51,10 +61,17 @@ export function StadiumSpot({ state, abilityReady = false, onDropHandCard, onIns
       onDrop={handleDrop}
       aria-label={stadiumName}
     >
+      <style>{STADIUM_REVEAL_KEYFRAMES}</style>
     {stadiumImage
         ? (
           <>
-            <img style={stadiumImageStyle(hovered)} src={stadiumImage} alt={stadiumName} draggable={false} />
+            <img
+              key={`stadium-${opponentStadiumRevealToken}-${stadiumImage}`}
+              style={stadiumImageStyle(hovered, Boolean(opponentStadiumRevealToken > 0))}
+              src={stadiumImage}
+              alt={stadiumName}
+              draggable={false}
+            />
             {abilityReady && <AbilityReadyBadge corner="topLeft" size="xs" nudgeX={14} />}
           </>
         )
@@ -92,7 +109,7 @@ function StadiumSpotStyle(hovered: boolean, hasCard: boolean, abilityReady: bool
   };
 }
 
-function stadiumImageStyle(hovered: boolean): CSSProperties {
+function stadiumImageStyle(hovered: boolean, reveal: boolean): CSSProperties {
   return {
     width: "100%",
     height: "100%",
@@ -104,6 +121,7 @@ function stadiumImageStyle(hovered: boolean): CSSProperties {
       : "drop-shadow(0 14px 20px rgba(17, 24, 39, 0.18))",
     transform: hovered ? "translateY(-6px) rotate(0.8deg) scale(1.03)" : "translateY(0) rotate(0deg) scale(1)",
     transition: "transform 160ms ease, filter 160ms ease",
+    animation: reveal ? "stadium-reveal-slide-up 320ms cubic-bezier(0.2, 0.8, 0.2, 1) both" : undefined,
   };
 }
 
@@ -118,3 +136,10 @@ const stadiumEmptyTextStyle: CSSProperties = {
   textShadow: uiTextShadow,
   textAlign: "center",
 };
+
+const STADIUM_REVEAL_KEYFRAMES = `
+@keyframes stadium-reveal-slide-up {
+  from { opacity: 0; transform: translateY(26px) scale(0.96); filter: blur(2px); }
+  to { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+}
+`;
