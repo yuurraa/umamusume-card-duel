@@ -46,7 +46,7 @@ import { CardPreview } from "./match/modals/CardPreview";
 import { DiscardPileModal } from "./match/modals/DiscardPileModal";
 import { DeckChoiceModal } from "./match/modals/DeckChoiceModal";
 import { PlayDropZone } from "./match/board/PlayDropZone";
-import { StadiumSlot } from "./match/board/StadiumSlot";
+import { StadiumSpot } from "./match/board/StadiumSpot";
 import { PlayHandHeader } from "./match/controls/HandControls";
 import { PregameSetupPanel } from "./match/setup/PregameSetupPanel";
 import { GameOverModal } from "./match/modals/GameOverModal";
@@ -59,6 +59,7 @@ import { MainMenuScreen } from "./screens/MainMenuScreen";
 import { DeckBrowserScreen } from "./screens/DeckBrowserScreen";
 import { CustomisationScreen } from "./screens/CustomisationScreen";
 import {
+  getPlaymatTextTone,
   getSelectedPlaymat,
   getSelectedSleeve,
   getRandomCustomisationSettings,
@@ -111,6 +112,7 @@ export function App() {
   const coinFlipIdRef = useRef(1);
   const equippedDeck = getDeckById(equippedDeckId);
   const selectedPlaymat = getSelectedPlaymat(customisation);
+  const uiTextTone = getPlaymatTextTone(customisation);
   const selectedSleeve = getSelectedSleeve(customisation);
   const opponentPlaymat = getSelectedPlaymat(opponentCustomisation);
   const opponentSleeve = getSelectedSleeve(opponentCustomisation);
@@ -544,7 +546,7 @@ export function App() {
     playCard(handIndex);
   };
 
-  const playHandCardOnStadiumSlot = (handIndex: number) => {
+  const playHandCardOnStadiumSpot = (handIndex: number) => {
     const cardId = player.hand[handIndex];
     if (!cardId) return;
     const card = getCard(cardId);
@@ -709,7 +711,7 @@ export function App() {
 
   if (screen === "mainMenu") {
     return (
-      <main style={appStyle(true, selectedPlaymat.image)}>
+      <main style={appStyle(true, selectedPlaymat.image, uiTextTone)}>
         <MainMenuScreen
           equippedDeck={equippedDeck}
           onPlay={playEquippedDeck}
@@ -724,7 +726,7 @@ export function App() {
 
   if (screen === "decks") {
     return (
-      <main style={appStyle(false, selectedPlaymat.image)}>
+      <main style={appStyle(false, selectedPlaymat.image, uiTextTone)}>
         <DeckBrowserScreen
           decks={premadeDecks}
           equippedDeckId={equippedDeck.id}
@@ -738,7 +740,7 @@ export function App() {
 
   if (screen === "customisation") {
     return (
-      <main style={appStyle(false, selectedPlaymat.image)}>
+      <main style={appStyle(false, selectedPlaymat.image, uiTextTone)}>
         <CustomisationScreen
           settings={customisation}
           onChange={setCustomisation}
@@ -750,7 +752,7 @@ export function App() {
   }
 
   return (
-    <main style={appStyle(false)}>
+    <main style={appStyle(false, undefined, uiTextTone)}>
       <div style={matchBackgroundLayerStyle(selectedPlaymat.image, showPlayerPlaymat ? 1 : 0)} />
       <div style={matchBackgroundLayerStyle(opponentPlaymat.image, showOpponentPlaymat ? 1 : 0)} />
       <div style={contentStyle}>
@@ -787,7 +789,7 @@ export function App() {
           />
           {game.phase === "play" && (
             <>
-              <StadiumSlot state={game} abilityReady={stadiumAbilityReady} onDropHandCard={playHandCardOnStadiumSlot} onInspect={openPreview} />
+              <StadiumSpot state={game} abilityReady={stadiumAbilityReady} onDropHandCard={playHandCardOnStadiumSpot} onInspect={openPreview} />
               <PlayDropZone onDropHandCard={playHandCardOnCenter} />
             </>
           )}
@@ -1009,7 +1011,13 @@ export function App() {
   );
 }
 
-function appStyle(isMenu = false, playmatImage?: string | null): CSSProperties {
+function appStyle(isMenu = false, playmatImage?: string | null, textTone: "dark" | "light" = "dark"): CSSProperties {
+  const uiTextColor = textTone === "light" ? "#f8fafc" : "#05070a";
+  const uiTextShadow = textTone === "light"
+    ? "0 1px 0 rgba(0, 0, 0, 0.82), 0 0 1px rgba(0, 0, 0, 0.94), 0 2px 12px rgba(0, 0, 0, 0.65)"
+    : "0 1px 0 rgba(255, 255, 255, 0.92), 0 0 1px rgba(255, 255, 255, 0.9), 0 2px 10px rgba(0, 0, 0, 0.35)";
+  const uiMutedTextColor = textTone === "light" ? "rgba(226, 232, 240, 0.76)" : "rgba(100, 113, 104, 0.52)";
+
   return {
     height: isMenu ? "100%" : "auto",
     minHeight: "100%",
@@ -1017,13 +1025,16 @@ function appStyle(isMenu = false, playmatImage?: string | null): CSSProperties {
     overflow: isMenu ? "hidden" : "clip",
     padding: isMenu ? 0 : 16,
     boxSizing: "border-box",
-    color: "#000000",
-    textShadow: "1px 1px 1px rgba(255, 255, 255, 0.6)",
+    color: "var(--ui-text-color)",
+    textShadow: "var(--ui-text-shadow)",
     fontFamily: "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+    "--ui-text-color": uiTextColor,
+    "--ui-text-shadow": uiTextShadow,
+    "--ui-muted-text-color": uiMutedTextColor,
     background: playmatImage
       ? `url("${playmatImage}") center / cover fixed no-repeat`
       : "radial-gradient(circle at 18% 8%, rgba(214, 81, 157, 0.2), transparent 28%), radial-gradient(circle at 84% 20%, rgba(63, 159, 92, 0.16), transparent 30%), linear-gradient(135deg, #101820 0%, #223733 54%, #4a2647 100%)",
-  };
+  } as CSSProperties;
 }
 
 function screenFadeOverlayStyle(opacity: number): CSSProperties {
@@ -1074,7 +1085,6 @@ const handPanelStyle: CSSProperties = {
   background: "rgba(148, 163, 184, 0.08)",
   padding: 10,
   boxShadow: "0 24px 80px rgba(17, 24, 39, 0.14)",
-  backdropFilter: "blur(7px)",
 };
 
 const RETREAT_ENERGY_ORDER: EnergyType[] = ["grass", "fire", "water", "lightning", "psychic", "fighting", "darkness", "steel", "colorless", "dragon"];

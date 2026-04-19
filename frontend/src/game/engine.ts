@@ -312,6 +312,8 @@ export function usePlayerAbility(
   }
 
   if (ability.coinFlipDrawOrActiveDamageCounter) {
+    const active = side.active;
+    if (!active) return next;
     const heads = Math.random() >= 0.5;
     abilityUmamusume.usedAbilityThisTurn = true;
     side.usedAbilityNamesThisTurn ??= [];
@@ -325,8 +327,8 @@ export function usePlayerAbility(
       return next;
     }
     const damage = ability.coinFlipDrawOrActiveDamageCounter.damageOnTails;
-    side.active.hp = Math.max(0, side.active.hp - damage);
-    side.active.tookDamageThisTurn = damage > 0;
+    active.hp = Math.max(0, active.hp - damage);
+    active.tookDamageThisTurn = damage > 0;
     log(next, "Flip a coin and got 1x tails.");
     log(next, `${actorName(side)} put 1 damage counter on ${actorLowerPossessive(side)} Active Umamusume.`);
     normalizeBoardState(next);

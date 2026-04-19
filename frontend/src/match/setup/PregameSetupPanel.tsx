@@ -4,7 +4,7 @@ import type { InspectTarget } from "../../inspect";
 import { Hand } from "../../components/boards/Hand";
 import { NeutralButton } from "../../components/buttons/NeutralButton";
 import { MatchMenuControl } from "../controls/HandControls";
-import { attackButtonStyle, previewKickerStyle } from "../../styles/shared";
+import { attackButtonStyle, uiTextColor, uiTextShadow } from "../../styles/shared";
 
 export function PregameSetupPanel({
   game,
@@ -66,7 +66,7 @@ export function PregameSetupPanel({
 
 const pregamePanelStyle: CSSProperties = {
   display: "grid",
-  background: "rgba(148, 163, 184, 0.08)",
+  background: "transparent",
   gap: 0,
 };
 
@@ -79,7 +79,8 @@ const pregamePanelHeaderStyle: CSSProperties = {
 
 const pregameTitleStyle: CSSProperties = {
   margin: "2px 0 0",
-  color: "#000000",
+  color: uiTextColor,
+  textShadow: uiTextShadow,
   fontSize: 30,
   lineHeight: 1.05,
   fontWeight: 950,

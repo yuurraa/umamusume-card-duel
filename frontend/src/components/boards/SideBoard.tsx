@@ -6,6 +6,7 @@ import { getCard, getUmamusumeCard } from "../../game/engine";
 import { MAX_POINTS } from "../../../../shared/src/gameData";
 import type { EnergyType, UmamusumeInstance, UmamusumeType, SideId, SideState } from "../../../../shared/src/types";
 import type { InspectTarget } from "../../inspect";
+import { uiTextColor, uiTextShadow } from "../../styles/shared";
 
 type SideBoardProps = {
   side: SideState;
@@ -268,12 +269,12 @@ export function SideBoard({
 
 function HealthBar({ hp, maxHp, percent, color }: { hp: number; maxHp: number; percent: number; color: string }) {
   return (
-    <div style={{ boxSizing: "border-box", height: 48, borderRadius: 8, background: "rgba(238, 243, 238, 0.68)", border: "1px solid rgba(217, 225, 218, 0.72)", color: "#000000", padding: 8, boxShadow: "0 12px 30px rgba(17, 24, 39, 0.12)", backdropFilter: "blur(5px)" }}>
+    <div style={{ boxSizing: "border-box", height: 48, borderRadius: 8, background: "rgba(238, 243, 238, 0.3)", border: "1px solid rgba(217, 225, 218, 0.72)", color: uiTextColor, textShadow: uiTextShadow, padding: 8, boxShadow: "0 12px 30px rgba(17, 24, 39, 0.12)", backdropFilter: "blur(5px)" }}>
       <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, lineHeight: "12px", fontWeight: 900 }}>
         <span>{hp}/{maxHp}</span>
         <span>{percent}%</span>
       </div>
-      <div style={{ height: 10, marginTop: 7, overflow: "hidden", borderRadius: 999, background: "#e2e8f0" }}>
+      <div style={{ height: 10, marginTop: 7, overflow: "hidden", borderRadius: 999, background: "rgba(238, 243, 238, 0.3)" }}>
         <div style={{ height: "100%", width: `${percent}%`, borderRadius: 999, background: color, transition: "width 180ms ease" }} />
       </div>
     </div>
@@ -282,15 +283,15 @@ function HealthBar({ hp, maxHp, percent, color }: { hp: number; maxHp: number; p
 
 function HiddenHealthBar() {
   return (
-    <div style={{ boxSizing: "border-box", height: 48, borderRadius: 8, background: "rgba(238, 243, 238, 0.68)", border: "1px solid rgba(217, 225, 218, 0.72)", padding: 8, boxShadow: "0 12px 30px rgba(17, 24, 39, 0.12)", display: "grid", placeItems: "center", color: "#000000", fontSize: 12, fontWeight: 900, backdropFilter: "blur(5px)" }}>
-      Face Down
+    <div style={{ boxSizing: "border-box", height: 48, borderRadius: 8, background: "rgba(238, 243, 238, 0.3)", border: "1px solid rgba(217, 225, 218, 0.72)", padding: 8, boxShadow: "0 12px 30px rgba(17, 24, 39, 0.12)", display: "grid", placeItems: "center", color: uiTextColor, textShadow: uiTextShadow, fontSize: 12, fontWeight: 900, backdropFilter: "blur(5px)" }}>
+      Hidden
     </div>
   );
 }
 
 function EmptyHealthBar() {
   return (
-    <div style={{ boxSizing: "border-box", height: 48, borderRadius: 8, border: "1px dashed rgba(0, 0, 0, 0.45)", background: "rgba(238, 243, 238, 0.34)", display: "grid", placeItems: "center", color: "#000000", fontSize: 12, fontWeight: 900, backdropFilter: "blur(4px)" }}>
+    <div style={{ boxSizing: "border-box", height: 48, borderRadius: 8, border: "1px dashed rgba(185, 198, 188, 0.88)", background: "rgba(238, 243, 238, 0.3)", display: "grid", placeItems: "center", color: uiTextColor, textShadow: uiTextShadow, fontSize: 12, fontWeight: 900, backdropFilter: "blur(4px)" }}>
       No Active
     </div>
   );
@@ -429,9 +430,10 @@ const emptyActiveSpotStyle: CSSProperties = {
   display: "grid",
   placeItems: "center",
   borderRadius: 8,
-  border: "1px dashed rgba(0, 0, 0, 0.45)",
+  border: "1px dashed rgba(185, 198, 188, 0.88)",
   background: "rgba(238, 243, 238, 0.3)",
-  color: "#000000",
+  color: uiTextColor,
+  textShadow: uiTextShadow,
   fontSize: 16,
   fontWeight: 900,
 };

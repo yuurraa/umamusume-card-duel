@@ -6,17 +6,17 @@ export type NeutralButtonTone = "default" | "danger";
 export function neutralButtonStyle(enabled: boolean, hovered: boolean, tone: NeutralButtonTone = "default"): CSSProperties {
   const isDanger = tone === "danger";
   const borderColor = hovered && enabled
-    ? (isDanger ? "rgba(220, 38, 38, 0.42)" : "rgba(0, 0, 0, 0.34)")
-    : (isDanger ? "rgba(248, 113, 113, 0.36)" : "rgba(185, 198, 188, 0.9)");
+    ? (isDanger ? "rgba(220, 38, 38, 0.52)" : "rgba(0, 0, 0, 0.42)")
+    : (isDanger ? "rgba(248, 113, 113, 0.42)" : "rgba(185, 198, 188, 0.86)");
   const backgroundColor = hovered && enabled
-    ? (isDanger ? "rgba(254, 226, 226, 0.92)" : "rgba(238, 243, 238, 0.9)")
-    : "rgba(238, 243, 238, 0.82)";
+    ? (isDanger ? "linear-gradient(180deg, rgba(255, 241, 242, 0.96) 0%, rgba(254, 226, 226, 0.92) 100%)" : "linear-gradient(180deg, rgba(245, 248, 245, 0.96) 0%, rgba(238, 243, 238, 0.9) 100%)")
+    : "linear-gradient(180deg, rgba(243, 247, 243, 0.94) 0%, rgba(238, 243, 238, 0.84) 100%)";
   const textColor = enabled
     ? (isDanger ? (hovered ? "#991b1b" : "#7f1d1d") : "#000000")
     : "#000000";
   const buttonShadow = hovered && enabled
-    ? (isDanger ? "0 16px 36px rgba(220, 38, 38, 0.2)" : "0 16px 36px rgba(17, 24, 39, 0.14)")
-    : "0 12px 28px rgba(17, 24, 39, 0.1)";
+    ? (isDanger ? "0 16px 34px rgba(220, 38, 38, 0.22)" : "0 16px 34px rgba(17, 24, 39, 0.16)")
+    : "0 10px 24px rgba(17, 24, 39, 0.1)";
 
   return {
     height: 48,
@@ -29,16 +29,30 @@ export function neutralButtonStyle(enabled: boolean, hovered: boolean, tone: Neu
     cursor: enabled ? "pointer" : "not-allowed",
     opacity: enabled ? 1 : 0.55,
     boxShadow: buttonShadow,
-    transition: "background 140ms ease, border-color 140ms ease, box-shadow 140ms ease, color 140ms ease",
+    transform: enabled && hovered ? "translateY(-1px)" : "translateY(0)",
+    transition: "background 140ms ease, border-color 140ms ease, box-shadow 140ms ease, color 140ms ease, transform 140ms ease",
   };
 }
 
 export function buttonStyle(_enabled: boolean): CSSProperties {
-  return {};
+  return {
+    width: "100%",
+    minHeight: 52,
+    padding: "0 16px",
+    fontSize: 16,
+    fontWeight: 900,
+  };
 }
 
-export function attackButtonStyle(_enabled: boolean): CSSProperties {
-  return {};
+export function attackButtonStyle(enabled: boolean): CSSProperties {
+  return {
+    minWidth: 116,
+    height: 44,
+    padding: "0 14px",
+    fontSize: 14,
+    fontWeight: 900,
+    opacity: enabled ? 1 : 0.9,
+  };
 }
 
 export function previewAccentButtonStyle(enabled: boolean, hovered: boolean, accent: string): CSSProperties {
@@ -55,7 +69,8 @@ export function previewAccentButtonStyle(enabled: boolean, hovered: boolean, acc
     cursor: enabled ? "pointer" : "not-allowed",
     opacity: enabled ? 1 : 0.62,
     boxShadow: enabled && hovered ? `0 12px 28px ${alphaColor(accent, 0.22)}` : "0 8px 18px rgba(17,24,39,0.08)",
-    transition: "background 140ms ease, border-color 140ms ease, color 140ms ease, box-shadow 140ms ease",
+    transform: enabled && hovered ? "translateY(-1px)" : "translateY(0)",
+    transition: "background 140ms ease, border-color 140ms ease, color 140ms ease, box-shadow 140ms ease, transform 140ms ease",
   };
 }
 
@@ -83,7 +98,8 @@ export const overlayBackdropStyle: CSSProperties = {
 };
 
 export const previewKickerStyle: CSSProperties = {
-  color: "#000000",
+  color: "var(--ui-text-color, #05070a)",
+  textShadow: "var(--ui-text-shadow, 0 1px 0 rgba(255, 255, 255, 0.92), 0 0 1px rgba(255, 255, 255, 0.9), 0 2px 10px rgba(0, 0, 0, 0.35))",
   fontSize: 11,
   fontWeight: 900,
   letterSpacing: 0,
@@ -97,3 +113,17 @@ export const inlineEnergyLabelStyle: CSSProperties = {
   gap: 8,
   flexWrap: "wrap",
 };
+
+export const glassPanelStyle: CSSProperties = {
+  borderRadius: 8,
+  border: "1px solid rgba(217, 225, 218, 0.76)",
+  background: "rgba(238, 243, 238, 0.22)",
+  boxShadow: "0 18px 46px rgba(17, 24, 39, 0.14)",
+  backdropFilter: "blur(5px)",
+};
+
+export const GLASS_TILE_BACKGROUND = "rgba(238, 243, 238, 0.22)";
+export const GLASS_TILE_BACKDROP_FILTER = "blur(5px)";
+export const uiTextColor = "var(--ui-text-color, #05070a)";
+export const uiTextShadow = "var(--ui-text-shadow, 0 1px 0 rgba(255, 255, 255, 0.92), 0 0 1px rgba(255, 255, 255, 0.9), 0 2px 10px rgba(0, 0, 0, 0.35))";
+export const uiMutedTextColor = "var(--ui-muted-text-color, rgba(100, 113, 104, 0.52))";

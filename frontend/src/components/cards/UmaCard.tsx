@@ -103,7 +103,7 @@ export function FaceDownCard({ sleeveImage, fontSize = 12 }: { sleeveImage?: str
       {sleeveImage ? (
         <img style={hiddenSleeveImageStyle} src={sleeveImage} alt="" draggable={false} />
       ) : (
-        "Face Down"
+        "Hidden"
       )}
     </div>
   );

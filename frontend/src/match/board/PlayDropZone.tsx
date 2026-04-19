@@ -1,5 +1,6 @@
 import { type CSSProperties, type DragEvent, useState } from "react";
 import { hasTextDragPayload, readDragPayload } from "../../components/drag/dragData";
+import { uiTextColor, uiTextShadow } from "../../styles/shared";
 
 export function PlayDropZone({ onDropHandCard }: { onDropHandCard: (handIndex: number) => void }) {
   const [hovered, setHovered] = useState(false);
@@ -16,7 +17,7 @@ export function PlayDropZone({ onDropHandCard }: { onDropHandCard: (handIndex: n
     <div
       style={{
         ...playDropZoneStyle,
-        borderColor: hovered ? "rgba(0, 0, 0, 0.65)" : playDropZoneStyle.borderColor,
+        borderColor: hovered ? "rgba(148, 163, 184, 0.72)" : playDropZoneStyle.borderColor,
         background: hovered ? "rgba(238, 243, 238, 0.9)" : playDropZoneStyle.background,
       }}
       onDragOver={(event) => {
@@ -48,9 +49,10 @@ const playDropZoneStyle: CSSProperties = {
   display: "grid",
   placeItems: "center",
   borderRadius: "50%",
-  border: "2px dashed rgba(0, 0, 0, 0.45)",
-  background: "rgba(238, 243, 238, 0.74)",
-  color: "#000000",
+  border: "2px dashed rgba(185, 198, 188, 0.88)",
+  background: "rgba(238, 243, 238, 0.24)",
+  color: uiTextColor,
+  textShadow: uiTextShadow,
   fontSize: 13,
   fontWeight: 900,
   textAlign: "center",

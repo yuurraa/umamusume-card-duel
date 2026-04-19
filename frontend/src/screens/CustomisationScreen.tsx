@@ -1,6 +1,6 @@
 import { type CSSProperties, type ReactNode, useState } from "react";
 import { NeutralButton } from "../components/buttons/NeutralButton";
-import { previewKickerStyle } from "../styles/shared";
+import { GLASS_TILE_BACKGROUND, GLASS_TILE_BACKDROP_FILTER, glassPanelStyle, previewKickerStyle, uiTextColor, uiTextShadow } from "../styles/shared";
 import type { CustomisationOption, CustomisationSettings } from "../utils/customisation";
 import { playmatOptions, sleeveOptions } from "../utils/customisation";
 
@@ -115,21 +115,18 @@ const customisationShellStyle: CSSProperties = {
 };
 
 const customisationHeaderStyle: CSSProperties = {
+  ...glassPanelStyle,
   display: "flex",
   alignItems: "flex-start",
   justifyContent: "space-between",
   gap: 16,
-  borderRadius: 8,
-  border: "1px solid rgba(217, 225, 218, 0.76)",
-  background: "rgba(238, 243, 238, 0.3)",
-  boxShadow: "0 22px 60px rgba(17, 24, 39, 0.18)",
   padding: 18,
-  backdropFilter: "blur(7px)",
 };
 
 const customisationTitleStyle: CSSProperties = {
   margin: "4px 0 0",
-  color: "#000000",
+  color: uiTextColor,
+  textShadow: uiTextShadow,
   fontSize: 36,
   lineHeight: 1,
   fontWeight: 950,
@@ -137,7 +134,8 @@ const customisationTitleStyle: CSSProperties = {
 
 const customisationSubtitleStyle: CSSProperties = {
   margin: "10px 0 0",
-  color: "#000000",
+  color: uiTextColor,
+  textShadow: uiTextShadow,
   fontSize: 15,
   fontWeight: 850,
 };
@@ -148,19 +146,16 @@ const backButtonStyle: CSSProperties = {
 };
 
 const customisationPanelStyle: CSSProperties = {
+  ...glassPanelStyle,
   display: "grid",
   gap: 16,
-  borderRadius: 8,
-  border: "1px solid rgba(217, 225, 218, 0.72)",
-  background: "rgba(238, 243, 238, 0.3)",
-  boxShadow: "0 22px 60px rgba(17, 24, 39, 0.16)",
   padding: 18,
-  backdropFilter: "blur(6px)",
 };
 
 const sectionTitleStyle: CSSProperties = {
   margin: "4px 0 0",
-  color: "#000000",
+  color: uiTextColor,
+  textShadow: uiTextShadow,
   fontSize: 24,
   lineHeight: 1.05,
   fontWeight: 950,
@@ -184,15 +179,15 @@ function optionTileStyle(selected: boolean, hovered: boolean): CSSProperties {
       : hovered
         ? "1px solid rgba(0, 0, 0, 0.36)"
         : "1px solid rgba(185, 198, 188, 0.9)",
-    background: selected ? "rgba(238, 243, 238, 0.38)" : hovered ? "rgba(238, 243, 238, 0.34)" : "rgba(238, 243, 238, 0.3)",
+    background: GLASS_TILE_BACKGROUND,
     boxShadow: hovered || selected ? "0 18px 42px rgba(17, 24, 39, 0.18)" : "0 12px 30px rgba(17, 24, 39, 0.1)",
     padding: 12,
     cursor: "pointer",
-    color: "#000000",
+    color: uiTextColor,
     transform: hovered && !selected ? "translateY(-3px)" : undefined,
     transition: "background 150ms ease, border-color 150ms ease, box-shadow 150ms ease, transform 150ms ease",
-    backdropFilter: "blur(5px)",
-    textShadow: "1px 1px 1px rgba(255, 255, 255, 0.6)",
+    backdropFilter: GLASS_TILE_BACKDROP_FILTER,
+    textShadow: uiTextShadow,
   };
 }
 
@@ -205,7 +200,7 @@ function optionPreviewWrapStyle(kind: "playmat" | "sleeve"): CSSProperties {
     overflow: "hidden",
     borderRadius: 8,
     border: "1px solid rgba(217, 225, 218, 0.82)",
-    background: "rgba(238, 243, 238, 0.3)",
+    background: GLASS_TILE_BACKGROUND,
     boxShadow: "0 14px 30px rgba(17, 24, 39, 0.14)",
   };
 }
@@ -262,7 +257,8 @@ const defaultPreviewMarkStyle: CSSProperties = {
 };
 
 const optionNameStyle: CSSProperties = {
-  color: "#000000",
+  color: uiTextColor,
+  textShadow: uiTextShadow,
   fontSize: 14,
   fontWeight: 950,
   textAlign: "center",

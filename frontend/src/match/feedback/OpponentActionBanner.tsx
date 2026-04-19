@@ -6,7 +6,7 @@ export function OpponentActionBanner({ title, message, paused }: { title: string
     <section style={opponentActionBannerStyle}>
       <span style={opponentPulseStyle(paused)} />
       <div style={{ minWidth: 0 }}>
-        <div style={previewKickerStyle}>{title}</div>
+        <div style={opponentKickerStyle}>{title}</div>
         <strong style={opponentActionTextStyle}>{message}</strong>
       </div>
     </section>
@@ -50,10 +50,17 @@ const opponentActionTextStyle: CSSProperties = {
   display: "block",
   marginTop: 2,
   color: "#000000",
+  textShadow: "none",
   fontSize: 14,
   lineHeight: 1.25,
   fontWeight: 950,
   overflow: "hidden",
   textOverflow: "ellipsis",
   whiteSpace: "nowrap",
+};
+
+const opponentKickerStyle: CSSProperties = {
+  ...previewKickerStyle,
+  color: "#000000",
+  textShadow: "none",
 };

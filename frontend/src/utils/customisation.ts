@@ -2,6 +2,7 @@ export type CustomisationOption = {
   id: string;
   name: string;
   image: string | null;
+  textTone?: "dark" | "light";
 };
 
 export type CustomisationSettings = {
@@ -13,6 +14,7 @@ export const defaultPlaymat: CustomisationOption = {
   id: "default",
   name: "Aurora Stable",
   image: null,
+  textTone: "light",
 };
 
 export const defaultSleeve: CustomisationOption = {
@@ -23,10 +25,10 @@ export const defaultSleeve: CustomisationOption = {
 
 export const playmatOptions: CustomisationOption[] = [
   defaultPlaymat,
-  { id: "agnes-tachyon", name: "Agnes Tachyon", image: "/assets/customisation/playmat/agnes-tachyon-playmat.png" },
-  { id: "manhattan-cafe", name: "Manhattan Cafe", image: "/assets/customisation/playmat/manhattan-cafe-playmat.jpg" },
-  { id: "rice-shower", name: "Rice Shower", image: "/assets/customisation/playmat/rice-shower-playmat.jpg" },
-  { id: "tokai-teio", name: "Tokai Teio", image: "/assets/customisation/playmat/tokai-teio-playmat.jpg" },
+  { id: "agnes-tachyon", name: "Agnes Tachyon", image: "/assets/customisation/playmat/agnes-tachyon-playmat.png", textTone: "light" },
+  { id: "manhattan-cafe", name: "Manhattan Cafe", image: "/assets/customisation/playmat/manhattan-cafe-playmat.jpg", textTone: "light" },
+  { id: "rice-shower", name: "Rice Shower", image: "/assets/customisation/playmat/rice-shower-playmat.jpg", textTone: "light" },
+  { id: "tokai-teio", name: "Tokai Teio", image: "/assets/customisation/playmat/tokai-teio-playmat.jpg", textTone: "dark" },
 ];
 
 export const sleeveOptions: CustomisationOption[] = [
@@ -58,6 +60,10 @@ export function writeCustomisationSettings(settings: CustomisationSettings): voi
 
 export function getSelectedPlaymat(settings: CustomisationSettings): CustomisationOption {
   return playmatOptions.find((option) => option.id === settings.playmatId) ?? defaultPlaymat;
+}
+
+export function getPlaymatTextTone(settings: CustomisationSettings): "dark" | "light" {
+  return getSelectedPlaymat(settings).textTone ?? "light";
 }
 
 export function getSelectedSleeve(settings: CustomisationSettings): CustomisationOption {

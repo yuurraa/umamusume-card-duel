@@ -64,6 +64,8 @@ const warningShellStyle: CSSProperties = {
   display: "grid",
   gap: 8,
   padding: 18,
+  color: "#000000",
+  textShadow: "none",
 };
 
 const warningHeaderStyle: CSSProperties = {
@@ -72,6 +74,8 @@ const warningHeaderStyle: CSSProperties = {
 
 const warningTitleStyle: CSSProperties = {
   margin: 0,
+  color: "#000000",
+  textShadow: "none",
   fontSize: 22,
   lineHeight: 1.15,
   fontWeight: 950,
@@ -85,6 +89,8 @@ const warningListStyle: CSSProperties = {
 };
 
 const warningListItemStyle: CSSProperties = {
+  color: "#000000",
+  textShadow: "none",
   fontSize: 13,
   fontWeight: 800,
   lineHeight: 1.35,
@@ -95,6 +101,8 @@ const warningCheckboxRowStyle: CSSProperties = {
   alignItems: "center",
   gap: 8,
   minWidth: 0,
+  color: "#000000",
+  textShadow: "none",
   fontSize: 13,
   fontWeight: 800,
   userSelect: "none",

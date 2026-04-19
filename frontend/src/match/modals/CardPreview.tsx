@@ -61,7 +61,7 @@ export function CardPreview({ state, target, canUseAttack, canUseRetreat, canUse
         <img style={previewImageStyle} src={image} alt={card.name} />
         <aside style={previewInfoStyle}>
           <div>
-            <div style={previewKickerStyle}>{card.kind === "umamusume" ? card.label : card.label}</div>
+            <div style={inspectKickerStyle}>{card.kind === "umamusume" ? card.label : card.label}</div>
             <h2 style={previewTitleStyle}>{card.name}</h2>
           </div>
 
@@ -86,7 +86,7 @@ export function CardPreview({ state, target, canUseAttack, canUseRetreat, canUse
 
           {umamusume && (
             <section style={previewBlockStyle}>
-              <div style={previewKickerStyle}>Attached Energy</div>
+              <div style={inspectKickerStyle}>Attached Energy</div>
               <div style={{ display: "flex", minHeight: 38, alignItems: "center", gap: 6, marginTop: 8 }}>
                 {attachedEnergy.length === 0 ? (
                   <span style={{ color: "#000000", fontSize: 12, fontWeight: 800 }}>None</span>
@@ -103,7 +103,7 @@ export function CardPreview({ state, target, canUseAttack, canUseRetreat, canUse
 
           {umamusume && attachedTool?.kind === "trainer" && (
             <section style={previewBlockStyle}>
-              <div style={previewKickerStyle}>Attached Tool</div>
+              <div style={inspectKickerStyle}>Attached Tool</div>
               <div style={attachedToolRowStyle}>
                 <AttachedToolBadge
                   toolCardId={umamusume.toolCardId}
@@ -223,7 +223,7 @@ export function CardPreview({ state, target, canUseAttack, canUseRetreat, canUse
 
           {card.kind === "umamusume" && miscEffects.buffs.length > 0 && (
             <section style={previewBlockStyle}>
-              <div style={previewKickerStyle}>Buffs</div>
+              <div style={inspectKickerStyle}>Buffs</div>
               <div style={{ ...modifierListStyle, marginTop: 6 }}>
                 {miscEffects.buffs.map((line) => (
                   <span key={line} style={modifierLineStyle}>{line}</span>
@@ -234,7 +234,7 @@ export function CardPreview({ state, target, canUseAttack, canUseRetreat, canUse
 
           {card.kind === "umamusume" && miscEffects.debuffs.length > 0 && (
             <section style={previewBlockStyle}>
-              <div style={previewKickerStyle}>Debuffs</div>
+              <div style={inspectKickerStyle}>Debuffs</div>
               <div style={{ ...modifierListStyle, marginTop: 6 }}>
                 {miscEffects.debuffs.map((line) => (
                   <span key={line} style={modifierLineStyle}>{line}</span>
@@ -262,7 +262,7 @@ export function CardPreview({ state, target, canUseAttack, canUseRetreat, canUse
               </button>
             ) : (
               <section style={previewBlockStyle}>
-                <div style={previewKickerStyle}>{card.trainerType}</div>
+                <div style={inspectKickerStyle}>{card.trainerType}</div>
                 <p style={{ margin: "6px 0 0", color: "#000000", fontSize: 14, fontWeight: 800, lineHeight: 1.35 }}>{card.text}</p>
               </section>
             )
@@ -282,7 +282,12 @@ function RetreatCostDisplay({ cost }: { cost: number }) {
   );
 }
 
-const previewBackdropStyle: CSSProperties = { ...overlayBackdropStyle, zIndex: 50 };
+const previewBackdropStyle: CSSProperties = {
+  ...overlayBackdropStyle,
+  zIndex: 50,
+  color: "#000000",
+  textShadow: "none",
+};
 
 const closeButtonStyle: CSSProperties = {
   ...overlayButtonStyle,
@@ -315,6 +320,8 @@ const previewInfoStyle: CSSProperties = {
   ...overlaySurfaceStyle,
   border: "1px solid rgba(185, 198, 188, 0.9)",
   background: "rgba(238, 243, 238, 0.94)",
+  color: "#000000",
+  textShadow: "none",
   padding: 16,
   minWidth: 0,
 };
@@ -456,8 +463,14 @@ function abilityButtonStyle(enabled: boolean, hovered: boolean): CSSProperties {
   };
 }
 
-const abilityKickerStyle: CSSProperties = {
+const inspectKickerStyle: CSSProperties = {
   ...previewKickerStyle,
+  color: "#000000",
+  textShadow: "none",
+};
+
+const abilityKickerStyle: CSSProperties = {
+  ...inspectKickerStyle,
   color: "rgba(255, 255, 255, 0.78)",
 };
 

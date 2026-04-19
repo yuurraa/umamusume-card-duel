@@ -3,6 +3,7 @@ import { getCard, getPlayableAction } from "../../game/engine";
 import type { Card, GameState } from "../../../../shared/src/types";
 import type { InspectTarget } from "../../inspect";
 import { writeDragPayload } from "../drag/dragData";
+import { uiTextColor, uiTextShadow } from "../../styles/shared";
 
 type HandProps = {
   state: GameState;
@@ -216,6 +217,7 @@ function PileSlot({
 }) {
   const [hovered, setHovered] = useState(false);
   const interactive = Boolean(onClick);
+  const isEmptyDiscard = label === "Discard" && count === 0;
   const content = (
     <>
       {cardImage && count > 0 ? (
@@ -242,7 +244,7 @@ function PileSlot({
           type="button"
           title={title}
           aria-label={title}
-          style={pileSlotButtonStyle(interactive, hovered)}
+          style={pileSlotButtonStyle(interactive, hovered, isEmptyDiscard)}
           onClick={onClick}
           onMouseEnter={() => setHovered(true)}
           onMouseLeave={() => setHovered(false)}
@@ -255,7 +257,7 @@ function PileSlot({
         <div
           title={title}
           aria-label={title}
-          style={pileSlotButtonStyle(interactive, hovered)}
+          style={pileSlotButtonStyle(interactive, hovered, isEmptyDiscard)}
           onMouseEnter={() => setHovered(true)}
           onMouseLeave={() => setHovered(false)}
         >
@@ -309,7 +311,7 @@ const pileSlotWrapStyle: CSSProperties = {
   gap: 8,
 };
 
-function pileSlotButtonStyle(interactive: boolean, hovered: boolean): CSSProperties {
+function pileSlotButtonStyle(interactive: boolean, hovered: boolean, isEmptyDiscard: boolean): CSSProperties {
   return {
     position: "relative",
     height: PILE_CARD_HEIGHT,
@@ -319,7 +321,7 @@ function pileSlotButtonStyle(interactive: boolean, hovered: boolean): CSSPropert
     appearance: "none",
     borderRadius: 8,
     border: hovered ? "1px solid rgba(0, 0, 0, 0.36)" : "1px solid rgba(185, 198, 188, 0.88)",
-    background: "rgba(238, 243, 238, 0.82)",
+    background: isEmptyDiscard ? "rgba(238, 243, 238, 0.24)" : "rgba(238, 243, 238, 0.82)",
     padding: 0,
     cursor: interactive ? "pointer" : "help",
     boxShadow: hovered ? "0 16px 34px rgba(17, 24, 39, 0.16)" : "0 10px 24px rgba(17, 24, 39, 0.1)",
@@ -362,9 +364,10 @@ const pileEmptySlotStyle: CSSProperties = {
   display: "grid",
   placeItems: "center",
   borderRadius: 8,
-  border: "1px dashed rgba(0, 0, 0, 0.45)",
-  background: "rgba(238, 243, 238, 0.3)",
-  color: "#000000",
+  border: "1px dashed rgba(185, 198, 188, 0.88)",
+  background: "rgba(238, 243, 238, 0.24)",
+  color: uiTextColor,
+  textShadow: uiTextShadow,
   fontSize: 12,
   fontWeight: 950,
   textTransform: "uppercase",
@@ -414,7 +417,8 @@ const pileCountBadgeStyle: CSSProperties = {
 };
 
 const pileLabelStyle: CSSProperties = {
-  color: "#000000",
+  color: uiTextColor,
+  textShadow: uiTextShadow,
   fontSize: 12,
   fontWeight: 950,
   textTransform: "uppercase",
@@ -431,7 +435,8 @@ const pileTooltipStyle: CSSProperties = {
   borderRadius: 8,
   border: "1px solid rgba(185, 198, 188, 0.9)",
   background: "rgba(238, 243, 238, 0.94)",
-  color: "#000000",
+  color: uiTextColor,
+  textShadow: uiTextShadow,
   padding: "6px 8px",
   fontSize: 12,
   fontWeight: 900,

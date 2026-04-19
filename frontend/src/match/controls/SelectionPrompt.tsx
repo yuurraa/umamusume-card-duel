@@ -179,6 +179,8 @@ function selectionPromptStyle(isRetreatDiscard: boolean): CSSProperties {
   transform: "translateX(-50%)",
   padding: isRetreatDiscard ? "14px 18px" : "12px 86px 12px 18px",
   textAlign: "center",
+  color: "#000000",
+  textShadow: "none",
   ...overlaySurfaceStyle,
   };
 }
@@ -194,6 +196,7 @@ const selectionPromptTextStyle: CSSProperties = {
   lineHeight: 1.35,
   textAlign: "center",
   color: "#000000",
+  textShadow: "none",
 };
 
 const selectionPromptButtonStyle: CSSProperties = {
@@ -242,6 +245,7 @@ const retreatDiscardLabelStyle: CSSProperties = {
   fontSize: 13,
   fontWeight: 850,
   color: "#000000",
+  textShadow: "none",
 };
 
 const retreatDiscardCounterWrapStyle: CSSProperties = {
@@ -257,6 +261,7 @@ const retreatAdjustButtonStyle: CSSProperties = {
   border: "1px solid rgba(185, 198, 188, 0.95)",
   background: "rgba(238, 243, 238, 0.9)",
   color: "#000000",
+  textShadow: "none",
   fontSize: 14,
   fontWeight: 900,
   lineHeight: 1,
@@ -270,4 +275,5 @@ const retreatCountTextStyle: CSSProperties = {
   fontSize: 12,
   fontWeight: 900,
   color: "#000000",
+  textShadow: "none",
 };

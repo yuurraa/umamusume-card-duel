@@ -4,7 +4,7 @@ import { energyLabel } from "../../game/engine";
 import { writeDragPayload } from "../../components/drag/dragData";
 import { EnergyIcon } from "../../components/cards/EnergyIcon";
 import { NeutralButton } from "../../components/buttons/NeutralButton";
-import { previewKickerStyle } from "../../styles/shared";
+import { attackButtonStyle } from "../../styles/shared";
 import { alphaColor } from "../../utils/color";
 
 export function PlayHandHeader({
@@ -131,7 +131,7 @@ function BattleMenu({ placement, log, canSurrender, onSurrender }: { placement: 
     <section style={battleMenuStyle(placement)}>
       <div style={battleMenuHeaderStyle}>
         <div>
-          <div style={previewKickerStyle}>Menu</div>
+          <div style={battleMenuKickerStyle}>Menu</div>
           <strong style={battleMenuTitleStyle}>Battle Log</strong>
         </div>
         <NeutralButton tone="danger" style={surrenderButtonStyle(canSurrender)} disabled={!canSurrender} onClick={onSurrender}>
@@ -175,8 +175,8 @@ const matchMenuControlWrapStyle: CSSProperties = {
   alignItems: "center",
 };
 
-function endTurnButtonStyle(_enabled: boolean): CSSProperties {
-  return {};
+function endTurnButtonStyle(enabled: boolean): CSSProperties {
+  return attackButtonStyle(enabled);
 }
 
 function menuButtonStyle(active: boolean, hovered: boolean): CSSProperties {
@@ -230,6 +230,8 @@ function battleMenuStyle(placement: "top-start" | "top-end"): CSSProperties {
     borderRadius: 8,
     border: "1px solid rgba(217, 225, 218, 0.86)",
     background: "rgba(238, 243, 238, 0.86)",
+    color: "#000000",
+    textShadow: "none",
     boxShadow: "0 24px 70px rgba(17, 24, 39, 0.18)",
     padding: 12,
   };
@@ -246,9 +248,19 @@ const battleMenuTitleStyle: CSSProperties = {
   display: "block",
   marginTop: 2,
   color: "#000000",
+  textShadow: "none",
   fontSize: 18,
   lineHeight: 1.1,
   fontWeight: 950,
+};
+
+const battleMenuKickerStyle: CSSProperties = {
+  color: "#000000",
+  textShadow: "none",
+  fontSize: 11,
+  fontWeight: 900,
+  letterSpacing: 0,
+  textTransform: "uppercase",
 };
 
 function surrenderButtonStyle(_enabled: boolean): CSSProperties {
@@ -275,6 +287,7 @@ function battleLogEntryStyle(index: number): CSSProperties {
     border: "1px solid rgba(0, 0, 0, 0.12)",
     background: index === 0 ? "rgba(214, 81, 157, 0.1)" : "rgba(247,250,248,0.82)",
     color: "#000000",
+    textShadow: "none",
     padding: "8px 10px",
     fontSize: 12,
     lineHeight: 1.35,
@@ -285,8 +298,9 @@ function battleLogEntryStyle(index: number): CSSProperties {
 
 const battleLogEmptyStyle: CSSProperties = {
   borderRadius: 8,
-  border: "1px dashed rgba(0, 0, 0, 0.45)",
+  border: "1px dashed rgba(185, 198, 188, 0.88)",
   color: "#000000",
+  textShadow: "none",
   padding: 12,
   fontSize: 12,
   fontWeight: 850,
@@ -327,6 +341,8 @@ function energyTokenStyle(enabled: boolean, energyType: EnergyType | null, hover
     borderRadius: "50%",
     border: `1px solid ${borderColor}`,
     background: "rgba(238, 243, 238, 0.82)",
+    color: "#000000",
+    textShadow: "none",
     boxShadow: tokenShadow,
     cursor: enabled ? "grab" : "not-allowed",
     opacity: enabled ? 1 : 0.46,
@@ -338,6 +354,7 @@ function energyTokenStyle(enabled: boolean, energyType: EnergyType | null, hover
 
 const energyTokenEmptyStyle: CSSProperties = {
   color: "#000000",
+  textShadow: "none",
   fontSize: 16,
   fontWeight: 900,
 };

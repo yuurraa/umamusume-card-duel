@@ -12,7 +12,7 @@ export function GameOverModal({ game, onPlayAgain, onMainMenu }: { game: GameSta
     <div style={gameOverBackdropStyle}>
       <section style={gameOverShellStyle(playerWon)}>
         <div style={resultBadgeStyle(playerWon)}>{playerWon ? "Victory" : "Defeat"}</div>
-        <div style={previewKickerStyle}>Duel Finished</div>
+        <div style={gameOverKickerStyle}>Duel Finished</div>
         <h2 style={gameOverTitleStyle}>{title}</h2>
         <p style={gameOverBodyStyle}>{latest}</p>
         <div style={gameOverScoreRowStyle}>
@@ -59,6 +59,8 @@ function gameOverShellStyle(playerWon: boolean): CSSProperties {
     textAlign: "center",
     border: `1px solid ${hue.border}`,
     background: `linear-gradient(180deg, ${hue.top} 0%, ${hue.bottom} 100%)`,
+    color: "#000000",
+    textShadow: "none",
     boxShadow: `0 26px 80px ${hue.glow}, 0 22px 68px rgba(17, 24, 39, 0.2)`,
   };
 }
@@ -71,6 +73,7 @@ function resultBadgeStyle(playerWon: boolean): CSSProperties {
     border: "1px solid rgba(0, 0, 0, 0.2)",
     background: playerWon ? "rgba(134, 239, 172, 0.68)" : "rgba(252, 165, 165, 0.68)",
     color: "#000000",
+    textShadow: "none",
     padding: "6px 12px",
     fontSize: 12,
     fontWeight: 950,
@@ -81,14 +84,22 @@ function resultBadgeStyle(playerWon: boolean): CSSProperties {
 const gameOverTitleStyle: CSSProperties = {
   margin: "4px 0 0",
   color: "#000000",
+  textShadow: "none",
   fontSize: 34,
   lineHeight: 1,
   fontWeight: 950,
 };
 
+const gameOverKickerStyle: CSSProperties = {
+  ...previewKickerStyle,
+  color: "#000000",
+  textShadow: "none",
+};
+
 const gameOverBodyStyle: CSSProperties = {
   margin: "12px 0 0",
   color: "#000000",
+  textShadow: "none",
   fontSize: 14,
   lineHeight: 1.4,
   fontWeight: 850,
@@ -113,6 +124,7 @@ function scoreSummaryStyle(highlighted: boolean): CSSProperties {
 const scoreSummaryLabelStyle: CSSProperties = {
   display: "block",
   color: "#000000",
+  textShadow: "none",
   fontSize: 11,
   fontWeight: 900,
   textTransform: "uppercase",
@@ -122,6 +134,7 @@ const scoreSummaryPointsStyle: CSSProperties = {
   display: "block",
   marginTop: 4,
   color: "#000000",
+  textShadow: "none",
   fontSize: 26,
   lineHeight: 1,
   fontWeight: 950,

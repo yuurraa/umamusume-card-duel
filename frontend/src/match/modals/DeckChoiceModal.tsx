@@ -67,7 +67,7 @@ export function DeckChoiceModal({
         <style>{`.${deckScrollerClassName}{scrollbar-width:none;-ms-overflow-style:none;}.${deckScrollerClassName}::-webkit-scrollbar{display:none;width:0;height:0;}`}</style>
         <header style={deckHeaderStyle}>
           <div>
-            <div style={previewKickerStyle}>Deck</div>
+            <div style={deckKickerStyle}>Deck</div>
             <h2 style={deckTitleStyle}>{options.length} {options.length === 1 ? "card" : "cards"}</h2>
           </div>
           <NeutralButton style={closeButtonStyle} onClick={onClose}>Back</NeutralButton>
@@ -133,6 +133,8 @@ const deckModalStyle: CSSProperties = {
   gap: 12,
   padding: 16,
   background: "rgba(238, 243, 238, 0.94)",
+  color: "#000000",
+  textShadow: "none",
 };
 
 const deckHeaderStyle: CSSProperties = {
@@ -145,9 +147,16 @@ const deckHeaderStyle: CSSProperties = {
 const deckTitleStyle: CSSProperties = {
   margin: "2px 0 0",
   color: "#000000",
+  textShadow: "none",
   fontSize: 24,
   lineHeight: 1.05,
   fontWeight: 950,
+};
+
+const deckKickerStyle: CSSProperties = {
+  ...previewKickerStyle,
+  color: "#000000",
+  textShadow: "none",
 };
 
 const closeButtonStyle: CSSProperties = {
@@ -192,9 +201,10 @@ const deckCardImageStyle: CSSProperties = {
 
 const emptyDeckStyle: CSSProperties = {
   borderRadius: 8,
-  border: "1px dashed rgba(0, 0, 0, 0.45)",
+  border: "1px dashed rgba(185, 198, 188, 0.88)",
   background: "rgba(238, 243, 238, 0.86)",
   color: "#000000",
+  textShadow: "none",
   padding: 18,
   fontSize: 14,
   fontWeight: 850,

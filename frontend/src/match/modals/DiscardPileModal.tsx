@@ -60,7 +60,7 @@ export function DiscardPileModal({
         <style>{`.${discardScrollerClassName}{scrollbar-width:none;-ms-overflow-style:none;}.${discardScrollerClassName}::-webkit-scrollbar{display:none;width:0;height:0;}`}</style>
         <header style={discardHeaderStyle}>
           <div>
-            <div style={previewKickerStyle}>Discard Pile</div>
+            <div style={discardKickerStyle}>Discard Pile</div>
             <h2 style={discardTitleStyle}>{cardIds.length} {cardIds.length === 1 ? "card" : "cards"}</h2>
           </div>
           <NeutralButton style={closeButtonStyle} onClick={onClose}>Close</NeutralButton>
@@ -128,6 +128,8 @@ const discardModalStyle: CSSProperties = {
   gap: 12,
   padding: 16,
   background: "rgba(238, 243, 238, 0.94)",
+  color: "#000000",
+  textShadow: "none",
 };
 
 const discardHeaderStyle: CSSProperties = {
@@ -140,9 +142,16 @@ const discardHeaderStyle: CSSProperties = {
 const discardTitleStyle: CSSProperties = {
   margin: "2px 0 0",
   color: "#000000",
+  textShadow: "none",
   fontSize: 24,
   lineHeight: 1.05,
   fontWeight: 950,
+};
+
+const discardKickerStyle: CSSProperties = {
+  ...previewKickerStyle,
+  color: "#000000",
+  textShadow: "none",
 };
 
 const closeButtonStyle: CSSProperties = {
@@ -187,9 +196,10 @@ const discardCardImageStyle: CSSProperties = {
 
 const emptyDiscardStyle: CSSProperties = {
   borderRadius: 8,
-  border: "1px dashed rgba(0, 0, 0, 0.45)",
+  border: "1px dashed rgba(185, 198, 188, 0.88)",
   background: "rgba(238, 243, 238, 0.86)",
   color: "#000000",
+  textShadow: "none",
   padding: 18,
   fontSize: 14,
   fontWeight: 850,

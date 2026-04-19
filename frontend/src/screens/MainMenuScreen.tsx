@@ -2,6 +2,7 @@ import type { CSSProperties } from "react";
 import { NeutralButton } from "../components/buttons/NeutralButton";
 import { DeckSummaryCard } from "./DeckBrowserScreen";
 import type { PremadeDeck } from "../types/ui";
+import { buttonStyle, glassPanelStyle, uiMutedTextColor, uiTextColor, uiTextShadow } from "../styles/shared";
 
 export function MainMenuScreen({
   equippedDeck,
@@ -68,11 +69,11 @@ const titleRowStyle: CSSProperties = {
   justifyContent: "center",
   maxWidth: "min(850px, calc(100vw - 28px))",
   borderRadius: 999,
-  border: "1px solid rgba(176, 187, 178, 0.86)",
-  background: "linear-gradient(180deg, rgba(244, 248, 245, 0.46) 0%, rgba(228, 236, 230, 0.36) 48%, rgba(212, 222, 214, 0.34) 100%)",
-  boxShadow: "inset 0 2px 10px rgba(255, 255, 255, 0.45), inset 0 -8px 16px rgba(124, 139, 127, 0.22), 0 24px 62px rgba(17, 24, 39, 0.2)",
+  border: "1px solid rgba(217, 225, 218, 0.76)",
+  background: "rgba(238, 243, 238, 0.22)",
+  boxShadow: "0 18px 46px rgba(17, 24, 39, 0.14)",
   padding: "30px 25px",
-  backdropFilter: "blur(7px)",
+  backdropFilter: "blur(5px)",
 };
 
 const headerImageBase: CSSProperties = {
@@ -95,7 +96,8 @@ const headerImageRightStyle: CSSProperties = {
 
 const menuTitleStyle: CSSProperties = {
   margin: 0,
-  color: "#000000",
+  color: uiTextColor,
+  textShadow: uiTextShadow,
   maxWidth: 900,
   fontSize: "clamp(36px, 7vw, 72px)",
   lineHeight: 0.92,
@@ -104,15 +106,11 @@ const menuTitleStyle: CSSProperties = {
 };
 
 const menuActionPanelStyle: CSSProperties = {
+  ...glassPanelStyle,
   display: "grid",
   placeItems: "center",
   minWidth: 280,
   padding: 12,
-  borderRadius: 8,
-  border: "1px solid rgba(217, 225, 218, 0.72)",
-  background: "rgba(238, 243, 238, 0.3)",
-  boxShadow: "0 20px 60px rgba(17, 24, 39, 0.18)",
-  backdropFilter: "blur(7px)",
 };
 
 const menuButtonColumnStyle: CSSProperties = {
@@ -122,9 +120,7 @@ const menuButtonColumnStyle: CSSProperties = {
 };
 
 const menuPrimaryButtonStyle: CSSProperties = {
-  width: "100%",
-  height: 54,
-  fontSize: 16,
+  ...buttonStyle(true),
 };
 
 const equippedDeckDockStyle: CSSProperties = {
@@ -146,7 +142,8 @@ const footerStyle: CSSProperties = {
 };
 
 const footerLinkStyle: CSSProperties = {
-  color: "rgba(100, 113, 104, 0.38)",
+  color: uiMutedTextColor,
+  textShadow: uiTextShadow,
   fontSize: 13,
   fontWeight: 800,
   letterSpacing: 0.3,

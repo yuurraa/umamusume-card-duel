@@ -4,8 +4,9 @@ import type { InspectTarget } from "../../inspect";
 import { getCard } from "../../game/engine";
 import { AbilityReadyBadge } from "../../components/cards/AbilityReadyBadge";
 import { hasTextDragPayload, readDragPayload } from "../../components/drag/dragData";
+import { uiTextColor, uiTextShadow } from "../../styles/shared";
 
-export function StadiumSlot({ state, abilityReady = false, onDropHandCard, onInspect }: {
+export function StadiumSpot({ state, abilityReady = false, onDropHandCard, onInspect }: {
   state: GameState;
   abilityReady?: boolean;
   onDropHandCard: (handIndex: number) => void;
@@ -14,7 +15,7 @@ export function StadiumSlot({ state, abilityReady = false, onDropHandCard, onIns
   const [hovered, setHovered] = useState(false);
   const stadium = state.stadium ? getCard(state.stadium.cardId) : null;
   const stadiumImage = stadium?.kind === "trainer" ? stadium.image : null;
-  const stadiumName = stadium?.kind === "trainer" ? stadium.name : "Stadium Slot";
+  const stadiumName = stadium?.kind === "trainer" ? stadium.name : "Stadium Spot";
 
   const handleDrop = (event: DragEvent<HTMLButtonElement>) => {
     event.preventDefault();
@@ -27,7 +28,7 @@ export function StadiumSlot({ state, abilityReady = false, onDropHandCard, onIns
   return (
     <button
       type="button"
-      style={stadiumSlotStyle(hovered, Boolean(stadiumImage), abilityReady)}
+      style={StadiumSpotStyle(hovered, Boolean(stadiumImage), abilityReady)}
       onClick={() => {
         if (!stadium || stadium.kind !== "trainer") return;
         onInspect({ card: stadium });
@@ -50,19 +51,19 @@ export function StadiumSlot({ state, abilityReady = false, onDropHandCard, onIns
       onDrop={handleDrop}
       aria-label={stadiumName}
     >
-      {stadiumImage
+    {stadiumImage
         ? (
           <>
             <img style={stadiumImageStyle(hovered)} src={stadiumImage} alt={stadiumName} draggable={false} />
             {abilityReady && <AbilityReadyBadge corner="topLeft" size="xs" nudgeX={14} />}
           </>
         )
-        : <span style={stadiumEmptyTextStyle}>Stadium Slot</span>}
+        : <span style={stadiumEmptyTextStyle}>Stadium Spot</span>}
     </button>
   );
 }
 
-function stadiumSlotStyle(hovered: boolean, hasCard: boolean, abilityReady: boolean): CSSProperties {
+function StadiumSpotStyle(hovered: boolean, hasCard: boolean, abilityReady: boolean): CSSProperties {
   return {
     position: "absolute",
     left: "50%",
@@ -75,9 +76,10 @@ function stadiumSlotStyle(hovered: boolean, hasCard: boolean, abilityReady: bool
     placeItems: "center",
     overflow: "visible",
     borderRadius: 8,
-    border: hovered ? "2px dashed rgba(0, 0, 0, 0.65)" : "2px dashed rgba(0, 0, 0, 0.45)",
-    background: hasCard ? "rgba(238, 243, 238, 0.22)" : "rgba(238, 243, 238, 0.62)",
-    color: "#000000",
+    border: hovered ? "2px dashed rgba(148, 163, 184, 0.72)" : "2px dashed rgba(185, 198, 188, 0.88)",
+    background: hasCard ? "rgba(238, 243, 238, 0.22)" : "rgba(238, 243, 238, 0.24)",
+    color: uiTextColor,
+    textShadow: uiTextShadow,
     padding: 8,
     fontSize: 12,
     fontWeight: 950,
@@ -111,6 +113,8 @@ const stadiumEmptyTextStyle: CSSProperties = {
   width: "100%",
   height: "100%",
   borderRadius: 6,
-    background: "rgba(238, 243, 238, 0.5)",
+  background: "transparent",
+  color: uiTextColor,
+  textShadow: uiTextShadow,
   textAlign: "center",
 };

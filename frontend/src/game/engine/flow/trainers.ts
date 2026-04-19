@@ -18,7 +18,7 @@ export function playStadium(state: GameState, side: SideState, stadium: TrainerC
       const previous = state.stadium;
       const previousCard = getCard(previous.cardId);
       state.sides[previous.owner].discard.push(previous.cardId);
-      log(state, `${previousCard.name} left the Stadium Slot.`);
+      log(state, `${previousCard.name} left the Stadium Spot.`);
     }
     state.stadium = { cardId: stadium.id, owner: side.id };
   });

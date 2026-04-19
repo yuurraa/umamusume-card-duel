@@ -8,6 +8,7 @@ import { getCard, getUmamusumeCard } from "../../game/engine";
 import { MAX_BENCH } from "../../../../shared/src/gameData";
 import type { EnergyType, UmamusumeInstance, UmamusumeType, SideState } from "../../../../shared/src/types";
 import type { InspectTarget } from "../../inspect";
+import { uiTextColor, uiTextShadow } from "../../styles/shared";
 
 type BenchProps = {
   side: SideState;
@@ -93,7 +94,7 @@ export function Bench({
                   <FaceDownCard sleeveImage={sleeveImage} />
                 </div>
               </div>
-              <div style={{ height: 22, borderRadius: 8, background: "rgba(238, 243, 238, 0.56)", padding: 4, boxShadow: "0 6px 14px rgba(17, 24, 39, 0.1)", display: "grid", placeItems: "center", color: "#000000", fontSize: 9, fontWeight: 900, backdropFilter: "blur(4px)" }}>
+              <div style={{ height: 22, borderRadius: 8, background: "rgba(238, 243, 238, 0.56)", padding: 4, boxShadow: "0 6px 14px rgba(17, 24, 39, 0.1)", display: "grid", placeItems: "center", color: uiTextColor, textShadow: uiTextShadow, fontSize: 9, fontWeight: 900, backdropFilter: "blur(4px)" }}>
                 Hidden
               </div>
             </div>
@@ -107,10 +108,11 @@ export function Bench({
                 style={{
                   display: "grid",
                   placeItems: "center",
-                  border: hoveredSlot === index ? `2px solid ${hoverBorderColor}` : "1px dashed rgba(0, 0, 0, 0.45)",
+                  border: hoveredSlot === index ? `2px solid ${hoverBorderColor}` : "1px dashed rgba(185, 198, 188, 0.88)",
                   borderRadius: 8,
                   background: hoveredSlot === index ? hoverBackground : "rgba(238, 243, 238, 0.24)",
-                  color: "#000000",
+                  color: uiTextColor,
+                  textShadow: uiTextShadow,
                   fontSize: 12,
                   fontWeight: 900,
                   boxShadow: hoveredSlot === index ? `0 0 0 4px ${hoverRingColor}, 0 0 22px ${hoverGlowColor}` : "none",
@@ -321,16 +323,16 @@ function BenchSlot({ card, umamusume, side, hidden, setupMode, activeSetupHandIn
         )}
       </button>
       {hidden ? (
-        <div style={{ height: 22, borderRadius: 8, background: "rgba(238, 243, 238, 0.56)", padding: 4, boxShadow: "0 6px 14px rgba(17, 24, 39, 0.1)", display: "grid", placeItems: "center", color: "#000000", fontSize: 9, fontWeight: 900, backdropFilter: "blur(4px)" }}>
+        <div style={{ height: 22, borderRadius: 8, background: "rgba(238, 243, 238, 0.56)", padding: 4, boxShadow: "0 6px 14px rgba(17, 24, 39, 0.1)", display: "grid", placeItems: "center", color: uiTextColor, textShadow: uiTextShadow, fontSize: 9, fontWeight: 900, backdropFilter: "blur(4px)" }}>
           Hidden
         </div>
       ) : (
-        <div style={{ height: 22, borderRadius: 8, background: "rgba(238, 243, 238, 0.56)", color: "#000000", padding: 4, boxShadow: "0 6px 14px rgba(17, 24, 39, 0.1)", backdropFilter: "blur(4px)" }}>
-          <div style={{ height: 7, fontSize: 9, lineHeight: "7px", fontWeight: 900 }}>{umamusume.hp}/{umamusume.maxHp}</div>
-          <div style={{ marginTop: 3, height: 5, overflow: "hidden", borderRadius: 999, background: "#e2e8f0" }}>
-            <div style={{ width: `${hpPercent}%`, height: "100%", borderRadius: 999, background: fillColor, transition: "width 180ms ease" }} />
+          <div style={{ height: 22, borderRadius: 8, background: "rgba(238, 243, 238, 0.3)", color: uiTextColor, textShadow: uiTextShadow, padding: 4, boxShadow: "0 6px 14px rgba(17, 24, 39, 0.1)", backdropFilter: "blur(4px)" }}>
+            <div style={{ height: 7, fontSize: 9, lineHeight: "7px", fontWeight: 900 }}>{umamusume.hp}/{umamusume.maxHp}</div>
+            <div style={{ marginTop: 3, height: 5, overflow: "hidden", borderRadius: 999, background: "rgba(238, 243, 238, 0.3)" }}>
+              <div style={{ width: `${hpPercent}%`, height: "100%", borderRadius: 999, background: fillColor, transition: "width 180ms ease" }} />
+            </div>
           </div>
-        </div>
       )}
     </div>
   );

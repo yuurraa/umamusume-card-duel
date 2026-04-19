@@ -61,7 +61,7 @@ Files importing from frontend/src/game/engine:
   - getEvolutionTargets
 - frontend/src/match/SelectionPrompt.tsx
   - energyLabel
-- frontend/src/match/StadiumSlot.tsx
+- frontend/src/match/StadiumSpot.tsx
   - getCard
 - frontend/src/screens/DeckBrowserScreen.tsx
   - energyLabel
