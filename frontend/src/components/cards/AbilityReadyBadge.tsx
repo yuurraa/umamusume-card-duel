@@ -2,25 +2,27 @@ import type { CSSProperties } from "react";
 
 type AbilityReadyBadgeProps = {
   corner?: "topLeft" | "topRight";
-  size?: "sm" | "md";
+  size?: "xs" | "sm" | "md";
+  nudgeX?: number;
 };
 
-export function AbilityReadyBadge({ corner = "topLeft", size = "md" }: AbilityReadyBadgeProps) {
-  const pixels = size === "md" ? 30 : 24;
+export function AbilityReadyBadge({ corner = "topLeft", size = "md", nudgeX = 0 }: AbilityReadyBadgeProps) {
+  const pixels = size === "md" ? 30 : size === "sm" ? 24 : 18;
 
   return (
-    <span style={badgeStyle(corner, pixels)} aria-label="Ability ready" title="Ability ready">
+    <span style={badgeStyle(corner, pixels, nudgeX)} aria-label="Ability ready" title="Ability ready">
       <span style={sparkStyle(pixels)} />
     </span>
   );
 }
 
-function badgeStyle(corner: NonNullable<AbilityReadyBadgeProps["corner"]>, pixels: number): CSSProperties {
+function badgeStyle(corner: NonNullable<AbilityReadyBadgeProps["corner"]>, pixels: number, nudgeX: number): CSSProperties {
+  const offset = pixels === 30 ? -8 : pixels === 24 ? -6 : -4;
   return {
     position: "absolute",
-    top: pixels === 30 ? -8 : -6,
-    left: corner === "topLeft" ? (pixels === 30 ? -8 : -6) : undefined,
-    right: corner === "topRight" ? (pixels === 30 ? -8 : -6) : undefined,
+    top: offset,
+    left: corner === "topLeft" ? offset : undefined,
+    right: corner === "topRight" ? offset : undefined,
     zIndex: 4,
     width: pixels,
     height: pixels,
@@ -30,6 +32,7 @@ function badgeStyle(corner: NonNullable<AbilityReadyBadgeProps["corner"]>, pixel
     border: "2px solid rgba(255, 255, 255, 0.9)",
     background: "linear-gradient(145deg, #ffd66b 0%, #d80f43 58%, #7f1027 100%)",
     boxShadow: "0 0 0 3px rgba(216, 15, 67, 0.24), 0 0 20px rgba(255, 214, 107, 0.52), 0 8px 16px rgba(17, 24, 39, 0.24)",
+    transform: nudgeX ? `translateX(${nudgeX}px)` : undefined,
     pointerEvents: "none",
   };
 }

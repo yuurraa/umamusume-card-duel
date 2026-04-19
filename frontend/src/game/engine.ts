@@ -141,10 +141,10 @@ export function attachPlayerEnergy(state: GameState, umamusumeUid?: number): Gam
   return next;
 }
 
-export function playerAttack(state: GameState, healTargetUid?: number, forcedCoinResult?: "heads" | "tails"): GameState {
+export function playerAttack(state: GameState, attackTargetUid?: number, healTargetUid?: number, forcedCoinResult?: "heads" | "tails"): GameState {
   const next = cloneGame(state);
   if (!canAttack(next, next.sides.player)) return next;
-  performAttack(next, "player", { refreshContinuousEffects, choosePreferredActiveIndex }, healTargetUid, forcedCoinResult);
+  performAttack(next, "player", { refreshContinuousEffects, choosePreferredActiveIndex }, attackTargetUid, healTargetUid, forcedCoinResult);
   if (next.pendingPlayerChoice) return next;
   if (!next.gameOver) advanceToNextTurn(next);
   return next;
@@ -225,7 +225,7 @@ export function advanceOpponentTurnStep(state: GameState, forcedAttackCoinResult
       if (canAttack(next, opponent)) {
         const attack = getPrimaryAttack(getUmamusumeCard(opponent.active));
         if (attack.coinBonus && !forcedAttackCoinResult) return next;
-        performAttack(next, "opponent", { refreshContinuousEffects, choosePreferredActiveIndex }, undefined, forcedAttackCoinResult);
+        performAttack(next, "opponent", { refreshContinuousEffects, choosePreferredActiveIndex }, undefined, undefined, forcedAttackCoinResult);
         if (next.pendingPlayerChoice) {
           next.opponentTurnStep = "finish";
           return next;
@@ -281,10 +281,11 @@ export function usePlayerAbility(
   sourceUmamusumeUid: number,
   selectedEnergyType?: EnergyType,
   discardHandIndex?: number,
+  opponentTargetUmamusumeUid?: number,
 ): GameState {
   const next = cloneGame(state);
   const side = next.sides.player;
-  if (!canUseUmamusumeAbility(next, side, abilityUmamusumeUid) || !side.active) return next;
+  if (!canUseUmamusumeAbility(next, side, abilityUmamusumeUid)) return next;
   const abilityUmamusume = findOwnUmamusumeByUid(side, abilityUmamusumeUid);
   if (!abilityUmamusume) return next;
   const abilityCard = getUmamusumeCard(abilityUmamusume);
@@ -292,6 +293,7 @@ export function usePlayerAbility(
   if (!ability) return next;
 
   if (ability.moveBenchedEnergyToActive) {
+    if (!side.active) return next;
     const energyTypes = getAbilityMoveEnergyTypes(ability);
     const source = side.bench.find((umamusume) => umamusume.uid === sourceUmamusumeUid && energyTypes.some((energyType) => umamusume.energies[energyType] > 0));
     if (!source) return next;
@@ -348,6 +350,37 @@ export function usePlayerAbility(
     const discardedCard = getCard(discardedCardId);
     const drawnText = drawn > 0 ? formatCardNameList(drawnCardIds) : `0 ${pluralize(0, "card")}`;
     log(next, `${formatUmamusumeCardName(abilityCard)}'s ${ability.name} discarded ${discardedCard.name} and drew ${drawnText}.`);
+    return next;
+  }
+
+  if (ability.damageOpponent) {
+    const opponent = next.sides.opponent;
+    const target = ability.damageOpponentTarget === "any"
+      ? (opponentTargetUmamusumeUid !== undefined ? getAllUmamusume(opponent).find((umamusume) => umamusume.uid === opponentTargetUmamusumeUid) : undefined) ?? opponent.active
+      : opponent.active;
+    if (!target) return next;
+    if (ability.discardEnergy) {
+      const canPayDiscard = Object.entries(ability.discardEnergy).every(([type, amount]) => abilityUmamusume.energies[type as EnergyType] >= (amount ?? 0));
+      if (!canPayDiscard) return next;
+    }
+    target.hp = Math.max(0, target.hp - ability.damageOpponent);
+    target.tookDamageThisTurn = ability.damageOpponent > 0;
+    if (ability.discardEnergy) {
+      Object.entries(ability.discardEnergy).forEach(([type, amount]) => {
+        const energyType = type as EnergyType;
+        abilityUmamusume.energies[energyType] = Math.max(0, abilityUmamusume.energies[energyType] - (amount ?? 0));
+        if (amount) log(next, `${actorName(side)} discarded ${amount} ${energyLabel(energyType)}.`);
+      });
+    }
+    abilityUmamusume.usedAbilityThisTurn = true;
+    side.usedAbilityNamesThisTurn ??= [];
+    if (!side.usedAbilityNamesThisTurn.includes(ability.name)) side.usedAbilityNamesThisTurn.push(ability.name);
+    log(next, `${formatUmamusumeCardName(abilityCard)}'s ${ability.name} did ${ability.damageOpponent} damage to ${formatUmamusumeInstanceName(target)}.`);
+    if (target.hp <= 0) {
+      if (knockOutUmamusume(next, "player", "opponent", target, choosePreferredActiveIndex, `${formatUmamusumeCardName(abilityCard)}'s ${ability.name}`)) {
+        if (!next.gameOver) refreshContinuousEffects(next);
+      }
+    }
     return next;
   }
 

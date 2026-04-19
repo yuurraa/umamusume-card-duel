@@ -60,7 +60,9 @@ export function getSelectableUmamusumeUids(game: GameState, pending: PendingSele
   }
   if (pending.kind === "zoneBenchAttachTarget") return new Set(player.bench.map((umamusume) => umamusume.uid));
   if (pending.kind === "attackHealTarget") return new Set(getDamagedUmamusume(player).map((umamusume) => umamusume.uid));
+  if (pending.kind === "attackDamageTarget") return new Set(getAllUmamusume(game.sides.opponent).map((umamusume) => umamusume.uid));
   if (pending.kind === "moveEnergyAbility") return undefined;
+  if (pending.kind === "abilityDamageTarget") return new Set(getAllUmamusume(game.sides.opponent).map((umamusume) => umamusume.uid));
   if (pending.kind === "retreatDiscard") return undefined;
   if (pending.kind === "retreatTarget") return new Set(player.bench.map((umamusume) => umamusume.uid));
   if (pending.kind === "forceSwitchActive") return new Set(player.bench.map((umamusume) => umamusume.uid));

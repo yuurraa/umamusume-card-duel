@@ -151,7 +151,7 @@ export function CardPreview({ state, target, canUseAttack, canUseRetreat, canUse
           )}
 
           {card.kind === "umamusume" && card.ability && (
-            card.ability.moveBenchedEnergyToActive || card.ability.discardToDraw || card.ability.coinFlipDrawOrActiveDamageCounter ? (
+            card.ability.moveBenchedEnergyToActive || card.ability.discardToDraw || card.ability.coinFlipDrawOrActiveDamageCounter || card.ability.damageOpponent ? (
               <button
                 type="button"
                 disabled={!canUseAbility}

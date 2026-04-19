@@ -1,4 +1,4 @@
-import type { GameState, SideState, UmamusumeInstance } from "../../../../../shared/src/types";
+import type { EnergyType, GameState, SideState, UmamusumeInstance } from "../../../../../shared/src/types";
 import { getPrimaryAttack, getUmamusumeCard } from "../core/catalog";
 import { getAbilityMoveEnergyTypes, hasEnoughEnergy } from "./energy";
 import { effectiveRetreatCost } from "./retreat";
@@ -34,18 +34,27 @@ export function canRetreat(state: GameState, side: SideState): boolean {
 }
 
 export function canUseUmamusumeAbility(state: GameState, side: SideState, abilityUmamusumeUid: number): boolean {
-  if (state.phase !== "play" || state.pendingPlayerChoice || state.gameOver || state.currentSide !== side.id || !side.active) return false;
+  if (state.phase !== "play" || state.pendingPlayerChoice || state.gameOver || state.currentSide !== side.id) return false;
   const abilityUmamusume = findOwnUmamusumeByUid(side, abilityUmamusumeUid);
   if (!abilityUmamusume || abilityUmamusume.usedAbilityThisTurn) return false;
   const ability = getUmamusumeCard(abilityUmamusume).ability;
   if (!ability) return false;
   if (side.usedAbilityNamesThisTurn?.includes(ability.name)) return false;
   if (ability.moveBenchedEnergyToActive) {
+    if (!side.active) return false;
     const energyTypes = getAbilityMoveEnergyTypes(ability);
     if (energyTypes.length === 0) return false;
     return side.bench.some((umamusume) => energyTypes.some((energyType) => umamusume.energies[energyType] > 0));
   }
   if (ability.discardToDraw) return side.hand.length >= ability.discardToDraw.discard;
   if (ability.coinFlipDrawOrActiveDamageCounter) return true;
+  if (ability.damageOpponent) {
+    if (ability.discardEnergy) {
+      const canPayDiscard = Object.entries(ability.discardEnergy).every(([type, amount]) => abilityUmamusume.energies[type as EnergyType] >= (amount ?? 0));
+      if (!canPayDiscard) return false;
+    }
+    const opponent = state.sides[side.id === "player" ? "opponent" : "player"];
+    return Boolean(opponent.active || opponent.bench.length > 0);
+  }
   return false;
 }

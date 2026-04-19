@@ -11,14 +11,17 @@ export type PendingSelection =
   | { kind: "replaceActive" }
   | { kind: "forceSwitchActive" }
   | { kind: "attackHealTarget" }
+  | { kind: "attackDamageTarget" }
   | { kind: "healTarget"; handIndex: number }
   | { kind: "evolveTarget"; handIndex: number }
   | { kind: "toolTarget"; handIndex: number }
   | { kind: "rainbowUncapTarget"; handIndex: number }
   | { kind: "rainbowUncapEvolution"; handIndex: number; umamusumeUid: number }
   | { kind: "moveEnergyAbility"; abilityUmamusumeUid: number; energyTypes: EnergyType[] }
+  | { kind: "abilityDamageTarget"; abilityUmamusumeUid: number }
   | { kind: "discardForAbility"; abilityUmamusumeUid: number }
-  | { kind: "discardForScout"; handIndex: number };
+  | { kind: "discardForScout"; handIndex: number }
+  | { kind: "deckForScout"; handIndex: number; discardHandIndex: number; discardedCardName: string };
 
 export type ActionNoticeSource =
   | { kind: "genericGain" }

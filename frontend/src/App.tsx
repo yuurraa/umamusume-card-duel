@@ -44,6 +44,7 @@ import {
 } from "./match/utils/helpers";
 import { CardPreview } from "./match/modals/CardPreview";
 import { DiscardPileModal } from "./match/modals/DiscardPileModal";
+import { DeckChoiceModal } from "./match/modals/DeckChoiceModal";
 import { PlayDropZone } from "./match/board/PlayDropZone";
 import { StadiumSlot } from "./match/board/StadiumSlot";
 import { PlayHandHeader } from "./match/controls/HandControls";
@@ -76,6 +77,7 @@ type PendingCoinAttack = {
   eventId: number;
   attackerId: SideId;
   result: "heads" | "tails";
+  attackTargetUid?: number;
   healTargetUid?: number;
 };
 
@@ -116,8 +118,13 @@ export function App() {
   const nextPlayerEnergy = player.energyZone[0] ?? null;
   const activePendingSelection = game.pendingPlayerChoice
     ? ({ kind: game.pendingPlayerChoice.kind === "switchAfterGust" ? "forceSwitchActive" : "replaceActive" } as PendingSelection)
-    : pendingSelection;
+    : pendingSelection?.kind === "deckForScout"
+      ? null
+      : pendingSelection;
   const selectableUmamusumeUids = getSelectableUmamusumeUids(game, activePendingSelection);
+  const selectingOpponentUmamusume = pendingSelection?.kind === "attackDamageTarget" || pendingSelection?.kind === "abilityDamageTarget";
+  const playerSelectableUmamusumeUids = selectingOpponentUmamusume ? undefined : selectableUmamusumeUids;
+  const opponentSelectableUmamusumeUids = selectingOpponentUmamusume ? selectableUmamusumeUids : undefined;
   const selectableHandIndexes = pendingSelection?.kind === "rainbowUncapEvolution"
     ? new Set(
         getAllUmamusume(player)
@@ -392,6 +399,11 @@ export function App() {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
+      if (screen === "decks" || screen === "customisation") {
+        event.preventDefault();
+        navigateToScreen("mainMenu");
+        return;
+      }
       if (screen !== "match" || game.gameOver) return;
 
       event.preventDefault();
@@ -412,6 +424,10 @@ export function App() {
         setPendingSelection(null);
         return;
       }
+      if (pendingSelection?.kind === "deckForScout") {
+        setPendingSelection({ kind: "discardForScout", handIndex: pendingSelection.handIndex });
+        return;
+      }
       if (actionNotice && isBottomActionNotice(actionNotice)) {
         setActionNotice(null);
         return;
@@ -429,7 +445,7 @@ export function App() {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [screen, game.gameOver, game.pendingPlayerChoice, isCoinFlipBlocking, endTurnWarningActions, previewTarget, discardOpen, pendingSelection, actionNotice, menuOpen]);
+  }, [screen, game.gameOver, game.pendingPlayerChoice, isCoinFlipBlocking, endTurnWarningActions, previewTarget, discardOpen, pendingSelection, actionNotice, menuOpen, pendingScreen, navigateToScreen]);
 
   useEffect(() => {
     const previousLog = previousLogRef.current;
@@ -607,13 +623,27 @@ export function App() {
     if (pendingSelection.kind === "discardForScout") {
       const discardedCardId = player.hand[handIndex];
       const discardedCardName = discardedCardId ? getCard(discardedCardId).name : "that card";
-      applyPlayerGameUpdate(
-        (current) => playHandCard(current, pendingSelection.handIndex, { discardHandIndex: handIndex }),
-        { kind: "makeDebutScout", discardedCardName },
-      );
-      setPendingSelection(null);
+      setPendingSelection({
+        kind: "deckForScout",
+        handIndex: pendingSelection.handIndex,
+        discardHandIndex: handIndex,
+        discardedCardName,
+      });
       setPreviewTarget(null);
     }
+  };
+
+  const chooseScoutDeckCard = (deckCardIndex: number) => {
+    if (!pendingSelection || pendingSelection.kind !== "deckForScout") return;
+    applyPlayerGameUpdate(
+      (current) => playHandCard(current, pendingSelection.handIndex, {
+        discardHandIndex: pendingSelection.discardHandIndex,
+        deckCardIndex,
+      }),
+      { kind: "makeDebutScout", discardedCardName: pendingSelection.discardedCardName },
+    );
+    setPendingSelection(null);
+    setPreviewTarget(null);
   };
 
   const selectUmamusume = (umamusume: UmamusumeInstance) => {
@@ -638,10 +668,27 @@ export function App() {
         });
         setActiveCoinFlip(coinAttack);
       } else if (attack?.draw) {
+        applyPlayerGameUpdate((current) => playerAttack(current, undefined, umamusume.uid), { kind: "genericGain" });
+      } else {
+        setGame((current) => playerAttack(current, undefined, umamusume.uid));
+      }
+    } else if (pendingSelection.kind === "attackDamageTarget") {
+      const active = player.active;
+      const attack = active ? getPrimaryAttack(getUmamusumeCard(active)) : null;
+      if (attack?.draw) {
         applyPlayerGameUpdate((current) => playerAttack(current, umamusume.uid), { kind: "genericGain" });
       } else {
         setGame((current) => playerAttack(current, umamusume.uid));
       }
+    } else if (pendingSelection.kind === "abilityDamageTarget") {
+      setGame((current) => usePlayerAbility(
+        current,
+        pendingSelection.abilityUmamusumeUid,
+        pendingSelection.abilityUmamusumeUid,
+        undefined,
+        undefined,
+        umamusume.uid,
+      ));
     } else if (pendingSelection.kind === "retreatTarget") {
       setGame((current) => playerRetreat(current, umamusume.uid, pendingSelection.discardEnergyTypes));
     } else if (pendingSelection.kind === "rainbowUncapTarget") {
@@ -714,7 +761,7 @@ export function App() {
             onInspect={openPreview}
             setupMode={game.phase === "setup"}
             abilityReadyUmamusumeUids={abilityReadyUmamusumeUids}
-            selectableUmamusumeUids={game.phase === "play" ? selectableUmamusumeUids : undefined}
+            selectableUmamusumeUids={game.phase === "play" ? playerSelectableUmamusumeUids : undefined}
             abilityEnergyTypes={abilityEnergyTypes}
             onUmamusumeSelect={selectUmamusume}
             onSetupDropActive={applySetupActive}
@@ -733,6 +780,8 @@ export function App() {
             sideId="opponent"
             hidden={hiddenOpponent}
             onInspect={openPreview}
+            selectableUmamusumeUids={game.phase === "play" ? opponentSelectableUmamusumeUids : undefined}
+            onUmamusumeSelect={selectUmamusume}
             sleeveImage={opponentSleeve.image}
             {...(hiddenOpponentBenchCount !== undefined ? { hiddenBenchCount: hiddenOpponentBenchCount } : {})}
           />
@@ -804,7 +853,7 @@ export function App() {
             if (coinAttack) {
               setGame((current) =>
                 coinAttack.attackerId === "player"
-                  ? playerAttack(current, coinAttack.healTargetUid, coinAttack.result)
+                  ? playerAttack(current, coinAttack.attackTargetUid, coinAttack.healTargetUid, coinAttack.result)
                   : advanceOpponentTurnStep(current, coinAttack.result),
               );
               setPendingCoinAttack(null);
@@ -839,6 +888,11 @@ export function App() {
         onAttack={() => {
           if (!player.active) return;
           const attack = getPrimaryAttack(getUmamusumeCard(player.active));
+          if (attack.targetOpponent === "any") {
+            setPendingSelection({ kind: "attackDamageTarget" });
+            setPreviewTarget(null);
+            return;
+          }
           if (attack.heal && attack.healTarget === "any") {
             const damagedTargets = getDamagedUmamusume(player);
             if (damagedTargets.length > 0) {
@@ -857,7 +911,7 @@ export function App() {
           if (attack.draw) {
             applyPlayerGameUpdate(playerAttack, { kind: "genericGain" });
           } else {
-            setGame(playerAttack);
+            setGame((current) => playerAttack(current));
           }
           setPreviewTarget(null);
         }}
@@ -898,6 +952,12 @@ export function App() {
           if (ability.moveBenchedEnergyToActive) {
             const energyTypes = Array.isArray(ability.moveBenchedEnergyToActive) ? ability.moveBenchedEnergyToActive : [ability.moveBenchedEnergyToActive];
             setPendingSelection({ kind: "moveEnergyAbility", abilityUmamusumeUid: previewTarget.umamusume.uid, energyTypes });
+          } else if (ability.damageOpponent) {
+            if (ability.damageOpponentTarget === "any") {
+              setPendingSelection({ kind: "abilityDamageTarget", abilityUmamusumeUid: previewTarget.umamusume.uid });
+            } else {
+              setGame((current) => usePlayerAbility(current, previewTarget.umamusume!.uid, previewTarget.umamusume!.uid));
+            }
           } else if (ability.discardToDraw && player.hand.length >= ability.discardToDraw.discard) {
             setPendingSelection({ kind: "discardForAbility", abilityUmamusumeUid: previewTarget.umamusume.uid });
           } else if (ability.coinFlipDrawOrActiveDamageCounter) {
@@ -925,6 +985,13 @@ export function App() {
           cardIds={player.discard}
           onInspect={(card) => setPreviewTarget({ card })}
           onClose={() => setDiscardOpen(false)}
+        />
+      )}
+      {pendingSelection?.kind === "deckForScout" && (
+        <DeckChoiceModal
+          cardIds={player.deck}
+          onChoose={chooseScoutDeckCard}
+          onClose={() => setPendingSelection({ kind: "discardForScout", handIndex: pendingSelection.handIndex })}
         />
       )}
       {actionNotice && (

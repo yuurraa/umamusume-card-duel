@@ -307,7 +307,7 @@ function BenchSlot({ card, umamusume, side, hidden, setupMode, activeSetupHandIn
               alt={card.name}
               draggable={false}
             />
-            {abilityReady && <AbilityReadyBadge corner="topLeft" size="sm" />}
+            {abilityReady && <AbilityReadyBadge corner="topLeft" size="xs" nudgeX={14} />}
             <AttachedToolBadge
               toolCardId={umamusume.toolCardId}
               size="sm"

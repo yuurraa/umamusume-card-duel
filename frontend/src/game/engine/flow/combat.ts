@@ -15,6 +15,7 @@ export function performAttack(
   state: GameState,
   attackerId: SideId,
   deps: CombatDeps,
+  attackTargetUid?: number,
   healTargetUid?: number,
   forcedCoinResult?: "heads" | "tails",
 ): void {
@@ -24,8 +25,12 @@ export function performAttack(
   if (!attacker.active || !defender.active) return;
   const attackerCard = getUmamusumeCard(attacker.active);
   const attack = getPrimaryAttack(attackerCard);
+  const attackTarget = attack.targetOpponent === "any"
+    ? (attackTargetUid !== undefined ? getAllUmamusume(defender).find((umamusume) => umamusume.uid === attackTargetUid) : undefined) ?? defender.active
+    : defender.active;
+  if (!attackTarget) return;
   const nonDamagingAttack = isNonDamagingAttack(attack);
-  const defenderCard = getUmamusumeCard(defender.active);
+  const defenderCard = getUmamusumeCard(attackTarget);
   let damage = attack.damage + (nonDamagingAttack ? 0 : attacker.activeAttackDamageBonus);
   let coinFlipHeads: boolean | null = null;
 
@@ -53,7 +58,7 @@ export function performAttack(
   }
   if (damage > 0 && defenderCard.weakness.type === attackerCard.type) damage += defenderCard.weakness.amount;
 
-  const reduction = Math.min(damage, attackDamageReductionFor(state, defender.active));
+  const reduction = Math.min(damage, attackDamageReductionFor(state, attackTarget));
   damage = Math.max(0, damage - reduction);
   if (damage <= 0) {
     log(state, `${actorName(attacker)} used ${formatUmamusumeCardName(attackerCard)}'s ${attack.name}.`);
@@ -63,10 +68,10 @@ export function performAttack(
   if (coinFlipHeads !== null) {
     log(state, `Flip a coin and got 1x ${coinFlipHeads ? "heads" : "tails"}.`);
   }
-  defender.active.hp = Math.max(0, defender.active.hp - damage);
-  if (damage > 0) defender.active.tookDamageThisTurn = true;
+  attackTarget.hp = Math.max(0, attackTarget.hp - damage);
+  if (damage > 0) attackTarget.tookDamageThisTurn = true;
   if (reduction > 0) log(state, `${actorPossessive(defender)} damage reduction prevented ${reduction} damage.`);
-  const counterDamage = damage > 0 ? activeToolCounterDamage(state, defender.active) : 0;
+  const counterDamage = damage > 0 && defender.active?.uid === attackTarget.uid ? activeToolCounterDamage(state, defender.active) : 0;
   if (counterDamage > 0 && attacker.active) {
     attacker.active.hp = Math.max(0, attacker.active.hp - counterDamage);
     attacker.active.tookDamageThisTurn = true;
@@ -113,6 +118,16 @@ export function performAttack(
     const healed = target.hp - before;
     if (healed > 0) log(state, `${attack.name} healed ${formatUmamusumeInstanceName(target)} for ${healed} HP.`);
   }
+  if (attack.benchDamage && attack.benchDamage > 0) {
+    defender.bench.forEach((benchedUmamusume) => {
+      benchedUmamusume.hp = Math.max(0, benchedUmamusume.hp - attack.benchDamage!);
+      benchedUmamusume.tookDamageThisTurn = true;
+    });
+    const count = defender.bench.length;
+    if (count > 0) {
+      log(state, `${attack.name} also did ${attack.benchDamage} damage to ${count} ${count === 1 ? "benched Umamusume" : "benched Umamusume"}.`);
+    }
+  }
   if (attack.discardEnergy) {
     const attackingActive = attacker.active;
     if (!attackingActive) return;
@@ -124,6 +139,13 @@ export function performAttack(
   }
 
   resolveKnockout(state, attackerId, defenderId, deps, `${formatUmamusumeCardName(attackerCard)}'s ${attack.name}`);
+  defender.bench
+    .filter((umamusume) => umamusume.hp <= 0)
+    .forEach((umamusume) => {
+      if (knockOutUmamusume(state, attackerId, defenderId, umamusume, deps.choosePreferredActiveIndex, `${formatUmamusumeCardName(attackerCard)}'s ${attack.name}`)) {
+        if (!state.gameOver) deps.refreshContinuousEffects(state);
+      }
+    });
   if (!state.gameOver && attacker.active && attacker.active.hp <= 0) {
     if (knockOutUmamusume(state, defenderId, attackerId, attacker.active, deps.choosePreferredActiveIndex, "Boxing Gloves")) {
       deps.refreshContinuousEffects(state);

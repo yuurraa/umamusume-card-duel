@@ -12,6 +12,8 @@ export type Attack = {
   cost: EnergyCost;
   damage: number;
   text: string;
+  targetOpponent?: "active" | "any";
+  benchDamage?: number;
   coinBonus?: number;
   drawOnHeads?: number;
   draw?: number;
@@ -34,6 +36,9 @@ export type Ability = {
   name: string;
   text: string;
   heal?: number;
+  damageOpponent?: number;
+  damageOpponentTarget?: "active" | "any";
+  discardEnergy?: Partial<Record<EnergyType, number>>;
   activeHpBonus?: number;
   damageReduction?: number;
   moveBenchedEnergyToActive?: EnergyType | EnergyType[];

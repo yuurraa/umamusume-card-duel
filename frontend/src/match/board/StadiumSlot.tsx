@@ -54,7 +54,7 @@ export function StadiumSlot({ state, abilityReady = false, onDropHandCard, onIns
         ? (
           <>
             <img style={stadiumImageStyle(hovered)} src={stadiumImage} alt={stadiumName} draggable={false} />
-            {abilityReady && <AbilityReadyBadge corner="topLeft" size="sm" />}
+            {abilityReady && <AbilityReadyBadge corner="topLeft" size="xs" nudgeX={14} />}
           </>
         )
         : <span style={stadiumEmptyTextStyle}>Stadium Slot</span>}

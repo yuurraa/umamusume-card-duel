@@ -281,6 +281,56 @@ const baseCards: Record<string, Card> = {
     retreat: "Colorless x2",
     attacks: [{ name: "Blue Rose Closer", cost: { darkness: 2 }, damage: 80, discardEnergy: { darkness: 1 }, text: "Discard 1 Darkness Energy from this Umamusume." }],
   },
+  manhattanCafeBasic: {
+    id: "manhattanCafeBasic",
+    owner: "player",
+    kind: "umamusume",
+    name: "Manhattan Cafe",
+    label: "Umamusume - Dark - Basic",
+    species: "Manhattan Cafe",
+    type: "Darkness",
+    stage: 0,
+    hp: 60,
+    portrait: "/assets/umamusume/manhattan-cafe-basic.png",
+    weakness: { type: "Steel", amount: WEAKNESS_BONUS },
+    retreat: "Colorless",
+    attacks: [{
+      name: "Creeping Shadow",
+      cost: { darkness: 1 },
+      damage: 20,
+      targetOpponent: "any",
+      text: "Choose 1 of your opponent's Umamusume. This attack does 20 damage to that Umamusume.",
+    }],
+  },
+  manhattanCafeStage1: {
+    id: "manhattanCafeStage1",
+    owner: "player",
+    kind: "umamusume",
+    name: "Manhattan Cafe",
+    label: "Umamusume - Dark - Stage 1",
+    species: "Manhattan Cafe",
+    type: "Darkness",
+    stage: 1,
+    evolvesFrom: "Manhattan Cafe",
+    hp: 80,
+    portrait: "/assets/umamusume/manhattan-cafe-stage1.png",
+    weakness: { type: "Steel", amount: WEAKNESS_BONUS },
+    retreat: "Colorless x2",
+    ability: {
+      name: "Chasing After You",
+      text: "Once during your turn, you may do 20 damage to 1 of your opponent's Umamusume. If you do, discard 1 Darkness Energy from this Umamusume. You cannot use more than 1 Chasing After You Ability during your turn.",
+      damageOpponent: 20,
+      damageOpponentTarget: "any",
+      discardEnergy: { darkness: 1 },
+    },
+    attacks: [{
+      name: "Sweeping Shadow",
+      cost: { darkness: 1, colorless: 1 },
+      damage: 40,
+      benchDamage: 10,
+      text: "This attack also does 10 damage to each of your opponent's Benched Umamusume.",
+    }],
+  },
   tazunaHayakawa: {
     id: "tazunaHayakawa",
     kind: "trainer",
@@ -452,6 +502,11 @@ const FULL_ART_BASE_CARD_IDS = [
   "agnesDigitalStage1",
   "agnesTachyonStage1",
   "riceShowerStage2",
+  "manhattanCafeStage1",
+  "teamCanopus",
+  "tazunaHayakawa",
+  "aoiKiryuin",
+  "yayoiAkikawa",
 ] as const;
 
 export const cards = withFullArtVariants(baseCards, FULL_ART_BASE_CARD_IDS);
@@ -461,22 +516,32 @@ function withFullArtVariants(sourceCards: Record<string, Card>, baseCardIds: rea
 
   baseCardIds.forEach((baseCardId) => {
     const baseCard = sourceCards[baseCardId];
-    if (!baseCard || baseCard.kind !== "umamusume") return;
+    if (!baseCard) return;
     const fullArtCardId = `${baseCardId}FullArt`;
-    nextCards[fullArtCardId] = {
-      ...baseCard,
-      id: fullArtCardId,
-      portrait: toFullArtPortraitPath(baseCard.portrait),
-    };
+    if (baseCard.kind === "umamusume") {
+      nextCards[fullArtCardId] = {
+        ...baseCard,
+        id: fullArtCardId,
+        portrait: toFullArtAssetPath(baseCard.portrait),
+      };
+      return;
+    }
+    if (baseCard.kind === "trainer") {
+      nextCards[fullArtCardId] = {
+        ...baseCard,
+        id: fullArtCardId,
+        image: toFullArtAssetPath(baseCard.image),
+      };
+    }
   });
 
   return nextCards;
 }
 
-function toFullArtPortraitPath(portrait: string): string {
-  return portrait.endsWith(".png")
-    ? portrait.slice(0, -4) + `${FULL_ART_SUFFIX}.png`
-    : `${portrait}${FULL_ART_SUFFIX}`;
+function toFullArtAssetPath(assetPath: string): string {
+  return assetPath.endsWith(".png")
+    ? assetPath.slice(0, -4) + `${FULL_ART_SUFFIX}.png`
+    : `${assetPath}${FULL_ART_SUFFIX}`;
 }
 
 export const matikanetannhauserDeckList = [
@@ -484,10 +549,10 @@ export const matikanetannhauserDeckList = [
   "matikanetannhauserBasic",
   "matikanetannhauserStage1",
   "matikanetannhauserStage2FullArt",
-  "matikanetannhauserStage2FullArt",
+  "matikanetannhauserStage2",
+  "niceNatureBasicFullArt",
   "niceNatureBasic",
-  "niceNatureBasic",
-  "tazunaHayakawa",
+  "tazunaHayakawaFullArt",
   "tazunaHayakawa",
   "rainbowUncapCrystal",
   "carrotHamburgerSteak",
@@ -496,7 +561,7 @@ export const matikanetannhauserDeckList = [
   "makeDebutScout",
   "makeDebutScout",
   "traineeScoutTicket",
-  "teamCanopus",
+  "teamCanopusFullArt",
   "teamCanopus",
   "nakayamaTurf",
   "hanshinRacetrack",
@@ -506,11 +571,11 @@ export const mihonoBourbonDeckList = [
   "mihonoBourbonBasic",
   "mihonoBourbonBasic",
   "mihonoBourbonStage1",
+  "mihonoBourbonStage2FullArt",
   "mihonoBourbonStage2",
-  "mihonoBourbonStage2",
-  "nishinoFlowerBasic",
-  "aoiKiryuin",
-  "tazunaHayakawa",
+  "nishinoFlowerBasicFullArt",
+  "aoiKiryuinFullArt",
+  "tazunaHayakawaFullArt",
   "tazunaHayakawa",
   "carrotHamburgerSteak",
   "rainbowUncapCrystal",
@@ -519,7 +584,7 @@ export const mihonoBourbonDeckList = [
   "makeDebutScout",
   "traineeScoutTicket",
   "traineeScoutTicket",
-  "teamCanopus",
+  "teamCanopusFullArt",
   "teamCanopus",
   "nakayamaTurf",
   "hanshinRacetrack",
@@ -528,22 +593,22 @@ export const mihonoBourbonDeckList = [
 export const agnesDigitalDeckList = [
   "agnesDigitalBasic",
   "agnesDigitalBasic",
-  "agnesDigitalStage1",
+  "agnesDigitalStage1FullArt",
   "agnesDigitalStage1",
   "agnesTachyonBasic",
   "agnesTachyonBasic",
+  "agnesTachyonStage1FullArt",
   "agnesTachyonStage1",
-  "agnesTachyonStage1",
-  "tazunaHayakawa",
+  "tazunaHayakawaFullArt",
   "etsukoOtonashi",
   "carrotHamburgerSteak",
   "carrotJelly",
   "traineeScoutTicket",
   "traineeScoutTicket",
+  "teamCanopusFullArt",
   "teamCanopus",
-  "teamCanopus",
-  "aoiKiryuin",
-  "yayoiAkikawa",
+  "aoiKiryuinFullArt",
+  "yayoiAkikawaFullArt",
   "tracenGym",
   "nakayamaTurf",
 ];
@@ -552,49 +617,77 @@ export const riceShowerDeckList = [
   "riceShowerBasic",
   "riceShowerBasic",
   "riceShowerStage1",
+  "riceShowerStage2FullArt",
   "riceShowerStage2",
-  "riceShowerStage2",
+  "haruUraraBasicFullArt",
   "haruUraraBasic",
-  "haruUraraBasic",
+  "tazunaHayakawaFullArt",
   "tazunaHayakawa",
-  "tazunaHayakawa",
-  "yayoiAkikawa",
+  "yayoiAkikawaFullArt",
   "carrotHamburgerSteak",
   "rainbowUncapCrystal",
   "trainingHelmet",
   "makeDebutScout",
   "makeDebutScout",
   "traineeScoutTicket",
-  "teamCanopus",
+  "teamCanopusFullArt",
   "teamCanopus",
   "tracenAcademy",
   "hanshinRacetrack",
+];
+
+export const manhattanCafeDeckList = [
+  "manhattanCafeBasic",
+  "manhattanCafeBasic",
+  "manhattanCafeStage1FullArt",
+  "manhattanCafeStage1",
+  "haruUraraBasicFullArt",
+  "haruUraraBasic",
+  "tazunaHayakawaFullArt",
+  "tazunaHayakawa",
+  "carrotHamburgerSteak",
+  "carrotHamburgerSteak",
+  "carrotJelly",
+  "aoiKiryuinFullArt",
+  "makeDebutScout",
+  "makeDebutScout",
+  "traineeScoutTicket",
+  "traineeScoutTicket",
+  "teamCanopusFullArt",
+  "teamCanopus",
+  "nakayamaTurf",
 ];
 
 export const premadeDecks = [
   {
     id: "matikanetannhauser",
     name: "Matikanetannhauser",
-    coverCardId: "matikanetannhauserStage2",
+    coverCardId: "matikanetannhauserStage2FullArt",
     cardIds: matikanetannhauserDeckList,
   },
   {
     id: "riceShower",
     name: "Rice Shower",
-    coverCardId: "riceShowerStage2",
+    coverCardId: "riceShowerStage2FullArt",
     cardIds: riceShowerDeckList,
   },
   {
     id: "mihonoBourbon",
     name: "Mihono Bourbon",
-    coverCardId: "mihonoBourbonStage2",
+    coverCardId: "mihonoBourbonStage2FullArt",
     cardIds: mihonoBourbonDeckList,
   },
   {
     id: "agnesDigital",
     name: "Agnes Digital",
-    coverCardId: "agnesDigitalStage1",
+    coverCardId: "agnesDigitalStage1FullArt",
     cardIds: agnesDigitalDeckList,
+  },
+  {
+    id: "manhattanCafe",
+    name: "Manhattan Cafe",
+    coverCardId: "manhattanCafeStage1FullArt",
+    cardIds: manhattanCafeDeckList,
   },
 ];
 
