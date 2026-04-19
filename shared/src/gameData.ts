@@ -5,6 +5,7 @@ export const MAX_BENCH = 3;
 export const MAX_HAND = 10;
 export const OPENING_HAND = 5;
 export const WEAKNESS_BONUS = 20;
+const FULL_ART_SUFFIX = "-fullart";
 
 export const energyImages: Record<EnergyType, string> = {
   grass: "/assets/energy/grass-energy.png",
@@ -19,7 +20,7 @@ export const energyImages: Record<EnergyType, string> = {
   dragon: "/assets/energy/dragon-energy.png",
 };
 
-export const cards: Record<string, Card> = {
+const baseCards: Record<string, Card> = {
   matikanetannhauserBasic: {
     id: "matikanetannhauserBasic",
     owner: "player",
@@ -442,12 +443,48 @@ export const cards: Record<string, Card> = {
   },
 };
 
+const FULL_ART_BASE_CARD_IDS = [
+  "matikanetannhauserStage2",
+  "niceNatureBasic",
+  "nishinoFlowerBasic",
+  "mihonoBourbonStage2",
+  "haruUraraBasic",
+  "agnesDigitalStage1",
+  "agnesTachyonStage1",
+  "riceShowerStage2",
+] as const;
+
+export const cards = withFullArtVariants(baseCards, FULL_ART_BASE_CARD_IDS);
+
+function withFullArtVariants(sourceCards: Record<string, Card>, baseCardIds: readonly string[]): Record<string, Card> {
+  const nextCards: Record<string, Card> = { ...sourceCards };
+
+  baseCardIds.forEach((baseCardId) => {
+    const baseCard = sourceCards[baseCardId];
+    if (!baseCard || baseCard.kind !== "umamusume") return;
+    const fullArtCardId = `${baseCardId}FullArt`;
+    nextCards[fullArtCardId] = {
+      ...baseCard,
+      id: fullArtCardId,
+      portrait: toFullArtPortraitPath(baseCard.portrait),
+    };
+  });
+
+  return nextCards;
+}
+
+function toFullArtPortraitPath(portrait: string): string {
+  return portrait.endsWith(".png")
+    ? portrait.slice(0, -4) + `${FULL_ART_SUFFIX}.png`
+    : `${portrait}${FULL_ART_SUFFIX}`;
+}
+
 export const matikanetannhauserDeckList = [
   "matikanetannhauserBasic",
   "matikanetannhauserBasic",
   "matikanetannhauserStage1",
-  "matikanetannhauserStage2",
-  "matikanetannhauserStage2",
+  "matikanetannhauserStage2FullArt",
+  "matikanetannhauserStage2FullArt",
   "niceNatureBasic",
   "niceNatureBasic",
   "tazunaHayakawa",
