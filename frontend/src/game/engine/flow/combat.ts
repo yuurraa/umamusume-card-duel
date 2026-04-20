@@ -146,6 +146,8 @@ export function performAttack(
         if (!state.gameOver) deps.refreshContinuousEffects(state);
       }
     });
+  // TODO: when implementing simultaneous-KO tiebreak handling, keep attacker advantage in the
+  // 2-2 deciding-attack scenario (attacker reaches 3 first; Boxing Gloves recoil should not flip winner).
   if (!state.gameOver && attacker.active && attacker.active.hp <= 0) {
     if (knockOutUmamusume(state, defenderId, attackerId, attacker.active, deps.choosePreferredActiveIndex, "Boxing Gloves")) {
       deps.refreshContinuousEffects(state);

@@ -1,7 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { MAX_BENCH, premadeDecks } from "../../../shared/src/gameData";
-import { Hand } from "../components/boards/Hand";
-import { SideBoard } from "../components/boards/SideBoard";
+import { MAX_BENCH } from "../../../shared/src/gameData";
 import {
   advancePlayerAiTurnStep,
   advanceOpponentTurnStep,
@@ -47,20 +45,12 @@ import {
 import { CardPreview } from "../match/modals/CardPreview";
 import { DiscardPileModal } from "../match/modals/DiscardPileModal";
 import { DeckChoiceModal } from "../match/modals/DeckChoiceModal";
-import { PlayDropZone } from "../match/board/PlayDropZone";
-import { StadiumSpot } from "../match/board/StadiumSpot";
-import { PlayHandHeader } from "../match/controls/HandControls";
-import { PregameSetupPanel } from "../match/setup/PregameSetupPanel";
 import { GameOverModal } from "../match/modals/GameOverModal";
 import { EndTurnWarningModal } from "../match/modals/EndTurnWarningModal";
 import { SelectionPrompt } from "../match/controls/SelectionPrompt";
 import { OpponentActionBanner } from "../match/feedback/OpponentActionBanner";
 import { ActionNotice } from "../match/feedback/ActionNotice";
 import { CoinFlipOverlay } from "../match/feedback/CoinFlipOverlay";
-import { MainMenuScreen } from "../screens/MainMenuScreen";
-import { MatchModeScreen } from "../screens/MatchModeScreen";
-import { DeckBrowserScreen } from "../screens/DeckBrowserScreen";
-import { CustomisationScreen } from "../screens/CustomisationScreen";
 import {
   getPlaymatTextTone,
   getSelectedPlaymat,
@@ -87,12 +77,11 @@ import {
 import {
   SCREEN_FADE_MS,
   appStyle,
-  contentStyle,
-  duelGridStyle,
-  handPanelStyle,
   matchBackgroundLayerStyle,
   screenFadeOverlayStyle,
 } from "./styles";
+import { renderNonMatchScreen } from "./nonMatchScreens";
+import { MatchBoardLayout } from "./MatchBoardLayout";
 
 type PendingCoinAttack = {
   eventId: number;
@@ -818,154 +807,79 @@ export function App() {
     setPendingSelection(null);
     setPreviewTarget(null);
   };
+  const handleSetupReady = () => {
+    if (isTurnFlowBlocked) return;
+    if (setupActiveIndex === null) return;
+    setGame((current) => completePregameSetup(current, setupActiveIndex, setupBenchIndexes));
+  };
+  const canAttachInHeader = canAttachEnergy(game, player) && !isBusyWithChoice;
+  const canEndTurnInHeader = !game.gameOver && game.currentSide === "player" && !isBusyWithChoice;
+  const canSurrenderInPanels = !game.gameOver && !isTurnFlowBlocked;
+  const playerExtraEnergyCount = Math.max(0, player.energyZone.length - 1);
 
-  if (screen === "mainMenu") {
-    return (
-      <main style={appStyle(true, selectedPlaymat.image, uiTextTone)}>
-        <MainMenuScreen
-          equippedDeck={equippedDeck}
-          onPlay={playEquippedDeck}
-          onOpenDecks={() => navigateToScreen("decks")}
-          onOpenCustomisation={() => navigateToScreen("customisation")}
-          onQuit={quitApp}
-        />
-        <div style={screenFadeOverlayStyle(screenFadeOverlayOpacity)} />
-      </main>
-    );
-  }
-
-  if (screen === "modeSelect") {
-    return (
-      <main style={appStyle(true, selectedPlaymat.image, uiTextTone)}>
-        <MatchModeScreen
-          onBack={() => navigateToScreen("mainMenu")}
-          onChooseMode={startWithMode}
-        />
-        <div style={screenFadeOverlayStyle(screenFadeOverlayOpacity)} />
-      </main>
-    );
-  }
-
-  if (screen === "decks") {
-    return (
-      <main style={appStyle(false, selectedPlaymat.image, uiTextTone)}>
-        <DeckBrowserScreen
-          decks={premadeDecks}
-          equippedDeckId={equippedDeck.id}
-          onEquipDeck={(deckId) => setEquippedDeckId(deckId)}
-          onBack={() => navigateToScreen("mainMenu")}
-        />
-        <div style={screenFadeOverlayStyle(screenFadeOverlayOpacity)} />
-      </main>
-    );
-  }
-
-  if (screen === "customisation") {
-    return (
-      <main style={appStyle(false, selectedPlaymat.image, uiTextTone)}>
-        <CustomisationScreen
-          settings={customisation}
-          onChange={setCustomisation}
-          onBack={() => navigateToScreen("mainMenu")}
-        />
-        <div style={screenFadeOverlayStyle(screenFadeOverlayOpacity)} />
-      </main>
-    );
-  }
+  const nonMatchScreen = renderNonMatchScreen({
+    screen,
+    selectedPlaymatImage: selectedPlaymat.image,
+    uiTextTone,
+    screenFadeOverlayOpacity,
+    equippedDeck,
+    customisation,
+    navigateToScreen,
+    setEquippedDeckId,
+    setCustomisation,
+    startWithMode,
+    playEquippedDeck,
+    quitApp,
+  });
+  if (nonMatchScreen) return nonMatchScreen;
 
   return (
     <main style={appStyle(false, undefined, uiTextTone)}>
       <div style={matchBackgroundLayerStyle(selectedPlaymat.image, showPlayerPlaymat ? 1 : 0)} />
       <div style={matchBackgroundLayerStyle(opponentPlaymat.image, showOpponentPlaymat ? 1 : 0)} />
-      <div style={contentStyle}>
-        <section style={duelGridStyle}>
-          <SideBoard
-            side={displayedPlayerSide}
-            sideId="player"
-            onInspect={openPreview}
-            setupMode={game.phase === "setup"}
-            abilityReadyUmamusumeUids={abilityReadyUmamusumeUids}
-            selectableUmamusumeUids={game.phase === "play" ? playerSelectableUmamusumeUids : undefined}
-            abilityEnergyTypes={abilityEnergyTypes}
-            onUmamusumeSelect={selectUmamusume}
-            onSetupDropActive={applySetupActive}
-            onSetupDropBench={applySetupBench}
-            onSetupPromoteToActive={promoteSetupBenchToActive}
-            onHandCardDropOnActive={playHandCardOnUmamusume}
-            onHandCardDropOnBenchSlot={playHandCardOnBenchSlot}
-            onHandCardDropOnUmamusume={playHandCardOnUmamusume}
-            onEnergyDropOnUmamusume={attachEnergyByDrop}
-            onAbilityEnergyDropOnActive={moveAbilityEnergyByDrop}
-            setupDragHandIndexByUid={setupDragHandIndexByUid}
-          />
-          <SideBoard
-            key={hiddenOpponent ? "opponent-setup-hidden" : "opponent-live"}
-            side={displayedOpponentSide}
-            sideId="opponent"
-            hidden={opponentBoardHidden}
-            onInspect={openPreview}
-            selectableUmamusumeUids={game.phase === "play" ? opponentSelectableUmamusumeUids : undefined}
-            onUmamusumeSelect={selectUmamusume}
-            sleeveImage={opponentSleeve.image}
-            animateSetupReveal={game.phase === "setup" && opponentBoardHidden && opponentSetupRevealToken > 0}
-            setupRevealToken={opponentSetupRevealToken}
-            {...(hiddenOpponentBenchCount !== undefined ? { hiddenBenchCount: hiddenOpponentBenchCount } : {})}
-          />
-          {game.phase === "play" && (
-            <>
-              <StadiumSpot state={game} abilityReady={stadiumAbilityReady} onDropHandCard={playHandCardOnStadiumSpot} onInspect={openPreview} />
-              <PlayDropZone onDropHandCard={playHandCardOnCenter} />
-            </>
-          )}
-        </section>
-
-        <section style={handPanelStyle}>
-          {game.phase === "setup" ? (
-            <PregameSetupPanel
-              game={game}
-              activeIndex={setupActiveIndex}
-              benchIndexes={setupBenchIndexes}
-              menuOpen={menuOpen}
-              log={game.log}
-              canSurrender={!game.gameOver && !isTurnFlowBlocked}
-              onToggleMenu={toggleMenu}
-              onSurrender={handleSurrender}
-              onSetActive={applySetupActive}
-              onReady={() => {
-                if (isTurnFlowBlocked) return;
-                if (setupActiveIndex === null) return;
-                setGame((current) => completePregameSetup(current, setupActiveIndex, setupBenchIndexes));
-              }}
-              onInspect={openPreview}
-              sleeveImage={selectedSleeve.image}
-            />
-          ) : (
-            <>
-              <PlayHandHeader
-                canAttach={canAttachEnergy(game, player) && !isBusyWithChoice}
-                energyRefreshKey={game.turnNumber}
-                energyType={nextPlayerEnergy}
-                extraCount={Math.max(0, player.energyZone.length - 1)}
-                canEndTurn={!game.gameOver && game.currentSide === "player" && !isBusyWithChoice}
-                onEndTurn={handleEndTurn}
-                menuOpen={menuOpen}
-                log={game.log}
-                canSurrender={!game.gameOver && !isTurnFlowBlocked}
-                onToggleMenu={toggleMenu}
-                onSurrender={handleSurrender}
-              />
-              <Hand
-                state={game}
-                onInspect={openPreview}
-                selectableHandIndexes={selectableHandIndexes}
-                onChooseHandCard={chooseHandCard}
-                onOpenDiscard={() => setDiscardOpen(true)}
-                sleeveImage={selectedSleeve.image}
-              />
-            </>
-          )}
-        </section>
-      </div>
+      <MatchBoardLayout
+        game={game}
+        displayedPlayerSide={displayedPlayerSide}
+        displayedOpponentSide={displayedOpponentSide}
+        hiddenOpponent={hiddenOpponent}
+        opponentBoardHidden={opponentBoardHidden}
+        opponentSetupRevealToken={opponentSetupRevealToken}
+        hiddenOpponentBenchCount={hiddenOpponentBenchCount}
+        abilityReadyUmamusumeUids={abilityReadyUmamusumeUids}
+        playerSelectableUmamusumeUids={playerSelectableUmamusumeUids}
+        opponentSelectableUmamusumeUids={opponentSelectableUmamusumeUids}
+        abilityEnergyTypes={abilityEnergyTypes}
+        setupDragHandIndexByUid={setupDragHandIndexByUid}
+        onInspect={openPreview}
+        onUmamusumeSelect={selectUmamusume}
+        onSetupDropActive={applySetupActive}
+        onSetupDropBench={applySetupBench}
+        onSetupPromoteToActive={promoteSetupBenchToActive}
+        onHandCardDropOnUmamusume={playHandCardOnUmamusume}
+        onHandCardDropOnBenchSlot={playHandCardOnBenchSlot}
+        onEnergyDropOnUmamusume={attachEnergyByDrop}
+        onAbilityEnergyDropOnActive={moveAbilityEnergyByDrop}
+        opponentSleeveImage={opponentSleeve.image}
+        stadiumAbilityReady={stadiumAbilityReady}
+        onDropHandCardOnStadium={playHandCardOnStadiumSpot}
+        onDropHandCardOnCenter={playHandCardOnCenter}
+        setupActiveIndex={setupActiveIndex}
+        setupBenchIndexes={setupBenchIndexes}
+        menuOpen={menuOpen}
+        canSurrender={canSurrenderInPanels}
+        onToggleMenu={toggleMenu}
+        onSurrender={handleSurrender}
+        onSetupReady={handleSetupReady}
+        selectedSleeveImage={selectedSleeve.image}
+        canAttach={canAttachInHeader}
+        nextPlayerEnergy={nextPlayerEnergy}
+        playerExtraEnergyCount={playerExtraEnergyCount}
+        canEndTurn={canEndTurnInHeader}
+        onEndTurn={handleEndTurn}
+        selectableHandIndexes={selectableHandIndexes}
+        onChooseHandCard={chooseHandCard}
+        onOpenDiscard={() => setDiscardOpen(true)}
+      />
       {(() => {
         const topBanner = getTopActionBanner(game);
         return topBanner ? <OpponentActionBanner title={topBanner.title} message={topBanner.message} paused={topBanner.paused} /> : null;

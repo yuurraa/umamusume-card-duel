@@ -1,50 +1,32 @@
 import { MAX_BENCH, MAX_HAND } from "../../../../../../shared/src/gameData";
-import type { AiDeckStyle, AiDifficulty, Card, EnergyType, GameState, PendingPlayerChoice, SideId, SideState, UmamusumeCard, UmamusumeInstance } from "../../../../../../shared/src/types";
+import type { AiDeckStyle, AiDifficulty, EnergyType, GameState, SideId, SideState, UmamusumeInstance } from "../../../../../../shared/src/types";
+import type { AiCombatDecision, AiCombatDecisionResult, AiCombatDeps, AiTrainerDeps, CombatCandidate, PendingSwitchAfterGustResume } from "./types";
 import { cloneGame } from "../../core/stateClone";
 import { getCard, getPrimaryAttack, getUmamusumeCard } from "../../core/catalog";
-import { actorName, energyLabel, formatUmamusumeCardName, formatUmamusumeInstanceName, pluralize } from "../../core/labels";
-import { attachEnergy, getAbilityMoveEnergyTypes, hasEnoughEnergy } from "../energy";
+import { actorName, formatUmamusumeCardName, formatUmamusumeInstanceName } from "../../core/labels";
+import { attachEnergy, hasEnoughEnergy } from "../energy";
 import { evolveUmamusume, findEvolutionTarget } from "../evolution";
 import { canAttack, canAttachEnergy, canRetreat, canUseUmamusumeAbility } from "../eligibility";
-import { applyTrainer, hasDamagedHealingTarget, playStadium, SwitchAfterGustResume } from "../trainers";
-import { getPlayableAction, getRainbowUncapEvolutionHandOptions, getRainbowUncapTargets, getToolTargets, useRainbowUncapCrystal } from "../playRules";
-import { choosePreferredActiveIndex, getOpposingSide } from "../board";
+import { applyTrainer, playStadium } from "../trainers";
+import { getToolTargets, useRainbowUncapCrystal } from "../playRules";
 import { effectiveRetreatCost, payRetreatCost } from "../retreat";
 import { attachedEnergyCount, getAllUmamusume } from "../../core/umamusume";
 import { createUmamusume } from "../setup";
 import { log, logPrimaryFirst } from "../../core/log";
-import { knockOutUmamusume, performAttack } from "../combat";
-import { drawCards } from "../turn";
-import type { PlayChoices } from "../../core/playTypes";
-
-type AiTrainerDeps = {
-  refreshContinuousEffects: (state: GameState) => void;
-  switchOutOpponentActive: (state: GameState, actingSideId: SideId, pendingChoiceResume?: SwitchAfterGustResume) => void;
-};
-
-type AiCombatDeps = {
-  refreshContinuousEffects: (state: GameState) => void;
-  choosePreferredActiveIndex: (side: SideState) => number;
-};
-
-type AiCombatDecision =
-  | { kind: "endTurn" }
-  | { kind: "attack"; retreatTargetUid?: number; attackTargetUid?: number; healTargetUid?: number; usesCoinFlip: boolean };
-
-type AiCombatDecisionResult = {
-  resolved: boolean;
-  usedAttack: boolean;
-};
-
-type CombatCandidate = {
-  id: string;
-  decision: AiCombatDecision;
-  score: number;
-  keepsSafe: boolean;
-  lethalTarget: boolean;
-  targetValue: number;
-  targetIsActive: boolean;
-};
+import { performAttack } from "../combat";
+import {
+  buildAttackDecision,
+  canImmediateOpponentKo,
+  countDiscardedUmamusume,
+  didCandidateKoTarget,
+  getDamageDealt,
+  getHealingGained,
+  getTargetValue,
+  pickCandidateByDifficulty,
+  predictAttackDamage,
+} from "./combatUtils";
+import { getAiRainbowUncapChoice, getAiTrainerChoices, scoreEvolutionTarget, shouldAiPlayTrainer } from "./trainerUtils";
+import { aiUseCoinFlipDrawAbility, aiUseDamageAbility, aiUseMoveBenchedEnergyAbility } from "./abilityUtils";
 
 const BASE_POINTS_WEIGHT = 1000;
 const BASE_KO_WEIGHT = 260;
@@ -149,7 +131,7 @@ export function aiAttachOneEnergy(state: GameState, side: SideState): boolean {
 export function aiPlayOneTrainer(
   state: GameState,
   side: SideState,
-  pendingChoiceResume: Extract<PendingPlayerChoice, { kind: "switchAfterGust" }>["resume"],
+  pendingChoiceResume: PendingSwitchAfterGustResume,
   deps: AiTrainerDeps,
 ): boolean {
   const index = side.hand.findIndex((cardId, handIndex) => {
@@ -265,197 +247,15 @@ export function aiUseOneAbility(
     if (!ability) continue;
 
     if (ability.damageOpponent && aiUseDamageAbility(state, side, abilityUmamusume, deps)) return true;
-    if (ability.moveBenchedEnergyToActive && aiUseMoveBenchedEnergyAbility(state, side, abilityUmamusume, state.aiDifficulty)) return true;
+    if (ability.moveBenchedEnergyToActive && aiUseMoveBenchedEnergyAbility(state, side, abilityUmamusume, state.aiDifficulty, {
+      estimateAttackDamageOutput,
+      withEnergyShift,
+      markAbilityUsed,
+    })) return true;
     if (ability.coinFlipDrawOrActiveDamageCounter && aiUseCoinFlipDrawAbility(state, side, abilityUmamusume, random, deps, state.aiDifficulty)) return true;
   }
 
   return false;
-}
-
-function shouldAiPlayTrainer(state: GameState, side: SideState, card: Card, handIndex: number): boolean {
-  if (card.kind !== "trainer") return false;
-  if (!getPlayableAction(state, side, card.id).canPlay) return false;
-  if (card.trainerType === "tool") return getToolTargets(side).length > 0;
-  if (card.effect.gustOpponent) return getYayoiAkikawaValue(state, side) > 0;
-  if (card.effect.activeAttackDamageBonus) return getAoiKiryuinBonusValue(state, side) > 0;
-  if (card.effect.attachEnergyFromZoneToBench) return side.bench.length > 0;
-  if (card.effect.extraEnergyAttach) return true;
-  if (card.effect.retreatCostReduction) {
-    const active = side.active;
-    if (!active) return false;
-    return side.bench.length > 0 && attachedEnergyCount(active) + card.effect.retreatCostReduction >= effectiveRetreatCost(state, side) && !canRetreat(state, side);
-  }
-  if (card.effect.heal && !hasDamagedHealingTarget(side, card)) return Boolean(card.effect.draw && side.hand.length < MAX_HAND);
-  if (card.effect.draw && side.hand.length >= MAX_HAND) return false;
-  if (card.effect.searchUmamusume || card.effect.searchRandomBasicUmamusume) {
-    if (side.hand.length >= MAX_HAND) return false;
-    if (card.effect.discardOtherCard) {
-      const discardIndex = chooseAiDiscardHandIndex(state, side, handIndex);
-      const searchIndex = chooseAiSearchDeckIndex(state, side);
-      if (discardIndex === undefined || searchIndex === undefined) return false;
-      const discardedCardId = side.hand[discardIndex];
-      const searchedCardId = side.deck[searchIndex];
-      if (!discardedCardId || !searchedCardId) return false;
-      const upgradeGain = scoreCardFutureValue(state, side, searchedCardId) - scoreCardFutureValue(state, side, discardedCardId);
-      return upgradeGain >= 10;
-    }
-    return true;
-  }
-  if (card.effect.rainbowUncapCrystal) return Boolean(getAiRainbowUncapChoice(state, side));
-  return true;
-}
-
-function getAiBenchEnergyAttachTarget(side: SideState): UmamusumeInstance | undefined {
-  const undercharged = [...side.bench]
-    .sort((left, right) => scoreBenchAttachTarget(right) - scoreBenchAttachTarget(left))
-    .find((umamusume) => !hasEnoughEnergy(umamusume, getPrimaryAttack(getUmamusumeCard(umamusume)).cost));
-  return undercharged ?? side.bench[0];
-}
-
-function scoreBenchAttachTarget(umamusume: UmamusumeInstance): number {
-  const attack = getPrimaryAttack(getUmamusumeCard(umamusume));
-  return umamusume.stage * 24 + attack.damage + attachedEnergyCount(umamusume) * 12;
-}
-
-function getAiTrainerChoices(state: GameState, side: SideState, card: Extract<Card, { kind: "trainer" }>, handIndex: number): PlayChoices {
-  const choices: PlayChoices = {};
-  if (card.effect.attachEnergyFromZoneToBench) {
-    const target = getAiBenchEnergyAttachTarget(side);
-    if (target) choices.umamusumeTargetUid = target.uid;
-  }
-  if (card.effect.discardOtherCard) {
-    const discardIndex = chooseAiDiscardHandIndex(state, side, handIndex);
-    if (discardIndex !== undefined) choices.discardHandIndex = discardIndex;
-  }
-  if (card.effect.searchUmamusume) {
-    const deckCardIndex = chooseAiSearchDeckIndex(state, side);
-    if (deckCardIndex !== undefined) choices.deckCardIndex = deckCardIndex;
-  }
-  if (card.trainerType === "tool") {
-    const toolTarget = chooseAiToolTarget(side);
-    if (toolTarget) choices.umamusumeTargetUid = toolTarget.uid;
-  }
-  return choices;
-}
-
-function chooseAiToolTarget(side: SideState): UmamusumeInstance | undefined {
-  const targets = getToolTargets(side);
-  return [...targets].sort((left, right) => {
-    const leftActive = left.uid === side.active?.uid ? 1 : 0;
-    const rightActive = right.uid === side.active?.uid ? 1 : 0;
-    if (rightActive !== leftActive) return rightActive - leftActive;
-    if (right.stage !== left.stage) return right.stage - left.stage;
-    return attachedEnergyCount(right) - attachedEnergyCount(left);
-  })[0];
-}
-
-function chooseAiDiscardHandIndex(state: GameState, side: SideState, excludingHandIndex: number): number | undefined {
-  const options = side.hand
-    .map((cardId, handIndex) => ({ cardId, handIndex }))
-    .filter(({ handIndex }) => handIndex !== excludingHandIndex);
-  if (options.length === 0) return undefined;
-  const sorted = [...options].sort((left, right) => scoreCardFutureValue(state, side, left.cardId) - scoreCardFutureValue(state, side, right.cardId));
-  return sorted[0]?.handIndex;
-}
-
-function chooseAiSearchDeckIndex(state: GameState, side: SideState): number | undefined {
-  const options = side.deck
-    .map((cardId, deckCardIndex) => ({ cardId, deckCardIndex }))
-    .filter(({ cardId }) => getCard(cardId).kind === "umamusume");
-  if (options.length === 0) return undefined;
-  const sorted = [...options].sort((left, right) => scoreCardFutureValue(state, side, right.cardId) - scoreCardFutureValue(state, side, left.cardId));
-  return sorted[0]?.deckCardIndex;
-}
-
-function scoreCardFutureValue(state: GameState, side: SideState, cardId: string): number {
-  const deckStyle = state.aiDeckStyleBySide[side.id] ?? "balanced";
-  const card = getCard(cardId);
-  if (card.kind === "trainer") {
-    let value = card.trainerType === "supporter" ? 36 : 24;
-    if (card.effect.draw) value += 24;
-    if (card.effect.activeAttackDamageBonus) value += getAoiKiryuinBonusValue(state, side);
-    if (card.effect.gustOpponent) value += getYayoiAkikawaValue(state, side);
-    if (card.effect.rainbowUncapCrystal) value += getAiRainbowUncapChoice(state, side) ? 42 : 0;
-    return value;
-  }
-
-  let value = 30 + card.stage * 18 + getPrimaryAttack(card).damage * 0.7;
-  const evolutionTargets = getAllUmamusume(side).filter((umamusume) => umamusume.species === card.evolvesFrom && umamusume.stage === card.stage - 1);
-  if (card.stage > 0 && evolutionTargets.length > 0) value += 70;
-  if (side.active && card.evolvesFrom === side.active.species && card.stage === side.active.stage + 1) value += 45;
-  if (card.stage === 0 && side.bench.length < MAX_BENCH) value += 26;
-  if (deckStyle === "scaleBench" && card.species === "Agnes Digital") value += 85;
-  if (deckStyle === "scaleBench" && card.stage === 0) value += 24;
-  return value;
-}
-
-function scoreEvolutionTarget(state: GameState, side: SideState, target: UmamusumeInstance, evolutionCard: UmamusumeCard): number {
-  const active = side.active;
-  const targetCard = getUmamusumeCard(target);
-  const beforeAttack = getPrimaryAttack(targetCard);
-  const afterAttack = getPrimaryAttack(evolutionCard);
-  const beforeCanAttack = hasEnoughEnergy(target, beforeAttack.cost);
-  const afterCanAttack = hasEnoughEnergy(target, afterAttack.cost);
-  const hpGain = Math.max(0, evolutionCard.hp - targetCard.hp);
-  let score = 0;
-  if (target.uid === active?.uid) score += 80;
-  score += hpGain * 1.1;
-  score += Math.max(0, afterAttack.damage - beforeAttack.damage) * 1.8;
-  if (!beforeCanAttack && afterCanAttack) score += 90;
-  score += attachedEnergyCount(target) * 12;
-  score += evolutionCard.stage * 20;
-  if (state.aiDeckStyleBySide[side.id] === "stall") score += hpGain * 0.5;
-  return score;
-}
-
-function getAoiKiryuinBonusValue(state: GameState, side: SideState): number {
-  if (!side.active || !canAttack(state, side)) return 0;
-  const opponent = getOpposingSide(state, side.id);
-  const target = opponent.active;
-  if (!target) return 0;
-  const ownInPlayCount = 1 + side.bench.length;
-  const allInPlayCount = ownInPlayCount + 1 + opponent.bench.length;
-  const withoutBonus = predictAttackDamage(side.active, target, side.activeAttackDamageBonus, ownInPlayCount, allInPlayCount);
-  const withBonus = predictAttackDamage(side.active, target, side.activeAttackDamageBonus + 10, ownInPlayCount, allInPlayCount);
-  const delta = Math.max(0, withBonus - withoutBonus);
-  const koSwing = withoutBonus < target.hp && withBonus >= target.hp ? 90 : 0;
-  return delta * 2 + koSwing;
-}
-
-function getYayoiAkikawaValue(state: GameState, side: SideState): number {
-  if (!side.active || !canAttack(state, side)) return 0;
-  const opponent = getOpposingSide(state, side.id);
-  if (!opponent.active || opponent.bench.length === 0) return 0;
-  const ownInPlayCount = 1 + side.bench.length;
-  const allInPlayCount = ownInPlayCount + 1 + opponent.bench.length;
-  const damageNow = predictAttackDamage(side.active, opponent.active, side.activeAttackDamageBonus, ownInPlayCount, allInPlayCount);
-
-  const preferredBenchIndex = choosePreferredActiveIndex(opponent);
-  const fallbackTarget = preferredBenchIndex >= 0 ? opponent.bench[preferredBenchIndex] : opponent.bench[0];
-  if (!fallbackTarget) return 0;
-  const damageAfterGust = predictAttackDamage(side.active, fallbackTarget, side.activeAttackDamageBonus, ownInPlayCount, allInPlayCount);
-  const koNow = damageNow >= opponent.active.hp;
-  const koAfter = damageAfterGust >= fallbackTarget.hp;
-  if (!koNow && koAfter) return 120;
-  return Math.max(0, damageAfterGust - damageNow);
-}
-
-function getAiRainbowUncapChoice(
-  state: GameState,
-  side: SideState,
-): { targetUid: number; evolutionHandIndex: number } | null {
-  const targets = getRainbowUncapTargets(state, side)
-    .map((target) => ({ target, options: getRainbowUncapEvolutionHandOptions(side, target) }))
-    .filter((entry) => entry.options.length > 0)
-    .sort((left, right) => {
-      if (right.target.maxHp !== left.target.maxHp) return right.target.maxHp - left.target.maxHp;
-      return right.options.length - left.options.length;
-    });
-  const best = targets[0];
-  if (!best) return null;
-  const option = best.options[0];
-  if (!option) return null;
-  return { targetUid: best.target.uid, evolutionHandIndex: option.handIndex };
 }
 
 function shouldAttachForDamageScaling(umamusume: UmamusumeInstance, nextEnergyType: keyof UmamusumeInstance["energies"]): boolean {
@@ -465,208 +265,6 @@ function shouldAttachForDamageScaling(umamusume: UmamusumeInstance, nextEnergyTy
   const threshold = card.ability?.attackDamageBonusIfAttachedEnergy;
   if (threshold && threshold.type === nextEnergyType && umamusume.energies[nextEnergyType] < threshold.min) return true;
   return false;
-}
-
-function aiUseMoveBenchedEnergyAbility(
-  state: GameState,
-  side: SideState,
-  abilityUmamusume: UmamusumeInstance,
-  aiDifficulty: AiDifficulty,
-): boolean {
-  const abilityCard = getUmamusumeCard(abilityUmamusume);
-  const ability = abilityCard.ability;
-  if (!ability?.moveBenchedEnergyToActive || !side.active) return false;
-  const active = side.active;
-  const activeAttack = getPrimaryAttack(getUmamusumeCard(active));
-  const opponent = state.sides[side.id === "player" ? "opponent" : "player"];
-  const beforeActiveDamage = estimateAttackDamageOutput(state, side.id, active, active);
-  const beforeCanAttack = hasEnoughEnergy(active, activeAttack.cost);
-  const wantedEnergyTypes = getAbilityMoveEnergyTypes(ability);
-  const candidates = side.bench.flatMap((source) => wantedEnergyTypes
-    .filter((energyType) => source.energies[energyType] > 0)
-    .map((energyType) => {
-      const simulatedActive = withEnergyShift(active, energyType, +1);
-      const simulatedSource = withEnergyShift(source, energyType, -1);
-      const afterActiveDamage = estimateAttackDamageOutput(state, side.id, simulatedActive, active);
-      const afterCanAttack = hasEnoughEnergy(simulatedActive, activeAttack.cost);
-      const sourceBeforeDamage = estimateAttackDamageOutput(state, side.id, source, source);
-      const sourceAfterDamage = estimateAttackDamageOutput(state, side.id, simulatedSource, source);
-      let score = 0;
-      if (afterCanAttack && !beforeCanAttack) score += 220;
-      score += Math.max(0, afterActiveDamage - beforeActiveDamage) * 3;
-      if (activeAttack.damagePerAttachedEnergy?.types.includes(energyType)) score += 18;
-      const threshold = getUmamusumeCard(active).ability?.attackDamageBonusIfAttachedEnergy;
-      if (threshold && threshold.type === energyType && active.energies[energyType] < threshold.min && simulatedActive.energies[energyType] >= threshold.min) {
-        score += 60;
-      }
-      if (sourceBeforeDamage > sourceAfterDamage) {
-        score -= (sourceBeforeDamage - sourceAfterDamage) * 2.2;
-      }
-      if (hasEnoughEnergy(source, getPrimaryAttack(getUmamusumeCard(source)).cost) && !hasEnoughEnergy(simulatedSource, getPrimaryAttack(getUmamusumeCard(source)).cost)) {
-        score -= 120;
-      }
-      if (!opponent.active) score -= 20;
-      return { source, energyType, score };
-    }));
-  if (candidates.length === 0) return false;
-  candidates.sort((left, right) => right.score - left.score);
-  const best = candidates[0];
-  if (!best) return false;
-  if (aiDifficulty === "hard" && best.score <= 20) return false;
-  if (aiDifficulty !== "easy" && best.score <= 0) return false;
-
-  best.source.energies[best.energyType] -= 1;
-  active.energies[best.energyType] += 1;
-  markAbilityUsed(side, abilityUmamusume, ability.name);
-  log(state, `${formatUmamusumeCardName(abilityCard)}'s ${ability.name} moved 1 ${energyLabel(best.energyType)} to the active spot.`);
-  return true;
-}
-
-function aiUseDamageAbility(state: GameState, side: SideState, abilityUmamusume: UmamusumeInstance, deps: AiCombatDeps): boolean {
-  const abilityCard = getUmamusumeCard(abilityUmamusume);
-  const ability = abilityCard.ability;
-  if (!ability?.damageOpponent) return false;
-  if (ability.discardEnergy) {
-    const canPay = Object.entries(ability.discardEnergy).every(([type, amount]) => abilityUmamusume.energies[type as keyof UmamusumeInstance["energies"]] >= (amount ?? 0));
-    if (!canPay) return false;
-  }
-
-  const opponentId: SideId = side.id === "player" ? "opponent" : "player";
-  const opponent = state.sides[opponentId];
-  const potentialTargets = ability.damageOpponentTarget === "any" ? getAllUmamusume(opponent) : opponent.active ? [opponent.active] : [];
-  if (potentialTargets.length === 0) return false;
-  const bestAttackDamageWithoutAbility = estimateBestAttackTotalDamage(state, side.id, deps);
-
-  const target = [...potentialTargets].sort((left, right) => {
-    const leftLethal = left.hp <= ability.damageOpponent! ? 1 : 0;
-    const rightLethal = right.hp <= ability.damageOpponent! ? 1 : 0;
-    if (rightLethal !== leftLethal) return rightLethal - leftLethal;
-    const leftValue = getPrimaryAttack(getUmamusumeCard(left)).damage + attachedEnergyCount(left) * 12 + left.stage * 18;
-    const rightValue = getPrimaryAttack(getUmamusumeCard(right)).damage + attachedEnergyCount(right) * 12 + right.stage * 18;
-    return rightValue - leftValue;
-  })[0];
-  if (!target) return false;
-  const directAbilityDamage = Math.min(target.hp, ability.damageOpponent);
-  const withAbilityState = cloneGame(state);
-  const simulatedSide = withAbilityState.sides[side.id];
-  const simulatedAbilityOwner = getAllUmamusume(simulatedSide).find((umamusume) => umamusume.uid === abilityUmamusume.uid);
-  if (!simulatedAbilityOwner) return false;
-  if (ability.discardEnergy) {
-    Object.entries(ability.discardEnergy).forEach(([type, amount]) => {
-      const energyType = type as keyof UmamusumeInstance["energies"];
-      simulatedAbilityOwner.energies[energyType] = Math.max(0, simulatedAbilityOwner.energies[energyType] - (amount ?? 0));
-    });
-  }
-  const bestAttackDamageAfterAbilityCost = estimateBestAttackTotalDamage(withAbilityState, side.id, deps);
-  const totalDamageWithAbility = directAbilityDamage + bestAttackDamageAfterAbilityCost;
-  const totalDamageWithoutAbility = bestAttackDamageWithoutAbility;
-  if (totalDamageWithAbility < totalDamageWithoutAbility) return false;
-
-  if (ability.discardEnergy) {
-    Object.entries(ability.discardEnergy).forEach(([type, amount]) => {
-      const energyType = type as keyof UmamusumeInstance["energies"];
-      abilityUmamusume.energies[energyType] = Math.max(0, abilityUmamusume.energies[energyType] - (amount ?? 0));
-      if (amount) log(state, `${actorName(side)} discarded ${amount} ${energyLabel(energyType)}.`);
-    });
-  }
-
-  target.hp = Math.max(0, target.hp - ability.damageOpponent);
-  target.tookDamageThisTurn = ability.damageOpponent > 0;
-  markAbilityUsed(side, abilityUmamusume, ability.name);
-  log(state, `${formatUmamusumeCardName(abilityCard)}'s ${ability.name} did ${ability.damageOpponent} damage to ${formatUmamusumeInstanceName(target)}.`);
-  if (target.hp <= 0) {
-    if (knockOutUmamusume(state, side.id, opponentId, target, deps.choosePreferredActiveIndex, `${formatUmamusumeCardName(abilityCard)}'s ${ability.name}`)) {
-      if (!state.gameOver) deps.refreshContinuousEffects(state);
-    }
-  }
-  return true;
-}
-
-function estimateBestAttackTotalDamage(state: GameState, actingSideId: SideId, deps: AiCombatDeps): number {
-  const side = state.sides[actingSideId];
-  if (!canAttack(state, side)) return 0;
-  const active = side.active;
-  if (!active) return 0;
-  const attack = getPrimaryAttack(getUmamusumeCard(active));
-  const defendingId: SideId = actingSideId === "player" ? "opponent" : "player";
-  const defender = state.sides[defendingId];
-  const attackTargets = attack.targetOpponent === "any" ? getAllUmamusume(defender).map((umamusume) => umamusume.uid) : [undefined];
-  const resolvedAttackTargets = attackTargets.length > 0 ? attackTargets : [undefined];
-  const healTargets = attack.heal && attack.healTarget === "any"
-    ? getAllUmamusume(side).filter((umamusume) => umamusume.hp < umamusume.maxHp).map((umamusume) => umamusume.uid)
-    : [undefined];
-  const resolvedHealTargets = healTargets.length > 0 ? healTargets : [undefined];
-  let bestDamage = 0;
-
-  resolvedAttackTargets.forEach((attackTargetUid) => {
-    resolvedHealTargets.forEach((healTargetUid) => {
-      if (attack.coinBonus || attack.drawOnHeads) {
-        const headsState = cloneGame(state);
-        const tailsState = cloneGame(state);
-        const headsBefore = cloneGame(state).sides[defendingId];
-        const tailsBefore = cloneGame(state).sides[defendingId];
-        performAttack(headsState, actingSideId, deps, attackTargetUid, healTargetUid, "heads");
-        performAttack(tailsState, actingSideId, deps, attackTargetUid, healTargetUid, "tails");
-        const headsDamage = getDamageDealt(headsBefore, headsState.sides[defendingId]);
-        const tailsDamage = getDamageDealt(tailsBefore, tailsState.sides[defendingId]);
-        const expected = (headsDamage + tailsDamage) / 2;
-        if (expected > bestDamage) bestDamage = expected;
-        return;
-      }
-
-      const simulated = cloneGame(state);
-      const beforeDefender = cloneGame(state).sides[defendingId];
-      performAttack(simulated, actingSideId, deps, attackTargetUid, healTargetUid);
-      const dealt = getDamageDealt(beforeDefender, simulated.sides[defendingId]);
-      if (dealt > bestDamage) bestDamage = dealt;
-    });
-  });
-
-  return bestDamage;
-}
-
-function aiUseCoinFlipDrawAbility(
-  state: GameState,
-  side: SideState,
-  abilityUmamusume: UmamusumeInstance,
-  random: () => number,
-  deps: AiCombatDeps,
-  aiDifficulty: AiDifficulty,
-): boolean {
-  const abilityCard = getUmamusumeCard(abilityUmamusume);
-  const ability = abilityCard.ability?.coinFlipDrawOrActiveDamageCounter;
-  const ownerAbility = getUmamusumeCard(abilityUmamusume).ability;
-  if (!ability || !ownerAbility || !side.active) return false;
-  if (side.hand.length >= MAX_HAND) return false;
-  const simulatedAfterTails = cloneGame(state);
-  const simulatedSide = simulatedAfterTails.sides[side.id];
-  if (simulatedSide.active) {
-    simulatedSide.active.hp = Math.max(0, simulatedSide.active.hp - ability.damageOnTails);
-  }
-  const newlyKoThreatenedByTails = canImmediateOpponentKo(simulatedAfterTails, side.id) && !canImmediateOpponentKo(state, side.id);
-  if (aiDifficulty === "hard" && newlyKoThreatenedByTails) return false;
-  if (aiDifficulty === "hard" && side.hand.length >= 6) return false;
-
-  const heads = random() >= 0.5;
-  markAbilityUsed(side, abilityUmamusume, ownerAbility.name);
-  log(state, `${actorName(side)} used ${formatUmamusumeCardName(abilityCard)}'s ${ownerAbility.name}.`);
-  log(state, `Flip a coin and got 1x ${heads ? "heads" : "tails"}.`);
-  if (heads) {
-    const drawn = drawCards(state, side, ability.draw);
-    if (drawn.length > 0) log(state, `${actorName(side)} drew ${drawn.length} ${pluralize(drawn.length, "card")}.`);
-    return true;
-  }
-
-  side.active.hp = Math.max(0, side.active.hp - ability.damageOnTails);
-  side.active.tookDamageThisTurn = true;
-  log(state, `${formatUmamusumeCardName(abilityCard)}'s ${ownerAbility.name} put ${ability.damageOnTails} damage on ${actorName(side)} active.`);
-  if (side.active.hp <= 0) {
-    const scoringSideId: SideId = side.id === "player" ? "opponent" : "player";
-    if (knockOutUmamusume(state, scoringSideId, side.id, side.active, deps.choosePreferredActiveIndex, `${formatUmamusumeCardName(abilityCard)}'s ${ownerAbility.name}`)) {
-      if (!state.gameOver) deps.refreshContinuousEffects(state);
-    }
-  }
-  return true;
 }
 
 function scoreBasicBenchCandidate(
@@ -1060,125 +658,6 @@ function scoreCandidate(
   };
 }
 
-function getHealingGained(beforeSide: SideState, afterSide: SideState): number {
-  const beforeByUid = new Map(getAllUmamusume(beforeSide).map((umamusume) => [umamusume.uid, umamusume.hp]));
-  return getAllUmamusume(afterSide).reduce((sum, umamusume) => {
-    const beforeHp = beforeByUid.get(umamusume.uid);
-    if (beforeHp === undefined) return sum;
-    return sum + Math.max(0, umamusume.hp - beforeHp);
-  }, 0);
-}
-
-function pickCandidateByDifficulty(
-  candidates: CombatCandidate[],
-  aiDifficulty: AiDifficulty,
-  random: () => number,
-  immediateKoThreat: boolean,
-): CombatCandidate | null {
-  if (candidates.length === 0) return null;
-  const sorted = [...candidates].sort(compareCandidates);
-  if (aiDifficulty === "hard") return sorted[0] ?? null;
-
-  if (aiDifficulty === "easy") {
-    const easyPool = immediateKoThreat ? sorted : sorted.filter((candidate) => !(candidate.decision.kind === "attack" && candidate.decision.retreatTargetUid !== undefined));
-    if (easyPool.length > 0 && random() < 0.35) {
-      return easyPool[Math.floor(random() * easyPool.length)] ?? easyPool[0] ?? null;
-    }
-    return pickNormal(sorted, random);
-  }
-
-  return pickNormal(sorted, random);
-}
-
-function pickNormal(sortedCandidates: CombatCandidate[], random: () => number): CombatCandidate | null {
-  const first = sortedCandidates[0];
-  if (!first) return null;
-  const second = sortedCandidates[1];
-  if (!second) return first;
-  return random() < 0.85 ? first : second;
-}
-
-function compareCandidates(a: CombatCandidate, b: CombatCandidate): number {
-  if (b.score !== a.score) return b.score - a.score;
-  if (a.lethalTarget !== b.lethalTarget) return a.lethalTarget ? -1 : 1;
-  if (b.targetValue !== a.targetValue) return b.targetValue - a.targetValue;
-  if (a.targetIsActive !== b.targetIsActive) return a.targetIsActive ? -1 : 1;
-  if (a.decision.kind === "endTurn" && b.decision.kind !== "endTurn") return 1;
-  if (b.decision.kind === "endTurn" && a.decision.kind !== "endTurn") return -1;
-  return a.id.localeCompare(b.id);
-}
-
-function getDamageDealt(beforeSide: SideState, afterSide: SideState): number {
-  const beforeByUid = new Map(getAllUmamusume(beforeSide).map((umamusume) => [umamusume.uid, umamusume]));
-  return getAllUmamusume(afterSide).reduce((sum, umamusume) => {
-    const before = beforeByUid.get(umamusume.uid);
-    if (!before) return sum;
-    return sum + Math.max(0, before.hp - umamusume.hp);
-  }, 0) + getAllUmamusume(beforeSide).reduce((sum, umamusume) => {
-    const stillExists = getAllUmamusume(afterSide).some((entry) => entry.uid === umamusume.uid);
-    return stillExists ? sum : sum + Math.max(0, umamusume.hp);
-  }, 0);
-}
-
-function getTargetValue(defender: SideState, targetUid?: number): number {
-  const target = targetUid !== undefined
-    ? getAllUmamusume(defender).find((umamusume) => umamusume.uid === targetUid)
-    : defender.active;
-  if (!target) return 0;
-  const attackDamagePotential = getPrimaryAttack(getUmamusumeCard(target)).damage;
-  return attackDamagePotential + attachedEnergyCount(target) * 12 + target.stage * 18;
-}
-
-function didCandidateKoTarget(beforeDefender: SideState, afterDefender: SideState, targetUid?: number): boolean {
-  const effectiveUid = targetUid ?? beforeDefender.active?.uid;
-  if (effectiveUid === undefined) return false;
-  const alive = getAllUmamusume(afterDefender).some((umamusume) => umamusume.uid === effectiveUid && umamusume.hp > 0);
-  return !alive;
-}
-
-function canImmediateOpponentKo(state: GameState, sideId: SideId): boolean {
-  const side = state.sides[sideId];
-  const opponent = state.sides[sideId === "player" ? "opponent" : "player"];
-  const active = side.active;
-  const attacker = opponent.active;
-  if (!active || !attacker) return false;
-  if (!hasEnoughEnergy(attacker, getPrimaryAttack(getUmamusumeCard(attacker)).cost)) return false;
-  const ownInPlayCount = 1 + opponent.bench.length;
-  const allInPlayCount = ownInPlayCount + 1 + side.bench.length;
-  const predicted = predictAttackDamage(attacker, active, opponent.activeAttackDamageBonus, ownInPlayCount, allInPlayCount);
-  return predicted >= active.hp;
-}
-
-function predictAttackDamage(
-  attacker: UmamusumeInstance,
-  defender: UmamusumeInstance,
-  bonusDamage: number,
-  ownInPlayCount: number,
-  allInPlayCount: number,
-): number {
-  const attack = getPrimaryAttack(getUmamusumeCard(attacker));
-  let damage = attack.damage + bonusDamage;
-  if (attack.bonusIfTookDamageLastTurn && attacker.tookDamageLastTurn) damage += attack.bonusIfTookDamageLastTurn;
-  if (attack.damagePerAttachedEnergy) {
-    const bonusEnergyCount = attack.damagePerAttachedEnergy.types.reduce((sum, type) => sum + attacker.energies[type], 0);
-    damage += bonusEnergyCount * attack.damagePerAttachedEnergy.amount;
-  }
-  if (attack.damagePerUmamusumeInPlay) {
-    damage += (attack.damagePerUmamusumeInPlay.side === "all" ? allInPlayCount : ownInPlayCount) * attack.damagePerUmamusumeInPlay.amount;
-  }
-  const attackerCard = getUmamusumeCard(attacker);
-  const defenderCard = getUmamusumeCard(defender);
-  const conditionalBonus = attackerCard.ability?.attackDamageBonusIfAttachedEnergy;
-  if (conditionalBonus && attacker.energies[conditionalBonus.type] >= conditionalBonus.min) damage += conditionalBonus.amount;
-  if (attack.coinBonus) damage += Math.floor(attack.coinBonus / 2);
-  if (defenderCard.weakness.type === attackerCard.type) damage += defenderCard.weakness.amount;
-  return Math.max(0, damage);
-}
-
-function countDiscardedUmamusume(cardIds: string[]): number {
-  return cardIds.reduce((count, cardId) => (getCard(cardId).kind === "umamusume" ? count + 1 : count), 0);
-}
-
 function aiRetreatToTarget(state: GameState, side: SideState, targetUid: number): boolean {
   const active = side.active;
   if (!active) return false;
@@ -1195,17 +674,4 @@ function aiRetreatToTarget(state: GameState, side: SideState, targetUid: number)
   side.usedRetreatThisTurn = true;
   log(state, `${actorName(side)} retreated to ${formatUmamusumeInstanceName(promoted)}.`);
   return true;
-}
-
-function buildAttackDecision(
-  retreatTargetUid: number | undefined,
-  attackTargetUid: number | undefined,
-  healTargetUid: number | undefined,
-  usesCoinFlip: boolean,
-): Extract<AiCombatDecision, { kind: "attack" }> {
-  const decision: Extract<AiCombatDecision, { kind: "attack" }> = { kind: "attack", usesCoinFlip };
-  if (retreatTargetUid !== undefined) decision.retreatTargetUid = retreatTargetUid;
-  if (attackTargetUid !== undefined) decision.attackTargetUid = attackTargetUid;
-  if (healTargetUid !== undefined) decision.healTargetUid = healTargetUid;
-  return decision;
 }
