@@ -145,6 +145,7 @@ export function App() {
   const hiddenOpponent = game.phase === "setup" && !game.setup?.opponentRevealed;
   const isBusyWithChoice = Boolean(pendingSelection || game.pendingPlayerChoice || endTurnWarningActions);
   const isCoinFlipBlocking = Boolean(activeCoinFlip || coinFlipQueue.length > 0);
+  const isTurnFlowBlocked = isCoinFlipBlocking;
   const hideOpponentSetupBoard = game.phase === "setup" && isCoinFlipBlocking;
   const opponentBoardHidden = hiddenOpponent && !hideOpponentSetupBoard;
   const displayedPlayerSide = game.phase === "setup" ? createSetupPreviewSide(player, setupActiveIndex, setupBenchIndexes) : player;
@@ -204,6 +205,7 @@ export function App() {
   };
 
   const applySetupActive = (index: number) => {
+    if (isTurnFlowBlocked) return;
     const cardId = player.hand[index];
     const card = cardId ? getCard(cardId) : null;
     if (!card || card.kind !== "umamusume" || card.stage !== 0) return;
@@ -212,6 +214,7 @@ export function App() {
   };
 
   const promoteSetupBenchToActive = (index: number) => {
+    if (isTurnFlowBlocked) return;
     const cardId = player.hand[index];
     const card = cardId ? getCard(cardId) : null;
     if (!card || card.kind !== "umamusume" || card.stage !== 0) return;
@@ -227,6 +230,7 @@ export function App() {
   };
 
   const applySetupBench = (index: number) => {
+    if (isTurnFlowBlocked) return;
     const cardId = player.hand[index];
     const card = cardId ? getCard(cardId) : null;
     if (!card || card.kind !== "umamusume" || card.stage !== 0) return;
@@ -284,7 +288,7 @@ export function App() {
 
   const clearSelection = () => setPendingSelection(null);
   const toggleMenu = () => {
-    if (isCoinFlipBlocking) return;
+    if (isTurnFlowBlocked) return;
     setMenuOpen((open) => !open);
   };
   const handleSurrender = () => {
@@ -299,7 +303,7 @@ export function App() {
   const closePreview = () => setPreviewTarget(null);
 
   const handleEndTurn = () => {
-    if (game.phase !== "play" || game.currentSide !== "player" || game.gameOver || isBusyWithChoice) return;
+    if (isTurnFlowBlocked || game.phase !== "play" || game.currentSide !== "player" || game.gameOver || isBusyWithChoice) return;
     const availableActions: string[] = [];
     if (canAttachEnergy(game, player)) availableActions.push("attach Energy");
     if (canAttack(game, player)) availableActions.push("attack");
@@ -395,7 +399,7 @@ export function App() {
   }, [game.phase, player.hand]);
 
   useEffect(() => {
-    if (isCoinFlipBlocking || game.phase !== "play" || game.currentSide !== "opponent" || game.gameOver || game.pendingPlayerChoice) return undefined;
+    if (isTurnFlowBlocked || game.phase !== "play" || game.currentSide !== "opponent" || game.gameOver || game.pendingPlayerChoice) return undefined;
     const timeoutId = window.setTimeout(() => {
       const coinAttack = getPendingAttackCoinFlip(game, "opponent", coinFlipIdRef.current++);
       if (coinAttack) {
@@ -406,7 +410,7 @@ export function App() {
       setGame((current) => advanceOpponentTurnStep(current));
     }, getOpponentStepDelay(game));
     return () => window.clearTimeout(timeoutId);
-  }, [game, isCoinFlipBlocking]);
+  }, [game, isTurnFlowBlocked]);
 
   useEffect(() => {
     if (activeCoinFlip || coinFlipQueue.length === 0) return;
@@ -426,7 +430,7 @@ export function App() {
       if (screen !== "match" || game.gameOver) return;
 
       event.preventDefault();
-      if (isCoinFlipBlocking) return;
+      if (isTurnFlowBlocked) return;
       if (endTurnWarningActions) {
         setEndTurnWarningActions(null);
         return;
@@ -464,7 +468,7 @@ export function App() {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [screen, game.gameOver, game.pendingPlayerChoice, isCoinFlipBlocking, endTurnWarningActions, previewTarget, discardOpen, pendingSelection, actionNotice, menuOpen, pendingScreen, navigateToScreen]);
+  }, [screen, game.gameOver, game.pendingPlayerChoice, isTurnFlowBlocked, endTurnWarningActions, previewTarget, discardOpen, pendingSelection, actionNotice, menuOpen, pendingScreen, navigateToScreen]);
 
   useEffect(() => {
     const previousLog = previousLogRef.current;
@@ -496,6 +500,7 @@ export function App() {
   };
 
   const playCard = (handIndex: number) => {
+    if (isTurnFlowBlocked) return;
     const cardId = player.hand[handIndex];
     if (!cardId || pendingSelection || game.phase !== "play" || game.pendingPlayerChoice) return;
     const card = getCard(cardId);
@@ -574,6 +579,7 @@ export function App() {
   };
 
   const playHandCardOnUmamusume = (handIndex: number, umamusumeUid: number) => {
+    if (isTurnFlowBlocked) return;
     const cardId = player.hand[handIndex];
     if (!cardId || pendingSelection || game.phase !== "play" || game.pendingPlayerChoice) return;
     const card = getCard(cardId);
@@ -602,6 +608,7 @@ export function App() {
   };
 
   const playHandCardOnBenchSlot = (handIndex: number) => {
+    if (isTurnFlowBlocked) return;
     const cardId = player.hand[handIndex];
     if (!cardId || pendingSelection || game.phase !== "play" || game.pendingPlayerChoice) return;
     const card = getCard(cardId);
@@ -611,11 +618,13 @@ export function App() {
   };
 
   const attachEnergyByDrop = (umamusumeUid: number) => {
+    if (isTurnFlowBlocked) return;
     if (game.phase !== "play" || pendingSelection || game.pendingPlayerChoice) return;
     setGame((current) => attachPlayerEnergy(current, umamusumeUid));
   };
 
   const moveAbilityEnergyByDrop = (sourceUmamusumeUid: number, energyType: EnergyType) => {
+    if (isTurnFlowBlocked) return;
     if (game.phase !== "play" || !pendingSelection || pendingSelection.kind !== "moveEnergyAbility" || game.pendingPlayerChoice) return;
     if (!pendingSelection.energyTypes.includes(energyType)) return;
     setGame((current) => usePlayerAbility(current, pendingSelection.abilityUmamusumeUid, sourceUmamusumeUid, energyType));
@@ -624,6 +633,7 @@ export function App() {
   };
 
   const chooseHandCard = (handIndex: number) => {
+    if (isTurnFlowBlocked) return;
     if (!pendingSelection) return;
     if (!selectableHandIndexes?.has(handIndex)) return;
     if (pendingSelection.kind === "rainbowUncapEvolution") {
@@ -655,6 +665,7 @@ export function App() {
   };
 
   const chooseScoutDeckCard = (deckCardIndex: number) => {
+    if (isTurnFlowBlocked) return;
     if (!pendingSelection || pendingSelection.kind !== "deckForScout") return;
     applyPlayerGameUpdate(
       (current) => playHandCard(current, pendingSelection.handIndex, {
@@ -668,6 +679,7 @@ export function App() {
   };
 
   const selectUmamusume = (umamusume: UmamusumeInstance) => {
+    if (isTurnFlowBlocked) return;
     if (game.pendingPlayerChoice) {
       setGame((current) => resolvePendingPlayerChoice(current, umamusume.uid));
       setPreviewTarget(null);
@@ -824,11 +836,12 @@ export function App() {
               benchIndexes={setupBenchIndexes}
               menuOpen={menuOpen}
               log={game.log}
-              canSurrender={!game.gameOver}
+              canSurrender={!game.gameOver && !isTurnFlowBlocked}
               onToggleMenu={toggleMenu}
               onSurrender={handleSurrender}
               onSetActive={applySetupActive}
               onReady={() => {
+                if (isTurnFlowBlocked) return;
                 if (setupActiveIndex === null) return;
                 setGame((current) => completePregameSetup(current, setupActiveIndex, setupBenchIndexes));
               }}
@@ -846,7 +859,7 @@ export function App() {
                 onEndTurn={handleEndTurn}
                 menuOpen={menuOpen}
                 log={game.log}
-                canSurrender={!game.gameOver}
+                canSurrender={!game.gameOver && !isTurnFlowBlocked}
                 onToggleMenu={toggleMenu}
                 onSurrender={handleSurrender}
               />
@@ -897,18 +910,19 @@ export function App() {
       <CardPreview
         state={game}
         target={previewTarget}
-        canUseAttack={Boolean(player.active && previewTarget?.isActive && previewTarget.sideId === "player" && canAttack(game, player))}
-        canUseRetreat={Boolean(player.active && previewTarget?.isActive && previewTarget.sideId === "player" && canRetreat(game, player))}
+        canUseAttack={Boolean(!isTurnFlowBlocked && player.active && previewTarget?.isActive && previewTarget.sideId === "player" && canAttack(game, player))}
+        canUseRetreat={Boolean(!isTurnFlowBlocked && player.active && previewTarget?.isActive && previewTarget.sideId === "player" && canRetreat(game, player))}
         canUseAbility={Boolean(
-          (previewTarget?.umamusume && previewTarget.sideId === "player" && canUseUmamusumeAbility(game, player, previewTarget.umamusume.uid))
+          !isTurnFlowBlocked && ((previewTarget?.umamusume && previewTarget.sideId === "player" && canUseUmamusumeAbility(game, player, previewTarget.umamusume.uid))
           || (
             previewTarget?.card.kind === "trainer"
             && previewTarget.card.trainerType === "stadium"
             && Boolean(previewTarget.card.effect.shuffleHandIntoDeckDraw)
             && canUseStadium(game, player)
-          )
+          ))
         )}
         onAttack={() => {
+          if (isTurnFlowBlocked) return;
           if (!player.active) return;
           const attack = getPrimaryAttack(getUmamusumeCard(player.active));
           if (attack.targetOpponent === "any") {
@@ -939,6 +953,7 @@ export function App() {
           setPreviewTarget(null);
         }}
         onRetreat={() => {
+          if (isTurnFlowBlocked) return;
           const active = player.active;
           if (!active) return;
           const retreatCost = getDisplayedRetreatCost(game, player, active);
@@ -960,6 +975,7 @@ export function App() {
           setPreviewTarget(null);
         }}
         onAbility={() => {
+          if (isTurnFlowBlocked) return;
           if (
             previewTarget?.card.kind === "trainer"
             && previewTarget.card.trainerType === "stadium"

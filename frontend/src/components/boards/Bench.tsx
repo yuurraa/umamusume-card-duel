@@ -37,12 +37,6 @@ type BenchProps = {
   animateOnNewCards?: boolean;
 };
 
-type ExitingBenchCard = {
-  uid: number;
-  index: number;
-  umamusume: UmamusumeInstance;
-};
-
 const benchTypeColors: Record<UmamusumeType, string> = {
   Grass: "#7bc03e",
   Fire: "#e8885a",
@@ -94,15 +88,12 @@ export function Bench({
   const [hoveredSlot, setHoveredSlot] = useState<number | null>(null);
   const [playedBenchRevealOrderByUid, setPlayedBenchRevealOrderByUid] = useState<Record<number, number>>({});
   const [benchShiftOffsetByUid, setBenchShiftOffsetByUid] = useState<Record<number, number>>({});
-  const [exitingBenchCards, setExitingBenchCards] = useState<ExitingBenchCard[]>([]);
   const revealClearTimeoutRef = useRef<number | null>(null);
-  const exitingClearTimeoutRef = useRef<number | null>(null);
   const shiftClearTimeoutRef = useRef<number | null>(null);
   const shiftAnimationFrameRef = useRef<number | null>(null);
   const previousBenchUidsRef = useRef<Set<number>>(new Set(side.bench.map((umamusume) => umamusume.uid)));
   const previousActiveUidRef = useRef<number | null>(side.active?.uid ?? null);
   const previousBenchOrderRef = useRef<number[]>(side.bench.map((umamusume) => umamusume.uid));
-  const previousBenchByUidRef = useRef<Map<number, UmamusumeInstance>>(new Map(side.bench.map((umamusume) => [umamusume.uid, umamusume])));
   const isChoosingUmamusume = Boolean(selectableUmamusumeUids);
   const visibleBenchCount = hidden ? (hiddenBenchCount ?? side.bench.length) : side.bench.length;
 
@@ -134,37 +125,15 @@ export function Bench({
 
   useEffect(() => () => {
     if (revealClearTimeoutRef.current !== null) window.clearTimeout(revealClearTimeoutRef.current);
-    if (exitingClearTimeoutRef.current !== null) window.clearTimeout(exitingClearTimeoutRef.current);
     if (shiftClearTimeoutRef.current !== null) window.clearTimeout(shiftClearTimeoutRef.current);
     if (shiftAnimationFrameRef.current !== null) window.cancelAnimationFrame(shiftAnimationFrameRef.current);
   }, []);
 
   useEffect(() => {
     const currentBenchOrder = side.bench.map((umamusume) => umamusume.uid);
-    const currentBenchUidSet = new Set(currentBenchOrder);
     const previousBenchOrder = previousBenchOrderRef.current;
-    const previousBenchByUid = previousBenchByUidRef.current;
 
     if (!hidden && !setupMode) {
-      const removed = previousBenchOrder
-        .filter((uid) => !currentBenchUidSet.has(uid))
-        .map((uid) => {
-          const removedUmamusume = previousBenchByUid.get(uid);
-          const index = previousBenchOrder.indexOf(uid);
-          if (!removedUmamusume || index < 0) return null;
-          return { uid, index, umamusume: removedUmamusume } satisfies ExitingBenchCard;
-        })
-        .filter((entry): entry is ExitingBenchCard => Boolean(entry));
-
-      if (removed.length > 0) {
-        setExitingBenchCards(removed);
-        if (exitingClearTimeoutRef.current !== null) window.clearTimeout(exitingClearTimeoutRef.current);
-        exitingClearTimeoutRef.current = window.setTimeout(() => {
-          setExitingBenchCards([]);
-          exitingClearTimeoutRef.current = null;
-        }, 620);
-      }
-
       const shiftedOffsets = currentBenchOrder.reduce<Record<number, number>>((offsets, uid, newIndex) => {
         const previousIndex = previousBenchOrder.indexOf(uid);
         if (previousIndex > newIndex) offsets[uid] = (previousIndex - newIndex) * 200;
@@ -197,7 +166,6 @@ export function Bench({
     }
 
     previousBenchOrderRef.current = currentBenchOrder;
-    previousBenchByUidRef.current = new Map(side.bench.map((umamusume) => [umamusume.uid, umamusume]));
   }, [hidden, setupMode, side.bench]);
 
   return (
@@ -319,40 +287,6 @@ export function Bench({
             onInspect={onInspect}
             onUmamusumeSelect={onUmamusumeSelect}
           />
-        );
-      })}
-      {!hidden && exitingBenchCards.map((entry) => {
-        const card = getUmamusumeCard(entry.umamusume);
-        return (
-          <div
-            key={`bench-exit-${entry.uid}`}
-            style={{
-              position: "absolute",
-              left: 0,
-              top: entry.index * 200,
-              width: 164,
-              height: 188,
-              pointerEvents: "none",
-              zIndex: 6,
-            }}
-          >
-            <div style={{ ...slotStyle, animation: "bench-ko-card-exit 620ms cubic-bezier(0.2, 0.8, 0.2, 1) both" }}>
-              <div style={{ position: "relative", height: 158, width: "100%", borderRadius: 8, overflow: "visible", filter: "drop-shadow(0 14px 18px rgba(17, 24, 39, 0.18))" }}>
-                <img
-                  style={{ width: "100%", height: "100%", borderRadius: 8, objectFit: "contain", display: "block" }}
-                  src={card.portrait}
-                  alt=""
-                  draggable={false}
-                />
-              </div>
-              <div style={{ height: 22, borderRadius: 8, background: "rgba(238, 243, 238, 0.3)", color: uiTextColor, textShadow: uiTextShadow, padding: 4, boxShadow: "0 6px 14px rgba(17, 24, 39, 0.1)", backdropFilter: "blur(4px)", animation: "bench-ko-hp-exit 220ms ease-in both" }}>
-                <div style={{ height: 7, fontSize: 9, lineHeight: "7px", fontWeight: 900 }}>{Math.max(0, entry.umamusume.hp)}/{entry.umamusume.maxHp}</div>
-                <div style={{ marginTop: 3, height: 5, overflow: "hidden", borderRadius: 999, background: "rgba(238, 243, 238, 0.3)" }}>
-                  <div style={{ width: `${Math.max(0, Math.round((entry.umamusume.hp / entry.umamusume.maxHp) * 100))}%`, height: "100%", borderRadius: 999, background: benchTypeColors[card.type] }} />
-                </div>
-              </div>
-            </div>
-          </div>
         );
       })}
     </div>

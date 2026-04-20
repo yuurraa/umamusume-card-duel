@@ -72,7 +72,7 @@ export function StadiumSpot({ state, abilityReady = false, onDropHandCard, onIns
               alt={stadiumName}
               draggable={false}
             />
-            {abilityReady && <AbilityReadyBadge corner="topLeft" size="xs" nudgeX={14} />}
+            {abilityReady && <AbilityReadyBadge corner="topLeft" size="xs" nudgeX={0} />}
           </>
         )
         : <span style={stadiumEmptyTextStyle}>Stadium Spot</span>}

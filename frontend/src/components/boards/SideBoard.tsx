@@ -1,4 +1,4 @@
-import { type CSSProperties, type DragEvent, useEffect, useRef, useState } from "react";
+import { type CSSProperties, type DragEvent, useState } from "react";
 import { Bench } from "./Bench";
 import { applyDragPreview, hasTextDragPayload, readDragPayload, writeDragPayload } from "../drag/dragData";
 import { UmaCard } from "../cards/UmaCard";
@@ -81,41 +81,7 @@ export function SideBoard({
   const isChoosingUmamusume = Boolean(selectableUmamusumeUids);
   const activeAbilityReady = Boolean(side.active && abilityReadyUmamusumeUids?.has(side.active.uid));
   const [activeDropHovered, setActiveDropHovered] = useState(false);
-  const [exitingActive, setExitingActive] = useState<UmamusumeInstance | null>(null);
-  const [exitingActiveHpBar, setExitingActiveHpBar] = useState<{ hp: number; maxHp: number; color: string } | null>(null);
-  const exitingActiveTimeoutRef = useRef<number | null>(null);
-  const exitingActiveHpTimeoutRef = useRef<number | null>(null);
-  const previousActiveRef = useRef<UmamusumeInstance | null>(side.active);
   const activeSetupHandIndex = side.active ? setupDragHandIndexByUid[side.active.uid] : undefined;
-
-  useEffect(() => {
-    const previousActive = previousActiveRef.current;
-    const currentActive = side.active;
-    const changed = (previousActive?.uid ?? null) !== (currentActive?.uid ?? null);
-    const knockedOut = !hidden && changed && previousActive && previousActive.hp <= 0;
-    if (knockedOut) {
-      const previousCard = getUmamusumeCard(previousActive);
-      const previousTone = getTypeTone(previousCard.type);
-      setExitingActive(previousActive);
-      setExitingActiveHpBar({ hp: Math.max(0, previousActive.hp), maxHp: previousActive.maxHp, color: previousTone.accent });
-      if (exitingActiveTimeoutRef.current !== null) window.clearTimeout(exitingActiveTimeoutRef.current);
-      if (exitingActiveHpTimeoutRef.current !== null) window.clearTimeout(exitingActiveHpTimeoutRef.current);
-      exitingActiveTimeoutRef.current = window.setTimeout(() => {
-        setExitingActive(null);
-        exitingActiveTimeoutRef.current = null;
-      }, 640);
-      exitingActiveHpTimeoutRef.current = window.setTimeout(() => {
-        setExitingActiveHpBar(null);
-        exitingActiveHpTimeoutRef.current = null;
-      }, 260);
-    }
-    previousActiveRef.current = currentActive;
-  }, [hidden, side.active]);
-
-  useEffect(() => () => {
-    if (exitingActiveTimeoutRef.current !== null) window.clearTimeout(exitingActiveTimeoutRef.current);
-    if (exitingActiveHpTimeoutRef.current !== null) window.clearTimeout(exitingActiveHpTimeoutRef.current);
-  }, []);
 
   const handleActiveDrop = (event: DragEvent<HTMLDivElement>) => {
     if (!setupMode || hidden) return;
@@ -148,24 +114,7 @@ export function SideBoard({
     : side.active
       ? <HealthBar key={`health-${side.active.uid}`} hp={side.active.hp} maxHp={side.active.maxHp} percent={hpPercent} color={hpColor} />
       : <EmptyHealthBar />;
-  const health = (
-    <div style={{ position: "relative" }}>
-      {baseHealth}
-      {exitingActiveHpBar && (
-        <div style={knockoutHealthBarGhostWrapStyle}>
-          <div style={knockoutHealthBarGhostStyle}>
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, lineHeight: "12px", fontWeight: 900 }}>
-              <span>{exitingActiveHpBar.hp}/{exitingActiveHpBar.maxHp}</span>
-              <span>{Math.max(0, Math.round((exitingActiveHpBar.hp / exitingActiveHpBar.maxHp) * 100))}%</span>
-            </div>
-            <div style={{ height: 10, marginTop: 7, overflow: "hidden", borderRadius: 999, background: "rgba(238, 243, 238, 0.3)" }}>
-              <div style={{ height: "100%", width: `${Math.max(0, Math.round((exitingActiveHpBar.hp / exitingActiveHpBar.maxHp) * 100))}%`, borderRadius: 999, background: exitingActiveHpBar.color }} />
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
+  const health = baseHealth;
   const baseActive = side.active ? (
     <div
       key={animateSetupReveal ? `active-reveal-${setupRevealToken}` : "active-steady"}
@@ -276,11 +225,6 @@ export function SideBoard({
   const active = (
     <div style={{ position: "relative", width: "100%", maxWidth: 420, justifySelf: "center" }}>
       {baseActive}
-      {!hidden && exitingActive && (
-        <div style={knockoutActiveGhostWrapStyle}>
-          <img style={knockoutActiveGhostCardStyle} src={getUmamusumeCard(exitingActive).portrait} alt="" draggable={false} />
-        </div>
-      )}
     </div>
   );
   const bench = (
@@ -511,47 +455,6 @@ const emptyActiveSpotStyle: CSSProperties = {
   fontWeight: 900,
 };
 
-const knockoutHealthBarGhostWrapStyle: CSSProperties = {
-  position: "absolute",
-  inset: 0,
-  pointerEvents: "none",
-};
-
-const knockoutHealthBarGhostStyle: CSSProperties = {
-  boxSizing: "border-box",
-  height: 48,
-  borderRadius: 8,
-  background: "rgba(238, 243, 238, 0.3)",
-  border: "1px solid rgba(217, 225, 218, 0.72)",
-  color: uiTextColor,
-  textShadow: uiTextShadow,
-  padding: 8,
-  boxShadow: "0 12px 30px rgba(17, 24, 39, 0.12)",
-  backdropFilter: "blur(5px)",
-  animation: "active-ko-hp-exit 240ms ease-in both",
-};
-
-const knockoutActiveGhostWrapStyle: CSSProperties = {
-  position: "absolute",
-  inset: 0,
-  display: "flex",
-  justifyContent: "center",
-  alignItems: "center",
-  pointerEvents: "none",
-  zIndex: 6,
-};
-
-const knockoutActiveGhostCardStyle: CSSProperties = {
-  width: "100%",
-  maxWidth: 420,
-  aspectRatio: "745 / 1040",
-  borderRadius: 8,
-  objectFit: "contain",
-  display: "block",
-  filter: "drop-shadow(0 18px 28px rgba(17, 24, 39, 0.24))",
-  animation: "active-ko-card-exit 620ms cubic-bezier(0.2, 0.8, 0.2, 1) both",
-};
-
 const SETUP_REVEAL_KEYFRAMES = `
 @keyframes setup-reveal-slide-up {
   from { opacity: 0; transform: translateY(26px) scale(0.96); filter: blur(2px); }
@@ -560,25 +463,5 @@ const SETUP_REVEAL_KEYFRAMES = `
 @keyframes hp-bar-appear {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
-}
-@keyframes active-ko-hp-exit {
-  from { opacity: 1; transform: translateY(0); }
-  to { opacity: 0; transform: translateY(22px); }
-}
-@keyframes active-ko-card-exit {
-  0% { opacity: 1; transform: translate(0, 0) rotate(0deg) scale(1); }
-  34% { opacity: 1; transform: translate(16px, -10px) rotate(5deg) scale(1.03); }
-  56% { opacity: 1; transform: translate(6px, 4px) rotate(2deg) scale(1); }
-  100% { opacity: 0; transform: translate(0, 48px) rotate(0deg) scale(0.98); }
-}
-@keyframes bench-ko-card-exit {
-  0% { opacity: 1; transform: translate(0, 0) rotate(0deg) scale(1); }
-  34% { opacity: 1; transform: translate(14px, -9px) rotate(4deg) scale(1.03); }
-  56% { opacity: 1; transform: translate(6px, 4px) rotate(2deg) scale(1); }
-  100% { opacity: 0; transform: translate(0, 40px) rotate(0deg) scale(0.98); }
-}
-@keyframes bench-ko-hp-exit {
-  from { opacity: 1; transform: translateY(0); }
-  to { opacity: 0; transform: translateY(20px); }
 }
 `;

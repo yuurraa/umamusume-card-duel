@@ -20,7 +20,7 @@ export function ActionNotice({
 }) {
   return (
     <section style={actionNoticeStyle(tone, placement, interactive)}>
-      <strong style={actionNoticeTextStyle(tone)}>{notice}</strong>
+      <span style={actionNoticeTextStyle(tone, notice)}>{notice}</span>
       {interactive && <NeutralButton tone={tone === "danger" ? "danger" : "default"} style={actionNoticeCloseStyle} onClick={onClose}>Close</NeutralButton>}
     </section>
   );
@@ -64,7 +64,8 @@ function actionNoticeStyle(tone: ActionNoticeTone, placement: ActionNoticePlacem
   };
 }
 
-function actionNoticeTextStyle(tone: ActionNoticeTone): CSSProperties {
+function actionNoticeTextStyle(tone: ActionNoticeTone, notice: string): CSSProperties {
+  const isKoNotice = notice.startsWith("KO |");
   return {
     flex: 1,
     display: "flex",
@@ -75,7 +76,9 @@ function actionNoticeTextStyle(tone: ActionNoticeTone): CSSProperties {
     wordBreak: "break-word",
     lineHeight: 1.35,
     textAlign: "center",
-    color: tone === "danger" ? "#7f1d1d" : tone === "info" ? "#1e3a8a" : "#000000",
+    color: tone === "danger" ? "#7f1d1d" : tone === "info" ? "#1e3a8a" : "#111827",
+    textShadow: "none",
+    fontWeight: isKoNotice ? 800 : 500,
   };
 }
 
