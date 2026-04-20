@@ -1,9 +1,12 @@
 import {
   MAX_BENCH,
+  premadeDecks,
   playerDeckList,
   opponentDeckList,
 } from "../../../shared/src/gameData";
 import type {
+  AiDeckStyle,
+  AiDifficulty,
   EnergyType,
   GameState,
   UmamusumeInstance,
@@ -31,7 +34,7 @@ import { drawCards, endTurn, startTurn } from "./engine/flow/turn";
 import type { PlayChoices } from "./engine/core/playTypes";
 import { choosePreferredActiveIndex, normalizeBoardState, refreshContinuousHp, switchOutOpponentActive } from "./engine/flow/board";
 import { adjustHandChoices, getPlayableAction, getRainbowUncapEvolutionHandOptions, getRainbowUncapTargets, getToolTargets, resolveCardPlay } from "./engine/flow/playRules";
-import { aiAttachOneEnergy, aiEvolveOne, aiPlayOneBasic, aiPlayOneTrainer } from "./engine/flow/ai";
+import { aiAttachOneEnergy, aiEvolveOne, aiPlayOneBasic, aiPlayOneTrainer, aiResolveCombatDecision, aiUseOneAbility } from "./engine/flow/ai";
 import { knockOutUmamusume, performAttack } from "./engine/flow/combat";
 import { canUseStadium, useStadium } from "./engine/flow/trainers";
 
@@ -63,7 +66,12 @@ export {
   getToolTargets,
 };
 
-export function createGame(playerDeck = playerDeckList, opponentDeck = opponentDeckList, opponentName = "Opponent"): GameState {
+export function createGame(
+  playerDeck = playerDeckList,
+  opponentDeck = opponentDeckList,
+  opponentName = "Opponent",
+  _aiDifficulty: AiDifficulty = "hard",
+): GameState {
   resetUmamusumeIdCounter();
   const firstPlayer = Math.random() >= 0.5 ? "player" : "opponent";
   const coinFlipResult = firstPlayer === "player" ? "heads" : "tails";
@@ -87,6 +95,11 @@ export function createGame(playerDeck = playerDeckList, opponentDeck = opponentD
     stadium: null,
     turnNumber: 1,
     firstPlayer,
+    aiDifficulty: "hard",
+    aiDeckStyleBySide: {
+      player: inferDeckStyle(playerDeck),
+      opponent: inferDeckStyle(opponentDeck, opponentName),
+    },
     gameOver: false,
     winner: null,
     log: [],
@@ -94,6 +107,37 @@ export function createGame(playerDeck = playerDeckList, opponentDeck = opponentD
 
   log(state, `Coin flip was ${coinFlipResult}. ${firstPlayer === "player" ? "You are going first." : "Opponent is going first."}`);
   return state;
+}
+
+function inferDeckStyle(deckList: string[], deckName?: string): AiDeckStyle {
+  const named = normalizeDeckName(deckName);
+  if (named.includes("rice shower") || named.includes("manhattan cafe")) return "blitz";
+  if (named.includes("agnes digital")) return "scaleBench";
+  if (named.includes("matikanetannhauser") || named.includes("mihono bourbon")) return "stall";
+
+  const bestMatch = premadeDecks
+    .map((deck) => ({
+      deckId: deck.id,
+      overlap: deck.cardIds.reduce((sum, cardId) => sum + (deckList.includes(cardId) ? 1 : 0), 0),
+    }))
+    .sort((left, right) => right.overlap - left.overlap)[0];
+
+  switch (bestMatch?.deckId) {
+    case "riceShower":
+    case "manhattanCafe":
+      return "blitz";
+    case "agnesDigital":
+      return "scaleBench";
+    case "matikanetannhauser":
+    case "mihonoBourbon":
+      return "stall";
+    default:
+      return "balanced";
+  }
+}
+
+function normalizeDeckName(name: string | undefined): string {
+  return (name ?? "").trim().toLowerCase();
 }
 
 export function playHandCard(state: GameState, handIndex: number, choices: PlayChoices = {}): GameState {
@@ -178,29 +222,45 @@ export function playerSurrender(state: GameState): GameState {
   return next;
 }
 
-export function advanceOpponentTurnStep(state: GameState, forcedAttackCoinResult?: "heads" | "tails"): GameState {
+export function advanceOpponentTurnStep(state: GameState, forcedAttackCoinResult?: "heads" | "tails", random: () => number = Math.random): GameState {
+  return advanceAiTurnStep(state, "opponent", forcedAttackCoinResult, random);
+}
+
+export function advancePlayerAiTurnStep(state: GameState, forcedAttackCoinResult?: "heads" | "tails", random: () => number = Math.random): GameState {
+  return advanceAiTurnStep(state, "player", forcedAttackCoinResult, random);
+}
+
+function advanceAiTurnStep(
+  state: GameState,
+  actingSideId: SideId,
+  forcedAttackCoinResult?: "heads" | "tails",
+  random: () => number = Math.random,
+): GameState {
   const next = cloneGame(state);
-  if (next.phase !== "play" || next.pendingPlayerChoice || next.gameOver || next.currentSide !== "opponent") return next;
-  const opponent = next.sides.opponent;
-  if (!opponent.active) return next;
+  if (next.phase !== "play" || next.pendingPlayerChoice || next.gameOver || next.currentSide !== actingSideId) return next;
+  const actingSide = next.sides[actingSideId];
+  if (!actingSide.active) return next;
+  const trainerBeforeResume = actingSideId === "opponent" ? "resumeOpponentAfterFirstTrainerPass" : "none";
+  const trainerAfterResume = actingSideId === "opponent" ? "resumeOpponentAfterSecondTrainerPass" : "none";
 
   for (let transitions = 0; transitions < 8; transitions += 1) {
     const step = next.opponentTurnStep ?? "bench";
 
     if (step === "bench") {
-      if (aiPlayOneBasic(next, opponent)) return next;
+      if (aiPlayOneBasic(next, actingSide)) return next;
       next.opponentTurnStep = "trainerBefore";
       continue;
     }
 
     if (step === "trainerBefore") {
-      if (aiPlayOneTrainer(next, opponent, "resumeOpponentAfterFirstTrainerPass", { refreshContinuousEffects, switchOutOpponentActive })) return next;
+      if (aiPlayOneBasic(next, actingSide)) return next;
+      if (aiPlayOneTrainer(next, actingSide, trainerBeforeResume, { refreshContinuousEffects, switchOutOpponentActive })) return next;
       next.opponentTurnStep = "evolve";
       continue;
     }
 
     if (step === "evolve") {
-      if (aiEvolveOne(next, opponent)) {
+      if (aiEvolveOne(next, actingSide)) {
         refreshContinuousEffects(next);
         return next;
       }
@@ -209,33 +269,34 @@ export function advanceOpponentTurnStep(state: GameState, forcedAttackCoinResult
     }
 
     if (step === "attach") {
-      if (aiAttachOneEnergy(next, opponent)) return next;
+      if (aiAttachOneEnergy(next, actingSide)) return next;
       next.opponentTurnStep = "trainerAfter";
       continue;
     }
 
     if (step === "trainerAfter") {
-      if (aiPlayOneTrainer(next, opponent, "resumeOpponentAfterSecondTrainerPass", { refreshContinuousEffects, switchOutOpponentActive })) return next;
+      if (aiPlayOneBasic(next, actingSide)) return next;
+      if (aiPlayOneTrainer(next, actingSide, trainerAfterResume, { refreshContinuousEffects, switchOutOpponentActive })) return next;
       next.opponentTurnStep = "attack";
       continue;
     }
 
     if (step === "attack") {
       refreshContinuousEffects(next);
-      if (canAttack(next, opponent)) {
-        const attack = getPrimaryAttack(getUmamusumeCard(opponent.active));
-        if (attack.coinBonus && !forcedAttackCoinResult) return next;
-        performAttack(next, "opponent", { refreshContinuousEffects, choosePreferredActiveIndex }, undefined, undefined, forcedAttackCoinResult);
+      if (aiUseOneAbility(next, actingSide, { refreshContinuousEffects, choosePreferredActiveIndex }, random)) return next;
+      const combat = aiResolveCombatDecision(next, actingSide, forcedAttackCoinResult, { refreshContinuousEffects, choosePreferredActiveIndex }, random);
+      if (!combat.resolved) return next;
+      if (combat.usedAttack) {
         if (next.pendingPlayerChoice) {
           next.opponentTurnStep = "finish";
           return next;
         }
-      } else if (canUseStadium(next, opponent) && useStadium(next, opponent)) {
+      } else if (canUseStadium(next, actingSide) && useStadium(next, actingSide)) {
         next.opponentTurnStep = null;
         if (!next.gameOver) advanceToNextTurn(next);
         return next;
       } else {
-        log(next, "Opponent did not attack.");
+        log(next, `${actingSide.title} did not attack.`);
       }
       next.opponentTurnStep = null;
       if (!next.gameOver) advanceToNextTurn(next);
@@ -331,6 +392,13 @@ export function usePlayerAbility(
     active.tookDamageThisTurn = damage > 0;
     log(next, "Flip a coin and got 1x tails.");
     log(next, `${actorName(side)} put 1 damage counter on ${actorLowerPossessive(side)} Active Umamusume.`);
+    if (active.hp <= 0) {
+      const scoringSideId: SideId = side.id === "player" ? "opponent" : "player";
+      if (knockOutUmamusume(next, scoringSideId, side.id, active, choosePreferredActiveIndex, `${formatUmamusumeCardName(abilityCard)}'s ${ability.name}`)) {
+        if (!next.gameOver) refreshContinuousEffects(next);
+      }
+      return next;
+    }
     normalizeBoardState(next);
     refreshContinuousEffects(next);
     return next;

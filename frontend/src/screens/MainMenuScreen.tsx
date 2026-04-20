@@ -110,7 +110,8 @@ const menuActionPanelStyle: CSSProperties = {
   display: "grid",
   placeItems: "center",
   minWidth: 280,
-  padding: 12,
+  padding: 14,
+  gap: 12,
 };
 
 const menuButtonColumnStyle: CSSProperties = {

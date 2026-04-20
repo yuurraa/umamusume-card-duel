@@ -1,4 +1,6 @@
 export type SideId = "player" | "opponent";
+export type AiDifficulty = "easy" | "normal" | "hard";
+export type AiDeckStyle = "blitz" | "scaleBench" | "stall" | "balanced";
 export type CoinFlipResult = "heads" | "tails";
 export type EnergyType = "grass" | "fire" | "water" | "lightning" | "psychic" | "fighting" | "darkness" | "steel" | "colorless" | "dragon";
 export type UmamusumeType = "Grass" | "Fire" | "Water" | "Lightning" | "Psychic" | "Fighting" | "Darkness" | "Steel" | "Colorless" | "Dragon";
@@ -167,6 +169,8 @@ export type GameState = {
   stadium: { cardId: string; owner: SideId } | null;
   turnNumber: number;
   firstPlayer: SideId;
+  aiDifficulty: AiDifficulty;
+  aiDeckStyleBySide: Record<SideId, AiDeckStyle>;
   gameOver: boolean;
   winner: SideId | null;
   log: string[];

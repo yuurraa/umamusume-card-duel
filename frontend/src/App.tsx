@@ -3,6 +3,7 @@ import { MAX_BENCH, premadeDecks } from "../../shared/src/gameData";
 import { Hand } from "./components/boards/Hand";
 import { SideBoard } from "./components/boards/SideBoard";
 import {
+  advancePlayerAiTurnStep,
   advanceOpponentTurnStep,
   attachPlayerEnergy,
   canAttack,
@@ -34,7 +35,7 @@ import {
 } from "./game/engine";
 import type { EnergyType, GameState, SideId, UmamusumeInstance } from "../../shared/src/types";
 import type { InspectTarget } from "./inspect";
-import type { ActionNoticeSource, AppScreen, PendingSelection } from "./types/ui";
+import type { ActionNoticeSource, AppScreen, MatchMode, PendingSelection } from "./types/ui";
 import { getDeckById, readEquippedDeckId, writeEquippedDeckId, pickRandomOpponentDeck } from "./utils/deck";
 import {
   createSetupPreviewSide,
@@ -57,6 +58,7 @@ import { OpponentActionBanner } from "./match/feedback/OpponentActionBanner";
 import { ActionNotice } from "./match/feedback/ActionNotice";
 import { CoinFlipOverlay } from "./match/feedback/CoinFlipOverlay";
 import { MainMenuScreen } from "./screens/MainMenuScreen";
+import { MatchModeScreen } from "./screens/MatchModeScreen";
 import { DeckBrowserScreen } from "./screens/DeckBrowserScreen";
 import { CustomisationScreen } from "./screens/CustomisationScreen";
 import {
@@ -90,6 +92,7 @@ export function App() {
   const [pendingScreen, setPendingScreen] = useState<AppScreen | null>(null);
   const [screenFadeOverlayOpacity, setScreenFadeOverlayOpacity] = useState(0);
   const [equippedDeckId, setEquippedDeckId] = useState(() => readEquippedDeckId());
+  const [matchMode, setMatchMode] = useState<MatchMode>("playerVsAi");
   const [customisation, setCustomisation] = useState<CustomisationSettings>(() => readCustomisationSettings());
   const [opponentCustomisation, setOpponentCustomisation] = useState<CustomisationSettings>(() => getRandomCustomisationSettings());
   const [game, setGame] = useState(() => {
@@ -105,6 +108,7 @@ export function App() {
   const [discardOpen, setDiscardOpen] = useState(false);
   const [coinFlipQueue, setCoinFlipQueue] = useState<CoinFlipEvent[]>([]);
   const [activeCoinFlip, setActiveCoinFlip] = useState<CoinFlipEvent | null>(null);
+  const [acknowledgedCoinLogMessage, setAcknowledgedCoinLogMessage] = useState<string | null>(null);
   const [pendingCoinAttack, setPendingCoinAttack] = useState<PendingCoinAttack | null>(null);
   const [setupActiveIndex, setSetupActiveIndex] = useState<number | null>(null);
   const [setupBenchIndexes, setSetupBenchIndexes] = useState<number[]>([]);
@@ -113,12 +117,14 @@ export function App() {
   const previousLogRef = useRef<string[]>([]);
   const wasSetupCoinFlipBlockingRef = useRef(false);
   const coinFlipIdRef = useRef(1);
+  const skipNextCoinLogMessageRef = useRef<string | null>(null);
   const equippedDeck = getDeckById(equippedDeckId);
   const selectedPlaymat = getSelectedPlaymat(customisation);
   const uiTextTone = getPlaymatTextTone(customisation);
   const selectedSleeve = getSelectedSleeve(customisation);
   const opponentPlaymat = getSelectedPlaymat(opponentCustomisation);
   const opponentSleeve = getSelectedSleeve(opponentCustomisation);
+  const isAiVsAi = matchMode === "aiVsAi";
   const player = game.sides.player;
   const nextPlayerEnergy = player.energyZone[0] ?? null;
   const activePendingSelection = game.pendingPlayerChoice
@@ -143,8 +149,13 @@ export function App() {
     : undefined;
   const abilityEnergyTypes = pendingSelection?.kind === "moveEnergyAbility" ? new Set(pendingSelection.energyTypes) : undefined;
   const hiddenOpponent = game.phase === "setup" && !game.setup?.opponentRevealed;
+  const latestCoinFlipLog = game.log[0];
+  const latestCoinFlipMessage = latestCoinFlipLog && toCoinFlipEvent(latestCoinFlipLog, 0)
+    ? latestCoinFlipLog
+    : null;
+  const unresolvedCoinLog = latestCoinFlipMessage !== null && latestCoinFlipMessage !== acknowledgedCoinLogMessage;
   const isBusyWithChoice = Boolean(pendingSelection || game.pendingPlayerChoice || endTurnWarningActions);
-  const isCoinFlipBlocking = Boolean(activeCoinFlip || coinFlipQueue.length > 0);
+  const isCoinFlipBlocking = Boolean(activeCoinFlip || coinFlipQueue.length > 0 || unresolvedCoinLog);
   const isTurnFlowBlocked = isCoinFlipBlocking;
   const hideOpponentSetupBoard = game.phase === "setup" && isCoinFlipBlocking;
   const opponentBoardHidden = hiddenOpponent && !hideOpponentSetupBoard;
@@ -241,11 +252,14 @@ export function App() {
     });
   };
 
-  const startNewGame = () => {
+  const startNewGame = (mode: MatchMode = matchMode) => {
+    setMatchMode(mode);
     previousLogRef.current = [];
     setCoinFlipQueue([]);
     setActiveCoinFlip(null);
+    setAcknowledgedCoinLogMessage(null);
     setPendingCoinAttack(null);
+    skipNextCoinLogMessageRef.current = null;
     setSetupActiveIndex(null);
     setSetupBenchIndexes([]);
     setPendingSelection(null);
@@ -265,7 +279,12 @@ export function App() {
   };
 
   const playEquippedDeck = () => {
-    startNewGame();
+    navigateToScreen("modeSelect");
+  };
+
+  const startWithMode = (mode: MatchMode) => {
+    if (mode === "playerVsPlayer") return;
+    startNewGame(mode);
     navigateToScreen("match");
   };
 
@@ -399,6 +418,20 @@ export function App() {
   }, [game.phase, player.hand]);
 
   useEffect(() => {
+    if (!isAiVsAi || game.phase !== "setup" || game.gameOver || isTurnFlowBlocked) return;
+    const setup = chooseAiSetupSelection(game);
+    if (!setup) return;
+    setGame((current) => completePregameSetup(current, setup.activeIndex, setup.benchIndexes));
+  }, [game, isAiVsAi, isTurnFlowBlocked]);
+
+  useEffect(() => {
+    if (!isAiVsAi || !game.pendingPlayerChoice || game.gameOver) return;
+    const preferredBenchUid = choosePreferredBenchUid(game.sides.player);
+    if (preferredBenchUid === undefined) return;
+    setGame((current) => resolvePendingPlayerChoice(current, preferredBenchUid));
+  }, [game, isAiVsAi]);
+
+  useEffect(() => {
     if (isTurnFlowBlocked || game.phase !== "play" || game.currentSide !== "opponent" || game.gameOver || game.pendingPlayerChoice) return undefined;
     const timeoutId = window.setTimeout(() => {
       const coinAttack = getPendingAttackCoinFlip(game, "opponent", coinFlipIdRef.current++);
@@ -413,6 +446,22 @@ export function App() {
   }, [game, isTurnFlowBlocked]);
 
   useEffect(() => {
+    if (!isAiVsAi || isTurnFlowBlocked || game.phase !== "play" || game.currentSide !== "player" || game.gameOver || game.pendingPlayerChoice) return undefined;
+    const timeoutId = window.setTimeout(() => {
+      if (game.opponentTurnStep === "attack") {
+        const coinAttack = getPendingAttackCoinFlip(game, "player", coinFlipIdRef.current++);
+        if (coinAttack) {
+          setPendingCoinAttack({ eventId: coinAttack.id, attackerId: "player", result: coinAttack.result });
+          setActiveCoinFlip(coinAttack);
+          return;
+        }
+      }
+      setGame((current) => advancePlayerAiTurnStep(current));
+    }, getOpponentStepDelay(game));
+    return () => window.clearTimeout(timeoutId);
+  }, [game, isTurnFlowBlocked, isAiVsAi]);
+
+  useEffect(() => {
     if (activeCoinFlip || coinFlipQueue.length === 0) return;
     const [nextFlip, ...rest] = coinFlipQueue;
     setActiveCoinFlip(nextFlip ?? null);
@@ -422,7 +471,7 @@ export function App() {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
-      if (screen === "decks" || screen === "customisation") {
+      if (screen === "decks" || screen === "customisation" || screen === "modeSelect") {
         event.preventDefault();
         navigateToScreen("mainMenu");
         return;
@@ -479,8 +528,23 @@ export function App() {
     const coinFlips = newEntries
       .map((entry) => toCoinFlipEvent(entry, coinFlipIdRef.current++))
       .filter((event): event is CoinFlipEvent => Boolean(event));
-    if (coinFlips.length > 0) {
-      setCoinFlipQueue((queue) => [...queue, ...coinFlips]);
+    const filteredCoinFlips = coinFlips.filter((event) => {
+      const skipMessage = skipNextCoinLogMessageRef.current;
+      if (skipMessage && event.message === skipMessage) {
+        setAcknowledgedCoinLogMessage(event.message);
+        skipNextCoinLogMessageRef.current = null;
+        return false;
+      }
+      return true;
+    });
+    if (filteredCoinFlips.length > 0) {
+      if (!activeCoinFlip) {
+        const [nextFlip, ...restFlips] = filteredCoinFlips;
+        if (nextFlip) setActiveCoinFlip(nextFlip);
+        if (restFlips.length > 0) setCoinFlipQueue((queue) => [...queue, ...restFlips]);
+      } else {
+        setCoinFlipQueue((queue) => [...queue, ...filteredCoinFlips]);
+      }
     }
 
     const koEntry = newEntries.find((entry) => entry.includes("was knocked out"));
@@ -491,7 +555,7 @@ export function App() {
     }
 
     if (actionNotice?.startsWith("KO |")) return;
-  }, [game.log, actionNotice]);
+  }, [game.log, actionNotice, activeCoinFlip]);
 
   const applyPlayerGameUpdate = (update: (state: GameState) => GameState, noticeSource?: ActionNoticeSource) => {
     const next = update(game);
@@ -755,6 +819,18 @@ export function App() {
     );
   }
 
+  if (screen === "modeSelect") {
+    return (
+      <main style={appStyle(true, selectedPlaymat.image, uiTextTone)}>
+        <MatchModeScreen
+          onBack={() => navigateToScreen("mainMenu")}
+          onChooseMode={startWithMode}
+        />
+        <div style={screenFadeOverlayStyle(screenFadeOverlayOpacity)} />
+      </main>
+    );
+  }
+
   if (screen === "decks") {
     return (
       <main style={appStyle(false, selectedPlaymat.image, uiTextTone)}>
@@ -887,6 +963,10 @@ export function App() {
           onContinue={() => {
             const coinAttack = pendingCoinAttack?.eventId === activeCoinFlip.id ? pendingCoinAttack : null;
             if (coinAttack) {
+              const resolvedAttackCoinLog = `Flip a coin and got 1x ${coinAttack.result}.`;
+              skipNextCoinLogMessageRef.current = resolvedAttackCoinLog;
+              setAcknowledgedCoinLogMessage(resolvedAttackCoinLog);
+              setCoinFlipQueue((queue) => queue.filter((event) => event.message !== resolvedAttackCoinLog));
               setGame((current) =>
                 coinAttack.attackerId === "player"
                   ? playerAttack(current, coinAttack.attackTargetUid, coinAttack.healTargetUid, coinAttack.result)
@@ -894,6 +974,11 @@ export function App() {
               );
               setPendingCoinAttack(null);
             }
+            const topCoinFlipLog = game.log[0];
+            const topMessage = topCoinFlipLog && toCoinFlipEvent(topCoinFlipLog, 0)
+              ? topCoinFlipLog
+              : null;
+            if (topMessage !== null) setAcknowledgedCoinLogMessage(topMessage);
             setActiveCoinFlip(null);
           }}
         />
@@ -1042,7 +1127,7 @@ export function App() {
           onClose={() => setActionNotice(null)}
         />
       )}
-      {game.gameOver && <GameOverModal game={game} onPlayAgain={startNewGame} onMainMenu={returnToMainMenu} />}
+      {game.gameOver && <GameOverModal game={game} onPlayAgain={() => startNewGame()} onMainMenu={returnToMainMenu} />}
       <div style={screenFadeOverlayStyle(screenFadeOverlayOpacity)} />
     </main>
   );
@@ -1126,6 +1211,38 @@ const handPanelStyle: CSSProperties = {
 
 const RETREAT_ENERGY_ORDER: EnergyType[] = ["grass", "fire", "water", "lightning", "psychic", "fighting", "darkness", "steel", "colorless", "dragon"];
 
+function chooseAiSetupSelection(game: GameState): { activeIndex: number; benchIndexes: number[] } | null {
+  const player = game.sides.player;
+  const basics = player.hand
+    .map((cardId, handIndex) => ({ cardId, handIndex }))
+    .flatMap(({ cardId, handIndex }) => {
+      const card = getCard(cardId);
+      if (card.kind !== "umamusume" || card.stage !== 0) return [];
+      const attack = getPrimaryAttack(card);
+      const score = card.hp + attack.damage * 1.8;
+      return [{ handIndex, score }];
+    })
+    .sort((left, right) => right.score - left.score);
+  const active = basics[0];
+  if (!active) return null;
+  const benchIndexes = basics
+    .slice(1, MAX_BENCH + 1)
+    .map((entry) => entry.handIndex);
+  return { activeIndex: active.handIndex, benchIndexes };
+}
+
+function choosePreferredBenchUid(side: GameState["sides"]["player"]): number | undefined {
+  const best = [...side.bench]
+    .sort((left, right) => scoreReplacementTarget(right) - scoreReplacementTarget(left))[0];
+  return best?.uid;
+}
+
+function scoreReplacementTarget(umamusume: UmamusumeInstance): number {
+  const attack = getPrimaryAttack(getUmamusumeCard(umamusume));
+  const energies = Object.values(umamusume.energies).reduce((sum, amount) => sum + amount, 0);
+  return umamusume.hp + energies * 20 + attack.damage + umamusume.stage * 16;
+}
+
 function getNewLogEntries(currentLog: string[], previousLog: string[]): string[] {
   if (previousLog.length === 0) return currentLog;
 
@@ -1150,12 +1267,7 @@ function getKoCauseFromEntries(newEntries: string[], koEntry: string): string | 
 
   const maxHpCause = newEntries.find((entry) => entry.includes("max HP was reduced"));
   if (maxHpCause) return "max HP reduction";
-
-  const attackCause = newEntries.find((entry) => entry.includes("attacked with "));
-  if (!attackCause) return null;
-
-  const attackDetails = attackCause.replace(/^You attacked with /, "").replace(/^Opponent attacked with /, "");
-  return `attack: ${attackDetails}`;
+  return null;
 }
 
 function formatKoActionNotice(koEntry: string, koCause: string | null): string {
@@ -1210,6 +1322,7 @@ function getPendingAttackCoinFlip(state: GameState, attackerId: SideId, id: numb
 
   const attacker = state.sides[attackerId];
   if (!attacker.active) return null;
+  if (!canAttack(state, attacker)) return null;
   const attack = getPrimaryAttack(getUmamusumeCard(attacker.active));
   if (!attack.coinBonus && !attack.drawOnHeads) return null;
 
