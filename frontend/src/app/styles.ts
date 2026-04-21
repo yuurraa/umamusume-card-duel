@@ -16,6 +16,7 @@ export function appStyle(isMenu = false, playmatImage?: string | null, textTone:
     position: "relative",
     overflowX: "hidden",
     overflowY: isMenu ? "hidden" : "auto",
+    scrollbarGutter: isMenu ? "auto" : "stable",
     overscrollBehavior: "none",
     padding: isMenu ? 0 : 16,
     boxSizing: "border-box",
@@ -26,8 +27,9 @@ export function appStyle(isMenu = false, playmatImage?: string | null, textTone:
     "--ui-text-shadow": uiTextShadow,
     "--ui-muted-text-color": uiMutedTextColor,
     background: playmatImage
-      ? `url("${playmatImage}") center / cover local no-repeat`
+      ? `url("${playmatImage}") center / cover fixed no-repeat`
       : `radial-gradient(circle at 18% 8%, rgba(214, 81, 157, 0.2), transparent 28%), radial-gradient(circle at 84% 20%, rgba(63, 159, 92, 0.16), transparent 30%), linear-gradient(135deg, ${APP_BACKGROUND_FALLBACK} 0%, #223733 54%, #4a2647 100%)`,
+    backgroundAttachment: "fixed",
   } as CSSProperties;
 }
 
@@ -51,7 +53,8 @@ export function matchBackgroundLayerStyle(playmatImage: string | null | undefine
     pointerEvents: "none",
     opacity,
     transition: `opacity ${transitions.backgroundFade}`,
-    background: playmatImage ? `url("${playmatImage}") center / cover local no-repeat` : "none",
+    background: playmatImage ? `url("${playmatImage}") center / cover fixed no-repeat` : "none",
+    backgroundAttachment: "fixed",
   };
 }
 

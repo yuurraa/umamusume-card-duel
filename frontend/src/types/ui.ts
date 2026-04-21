@@ -25,7 +25,7 @@ export type PendingSelection =
 export type ActionNoticeSource =
   | { kind: "genericGain" }
   | { kind: "traineeScoutTicket" }
-  | { kind: "makeDebutScout"; discardedCardName: string };
+  | { kind: "3starMakeDebutScout"; discardedCardName: string };
 
 export type AppScreen = "mainMenu" | "modeSelect" | "decks" | "cards" | "customisation" | "match";
 export type MatchMode = "playerVsPlayer" | "playerVsAi" | "aiVsAi";

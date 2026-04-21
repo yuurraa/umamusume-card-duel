@@ -62,11 +62,21 @@ export function validateLocalDeck(
   if (!deck.name || deck.name.trim().length === 0) return { ok: false, reason: "Deck name is required." };
   if (!Array.isArray(deck.cardIds)) return { ok: false, reason: "Deck cardIds must be an array." };
   if (deck.cardIds.length !== DECK_CARD_COUNT) return { ok: false, reason: `Deck must contain exactly ${DECK_CARD_COUNT} cards.` };
-  if (!allCards[deck.coverCardId]) return { ok: false, reason: "Deck coverCardId does not reference a known card." };
+  const coverCard = resolveDeckCard(deck.coverCardId, allCards);
+  if (!coverCard) return { ok: false, reason: `Unknown deck cover card id: ${deck.coverCardId}` };
 
+  let hasBasicUmamusume = false;
+  const countsByKey = new Map<string, number>();
   for (const cardId of deck.cardIds) {
-    if (!allCards[cardId]) return { ok: false, reason: `Unknown card id in deck: ${cardId}` };
+    const card = resolveDeckCard(cardId, allCards);
+    if (!card) return { ok: false, reason: `Unknown card id in deck: ${cardId}` };
+    if (card.kind === "umamusume" && card.stage === 0) hasBasicUmamusume = true;
+    const key = toDeckCountKey(cardId);
+    const nextCount = (countsByKey.get(key) ?? 0) + 1;
+    if (nextCount > 2) return { ok: false, reason: `Deck cannot contain more than 2 copies of ${card.name}.` };
+    countsByKey.set(key, nextCount);
   }
+  if (!hasBasicUmamusume) return { ok: false, reason: "Deck must contain at least 1 Basic Umamusume." };
 
   if (deck.formatVersion !== LOCAL_DECK_FORMAT_VERSION) {
     return { ok: false, reason: `Unsupported deck format version: ${deck.formatVersion}` };
@@ -75,3 +85,27 @@ export function validateLocalDeck(
   return { ok: true };
 }
 
+function toDeckCountKey(cardId: string): string {
+  const normalized = cardId.endsWith("FullArt") ? cardId.slice(0, -"FullArt".length) : cardId;
+  return COUNT_KEY_ALIASES[normalized] ?? normalized;
+}
+
+function resolveDeckCard(cardId: string, allCards: Record<string, Card>): Card | undefined {
+  const direct = allCards[cardId];
+  if (direct) return direct;
+
+  const alias = CARD_ID_ALIASES[cardId];
+  if (!alias) return undefined;
+  return allCards[alias];
+}
+
+const CARD_ID_ALIASES: Record<string, string> = {
+  makeDebutScout: "3starMakeDebutScout",
+  makeDebutScoutFullArt: "3starMakeDebutScoutFullArt",
+  "3starMakeDebutScout": "makeDebutScout",
+  "3starMakeDebutScoutFullArt": "makeDebutScoutFullArt",
+};
+
+const COUNT_KEY_ALIASES: Record<string, string> = {
+  makeDebutScout: "3starMakeDebutScout",
+};

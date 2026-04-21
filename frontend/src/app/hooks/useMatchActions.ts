@@ -241,7 +241,7 @@ export function useMatchActions(args: UseMatchActionsArgs) {
         discardHandIndex: pendingSelection.discardHandIndex,
         deckCardIndex,
       }),
-      { kind: "makeDebutScout", discardedCardName: pendingSelection.discardedCardName },
+      { kind: "3starMakeDebutScout", discardedCardName: pendingSelection.discardedCardName },
     );
     setPendingSelection(null);
     setPreviewTarget(null);

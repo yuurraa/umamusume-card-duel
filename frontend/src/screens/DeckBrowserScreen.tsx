@@ -1,13 +1,60 @@
-import { type CSSProperties, useEffect, useState } from "react";
-import type { EnergyType } from "../../../shared/src/types";
-import { energyLabel, getCard } from "../game/engine";
-import { getDeckCoverCard, getDeckEnergyTypes } from "../utils/deck";
+import { useEffect, useMemo, useState } from "react";
+import { LOCAL_DECK_FORMAT_VERSION, type LocalDeck } from "../../../shared/src/localDecks";
+import { getCard } from "../game/engine";
 import { NeutralButton } from "../components/buttons/NeutralButton";
-import { EnergyIcon } from "../components/cards/EnergyIcon";
 import type { PremadeDeck } from "../types/ui";
-import { CARD_ASPECT_RATIO, GLASS_TILE_BACKGROUND, GLASS_TILE_BACKDROP_FILTER, borders, colors, glassPanelStyle, overlayBackdropStyle, overlayButtonStyle, overlaySurfaceStyle, previewKickerStyle, radius, shadows, transitions, uiTextColor, uiTextShadow } from "../styles/shared";
+import { deleteLocalDeck, importLocalDeck, listLocalDecks, saveLocalDeck } from "../utils/localDeckApi";
+import {
+  DeckClearAllConfirmModal,
+  CreateDeckModal,
+  DeckBrowserCreateTile,
+  DeckImportOverwriteConfirmModal,
+  DeckUnsavedChangesModal,
+  DeckBrowserTile,
+  DeckCardInspectModal,
+  DeckCardSelectorModal,
+  DeckDeleteConfirmModal,
+  DeckJsonModal,
+  DeckListModal,
+  DeckSummaryCard,
+} from "./deck-browser/components";
+import {
+  DECK_CARD_COUNT,
+  type DeckEntity,
+  buildDeckJson,
+  getDuplicateOverflowCardName,
+  parseDeckJson,
+  sortDeckCardIds,
+  toEditableDeckSlots,
+  writeLocalDeckCache,
+} from "./deck-browser/helpers";
+import {
+  deckBrowserBackButtonStyle,
+  deckBrowserGridStyle,
+  deckBrowserHeaderStyle,
+  deckBrowserShellStyle,
+  deckBrowserSubtitleStyle,
+  deckBrowserTitleStyle,
+  localDeckErrorStyle,
+  menuKickerStyle,
+} from "./deck-browser/styles";
 
-const SELECTED_TICK = "\u2713";
+export { DeckSummaryCard } from "./deck-browser/components";
+
+const CREATE_DECK_DRAFTS_STORAGE_KEY = "umamusume-deck-editor-draft-create-list";
+const EDIT_DECK_DRAFT_STORAGE_KEY = "umamusume-deck-editor-draft-edit";
+
+type DeckEditorDraft = {
+  name: string;
+  cardIds: Array<string | null>;
+  selectedCoverCardId: string | null;
+};
+
+type DeckEditorSnapshot = {
+  name: string;
+  cardIds: Array<string | null>;
+  selectedCoverCardId: string | null;
+};
 
 export function DeckBrowserScreen({
   decks,
@@ -20,28 +67,225 @@ export function DeckBrowserScreen({
   onEquipDeck: (deckId: string) => void;
   onBack: () => void;
 }) {
-  const [openedDeckId, setOpenedDeckId] = useState<string | null>(null);
+  const [openedDeckRef, setOpenedDeckRef] = useState<{ id: string; source: "premade" | "local" | "draft" } | null>(null);
   const [inspectedDeckCardId, setInspectedDeckCardId] = useState<string | null>(null);
-  const openedDeck = openedDeckId ? decks.find((deck) => deck.id === openedDeckId) ?? null : null;
+  const [localDecks, setLocalDecks] = useState<LocalDeck[]>([]);
+  const [localDeckError, setLocalDeckError] = useState<string | null>(null);
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [createName, setCreateName] = useState("New Deck");
+  const [createCardIds, setCreateCardIds] = useState<Array<string | null>>(() => Array.from({ length: DECK_CARD_COUNT }, () => null));
+  const [pickerSlotIndex, setPickerSlotIndex] = useState<number | null>(null);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [isSavingCreateDeck, setIsSavingCreateDeck] = useState(false);
+  const [editingDeckId, setEditingDeckId] = useState<string | null>(null);
+  const [editingCreateDraftId, setEditingCreateDraftId] = useState<string | null>(null);
+  const [jsonModalMode, setJsonModalMode] = useState<"export" | "import" | null>(null);
+  const [jsonModalDeckRef, setJsonModalDeckRef] = useState<{ id: string; source: "premade" | "local" | "draft" } | null>(null);
+  const [jsonModalText, setJsonModalText] = useState("");
+  const [jsonModalError, setJsonModalError] = useState<string | null>(null);
+  const [jsonModalBusy] = useState(false);
+  const [deleteDeckRef, setDeleteDeckRef] = useState<{ id: string; source: "premade" | "local" | "draft" } | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [createDraftDecks, setCreateDraftDecks] = useState<LocalDeck[]>(() => readCreateDraftDecks());
+  const [editDraftByDeckId, setEditDraftByDeckId] = useState<Record<string, DeckEditorDraft>>(() => readEditDeckDrafts());
+  const [showImportOverwriteConfirm, setShowImportOverwriteConfirm] = useState(false);
+  const [showClearAllConfirm, setShowClearAllConfirm] = useState(false);
+  const [showUnsavedChangesConfirm, setShowUnsavedChangesConfirm] = useState<"create" | "edit" | null>(null);
+  const [pendingValidatedDeck, setPendingValidatedDeck] = useState<{
+    name: string;
+    cardIds: string[];
+    deckId: string | null;
+  } | null>(null);
+  const [selectedCoverCardId, setSelectedCoverCardId] = useState<string | null>(null);
+  const [editorBaseline, setEditorBaseline] = useState<DeckEditorSnapshot | null>(null);
+
+  const allDecks = useMemo(
+    () => [
+      ...decks.map((deck) => ({ ...deck, source: "premade" as const })),
+      ...localDecks.map((deck) => ({ ...deck, source: "local" as const })),
+      ...createDraftDecks.map((deck) => ({ ...deck, source: "draft" as const })),
+    ],
+    [createDraftDecks, decks, localDecks],
+  );
+  const openedDeck = openedDeckRef
+    ? allDecks.find((deck) => deck.id === openedDeckRef.id && deck.source === openedDeckRef.source) ?? null
+    : null;
+  const jsonModalDeck = jsonModalDeckRef
+    ? allDecks.find((deck) => deck.id === jsonModalDeckRef.id && deck.source === jsonModalDeckRef.source) ?? null
+    : null;
+  const isCreateImportTarget = jsonModalDeckRef?.id === "__create__";
+  const deleteDeck = deleteDeckRef
+    ? allDecks.find((deck) => deck.id === deleteDeckRef.id && deck.source === deleteDeckRef.source) ?? null
+    : null;
   const inspectedDeckCard = inspectedDeckCardId ? getCard(inspectedDeckCardId) : null;
+  const openedDeckHasDraft = Boolean(
+    openedDeck
+    && (openedDeck.source === "draft" || (openedDeck.source === "local" && editDraftByDeckId[openedDeck.id])),
+  );
+  const openedDeckDraft = openedDeck && openedDeck.source !== "premade" ? editDraftByDeckId[openedDeck.id] : undefined;
+
+  useEffect(() => {
+    writeCreateDraftDecks(createDraftDecks);
+  }, [createDraftDecks]);
+
+  useEffect(() => {
+    writeEditDeckDrafts(editDraftByDeckId);
+  }, [editDraftByDeckId]);
+
+  const setEditDraft = (deckId: string, draft: DeckEditorDraft) => {
+    setEditDraftByDeckId((current) => ({ ...current, [deckId]: draft }));
+  };
+
+  const clearEditDraft = (deckId: string) => {
+    setEditDraftByDeckId((current) => {
+      if (!(deckId in current)) return current;
+      const next = { ...current };
+      delete next[deckId];
+      return next;
+    });
+  };
+
+  const hasUnsavedEditorChanges = (): boolean => {
+    if (pendingValidatedDeck) return true;
+    if (!editorBaseline) return false;
+    if (editorBaseline.name !== createName) return true;
+    if (editorBaseline.selectedCoverCardId !== selectedCoverCardId) return true;
+    if (editorBaseline.cardIds.length !== createCardIds.length) return true;
+    for (let index = 0; index < editorBaseline.cardIds.length; index += 1) {
+      if (editorBaseline.cardIds[index] !== createCardIds[index]) return true;
+    }
+    return false;
+  };
+
+  const closeCreateEditorImmediately = () => {
+    setPickerSlotIndex(null);
+    setEditingDeckId(null);
+    setEditingCreateDraftId(null);
+    setPendingValidatedDeck(null);
+    setSelectedCoverCardId(null);
+    setShowImportOverwriteConfirm(false);
+    setShowClearAllConfirm(false);
+    setShowUnsavedChangesConfirm(null);
+    setEditorBaseline(null);
+    setIsCreateOpen(false);
+  };
+
+  const requestCloseCreateEditor = () => {
+    if (hasUnsavedEditorChanges()) {
+      setShowUnsavedChangesConfirm(editingDeckId || editingCreateDraftId ? "edit" : "create");
+      return;
+    }
+    closeCreateEditorImmediately();
+  };
+
+  useEffect(() => {
+    let active = true;
+    listLocalDecks()
+      .then((nextDecks) => {
+        if (!active) return;
+        setLocalDecks(nextDecks);
+        writeLocalDeckCache(nextDecks);
+        setLocalDeckError(null);
+      })
+      .catch((error) => {
+        if (!active) return;
+        setLocalDeckError(error instanceof Error ? error.message : "Failed to load created decks.");
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     const onDeckEscape = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
-      if (!inspectedDeckCardId && !openedDeckId) return;
+      if (
+        !inspectedDeckCardId
+        && pickerSlotIndex === null
+        && !jsonModalMode
+        && !deleteDeckRef
+        && !showImportOverwriteConfirm
+        && !showClearAllConfirm
+        && !showUnsavedChangesConfirm
+        && !isCreateOpen
+        && !openedDeckRef
+      ) return;
       event.preventDefault();
       event.stopPropagation();
       event.stopImmediatePropagation();
+      if (jsonModalMode) {
+        setJsonModalMode(null);
+        return;
+      }
+      if (showImportOverwriteConfirm) {
+        setShowImportOverwriteConfirm(false);
+        return;
+      }
+      if (showClearAllConfirm) {
+        setShowClearAllConfirm(false);
+        return;
+      }
+      if (showUnsavedChangesConfirm) {
+        setShowUnsavedChangesConfirm(null);
+        return;
+      }
+      if (deleteDeckRef) {
+        setDeleteDeckRef(null);
+        return;
+      }
       if (inspectedDeckCardId) {
         setInspectedDeckCardId(null);
         return;
       }
-      setOpenedDeckId(null);
+      if (pickerSlotIndex !== null) {
+        setPickerSlotIndex(null);
+        return;
+      }
+      if (isCreateOpen) {
+        requestCloseCreateEditor();
+        return;
+      }
+      setOpenedDeckRef(null);
     };
 
     window.addEventListener("keydown", onDeckEscape, { capture: true });
     return () => window.removeEventListener("keydown", onDeckEscape, { capture: true });
-  }, [openedDeckId, inspectedDeckCardId]);
+  }, [deleteDeckRef, openedDeckRef, inspectedDeckCardId, isCreateOpen, jsonModalMode, pickerSlotIndex, requestCloseCreateEditor, showClearAllConfirm, showImportOverwriteConfirm, showUnsavedChangesConfirm]);
+
+  useEffect(() => {
+    if (!isCreateOpen) {
+      setCreateError(null);
+      setEditingDeckId(null);
+      setEditingCreateDraftId(null);
+      setPendingValidatedDeck(null);
+      setSelectedCoverCardId(null);
+      setShowImportOverwriteConfirm(false);
+      setShowClearAllConfirm(false);
+      setShowUnsavedChangesConfirm(null);
+      setEditorBaseline(null);
+    }
+  }, [isCreateOpen]);
+
+  const refreshLocalDecks = async () => {
+    const nextDecks = await listLocalDecks();
+    setLocalDecks(nextDecks);
+    writeLocalDeckCache(nextDecks);
+  };
+
+  const openImportDeckJsonModal = () => {
+    if (editingDeckId) {
+      setJsonModalDeckRef({ id: editingDeckId, source: "local" });
+    } else {
+      setJsonModalDeckRef({ id: "__create__", source: "premade" });
+    }
+    setJsonModalMode("import");
+    setJsonModalError(null);
+    setJsonModalText("");
+    setPendingValidatedDeck(null);
+    setShowImportOverwriteConfirm(false);
+    setShowClearAllConfirm(false);
+    setShowUnsavedChangesConfirm(null);
+  };
 
   return (
     <section style={deckBrowserShellStyle}>
@@ -51,29 +295,282 @@ export function DeckBrowserScreen({
           <h1 style={deckBrowserTitleStyle}>Choose your deck</h1>
           <p style={deckBrowserSubtitleStyle}>Select a deck and equip it for the next match.</p>
         </div>
-        <NeutralButton style={deckBrowserBackButtonStyle} onClick={onBack}>Back</NeutralButton>
+        <NeutralButton
+          style={deckBrowserBackButtonStyle}
+          onClick={() => {
+            setShowImportOverwriteConfirm(false);
+            setShowClearAllConfirm(false);
+            setShowUnsavedChangesConfirm(null);
+            onBack();
+          }}
+        >
+          Back
+        </NeutralButton>
       </div>
       <div style={deckBrowserGridStyle}>
-        {decks.map((deck) => {
-          const equipped = deck.id === equippedDeckId;
-          return <DeckBrowserTile key={deck.id} deck={deck} equipped={equipped} onOpen={() => setOpenedDeckId(deck.id)} />;
+        {allDecks.map((deck) => {
+          const equipped = deck.source !== "draft" && deck.id === equippedDeckId;
+          const hasDraft = deck.source === "draft" || (deck.source === "local" && Boolean(editDraftByDeckId[deck.id]));
+          return (
+            <DeckBrowserTile
+              key={`${deck.source}-${deck.id}`}
+              deck={deck}
+              equipped={equipped}
+              isDraft={hasDraft}
+              label={deck.source === "premade" ? "Premade Deck" : hasDraft ? "Draft Deck" : "Created Deck"}
+              onOpen={() => setOpenedDeckRef({ id: deck.id, source: deck.source })}
+            />
+          );
         })}
-        <DeckBrowserLockedEditTile />
+        <DeckBrowserCreateTile
+          onOpen={() => {
+            const blankCardIds = Array.from({ length: DECK_CARD_COUNT }, () => null as string | null);
+            setCreateName("New Deck");
+            setCreateCardIds(blankCardIds);
+            setCreateError(null);
+            setPickerSlotIndex(null);
+            setEditingDeckId(null);
+            setEditingCreateDraftId(null);
+            setPendingValidatedDeck(null);
+            setSelectedCoverCardId(null);
+            setShowImportOverwriteConfirm(false);
+            setShowClearAllConfirm(false);
+            setShowUnsavedChangesConfirm(null);
+            setEditorBaseline({
+              name: "New Deck",
+              cardIds: blankCardIds,
+              selectedCoverCardId: null,
+            });
+            setIsCreateOpen(true);
+        }}
+        />
       </div>
+      {localDeckError && <div style={localDeckErrorStyle}>{localDeckError}</div>}
       {openedDeck && (
         <DeckListModal
-          deck={openedDeck}
+          deck={openedDeck as DeckEntity}
           equipped={openedDeck.id === equippedDeckId}
+          canEquip
+          equipDisabled={openedDeck.source === "draft" || openedDeckHasDraft}
+          canExport={!openedDeckHasDraft}
+          canEdit={openedDeck.source !== "premade"}
+          {...(openedDeckDraft
+            ? {
+              displayCardIds: openedDeckDraft.cardIds,
+              cardCountText: `${openedDeckDraft.cardIds.filter((cardId) => Boolean(cardId)).length}/${DECK_CARD_COUNT} cards`,
+            }
+            : {})}
+          deckLabel={openedDeck.source === "premade" ? "Premade Deck" : openedDeckHasDraft ? "Draft Deck" : "Created Deck"}
           onClose={() => {
             setInspectedDeckCardId(null);
-            setOpenedDeckId(null);
+            setOpenedDeckRef(null);
+          }}
+          onExport={() => {
+            if (openedDeckHasDraft) return;
+            setJsonModalDeckRef({ id: openedDeck.id, source: openedDeck.source });
+            setJsonModalMode("export");
+            setJsonModalError(null);
+            setJsonModalText(buildDeckJson(openedDeck));
+          }}
+          onImport={() => {
+            if (openedDeck.source !== "local") return;
+            setJsonModalDeckRef({ id: openedDeck.id, source: openedDeck.source });
+            setJsonModalMode("import");
+            setJsonModalError(null);
+            setJsonModalText("");
+          }}
+          onEdit={() => {
+            if (openedDeck.source === "premade") return;
+            const draft = editDraftByDeckId[openedDeck.id];
+            const draftName = draft?.name ?? openedDeck.name;
+            const draftCardIds = draft?.cardIds ?? toEditableDeckSlots(openedDeck.cardIds);
+            const draftCover = draft?.selectedCoverCardId ?? openedDeck.coverCardId;
+            setCreateName(draftName);
+            setCreateCardIds([...draftCardIds]);
+            setCreateError(null);
+            setPickerSlotIndex(null);
+            setEditingDeckId(openedDeck.source === "local" ? openedDeck.id : null);
+            setEditingCreateDraftId(openedDeck.source === "draft" ? openedDeck.id : null);
+            setPendingValidatedDeck(null);
+            setSelectedCoverCardId(draftCover);
+            setShowImportOverwriteConfirm(false);
+            setShowClearAllConfirm(false);
+            setShowUnsavedChangesConfirm(null);
+            setEditorBaseline({
+              name: draftName,
+              cardIds: [...draftCardIds],
+              selectedCoverCardId: draftCover,
+            });
+            setOpenedDeckRef(null);
+            setIsCreateOpen(true);
           }}
           onEquip={() => {
+            if (openedDeckHasDraft) return;
             onEquipDeck(openedDeck.id);
             setInspectedDeckCardId(null);
-            setOpenedDeckId(null);
+            setOpenedDeckRef(null);
           }}
+          onDelete={() => {
+            if (openedDeck.source === "premade") return;
+            setDeleteDeckRef({ id: openedDeck.id, source: openedDeck.source });
+          }}
+          canDelete={openedDeck.source !== "premade"}
+          canImport={openedDeck.source === "local"}
           onInspectCard={setInspectedDeckCardId}
+        />
+      )}
+      {isCreateOpen && (
+        <CreateDeckModal
+          title={editingDeckId || editingCreateDraftId ? "Edit Deck" : "Create Deck"}
+          name={createName}
+          cardIds={createCardIds}
+          canRemoveCards={Boolean(editingDeckId || editingCreateDraftId) && !pendingValidatedDeck}
+          canManageDeck={Boolean(editingDeckId || editingCreateDraftId)}
+          canImportDeck
+          selectingCoverCard={Boolean(pendingValidatedDeck)}
+          selectedCoverCardId={selectedCoverCardId}
+          infoNotice={pendingValidatedDeck ? "Validation successful. Select a card from your deck as the cover, then press Save Deck." : null}
+          saving={isSavingCreateDeck}
+          error={createError}
+          onClearError={() => setCreateError(null)}
+          onClose={requestCloseCreateEditor}
+          onNameChange={(nextName) => {
+            setCreateName(nextName);
+            setCreateError(null);
+            setPendingValidatedDeck(null);
+          }}
+          onEditFilledSlot={(slotIndex) => {
+            setCreateCardIds((current) => {
+              const next = [...current];
+              next[slotIndex] = null;
+              return next;
+            });
+            setCreateError(null);
+            setPendingValidatedDeck(null);
+            setPickerSlotIndex(slotIndex);
+          }}
+          onSelectCoverCard={(cardId) => {
+            setSelectedCoverCardId(cardId);
+          }}
+          onImportDeck={() => {
+            if (createCardIds.some((cardId) => Boolean(cardId))) {
+              setShowImportOverwriteConfirm(true);
+              return;
+            }
+            openImportDeckJsonModal();
+          }}
+          onClearAll={() => setShowClearAllConfirm(true)}
+          canClearAll={createCardIds.some((cardId) => Boolean(cardId))}
+          onDeleteDeck={() => {
+            if (editingDeckId) {
+              setDeleteDeckRef({ id: editingDeckId, source: "local" });
+              return;
+            }
+            if (editingCreateDraftId) {
+              setDeleteDeckRef({ id: editingCreateDraftId, source: "draft" });
+            }
+          }}
+          onPickSlot={(slotIndex) => {
+            setPendingValidatedDeck(null);
+            setPickerSlotIndex(slotIndex);
+          }}
+          onValidate={async () => {
+            if (isSavingCreateDeck) return;
+            if (pendingValidatedDeck) {
+              const coverCardId = selectedCoverCardId ?? pendingValidatedDeck.cardIds[0];
+              if (!coverCardId) {
+                setCreateError("Select a cover card before saving.");
+                return;
+              }
+              setIsSavingCreateDeck(true);
+              setCreateError(null);
+              try {
+                const sortedCardIds = sortDeckCardIds(pendingValidatedDeck.cardIds);
+                const payload = {
+                  name: pendingValidatedDeck.name,
+                  cardIds: sortedCardIds,
+                  coverCardId,
+                };
+                const deck = pendingValidatedDeck.deckId
+                  ? await saveLocalDeck(pendingValidatedDeck.deckId, payload)
+                  : await importLocalDeck(payload);
+                await refreshLocalDecks();
+                setPendingValidatedDeck(null);
+                setSelectedCoverCardId(null);
+                if (!pendingValidatedDeck.deckId) {
+                  if (editingCreateDraftId) {
+                    setCreateDraftDecks((current) => current.filter((deck) => deck.id !== editingCreateDraftId));
+                    clearEditDraft(editingCreateDraftId);
+                  }
+                } else {
+                  clearEditDraft(pendingValidatedDeck.deckId);
+                }
+                setIsCreateOpen(false);
+                setOpenedDeckRef({ id: deck.id, source: "local" });
+              } catch (error) {
+                setCreateError(error instanceof Error ? error.message : "Failed to save deck.");
+              } finally {
+                setIsSavingCreateDeck(false);
+              }
+              return;
+            }
+            const resolvedCardIds = createCardIds.filter((cardId): cardId is string => Boolean(cardId));
+            if (resolvedCardIds.length !== DECK_CARD_COUNT) {
+              setCreateError(`Deck must contain exactly ${DECK_CARD_COUNT} cards.`);
+              return;
+            }
+            if (createName.trim().length === 0) {
+              setCreateError("Deck name is required.");
+              return;
+            }
+            setCreateError(null);
+            try {
+              if (!resolvedCardIds.some((cardId) => {
+                const card = getCard(cardId);
+                return card.kind === "umamusume" && card.stage === 0;
+              })) {
+                setCreateError("Deck must contain at least 1 Basic Umamusume.");
+                return;
+              }
+              const duplicateCardName = getDuplicateOverflowCardName(resolvedCardIds);
+              if (duplicateCardName) {
+                setCreateError(`Deck cannot contain more than 2 copies of ${duplicateCardName}.`);
+                return;
+              }
+              const existingCoverCardId = selectedCoverCardId && resolvedCardIds.includes(selectedCoverCardId)
+                ? selectedCoverCardId
+                : null;
+              const initialCoverCardId = existingCoverCardId ?? resolvedCardIds[0];
+              if (!initialCoverCardId) {
+                setCreateError("Deck must contain at least 1 card.");
+                return;
+              }
+              setPendingValidatedDeck({
+                name: createName.trim(),
+                cardIds: resolvedCardIds,
+                deckId: editingDeckId,
+              });
+              setSelectedCoverCardId(initialCoverCardId);
+            } catch (error) {
+              setCreateError(error instanceof Error ? error.message : "Failed to save deck.");
+            }
+          }}
+        />
+      )}
+      {pickerSlotIndex !== null && (
+        <DeckCardSelectorModal
+          slotIndex={pickerSlotIndex}
+          currentCardIds={createCardIds}
+          onClose={() => setPickerSlotIndex(null)}
+          onSelectCard={(cardId) => {
+            setCreateCardIds((current) => {
+              const next = [...current];
+              next[pickerSlotIndex] = cardId;
+              return next;
+            });
+            setCreateError(null);
+            setPickerSlotIndex(null);
+          }}
         />
       )}
       {inspectedDeckCard && (
@@ -82,568 +579,281 @@ export function DeckBrowserScreen({
           onClose={() => setInspectedDeckCardId(null)}
         />
       )}
+      {jsonModalMode && (jsonModalDeck || isCreateImportTarget) && (
+        <DeckJsonModal
+          mode={jsonModalMode}
+          value={jsonModalText}
+          error={jsonModalError}
+          busy={jsonModalBusy}
+          onClearError={() => setJsonModalError(null)}
+          onClose={() => {
+            if (jsonModalBusy) return;
+            setJsonModalMode(null);
+            setJsonModalDeckRef(null);
+            setJsonModalError(null);
+          }}
+          onChange={(value) => {
+            setJsonModalText(value);
+            setJsonModalError(null);
+          }}
+          onCopy={() => {
+            if (typeof navigator === "undefined" || !navigator.clipboard) {
+              setJsonModalError("Clipboard is unavailable in this environment.");
+              return Promise.resolve(false);
+            }
+            return navigator.clipboard.writeText(jsonModalText).then(() => true).catch(() => {
+              setJsonModalError("Failed to copy JSON to clipboard.");
+              return false;
+            });
+          }}
+          onConfirm={async () => {
+            if (jsonModalMode !== "import") return;
+            const parsed = parseDeckJson(jsonModalText);
+            if (!parsed.ok) {
+              setJsonModalError(parsed.error);
+              return;
+            }
+            if (!jsonModalDeck && !isCreateImportTarget) {
+              setJsonModalError("Unable to resolve import target deck.");
+              return;
+            }
+            if (!isCreateImportTarget && jsonModalDeck?.source !== "local") {
+              setJsonModalError("Import is only available for created decks.");
+              return;
+            }
+            setJsonModalError(null);
+            setCreateName(parsed.payload.name);
+            setCreateCardIds(toEditableDeckSlots(parsed.payload.cardIds));
+            setCreateError(null);
+            setPickerSlotIndex(null);
+            setEditingDeckId(isCreateImportTarget ? null : jsonModalDeck!.id);
+            setPendingValidatedDeck(null);
+            setSelectedCoverCardId(parsed.payload.coverCardId);
+            setEditorBaseline({
+              name: parsed.payload.name,
+              cardIds: toEditableDeckSlots(parsed.payload.cardIds),
+              selectedCoverCardId: parsed.payload.coverCardId,
+            });
+            setIsCreateOpen(true);
+            setOpenedDeckRef(null);
+            setJsonModalMode(null);
+            setJsonModalDeckRef(null);
+            setShowImportOverwriteConfirm(false);
+            setShowClearAllConfirm(false);
+            setShowUnsavedChangesConfirm(null);
+          }}
+        />
+      )}
+      {showImportOverwriteConfirm && (
+        <DeckImportOverwriteConfirmModal
+          onClose={() => setShowImportOverwriteConfirm(false)}
+          onConfirm={openImportDeckJsonModal}
+        />
+      )}
+      {showClearAllConfirm && (
+        <DeckClearAllConfirmModal
+          onClose={() => setShowClearAllConfirm(false)}
+          onConfirm={() => {
+            const cleared = Array.from({ length: DECK_CARD_COUNT }, () => null as string | null);
+            setCreateCardIds(cleared);
+            setPendingValidatedDeck(null);
+            setSelectedCoverCardId(null);
+            setCreateError(null);
+            setPickerSlotIndex(null);
+            setShowClearAllConfirm(false);
+          }}
+        />
+      )}
+      {showUnsavedChangesConfirm && (
+        <DeckUnsavedChangesModal
+          mode={showUnsavedChangesConfirm}
+          onCancel={() => setShowUnsavedChangesConfirm(null)}
+          onSaveDraft={() => {
+            const draft: DeckEditorDraft = {
+              name: createName,
+              cardIds: [...createCardIds],
+              selectedCoverCardId,
+            };
+            if (editingDeckId) {
+              setEditDraft(editingDeckId, draft);
+            } else if (editingCreateDraftId) {
+              setEditDraft(editingCreateDraftId, draft);
+              setCreateDraftDecks((current) => current.map((deck) => {
+                if (deck.id !== editingCreateDraftId) return deck;
+                return {
+                  ...deck,
+                  name: draft.name,
+                  coverCardId: resolveDraftCoverCardId(draft),
+                  cardIds: draft.cardIds.filter((cardId): cardId is string => Boolean(cardId)),
+                  updatedAt: new Date().toISOString(),
+                };
+              }));
+            } else {
+              const draftDeckId = buildCreateDraftDeckId(createDraftDecks, editDraftByDeckId);
+              const nowIso = new Date().toISOString();
+              const draftDeck: LocalDeck = {
+                id: draftDeckId,
+                name: draft.name,
+                coverCardId: resolveDraftCoverCardId(draft),
+                cardIds: draft.cardIds.filter((cardId): cardId is string => Boolean(cardId)),
+                formatVersion: LOCAL_DECK_FORMAT_VERSION,
+                createdAt: nowIso,
+                updatedAt: nowIso,
+              };
+              setCreateDraftDecks((current) => [draftDeck, ...current]);
+              setEditDraft(draftDeckId, draft);
+            }
+            closeCreateEditorImmediately();
+          }}
+          onConfirm={() => {
+            if (editingDeckId) {
+              clearEditDraft(editingDeckId);
+            }
+            closeCreateEditorImmediately();
+          }}
+        />
+      )}
+      {deleteDeck && (
+        <DeckDeleteConfirmModal
+          deckName={deleteDeck.name}
+          deleting={deleteBusy}
+          onClose={() => {
+            if (deleteBusy) return;
+            setDeleteDeckRef(null);
+          }}
+          onConfirm={async () => {
+            if (deleteDeck.source === "draft") {
+              setCreateDraftDecks((current) => current.filter((deck) => deck.id !== deleteDeck.id));
+              clearEditDraft(deleteDeck.id);
+              setDeleteDeckRef(null);
+              if (openedDeckRef?.id === deleteDeck.id && openedDeckRef.source === "draft") {
+                setOpenedDeckRef(null);
+              }
+              if (editingCreateDraftId === deleteDeck.id) {
+                setEditingCreateDraftId(null);
+                setPendingValidatedDeck(null);
+                setSelectedCoverCardId(null);
+                setShowImportOverwriteConfirm(false);
+                setShowClearAllConfirm(false);
+                setIsCreateOpen(false);
+              }
+              return;
+            }
+            if (deleteDeck.source !== "local") return;
+            setDeleteBusy(true);
+            try {
+              await deleteLocalDeck(deleteDeck.id);
+              clearEditDraft(deleteDeck.id);
+              await refreshLocalDecks();
+              setDeleteDeckRef(null);
+              if (openedDeckRef?.id === deleteDeck.id && openedDeckRef.source === "local") {
+                setOpenedDeckRef(null);
+              }
+              if (editingDeckId === deleteDeck.id) {
+                setEditingDeckId(null);
+                setPendingValidatedDeck(null);
+                setSelectedCoverCardId(null);
+                setShowImportOverwriteConfirm(false);
+                setShowClearAllConfirm(false);
+                setIsCreateOpen(false);
+              }
+            } catch (error) {
+              setLocalDeckError(error instanceof Error ? error.message : "Failed to delete deck.");
+            } finally {
+              setDeleteBusy(false);
+            }
+          }}
+        />
+      )}
     </section>
   );
 }
 
-function DeckBrowserTile({ deck, equipped, onOpen }: { deck: PremadeDeck; equipped: boolean; onOpen: () => void }) {
-  const [hovered, setHovered] = useState(false);
-
-  return (
-    <button
-      type="button"
-      style={deckBrowserCardStyle(equipped, hovered)}
-      onClick={onOpen}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      onFocus={() => setHovered(true)}
-      onBlur={() => setHovered(false)}
-    >
-      {equipped && <span style={deckSelectedBadgeStyle}>{SELECTED_TICK}</span>}
-      <DeckSummaryCard deck={deck} label="Premade Deck" framed={false} />
-    </button>
-  );
-}
-
-function DeckBrowserLockedEditTile() {
-  return (
-    <button
-      type="button"
-      disabled
-      aria-label="Edit deck unavailable"
-      title="Deck editing is currently disabled"
-      style={deckBrowserLockedEditCardStyle}
-    >
-      <span style={deckBrowserLockedEditIconStyle} aria-hidden="true">✎</span>
-      <strong style={deckBrowserLockedEditLabelStyle}>Create Deck</strong>
-    </button>
-  );
-}
-
-function DeckListModal({
-  deck,
-  equipped,
-  onClose,
-  onEquip,
-  onInspectCard,
-}: {
-  deck: PremadeDeck;
-  equipped: boolean;
-  onClose: () => void;
-  onEquip: () => void;
-  onInspectCard: (cardId: string) => void;
-}) {
-  const isPremadeDeck = true;
-  const deckRows: (string | null)[][] = deck.cardIds.length === 20
-    ? [
-      deck.cardIds.slice(0, 7),
-      deck.cardIds.slice(7, 14),
-      [...deck.cardIds.slice(14, 20), null],
-    ]
-    : chunkDeckRows(deck.cardIds, 7);
-
-  return (
-    <div style={deckModalBackdropStyle} onClick={onClose}>
-      <section style={deckModalStyle} onClick={(event) => event.stopPropagation()}>
-        <header style={deckModalHeaderStyle}>
-          <div>
-            <div style={deckModalMetaStyle}>
-              <span style={deckModalKickerStyle}>Deck List</span>
-              <span style={deckModalInlineCountStyle}>{deck.cardIds.length} cards</span>
-            </div>
-            <h2 style={deckModalTitleStyle}>{deck.name}</h2>
-          </div>
-          <div style={deckModalHeaderActionsStyle}>
-            <NeutralButton style={deckModalActionButtonStyle} disabled={equipped} onClick={onEquip}>
-              {equipped ? "Equipped" : "Equip"}
-            </NeutralButton>
-            <NeutralButton style={closeDeckModalButtonStyle} onClick={onClose}>Close</NeutralButton>
-          </div>
-        </header>
-        <div style={deckCardGridStyle}>
-          {deckRows.map((row, rowIndex) => (
-            <div key={`deck-row-${rowIndex}`} style={deckCardRowStyle(row.length)}>
-              {row.map((cardId, colIndex) => {
-                if (!cardId) {
-                  if (isPremadeDeck) {
-                    return <DeckListLockedEditSlot key={`locked-edit-${rowIndex}-${colIndex}`} />;
-                  }
-                  return <div key={`spacer-${rowIndex}-${colIndex}`} style={deckCardSpacerStyle} aria-hidden="true" />;
-                }
-                const card = getCard(cardId);
-                const image = card.kind === "umamusume" ? card.portrait : card.image;
-                return (
-                  <DeckListCardTile
-                    key={`${cardId}-${rowIndex}-${colIndex}`}
-                    image={image}
-                    name={card.name}
-                    onInspect={() => onInspectCard(cardId)}
-                  />
-                );
-              })}
-            </div>
-          ))}
-        </div>
-      </section>
-    </div>
-  );
-}
-
-function DeckListLockedEditSlot() {
-  return (
-    <button
-      type="button"
-      disabled
-      aria-label="Edit deck unavailable for premade decks"
-      title="Premade decks cannot be edited"
-      style={deckLockedEditTileStyle}
-    >
-      <span style={deckLockedEditIconStyle} aria-hidden="true">✎</span>
-    </button>
-  );
-}
-
-function chunkDeckRows(cardIds: string[], perRow: number): (string | null)[][] {
-  const rows: (string | null)[][] = [];
-  for (let index = 0; index < cardIds.length; index += perRow) {
-    rows.push(cardIds.slice(index, index + perRow));
+function readCreateDraftDecks(): LocalDeck[] {
+  if (typeof window === "undefined") return [];
+  const raw = window.localStorage.getItem(CREATE_DECK_DRAFTS_STORAGE_KEY);
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw) as LocalDeck[];
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((deck) => {
+      if (!deck || typeof deck !== "object") return false;
+      if (typeof deck.id !== "string" || deck.id.length === 0) return false;
+      if (typeof deck.name !== "string" || deck.name.length === 0) return false;
+      if (typeof deck.coverCardId !== "string" || deck.coverCardId.length === 0) return false;
+      if (!Array.isArray(deck.cardIds) || deck.cardIds.some((cardId) => typeof cardId !== "string")) return false;
+      if (typeof deck.createdAt !== "string" || typeof deck.updatedAt !== "string") return false;
+      return true;
+    });
+  } catch {
+    return [];
   }
-  return rows;
 }
 
-function DeckListCardTile({ image, name, onInspect }: { image: string; name: string; onInspect: () => void }) {
-  const [hovered, setHovered] = useState(false);
-  return (
-    <button
-      type="button"
-      style={deckCardTileStyle(hovered)}
-      aria-label={`Inspect card`}
-      onClick={onInspect}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      onFocus={() => setHovered(true)}
-      onBlur={() => setHovered(false)}
-    >
-      <img style={deckCardImageStyle} src={image} alt="" draggable={false} />
-    </button>
-  );
+function writeCreateDraftDecks(drafts: LocalDeck[]): void {
+  if (typeof window === "undefined") return;
+  if (drafts.length === 0) {
+    window.localStorage.removeItem(CREATE_DECK_DRAFTS_STORAGE_KEY);
+    return;
+  }
+  window.localStorage.setItem(CREATE_DECK_DRAFTS_STORAGE_KEY, JSON.stringify(drafts));
 }
 
-function DeckCardInspectModal({ card, onClose }: { card: ReturnType<typeof getCard>; onClose: () => void }) {
-  const image = card.kind === "umamusume" ? card.portrait : card.image;
-
-  return (
-    <div style={deckInspectBackdropStyle} onClick={onClose}>
-      <section style={deckInspectSurfaceStyle} onClick={(event) => event.stopPropagation()}>
-        <img style={deckInspectImageStyle} src={image} alt="" draggable={false} />
-      </section>
-    </div>
-  );
+function readEditDeckDrafts(): Record<string, DeckEditorDraft> {
+  if (typeof window === "undefined") return {};
+  const raw = window.localStorage.getItem(EDIT_DECK_DRAFT_STORAGE_KEY);
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw) as Record<string, DeckEditorDraft>;
+    if (!parsed || typeof parsed !== "object") return {};
+    const next: Record<string, DeckEditorDraft> = {};
+    for (const [deckId, value] of Object.entries(parsed)) {
+      if (!value || typeof value !== "object") continue;
+      if (typeof value.name !== "string") continue;
+      if (!Array.isArray(value.cardIds) || value.cardIds.length !== DECK_CARD_COUNT) continue;
+      if (value.cardIds.some((cardId) => cardId !== null && typeof cardId !== "string")) continue;
+      if (value.selectedCoverCardId !== null && typeof value.selectedCoverCardId !== "string") continue;
+      next[deckId] = {
+        name: value.name,
+        cardIds: [...value.cardIds],
+        selectedCoverCardId: value.selectedCoverCardId,
+      };
+    }
+    return next;
+  } catch {
+    return {};
+  }
 }
 
-export function DeckSummaryCard({ deck, label, compact = false, framed = true }: { deck: PremadeDeck; label: string; compact?: boolean; framed?: boolean }) {
-  const coverCard = getDeckCoverCard(deck);
-  const energyTypes = getDeckEnergyTypes(deck);
-
-  return (
-    <div style={deckSummaryCardStyle(compact, framed)}>
-      <img style={deckCoverImageStyle(compact)} src={coverCard.portrait} alt="" draggable={false} />
-      <div style={deckSummaryTextStyle}>
-        <div style={deckSummaryLabelStyle}>{label}</div>
-        <strong style={deckSummaryNameStyle(compact)}>{deck.name}</strong>
-        <div style={deckEnergyRowStyle}>
-          {energyTypes.map((type) => (
-            <span key={`${deck.id}-${type}`} style={deckEnergyIconWrapStyle} aria-label={energyLabel(type)}>
-              <EnergyIcon type={type} size="sm" />
-            </span>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
+function writeEditDeckDrafts(drafts: Record<string, DeckEditorDraft>): void {
+  if (typeof window === "undefined") return;
+  if (Object.keys(drafts).length === 0) {
+    window.localStorage.removeItem(EDIT_DECK_DRAFT_STORAGE_KEY);
+    return;
+  }
+  window.localStorage.setItem(EDIT_DECK_DRAFT_STORAGE_KEY, JSON.stringify(drafts));
 }
 
-const menuKickerStyle: CSSProperties = {
-  color: uiTextColor,
-  textShadow: uiTextShadow,
-  fontSize: 13,
-  fontWeight: 900,
-  letterSpacing: 0.2,
-  textTransform: "uppercase",
-};
-
-const deckBrowserShellStyle: CSSProperties = {
-  maxWidth: 1180,
-  margin: "0 auto",
-  display: "grid",
-  gap: 22,
-  padding: "24px 0 40px",
-};
-
-const deckBrowserHeaderStyle: CSSProperties = {
-  ...glassPanelStyle,
-  display: "flex",
-  alignItems: "flex-start",
-  justifyContent: "space-between",
-  gap: 16,
-  padding: 18,
-};
-
-const deckBrowserTitleStyle: CSSProperties = {
-  margin: "4px 0 0",
-  color: uiTextColor,
-  textShadow: uiTextShadow,
-  fontSize: 36,
-  lineHeight: 1,
-  fontWeight: 950,
-};
-
-const deckBrowserSubtitleStyle: CSSProperties = {
-  margin: "10px 0 0",
-  color: uiTextColor,
-  textShadow: uiTextShadow,
-  fontSize: 15,
-  fontWeight: 800,
-};
-
-const deckBrowserBackButtonStyle: CSSProperties = {
-  padding: "0 16px",
-  height: 44,
-};
-
-const deckBrowserGridStyle: CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
-  gap: 22,
-};
-
-function deckBrowserCardStyle(equipped: boolean, hovered: boolean): CSSProperties {
-  return {
-    position: "relative",
-    border: equipped
-      ? "2px solid rgba(0, 0, 0, 0.62)"
-      : hovered
-        ? "1px solid rgba(0, 0, 0, 0.36)"
-        : borders.neutralStrong,
-    borderRadius: radius.md,
-    background: GLASS_TILE_BACKGROUND,
-    boxShadow: equipped
-      ? "0 22px 60px rgba(17, 24, 39, 0.16)"
-      : hovered
-        ? "0 22px 56px rgba(17, 24, 39, 0.14)"
-        : "0 16px 44px rgba(17, 24, 39, 0.1)",
-    padding: 16,
-    textAlign: "left",
-    color: uiTextColor,
-    textShadow: uiTextShadow,
-    cursor: "pointer",
-    transform: hovered && !equipped ? "translateY(-4px)" : "translateY(0)",
-    transition: `transform ${transitions.board}, box-shadow ${transitions.board}, border-color ${transitions.board}, background ${transitions.board}`,
-    backdropFilter: GLASS_TILE_BACKDROP_FILTER,
-  };
+function resolveDraftCoverCardId(draft: DeckEditorDraft): string {
+  return draft.selectedCoverCardId
+    ?? draft.cardIds.find((cardId): cardId is string => Boolean(cardId))
+    ?? "mihonoBourbonStage2";
 }
 
-const deckBrowserLockedEditCardStyle: CSSProperties = {
-  ...deckBrowserCardStyle(false, false),
-  display: "flex",
-  flexDirection: "column",
-  alignItems: "center",
-  justifyContent: "center",
-  gap: 14,
-  cursor: "not-allowed",
-  opacity: 0.85,
-  transform: "translateY(0)",
-};
-
-const deckBrowserLockedEditIconStyle: CSSProperties = {
-  width: 52,
-  height: 52,
-  borderRadius: radius.circle,
-  border: borders.neutral,
-  background: "rgba(238, 243, 238, 0.68)",
-  display: "grid",
-  placeItems: "center",
-  color: colors.black,
-  textShadow: "none",
-  fontSize: 26,
-  fontWeight: 900,
-  lineHeight: 1,
-  transform: "scaleX(-1)",
-};
-
-const deckBrowserLockedEditLabelStyle: CSSProperties = {
-  ...deckSummaryNameStyle(false),
-};
-
-function deckSummaryCardStyle(compact: boolean, framed: boolean): CSSProperties {
-  return {
-    display: "grid",
-    gridTemplateColumns: "1fr",
-    gap: compact ? 10 : 14,
-    alignItems: "center",
-    borderRadius: radius.md,
-    border: framed ? borders.neutralStrong : 0,
-    background: framed ? GLASS_TILE_BACKGROUND : "transparent",
-    boxShadow: framed ? "0 16px 42px rgba(17, 24, 39, 0.12)" : shadows.none,
-    padding: framed ? (compact ? 12 : 14) : 0,
-  };
+function buildCreateDraftDeckId(
+  createDraftDecks: LocalDeck[],
+  editDraftByDeckId: Record<string, DeckEditorDraft>,
+): string {
+  const existingIds = new Set([
+    ...createDraftDecks.map((deck) => deck.id),
+    ...Object.keys(editDraftByDeckId),
+  ]);
+  const base = `draft-${Date.now()}`;
+  let candidate = base;
+  let suffix = 1;
+  while (existingIds.has(candidate)) {
+    suffix += 1;
+    candidate = `${base}-${suffix}`;
+  }
+  return candidate;
 }
-
-const deckSummaryTextStyle: CSSProperties = {
-  minWidth: 0,
-  display: "grid",
-  gap: 6,
-  justifyItems: "center",
-  textAlign: "center",
-};
-
-const deckSummaryLabelStyle: CSSProperties = {
-  color: uiTextColor,
-  textShadow: uiTextShadow,
-  fontSize: 11,
-  fontWeight: 900,
-  letterSpacing: 0.16,
-  textTransform: "uppercase",
-};
-
-function deckSummaryNameStyle(compact: boolean): CSSProperties {
-  return {
-    color: uiTextColor,
-    textShadow: uiTextShadow,
-    fontSize: compact ? 20 : 28,
-    lineHeight: 1.05,
-    fontWeight: 950,
-  };
-}
-
-const deckEnergyRowStyle: CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  gap: 8,
-  flexWrap: "wrap",
-};
-
-const deckEnergyIconWrapStyle: CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  width: 24,
-  height: 24,
-  borderRadius: radius.circle,
-  border: "1px solid rgba(255, 255, 255, 0.9)",
-  boxSizing: "border-box",
-};
-
-function deckCoverImageStyle(compact: boolean): CSSProperties {
-  return {
-    width: "100%",
-    maxWidth: compact ? 132 : 256,
-    justifySelf: "center",
-    borderRadius: radius.md,
-    display: "block",
-    objectFit: "contain",
-    filter: "drop-shadow(0 18px 28px rgba(17, 24, 39, 0.2))",
-  };
-}
-
-const deckSelectedBadgeStyle: CSSProperties = {
-  position: "absolute",
-  top: 12,
-  right: 12,
-  zIndex: 1,
-  width: 34,
-  height: 34,
-  display: "grid",
-  placeItems: "center",
-  borderRadius: "50%",
-  border: "1px solid rgba(0, 0, 0, 0.18)",
-  background: colors.black,
-  color: colors.white,
-  fontSize: 18,
-  fontWeight: 950,
-  boxShadow: "0 10px 20px rgba(17, 24, 39, 0.18)",
-};
-
-const deckModalBackdropStyle: CSSProperties = {
-  ...overlayBackdropStyle,
-  zIndex: 60,
-};
-
-const deckModalStyle: CSSProperties = {
-  ...overlaySurfaceStyle,
-  width: "min(1320px, calc(100vw - 48px))",
-  maxHeight: "calc(100dvh - 48px)",
-  display: "grid",
-  gridTemplateRows: "auto minmax(0, 1fr)",
-  gap: 10,
-  padding: 12,
-  overflow: "hidden",
-  background: "rgba(238, 243, 238, 0.95)",
-  border: "1px solid rgba(185, 198, 188, 0.72)",
-  boxShadow: "0 16px 44px rgba(17, 24, 39, 0.18)",
-  color: colors.black,
-  textShadow: "none",
-};
-
-const deckModalHeaderStyle: CSSProperties = {
-  display: "flex",
-  alignItems: "flex-start",
-  justifyContent: "space-between",
-  gap: 12,
-};
-
-const deckModalHeaderActionsStyle: CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: 8,
-};
-
-const deckModalTitleStyle: CSSProperties = {
-  margin: "2px 0 0",
-  color: colors.black,
-  textShadow: "none",
-  fontSize: 22,
-  lineHeight: 1.05,
-  fontWeight: 950,
-};
-
-const deckModalKickerStyle: CSSProperties = {
-  ...previewKickerStyle,
-  color: colors.black,
-  textShadow: "none",
-};
-
-const closeDeckModalButtonStyle: CSSProperties = {
-  ...overlayButtonStyle,
-  minWidth: 78,
-};
-
-const deckModalMetaStyle: CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: 10,
-};
-
-const deckModalInlineCountStyle: CSSProperties = {
-  color: colors.black,
-  textShadow: "none",
-  fontSize: 11,
-  fontWeight: 900,
-  letterSpacing: 0.12,
-  textTransform: "uppercase",
-};
-
-const deckCardGridStyle: CSSProperties = {
-  minHeight: 0,
-  overflowX: "hidden",
-  overflowY: "auto",
-  display: "grid",
-  gap: 8,
-  gridAutoRows: "auto",
-  padding: "14px 8px 8px",
-  alignContent: "start",
-};
-
-function deckCardRowStyle(_count: number): CSSProperties {
-  return {
-    minHeight: 0,
-    display: "grid",
-    gridTemplateColumns: "repeat(7, minmax(0, 1fr))",
-    columnGap: 7,
-    rowGap: 8,
-  };
-}
-
-function deckCardTileStyle(hovered: boolean): CSSProperties {
-  return {
-    width: "100%",
-    maxWidth: "100%",
-    height: "auto",
-    justifySelf: "stretch",
-    aspectRatio: CARD_ASPECT_RATIO,
-    borderRadius: radius.lg,
-    border: "1px solid rgba(185, 198, 188, 0.58)",
-    background: "rgba(238, 243, 238, 0.52)",
-    filter: "none",
-    overflow: "hidden",
-    cursor: "pointer",
-    transform: hovered ? "translateY(-10px) rotate(0.8deg) scale(1.025)" : "translateY(0) rotate(0deg) scale(1)",
-    transition: `transform ${transitions.slow}`,
-    padding: 0,
-  };
-}
-
-const deckCardSpacerStyle: CSSProperties = {
-  width: "100%",
-  maxWidth: "100%",
-  height: "auto",
-  justifySelf: "stretch",
-  aspectRatio: CARD_ASPECT_RATIO,
-};
-
-const deckLockedEditTileStyle: CSSProperties = {
-  width: "100%",
-  maxWidth: "100%",
-  height: "auto",
-  justifySelf: "stretch",
-  aspectRatio: CARD_ASPECT_RATIO,
-  borderRadius: radius.lg,
-  border: borders.neutralDashed,
-  background: colors.glassSoft,
-  display: "grid",
-  placeItems: "center",
-  boxShadow: "0 18px 34px rgba(17, 24, 39, 0.1)",
-  opacity: 0.85,
-  cursor: "not-allowed",
-  padding: 0,
-};
-
-const deckLockedEditIconStyle: CSSProperties = {
-  width: 52,
-  height: 52,
-  borderRadius: radius.circle,
-  border: borders.neutral,
-  background: "rgba(238, 243, 238, 0.68)",
-  display: "grid",
-  placeItems: "center",
-  color: colors.black,
-  textShadow: "none",
-  fontSize: 26,
-  fontWeight: 900,
-  lineHeight: 1,
-  transform: "scaleX(-1)",
-};
-
-const deckCardImageStyle: CSSProperties = {
-  width: "100%",
-  height: "100%",
-  objectFit: "contain",
-  display: "block",
-};
-
-const deckModalActionButtonStyle: CSSProperties = {
-  ...overlayButtonStyle,
-  minWidth: 92,
-};
-
-const deckInspectBackdropStyle: CSSProperties = {
-  ...overlayBackdropStyle,
-  zIndex: 65,
-};
-
-const deckInspectSurfaceStyle: CSSProperties = {
-  position: "relative",
-  width: "min(520px, calc(100vw - 32px))",
-  display: "grid",
-  placeItems: "center",
-};
-
-const deckInspectImageStyle: CSSProperties = {
-  width: "100%",
-  maxHeight: "90vh",
-  borderRadius: radius.md,
-  objectFit: "contain",
-  display: "block",
-  boxShadow: "0 32px 100px rgba(0, 0, 0, 0.44)",
-};

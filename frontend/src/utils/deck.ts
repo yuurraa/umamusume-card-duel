@@ -4,6 +4,7 @@ import type { EnergyType, UmamusumeType } from "../../../shared/src/types";
 import type { PremadeDeck } from "../types/ui";
 
 const EQUIPPED_DECK_STORAGE_KEY = "umamusume-tcg-pocket-equipped-deck";
+export const LOCAL_DECK_CACHE_STORAGE_KEY = "umamusume-tcg-pocket-local-decks-cache";
 const LEGACY_DECK_ID_MAP: Record<string, string> = {
   agnesTachyon: "agnesDigital",
 };
@@ -24,6 +25,7 @@ const DECK_TYPE_TO_ENERGY: Record<UmamusumeType, EnergyType> = {
 export function getDeckById(deckId: string): PremadeDeck {
   const resolvedDeckId = LEGACY_DECK_ID_MAP[deckId] ?? deckId;
   return premadeDecks.find((deck) => deck.id === resolvedDeckId)
+    ?? readCachedLocalDecks().find((deck) => deck.id === resolvedDeckId)
     ?? premadeDecks.find((deck) => deck.id === defaultPlayerDeckId)
     ?? premadeDecks[0]
     ?? { id: defaultPlayerDeckId, name: "Deck", coverCardId: "mihonoBourbonStage2", cardIds: [] };
@@ -34,7 +36,9 @@ export function readEquippedDeckId(): string {
   const stored = window.localStorage.getItem(EQUIPPED_DECK_STORAGE_KEY);
   if (!stored) return defaultPlayerDeckId;
   const resolvedDeckId = LEGACY_DECK_ID_MAP[stored] ?? stored;
-  return premadeDecks.some((deck) => deck.id === resolvedDeckId) ? resolvedDeckId : defaultPlayerDeckId;
+  const exists = premadeDecks.some((deck) => deck.id === resolvedDeckId)
+    || readCachedLocalDecks().some((deck) => deck.id === resolvedDeckId);
+  return exists ? resolvedDeckId : defaultPlayerDeckId;
 }
 
 export function writeEquippedDeckId(deckId: string): void {
@@ -47,9 +51,21 @@ export function pickRandomOpponentDeck(): PremadeDeck {
 }
 
 export function getDeckCoverCard(deck: PremadeDeck) {
-  const card = getCard(deck.coverCardId);
-  if (card.kind !== "umamusume") throw new Error(`Deck cover card must be a umamusume: ${deck.coverCardId}`);
-  return card;
+  const explicit = tryGetCard(deck.coverCardId);
+  if (explicit) return explicit;
+
+  for (const cardId of deck.cardIds) {
+    const candidate = tryGetCard(cardId);
+    if (candidate) return candidate;
+  }
+
+  const fallbackCoverCardId = premadeDecks[0]?.coverCardId;
+  if (fallbackCoverCardId) {
+    const fallbackCard = tryGetCard(fallbackCoverCardId);
+    if (fallbackCard) return fallbackCard;
+  }
+
+  return getCard("mihonoBourbonStage2");
 }
 
 export function getDeckEnergyTypes(deck: PremadeDeck): EnergyType[] {
@@ -60,4 +76,24 @@ export function getDeckEnergyTypes(deck: PremadeDeck): EnergyType[] {
     if (card.kind === "umamusume") types.add(DECK_TYPE_TO_ENERGY[card.type]);
   });
   return displayOrder.filter((type) => types.has(type));
+}
+
+function readCachedLocalDecks(): PremadeDeck[] {
+  if (typeof window === "undefined") return [];
+  const raw = window.localStorage.getItem(LOCAL_DECK_CACHE_STORAGE_KEY);
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw) as Array<{ id: string; name: string; coverCardId: string; cardIds: string[] }>;
+    return parsed.filter((deck) => Boolean(deck.id) && Boolean(deck.name) && Boolean(deck.coverCardId) && Array.isArray(deck.cardIds));
+  } catch {
+    return [];
+  }
+}
+
+function tryGetCard(cardId: string) {
+  try {
+    return getCard(cardId);
+  } catch {
+    return null;
+  }
 }

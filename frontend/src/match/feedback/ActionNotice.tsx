@@ -4,6 +4,7 @@ import { colors, overlayButtonStyle, overlaySurfaceStyle } from "../../styles/sh
 
 type ActionNoticeTone = "default" | "danger" | "info";
 type ActionNoticePlacement = "top" | "bottom";
+type ActionNoticePosition = "fixed" | "absolute";
 
 export function ActionNotice({
   notice,
@@ -11,30 +12,42 @@ export function ActionNotice({
   tone = "default",
   placement = "bottom",
   interactive = true,
+  zIndex = 46,
+  emphasize = false,
+  position = "fixed",
 }: {
   notice: string;
   onClose: () => void;
   tone?: ActionNoticeTone;
   placement?: ActionNoticePlacement;
   interactive?: boolean;
+  zIndex?: number;
+  emphasize?: boolean;
+  position?: ActionNoticePosition;
 }) {
   return (
-    <section style={actionNoticeStyle(tone, placement, interactive)}>
-      <span style={actionNoticeTextStyle(tone, notice)}>{notice}</span>
+    <section style={actionNoticeStyle(tone, placement, interactive, zIndex, position)}>
+      <span style={actionNoticeTextStyle(tone, notice, emphasize)}>{notice}</span>
       {interactive && <NeutralButton tone={tone === "danger" ? "danger" : "default"} style={actionNoticeCloseStyle} onClick={onClose}>Close</NeutralButton>}
     </section>
   );
 }
 
-function actionNoticeStyle(tone: ActionNoticeTone, placement: ActionNoticePlacement, interactive: boolean): CSSProperties {
+function actionNoticeStyle(
+  tone: ActionNoticeTone,
+  placement: ActionNoticePlacement,
+  interactive: boolean,
+  zIndex: number,
+  position: ActionNoticePosition,
+): CSSProperties {
   const isDanger = tone === "danger";
   const isInfo = tone === "info";
   const verticalPosition = placement === "top" ? { top: 18 } : { bottom: 18 };
   return {
-    position: "fixed",
+    position,
     left: "50%",
     ...verticalPosition,
-    zIndex: 46,
+    zIndex,
     width: "min(760px, calc(100vw - 32px))",
     display: "flex",
     alignItems: "center",
@@ -64,7 +77,7 @@ function actionNoticeStyle(tone: ActionNoticeTone, placement: ActionNoticePlacem
   };
 }
 
-function actionNoticeTextStyle(tone: ActionNoticeTone, notice: string): CSSProperties {
+function actionNoticeTextStyle(tone: ActionNoticeTone, notice: string, emphasize: boolean): CSSProperties {
   const isKoNotice = notice.startsWith("KO |");
   return {
     flex: 1,
@@ -78,7 +91,7 @@ function actionNoticeTextStyle(tone: ActionNoticeTone, notice: string): CSSPrope
     textAlign: "center",
     color: tone === "danger" ? colors.danger900 : tone === "info" ? colors.info900 : colors.slate900,
     textShadow: "none",
-    fontWeight: isKoNotice ? 800 : 500,
+    fontWeight: isKoNotice || emphasize ? 800 : 500,
   };
 }
 

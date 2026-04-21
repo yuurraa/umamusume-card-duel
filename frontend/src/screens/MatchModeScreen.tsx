@@ -12,8 +12,8 @@ type ModeOption = {
 
 const MODE_OPTIONS: ModeOption[] = [
   { mode: "playerVsPlayer", title: "Player vs Player", subtitle: "(Coming soon)", enabled: false },
-  { mode: "playerVsAi", title: "Player vs AI", subtitle: "You against the bot", enabled: true },
-  { mode: "aiVsAi", title: "AI vs AI", subtitle: "Watch both bots battle", enabled: true },
+  { mode: "playerVsAi", title: "Player vs AI", subtitle: "You against a bot", enabled: true },
+  { mode: "aiVsAi", title: "AI vs AI", subtitle: "Watch two bots battle", enabled: true },
 ];
 
 export function MatchModeScreen({

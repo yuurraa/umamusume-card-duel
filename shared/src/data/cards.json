@@ -642,8 +642,8 @@
         "retreatCostReduction": 1
       }
     },
-    "makeDebutScout": {
-      "id": "makeDebutScout",
+    "3starMakeDebutScout": {
+      "id": "3starMakeDebutScout",
       "kind": "trainer",
       "trainerType": "item",
       "name": "3★ Make Debut Scout",
