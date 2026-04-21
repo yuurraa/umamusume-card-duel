@@ -32,6 +32,7 @@ export type PendingCoinAttack = {
 type UseMatchActionsArgs = {
   game: GameState;
   player: GameState["sides"]["player"];
+  isAiVsAi: boolean;
   pendingSelection: PendingSelection | null;
   selectableHandIndexes: Set<number> | undefined;
   isTurnFlowBlocked: boolean;
@@ -51,6 +52,7 @@ export function useMatchActions(args: UseMatchActionsArgs) {
   const {
     game,
     player,
+    isAiVsAi,
     pendingSelection,
     selectableHandIndexes,
     isTurnFlowBlocked,
@@ -308,7 +310,7 @@ export function useMatchActions(args: UseMatchActionsArgs) {
   };
 
   const handleSetupReady = () => {
-    if (isTurnFlowBlocked) return;
+    if (isAiVsAi || isTurnFlowBlocked) return;
     if (setupActiveIndex === null) return;
     setGame((current) => completePregameSetup(current, setupActiveIndex, setupBenchIndexes));
   };

@@ -5,6 +5,7 @@ import type { PendingSelection } from "../../types/ui";
 import { playerEndTurn } from "../../game/engine";
 
 type UseMatchModalActionsArgs = {
+  isAiVsAi: boolean;
   pendingSelection: PendingSelection | null;
   hasPendingPlayerChoice: boolean;
   startNewGame: () => void;
@@ -18,6 +19,7 @@ type UseMatchModalActionsArgs = {
 };
 
 export function useMatchModalActions({
+  isAiVsAi,
   pendingSelection,
   hasPendingPlayerChoice,
   startNewGame,
@@ -36,6 +38,7 @@ export function useMatchModalActions({
   const onEndTurnWarningCancel = () => setEndTurnWarningActions(null);
   const onEndTurnWarningConfirm = () => {
     setEndTurnWarningActions(null);
+    if (isAiVsAi) return;
     setGame(playerEndTurn);
   };
 

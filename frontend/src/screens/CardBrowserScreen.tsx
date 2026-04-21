@@ -1,4 +1,4 @@
-import { type CSSProperties, useMemo, useState } from "react";
+import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import { cards } from "../../../shared/src/gameData";
 import type { Card, EnergyType, TrainerType, UmamusumeType } from "../../../shared/src/types";
 import { EnergyIcon } from "../components/cards/EnergyIcon";
@@ -57,6 +57,7 @@ export function CardBrowserScreen({ onBack }: { onBack: () => void }) {
   const [artFiltersSelected, setArtFiltersSelected] = useState<Set<ArtFilter>>(() => new Set());
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [inspectedCard, setInspectedCard] = useState<Card | null>(null);
+  const filterMenuWrapRef = useRef<HTMLDivElement | null>(null);
   const activeFilterCount = categoryFiltersSelected.size + energyFiltersSelected.size + stageFiltersSelected.size + artFiltersSelected.size;
 
   const visibleCards = useMemo(() => {
@@ -78,6 +79,40 @@ export function CardBrowserScreen({ onBack }: { onBack: () => void }) {
     setArtFiltersSelected(new Set());
   };
 
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      if (inspectedCard) {
+        event.preventDefault();
+        setInspectedCard(null);
+        return;
+      }
+      if (filtersOpen) {
+        event.preventDefault();
+        setFiltersOpen(false);
+        return;
+      }
+      event.preventDefault();
+      onBack();
+    };
+
+    window.addEventListener("keydown", onKeyDown, { capture: true });
+    return () => window.removeEventListener("keydown", onKeyDown, { capture: true });
+  }, [filtersOpen, inspectedCard, onBack]);
+
+  useEffect(() => {
+    const onPointerDown = (event: PointerEvent) => {
+      if (!filtersOpen || inspectedCard) return;
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (filterMenuWrapRef.current?.contains(target)) return;
+      setFiltersOpen(false);
+    };
+
+    window.addEventListener("pointerdown", onPointerDown, { capture: true });
+    return () => window.removeEventListener("pointerdown", onPointerDown, { capture: true });
+  }, [filtersOpen, inspectedCard]);
+
   return (
     <section style={cardBrowserShellStyle}>
       <header style={cardBrowserHeaderStyle}>
@@ -98,7 +133,7 @@ export function CardBrowserScreen({ onBack }: { onBack: () => void }) {
             aria-label="Search cards"
             style={searchInputStyle}
           />
-          <div style={filterMenuWrapStyle}>
+          <div ref={filterMenuWrapRef} style={filterMenuWrapStyle}>
             <button
               type="button"
               aria-expanded={filtersOpen}

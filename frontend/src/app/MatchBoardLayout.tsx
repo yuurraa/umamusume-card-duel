@@ -42,6 +42,7 @@ type MatchBoardLayoutProps = {
   onToggleMenu: () => void;
   onSurrender: () => void;
   onSetupReady: () => void;
+  canSetupReady: boolean;
   selectedSleeveImage: string | null;
   canAttach: boolean;
   nextPlayerEnergy: EnergyType | null;
@@ -87,6 +88,7 @@ export function MatchBoardLayout(props: MatchBoardLayoutProps) {
     onToggleMenu,
     onSurrender,
     onSetupReady,
+    canSetupReady,
     selectedSleeveImage,
     canAttach,
     nextPlayerEnergy,
@@ -160,6 +162,7 @@ export function MatchBoardLayout(props: MatchBoardLayoutProps) {
             onSurrender={onSurrender}
             onSetActive={onSetupDropActive}
             onReady={onSetupReady}
+            canReady={canSetupReady}
             onInspect={onInspect}
             sleeveImage={selectedSleeveImage}
           />

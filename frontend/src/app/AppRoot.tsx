@@ -181,6 +181,7 @@ export function App() {
   } = useMatchUiActions({
     game,
     player,
+    isAiVsAi,
     isTurnFlowBlocked,
     isBusyWithChoice,
     suppressEndTurnWarningForGame,
@@ -199,6 +200,7 @@ export function App() {
     onSelectionCancel,
     onPlayAgain,
   } = useMatchModalActions({
+    isAiVsAi,
     pendingSelection,
     hasPendingPlayerChoice: Boolean(game.pendingPlayerChoice),
     startNewGame,
@@ -300,6 +302,7 @@ export function App() {
   } = useMatchActions({
     game,
     player,
+    isAiVsAi,
     pendingSelection,
     selectableHandIndexes,
     isTurnFlowBlocked,
@@ -341,7 +344,8 @@ export function App() {
     toCoinFlipEvent,
   });
   const canAttachInHeader = canAttachEnergy(game, player) && !isBusyWithChoice;
-  const canEndTurnInHeader = !game.gameOver && game.currentSide === "player" && !isBusyWithChoice;
+  const canEndTurnInHeader = !isAiVsAi && !game.gameOver && game.currentSide === "player" && !isBusyWithChoice;
+  const canSetupReady = !isAiVsAi;
   const canSurrenderInPanels = !game.gameOver && !isTurnFlowBlocked;
   const playerExtraEnergyCount = Math.max(0, player.energyZone.length - 1);
   const topBanner = getTopActionBanner(game);
@@ -399,6 +403,7 @@ export function App() {
         onToggleMenu={toggleMenu}
         onSurrender={handleSurrender}
         onSetupReady={handleSetupReady}
+        canSetupReady={canSetupReady}
         selectedSleeveImage={selectedSleeve.image}
         canAttach={canAttachInHeader}
         nextPlayerEnergy={nextPlayerEnergy}

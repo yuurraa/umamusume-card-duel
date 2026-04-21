@@ -7,6 +7,7 @@ import { RETREAT_ENERGY_ORDER } from "../gameUiHelpers";
 type UseMatchUiActionsArgs = {
   game: GameState;
   player: SideState;
+  isAiVsAi: boolean;
   isTurnFlowBlocked: boolean;
   isBusyWithChoice: boolean;
   suppressEndTurnWarningForGame: boolean;
@@ -18,6 +19,7 @@ type UseMatchUiActionsArgs = {
 export function useMatchUiActions({
   game,
   player,
+  isAiVsAi,
   isTurnFlowBlocked,
   isBusyWithChoice,
   suppressEndTurnWarningForGame,
@@ -57,7 +59,7 @@ export function useMatchUiActions({
   };
 
   const handleEndTurn = () => {
-    if (isTurnFlowBlocked || game.phase !== "play" || game.currentSide !== "player" || game.gameOver || isBusyWithChoice) return;
+    if (isAiVsAi || isTurnFlowBlocked || game.phase !== "play" || game.currentSide !== "player" || game.gameOver || isBusyWithChoice) return;
     const availableActions: string[] = [];
     if (canAttachEnergy(game, player)) availableActions.push("attach Energy");
     if (canAttack(game, player)) availableActions.push("attack");

@@ -17,6 +17,7 @@ export function PregameSetupPanel({
   onSurrender,
   onSetActive,
   onReady,
+  canReady,
   onInspect,
   sleeveImage,
 }: {
@@ -30,6 +31,7 @@ export function PregameSetupPanel({
   onSurrender: () => void;
   onSetActive: (index: number) => void;
   onReady: () => void;
+  canReady: boolean;
   onInspect: (target: InspectTarget) => void;
   sleeveImage?: string | null;
 }) {
@@ -40,7 +42,7 @@ export function PregameSetupPanel({
           <h2 style={pregameTitleStyle}>Preparation Phase</h2>
         </div>
         <div style={pregameActionRowStyle}>
-          <NeutralButton style={attackButtonStyle(activeIndex !== null)} disabled={activeIndex === null} onClick={onReady}>Ready</NeutralButton>
+          <NeutralButton style={attackButtonStyle(activeIndex !== null && canReady)} disabled={activeIndex === null || !canReady} onClick={onReady}>Ready</NeutralButton>
           <MatchMenuControl
             menuOpen={menuOpen}
             log={log}
