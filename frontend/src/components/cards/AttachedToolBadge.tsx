@@ -50,20 +50,23 @@ export function AttachedToolBadge({ toolCardId, size = "md", variant = "overlay"
 }
 
 function toolBadgeStyle(size: NonNullable<AttachedToolBadgeProps["size"]>, variant: NonNullable<AttachedToolBadgeProps["variant"]>, interactive: boolean): CSSProperties {
+  const overlay = variant === "overlay";
+
   return {
-    position: variant === "overlay" ? "absolute" : "relative",
-    left: variant === "overlay" ? (size === "md" ? 350 : 108) : undefined,
-    top: variant === "overlay" ? (size === "md" ? 52 : 14) : undefined,
+    position: overlay ? "absolute" : "relative",
+    right: overlay ? (size === "md" ? "-2%" : "10%") : undefined,
+    top: overlay ? (size === "md" ? "8.8%" : "9%") : undefined,
     zIndex: 3,
-    width: size === "md" ? 78 : 34,
-    height: size === "md" ? 46.5 : 21,
+    width: overlay ? (size === "md" ? "18.5%" : "22%") : size === "md" ? 74 : 34,
+    aspectRatio: overlay ? "78 / 46.5" : undefined,
+    height: overlay ? undefined : size === "md" ? 45 : 21,
     overflow: "hidden",
     display: "inline-block",
     flex: "0 0 auto",
     borderRadius: 4,
-    border: "2px solid rgba(255, 255, 255, 0.96)",
+    border: `${size === "md" ? 2 : 1}px solid rgba(255, 255, 255, 0.96)`,
     background: "rgba(255, 255, 255, 0.94)",
-    boxShadow: "0 6px 14px rgba(17, 24, 39, 0.28)",
+    boxShadow: size === "md" ? "0 6px 14px rgba(17, 24, 39, 0.28)" : "0 3px 8px rgba(17, 24, 39, 0.24)",
     pointerEvents: interactive ? "auto" : "none",
     cursor: interactive ? "pointer" : "default",
   };
@@ -73,8 +76,8 @@ function toolImageStyle(size: NonNullable<AttachedToolBadgeProps["size"]>): CSSP
   return {
     position: "absolute",
     left: "50%",
-    top: size === "md" ? -19.5 : -9,
-    width: size === "md" ? 90 : 42,
+    top: size === "md" ? "-42%" : "-43%",
+    width: size === "md" ? "118%" : "120%",
     height: "auto",
     transform: "translateX(-50%)",
     display: "block",

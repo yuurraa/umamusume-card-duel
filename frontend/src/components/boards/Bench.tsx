@@ -51,11 +51,11 @@ const benchTypeColors: Record<UmamusumeType, string> = {
 };
 
 const slotStyle: CSSProperties = {
-  width: 164,
-  height: 188,
+  width: "var(--board-bench-width)",
+  height: "var(--board-bench-slot-height)",
   display: "grid",
-  gridTemplateRows: "158px 22px",
-  gap: 8,
+  gridTemplateRows: "var(--board-bench-card-height) var(--board-bench-health-height)",
+  gap: "var(--board-bench-inner-gap)",
   overflow: "visible",
 };
 
@@ -169,7 +169,7 @@ export function Bench({
   }, [hidden, setupMode, side.bench]);
 
   return (
-    <div style={{ position: "relative", display: "grid", gridTemplateRows: `repeat(${MAX_BENCH}, 188px)`, gap: 12, overflow: "visible" }}>
+    <div style={{ position: "relative", display: "grid", gridTemplateRows: `repeat(${MAX_BENCH}, var(--board-bench-slot-height))`, gap: "var(--board-bench-gap)", overflow: "visible" }}>
       {Array.from({ length: MAX_BENCH }, (_, index) => {
         if (hidden && index < visibleBenchCount) {
           return (
@@ -185,7 +185,7 @@ export function Bench({
                   <FaceDownCard sleeveImage={sleeveImage} />
                 </div>
               </div>
-              <div style={{ height: 22, borderRadius: 8, background: "rgba(238, 243, 238, 0.3)", padding: 4, boxShadow: "0 6px 14px rgba(17, 24, 39, 0.1)", display: "grid", placeItems: "center", color: uiTextColor, textShadow: uiTextShadow, fontSize: 9, fontWeight: 900, backdropFilter: "blur(4px)" }}>
+              <div style={{ height: "var(--board-bench-health-height)", borderRadius: 8, background: "rgba(238, 243, 238, 0.3)", padding: "clamp(3px, 0.208vw, 4px)", boxShadow: "0 6px 14px rgba(17, 24, 39, 0.1)", display: "grid", placeItems: "center", color: uiTextColor, textShadow: uiTextShadow, fontSize: "clamp(7px, 0.469vw, 9px)", fontWeight: 900, backdropFilter: "blur(4px)" }}>
                 Hidden
               </div>
             </div>
@@ -204,7 +204,7 @@ export function Bench({
                   background: hoveredSlot === index ? hoverBackground : "rgba(238, 243, 238, 0.24)",
                   color: uiTextColor,
                   textShadow: uiTextShadow,
-                  fontSize: 12,
+                  fontSize: "clamp(10px, 0.625vw, 12px)",
                   fontWeight: 900,
                   boxShadow: hoveredSlot === index ? `0 0 0 4px ${hoverRingColor}, 0 0 22px ${hoverGlowColor}` : "none",
                   transition: "border-color 120ms ease, background 120ms ease, box-shadow 120ms ease",
@@ -310,7 +310,7 @@ function BenchSlot({ card, umamusume, side, hidden, setupMode, activeSetupHandIn
         type="button"
         style={{
           position: "relative",
-          height: 158,
+          height: "var(--board-bench-card-height)",
           width: "100%",
           padding: 0,
           border: dropHovered ? `2px solid ${hoverBorderColor}` : 0,
@@ -424,13 +424,13 @@ function BenchSlot({ card, umamusume, side, hidden, setupMode, activeSetupHandIn
         )}
       </button>
       {hidden ? (
-        <div style={{ height: 22, borderRadius: 8, background: "rgba(238, 243, 238, 0.3)", padding: 4, boxShadow: "0 6px 14px rgba(17, 24, 39, 0.1)", display: "grid", placeItems: "center", color: uiTextColor, textShadow: uiTextShadow, fontSize: 9, fontWeight: 900, backdropFilter: "blur(4px)", animation: revealOrder !== undefined ? `hp-bar-appear 220ms ease-out ${80 + revealOrder * 120}ms both` : undefined }}>
+        <div style={{ height: "var(--board-bench-health-height)", borderRadius: 8, background: "rgba(238, 243, 238, 0.3)", padding: "clamp(3px, 0.208vw, 4px)", boxShadow: "0 6px 14px rgba(17, 24, 39, 0.1)", display: "grid", placeItems: "center", color: uiTextColor, textShadow: uiTextShadow, fontSize: "clamp(7px, 0.469vw, 9px)", fontWeight: 900, backdropFilter: "blur(4px)", animation: revealOrder !== undefined ? `hp-bar-appear 220ms ease-out ${80 + revealOrder * 120}ms both` : undefined }}>
           Hidden
         </div>
       ) : (
-          <div style={{ height: 22, borderRadius: 8, background: "rgba(238, 243, 238, 0.3)", color: uiTextColor, textShadow: uiTextShadow, padding: 4, boxShadow: "0 6px 14px rgba(17, 24, 39, 0.1)", backdropFilter: "blur(4px)", animation: revealOrder !== undefined ? `hp-bar-appear 220ms ease-out ${80 + revealOrder * 120}ms both` : undefined }}>
-            <div style={{ height: 7, fontSize: 9, lineHeight: "7px", fontWeight: 900 }}>{umamusume.hp}/{umamusume.maxHp}</div>
-            <div style={{ marginTop: 3, height: 5, overflow: "hidden", borderRadius: 999, background: "rgba(238, 243, 238, 0.3)" }}>
+          <div style={{ height: "var(--board-bench-health-height)", borderRadius: 8, background: "rgba(238, 243, 238, 0.3)", color: uiTextColor, textShadow: uiTextShadow, padding: "clamp(3px, 0.208vw, 4px)", boxShadow: "0 6px 14px rgba(17, 24, 39, 0.1)", backdropFilter: "blur(4px)", animation: revealOrder !== undefined ? `hp-bar-appear 220ms ease-out ${80 + revealOrder * 120}ms both` : undefined }}>
+            <div style={{ height: "clamp(6px, 0.365vw, 7px)", fontSize: "clamp(7px, 0.469vw, 9px)", lineHeight: "clamp(6px, 0.365vw, 7px)", fontWeight: 900 }}>{umamusume.hp}/{umamusume.maxHp}</div>
+            <div style={{ marginTop: "clamp(2px, 0.156vw, 3px)", height: "clamp(4px, 0.26vw, 5px)", overflow: "hidden", borderRadius: 999, background: "rgba(238, 243, 238, 0.3)" }}>
               <div style={{ width: `${hpPercent}%`, height: "100%", borderRadius: 999, background: fillColor, transition: "width 180ms ease" }} />
             </div>
           </div>

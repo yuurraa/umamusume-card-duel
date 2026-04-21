@@ -223,20 +223,20 @@ export function SideBoard({
     </div>
   );
   const active = (
-    <div style={{ position: "relative", width: "100%", maxWidth: 420, justifySelf: "center" }}>
+    <div style={{ position: "relative", width: "var(--board-active-width)", maxWidth: "100%", justifySelf: "center" }}>
       {baseActive}
     </div>
   );
   const bench = (
-    <div style={{ width: 164, overflow: "visible", alignSelf: "stretch" }}>
-        <Bench
-          side={side}
-          onInspect={onInspect}
-          hidden={hidden}
-          animateOnNewCards={!hidden && !setupMode}
-          animateSetupReveal={animateSetupReveal}
-          setupRevealToken={setupRevealToken}
-          setupMode={setupMode}
+    <div style={{ width: "var(--board-bench-width)", overflow: "visible", alignSelf: "stretch" }}>
+      <Bench
+        side={side}
+        onInspect={onInspect}
+        hidden={hidden}
+        animateOnNewCards={!hidden && !setupMode}
+        animateSetupReveal={animateSetupReveal}
+        setupRevealToken={setupRevealToken}
+        setupMode={setupMode}
         abilityReadyUmamusumeUids={abilityReadyUmamusumeUids}
         selectableUmamusumeUids={selectableUmamusumeUids}
         abilityEnergyTypes={abilityEnergyTypes}
@@ -286,12 +286,12 @@ export function SideBoard({
 
 function HealthBar({ hp, maxHp, percent, color }: { hp: number; maxHp: number; percent: number; color: string }) {
   return (
-    <div style={{ boxSizing: "border-box", height: 48, borderRadius: 8, background: "rgba(238, 243, 238, 0.3)", border: "1px solid rgba(217, 225, 218, 0.72)", color: uiTextColor, textShadow: uiTextShadow, padding: 8, boxShadow: "0 12px 30px rgba(17, 24, 39, 0.12)", backdropFilter: "blur(5px)", animation: "hp-bar-appear 220ms ease-out both" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, lineHeight: "12px", fontWeight: 900 }}>
+    <div style={{ boxSizing: "border-box", height: "var(--board-health-height)", borderRadius: 8, background: "rgba(238, 243, 238, 0.3)", border: "1px solid rgba(217, 225, 218, 0.72)", color: uiTextColor, textShadow: uiTextShadow, padding: "clamp(6px, 0.417vw, 8px)", boxShadow: "0 12px 30px rgba(17, 24, 39, 0.12)", backdropFilter: "blur(5px)", animation: "hp-bar-appear 220ms ease-out both" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "clamp(10px, 0.625vw, 12px)", lineHeight: "12px", fontWeight: 900 }}>
         <span>{hp}/{maxHp}</span>
         <span>{percent}%</span>
       </div>
-      <div style={{ height: 10, marginTop: 7, overflow: "hidden", borderRadius: 999, background: "rgba(238, 243, 238, 0.3)" }}>
+      <div style={{ height: "clamp(8px, 0.521vw, 10px)", marginTop: "clamp(5px, 0.365vw, 7px)", overflow: "hidden", borderRadius: 999, background: "rgba(238, 243, 238, 0.3)" }}>
         <div style={{ height: "100%", width: `${percent}%`, borderRadius: 999, background: color, transition: "width 180ms ease" }} />
       </div>
     </div>
@@ -300,7 +300,7 @@ function HealthBar({ hp, maxHp, percent, color }: { hp: number; maxHp: number; p
 
 function HiddenHealthBar() {
   return (
-    <div style={{ boxSizing: "border-box", height: 48, borderRadius: 8, background: "rgba(238, 243, 238, 0.3)", border: "1px solid rgba(217, 225, 218, 0.72)", padding: 8, boxShadow: "0 12px 30px rgba(17, 24, 39, 0.12)", display: "grid", placeItems: "center", color: uiTextColor, textShadow: uiTextShadow, fontSize: 12, fontWeight: 900, backdropFilter: "blur(5px)" }}>
+    <div style={{ boxSizing: "border-box", height: "var(--board-health-height)", borderRadius: 8, background: "rgba(238, 243, 238, 0.3)", border: "1px solid rgba(217, 225, 218, 0.72)", padding: "clamp(6px, 0.417vw, 8px)", boxShadow: "0 12px 30px rgba(17, 24, 39, 0.12)", display: "grid", placeItems: "center", color: uiTextColor, textShadow: uiTextShadow, fontSize: "clamp(10px, 0.625vw, 12px)", fontWeight: 900, backdropFilter: "blur(5px)" }}>
       Hidden
     </div>
   );
@@ -308,7 +308,7 @@ function HiddenHealthBar() {
 
 function EmptyHealthBar() {
   return (
-    <div style={{ boxSizing: "border-box", height: 48, borderRadius: 8, border: "1px dashed rgba(185, 198, 188, 0.88)", background: "rgba(238, 243, 238, 0.3)", display: "grid", placeItems: "center", color: uiTextColor, textShadow: uiTextShadow, fontSize: 12, fontWeight: 900, backdropFilter: "blur(4px)" }}>
+    <div style={{ boxSizing: "border-box", height: "var(--board-health-height)", borderRadius: 8, border: "1px dashed rgba(185, 198, 188, 0.88)", background: "rgba(238, 243, 238, 0.3)", display: "grid", placeItems: "center", color: uiTextColor, textShadow: uiTextShadow, fontSize: "clamp(10px, 0.625vw, 12px)", fontWeight: 900, backdropFilter: "blur(4px)" }}>
       No Active
     </div>
   );
@@ -336,12 +336,13 @@ function ScorePips({ points, fillColor }: { points: number; fillColor: string })
 
 function boardStyle(tone: SideTone): CSSProperties {
   return {
+    ...boardMetricVars,
     position: "relative",
     overflow: "visible",
     borderRadius: 8,
     border: `1px solid ${tone.borderColor}`,
     background: tone.surfaceBackground,
-    padding: "70px 16px 20px",
+    padding: "var(--board-pad-top) var(--board-pad-x) var(--board-pad-bottom)",
     boxShadow: "0 26px 80px rgba(17, 24, 39, 0.16)",
   };
 }
@@ -350,10 +351,10 @@ function layoutStyle(isPlayer: boolean): CSSProperties {
   return {
     position: "relative",
     display: "grid",
-    gridTemplateColumns: isPlayer ? "164px minmax(340px, 420px)" : "minmax(340px, 420px) 164px",
-    gridTemplateRows: "48px 586px",
-    columnGap: 28,
-    rowGap: 28,
+    gridTemplateColumns: isPlayer ? "var(--board-bench-width) var(--board-active-width)" : "var(--board-active-width) var(--board-bench-width)",
+    gridTemplateRows: "var(--board-health-height) var(--board-active-height)",
+    columnGap: "var(--board-column-gap)",
+    rowGap: "var(--board-row-gap)",
     justifyContent: "center",
     alignItems: "start",
     overflow: "visible",
@@ -442,7 +443,7 @@ function hexToRgb(hex: string): { red: number; green: number; blue: number } {
 
 const emptyActiveSpotStyle: CSSProperties = {
   width: "100%",
-  maxWidth: 420,
+  maxWidth: "var(--board-active-width)",
   aspectRatio: "745 / 1040",
   display: "grid",
   placeItems: "center",
@@ -454,6 +455,23 @@ const emptyActiveSpotStyle: CSSProperties = {
   fontSize: 16,
   fontWeight: 900,
 };
+
+const boardMetricVars = {
+  "--board-active-width": "clamp(336px, 21.875vw, 420px)",
+  "--board-active-height": "clamp(469px, 30.521vw, 586px)",
+  "--board-bench-width": "clamp(131px, 8.542vw, 164px)",
+  "--board-bench-card-height": "clamp(126px, 8.229vw, 158px)",
+  "--board-bench-health-height": "clamp(18px, 1.146vw, 22px)",
+  "--board-bench-inner-gap": "clamp(6px, 0.417vw, 8px)",
+  "--board-bench-slot-height": "clamp(150px, 9.792vw, 188px)",
+  "--board-bench-gap": "clamp(10px, 0.625vw, 12px)",
+  "--board-column-gap": "clamp(22px, 1.458vw, 28px)",
+  "--board-row-gap": "clamp(22px, 1.458vw, 28px)",
+  "--board-health-height": "clamp(38px, 2.5vw, 48px)",
+  "--board-pad-top": "clamp(59px, 3.854vw, 74px)",
+  "--board-pad-x": "clamp(19px, 1.25vw, 24px)",
+  "--board-pad-bottom": "clamp(19px, 1.25vw, 24px)",
+} as Record<string, string>;
 
 const SETUP_REVEAL_KEYFRAMES = `
 @keyframes setup-reveal-slide-up {

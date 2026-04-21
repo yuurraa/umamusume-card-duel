@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import type { EnergyType, GameState, SideState, UmamusumeInstance } from "../../../shared/src/types";
 import type { InspectTarget } from "../inspect";
 import { Hand } from "../components/boards/Hand";
@@ -99,46 +100,52 @@ export function MatchBoardLayout(props: MatchBoardLayoutProps) {
 
   return (
     <div style={contentStyle}>
-      <section style={duelGridStyle}>
-        <SideBoard
-          side={displayedPlayerSide}
-          sideId="player"
-          onInspect={onInspect}
-          setupMode={game.phase === "setup"}
-          abilityReadyUmamusumeUids={abilityReadyUmamusumeUids}
-          selectableUmamusumeUids={game.phase === "play" ? playerSelectableUmamusumeUids : undefined}
-          abilityEnergyTypes={abilityEnergyTypes}
-          onUmamusumeSelect={onUmamusumeSelect}
-          onSetupDropActive={onSetupDropActive}
-          onSetupDropBench={onSetupDropBench}
-          onSetupPromoteToActive={onSetupPromoteToActive}
-          onHandCardDropOnActive={onHandCardDropOnUmamusume}
-          onHandCardDropOnBenchSlot={onHandCardDropOnBenchSlot}
-          onHandCardDropOnUmamusume={onHandCardDropOnUmamusume}
-          onEnergyDropOnUmamusume={onEnergyDropOnUmamusume}
-          onAbilityEnergyDropOnActive={onAbilityEnergyDropOnActive}
-          setupDragHandIndexByUid={setupDragHandIndexByUid}
-        />
-        <SideBoard
-          key={hiddenOpponent ? "opponent-setup-hidden" : "opponent-live"}
-          side={displayedOpponentSide}
-          sideId="opponent"
-          hidden={opponentBoardHidden}
-          onInspect={onInspect}
-          selectableUmamusumeUids={game.phase === "play" ? opponentSelectableUmamusumeUids : undefined}
-          onUmamusumeSelect={onUmamusumeSelect}
-          sleeveImage={opponentSleeveImage}
-          animateSetupReveal={game.phase === "setup" && opponentBoardHidden && opponentSetupRevealToken > 0}
-          setupRevealToken={opponentSetupRevealToken}
-          {...(hiddenOpponentBenchCount !== undefined ? { hiddenBenchCount: hiddenOpponentBenchCount } : {})}
-        />
-        {game.phase === "play" && (
-          <>
-            <StadiumSpot state={game} abilityReady={stadiumAbilityReady} onDropHandCard={onDropHandCardOnStadium} onInspect={onInspect} />
-            <PlayDropZone onDropHandCard={onDropHandCardOnCenter} />
-          </>
-        )}
-      </section>
+      <div style={duelViewportStyle}>
+        <section style={duelGridStyle}>
+          <div style={playerBoardSlotStyle}>
+            <SideBoard
+              side={displayedPlayerSide}
+              sideId="player"
+              onInspect={onInspect}
+              setupMode={game.phase === "setup"}
+              abilityReadyUmamusumeUids={abilityReadyUmamusumeUids}
+              selectableUmamusumeUids={game.phase === "play" ? playerSelectableUmamusumeUids : undefined}
+              abilityEnergyTypes={abilityEnergyTypes}
+              onUmamusumeSelect={onUmamusumeSelect}
+              onSetupDropActive={onSetupDropActive}
+              onSetupDropBench={onSetupDropBench}
+              onSetupPromoteToActive={onSetupPromoteToActive}
+              onHandCardDropOnActive={onHandCardDropOnUmamusume}
+              onHandCardDropOnBenchSlot={onHandCardDropOnBenchSlot}
+              onHandCardDropOnUmamusume={onHandCardDropOnUmamusume}
+              onEnergyDropOnUmamusume={onEnergyDropOnUmamusume}
+              onAbilityEnergyDropOnActive={onAbilityEnergyDropOnActive}
+              setupDragHandIndexByUid={setupDragHandIndexByUid}
+            />
+          </div>
+          <div style={opponentBoardSlotStyle}>
+            <SideBoard
+              key={hiddenOpponent ? "opponent-setup-hidden" : "opponent-live"}
+              side={displayedOpponentSide}
+              sideId="opponent"
+              hidden={opponentBoardHidden}
+              onInspect={onInspect}
+              selectableUmamusumeUids={game.phase === "play" ? opponentSelectableUmamusumeUids : undefined}
+              onUmamusumeSelect={onUmamusumeSelect}
+              sleeveImage={opponentSleeveImage}
+              animateSetupReveal={game.phase === "setup" && opponentBoardHidden && opponentSetupRevealToken > 0}
+              setupRevealToken={opponentSetupRevealToken}
+              {...(hiddenOpponentBenchCount !== undefined ? { hiddenBenchCount: hiddenOpponentBenchCount } : {})}
+            />
+          </div>
+          {game.phase === "play" && (
+            <>
+              <StadiumSpot state={game} abilityReady={stadiumAbilityReady} onDropHandCard={onDropHandCardOnStadium} onInspect={onInspect} />
+              <PlayDropZone onDropHandCard={onDropHandCardOnCenter} />
+            </>
+          )}
+        </section>
+      </div>
 
       <section style={handPanelStyle}>
         {game.phase === "setup" ? (
@@ -186,3 +193,23 @@ export function MatchBoardLayout(props: MatchBoardLayoutProps) {
     </div>
   );
 }
+
+const duelViewportStyle = {
+  width: "100%",
+  overflowX: "auto" as const,
+  overflowY: "visible" as const,
+};
+
+const playerBoardSlotStyle: CSSProperties = {
+  gridColumn: 1,
+  justifySelf: "stretch",
+  width: "100%",
+  minWidth: 0,
+};
+
+const opponentBoardSlotStyle: CSSProperties = {
+  gridColumn: 3,
+  justifySelf: "stretch",
+  width: "100%",
+  minWidth: 0,
+};

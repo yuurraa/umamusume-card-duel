@@ -174,6 +174,10 @@ const playHandActionRowStyle: CSSProperties = {
 };
 
 const turnCounterStyle: CSSProperties = {
+  position: "absolute",
+  left: "50%",
+  transform: "translateX(-50%)",
+  pointerEvents: "none",
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",

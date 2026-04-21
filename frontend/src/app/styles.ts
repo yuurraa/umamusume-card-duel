@@ -10,10 +10,12 @@ export function appStyle(isMenu = false, playmatImage?: string | null, textTone:
   const uiMutedTextColor = textTone === "light" ? "rgba(226, 232, 240, 0.76)" : "rgba(100, 113, 104, 0.52)";
 
   return {
-    height: isMenu ? "100%" : "auto",
-    minHeight: "100%",
+    height: "100dvh",
+    minHeight: "100dvh",
     position: "relative",
-    overflow: isMenu ? "hidden" : "clip",
+    overflowX: "hidden",
+    overflowY: isMenu ? "hidden" : "auto",
+    overscrollBehavior: "none",
     padding: isMenu ? 0 : 16,
     boxSizing: "border-box",
     color: "var(--ui-text-color)",
@@ -23,7 +25,7 @@ export function appStyle(isMenu = false, playmatImage?: string | null, textTone:
     "--ui-text-shadow": uiTextShadow,
     "--ui-muted-text-color": uiMutedTextColor,
     background: playmatImage
-      ? `url("${playmatImage}") center / cover fixed no-repeat`
+      ? `url("${playmatImage}") center / cover local no-repeat`
       : "radial-gradient(circle at 18% 8%, rgba(214, 81, 157, 0.2), transparent 28%), radial-gradient(circle at 84% 20%, rgba(63, 159, 92, 0.16), transparent 30%), linear-gradient(135deg, #101820 0%, #223733 54%, #4a2647 100%)",
   } as CSSProperties;
 }
@@ -42,13 +44,13 @@ export function screenFadeOverlayStyle(opacity: number): CSSProperties {
 
 export function matchBackgroundLayerStyle(playmatImage: string | null | undefined, opacity: number): CSSProperties {
   return {
-    position: "absolute",
+    position: "fixed",
     inset: 0,
     zIndex: 0,
     pointerEvents: "none",
     opacity,
     transition: "opacity 420ms ease",
-    background: playmatImage ? `url("${playmatImage}") center / cover fixed no-repeat` : "none",
+    background: playmatImage ? `url("${playmatImage}") center / cover local no-repeat` : "none",
   };
 }
 
@@ -65,9 +67,10 @@ export const contentStyle: CSSProperties = {
 export const duelGridStyle: CSSProperties = {
   position: "relative",
   display: "grid",
-  gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)",
-  gap: 16,
+  gridTemplateColumns: "minmax(0, 1fr) clamp(154px, 10vw, 192px) minmax(0, 1fr)",
+  gap: "clamp(13px, 0.833vw, 16px)",
   alignItems: "start",
+  minWidth: 0,
 };
 
 export const handPanelStyle: CSSProperties = {
