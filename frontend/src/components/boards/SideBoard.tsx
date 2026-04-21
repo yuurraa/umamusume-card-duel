@@ -6,7 +6,8 @@ import { getCard, getUmamusumeCard } from "../../game/engine";
 import { MAX_POINTS } from "../../../../shared/src/gameData";
 import type { EnergyType, UmamusumeInstance, UmamusumeType, SideId, SideState } from "../../../../shared/src/types";
 import type { InspectTarget } from "../../inspect";
-import { uiTextColor, uiTextShadow } from "../../styles/shared";
+import { CARD_ASPECT_RATIO, borders, colors, filters, radius, shadows, transitions, uiTextColor, uiTextShadow } from "../../styles/shared";
+import { alphaColor, typeAccentColors } from "../../utils/color";
 
 type SideBoardProps = {
   side: SideState;
@@ -123,12 +124,12 @@ export function SideBoard({
         justifyContent: "center",
         alignItems: "center",
         overflow: "visible",
-        borderRadius: 12,
+        borderRadius: radius.lg,
         boxShadow: activeDropHovered
           ? `0 0 0 5px ${tone.hoverRingColor}, 0 0 36px ${tone.hoverGlowColor}`
-          : "none",
-        animation: animateSetupReveal ? "setup-reveal-slide-up 320ms cubic-bezier(0.2, 0.8, 0.2, 1) 0ms both" : undefined,
-        transition: "box-shadow 120ms ease",
+          : shadows.none,
+        animation: animateSetupReveal ? `setup-reveal-slide-up 320ms ${transitions.spring} 0ms both` : undefined,
+        transition: `box-shadow ${transitions.fast}`,
       }}
       draggable={setupMode && !hidden && activeSetupHandIndex !== undefined}
       onDragStart={(event) => {
@@ -196,8 +197,8 @@ export function SideBoard({
         ...emptyActiveSpotStyle,
         border: activeDropHovered ? `2px solid ${tone.hoverBorderColor}` : emptyActiveSpotStyle.border,
         background: activeDropHovered ? tone.hoverBackground : emptyActiveSpotStyle.background,
-        boxShadow: activeDropHovered ? `0 0 0 5px ${tone.hoverRingColor}, 0 0 30px ${tone.hoverGlowColor}` : "none",
-        transition: "border-color 120ms ease, background 120ms ease, box-shadow 120ms ease",
+        boxShadow: activeDropHovered ? `0 0 0 5px ${tone.hoverRingColor}, 0 0 30px ${tone.hoverGlowColor}` : shadows.none,
+        transition: `border-color ${transitions.fast}, background ${transitions.fast}, box-shadow ${transitions.fast}`,
       }}
       onDragOver={(event) => {
         if (!setupMode || !onSetupDropActive || hidden || !hasTextDragPayload(event)) return;
@@ -286,13 +287,13 @@ export function SideBoard({
 
 function HealthBar({ hp, maxHp, percent, color }: { hp: number; maxHp: number; percent: number; color: string }) {
   return (
-    <div style={{ boxSizing: "border-box", height: "var(--board-health-height)", borderRadius: 8, background: "rgba(238, 243, 238, 0.3)", border: "1px solid rgba(217, 225, 218, 0.72)", color: uiTextColor, textShadow: uiTextShadow, padding: "clamp(6px, 0.417vw, 8px)", boxShadow: "0 12px 30px rgba(17, 24, 39, 0.12)", backdropFilter: "blur(5px)", animation: "hp-bar-appear 220ms ease-out both" }}>
+    <div style={{ boxSizing: "border-box", height: "var(--board-health-height)", borderRadius: radius.md, background: colors.glassMedium, border: borders.glass, color: uiTextColor, textShadow: uiTextShadow, padding: "clamp(6px, 0.417vw, 8px)", boxShadow: "0 12px 30px rgba(17, 24, 39, 0.12)", backdropFilter: filters.glassBlur, animation: "hp-bar-appear 220ms ease-out both" }}>
       <div style={{ display: "flex", justifyContent: "space-between", fontSize: "clamp(10px, 0.625vw, 12px)", lineHeight: "12px", fontWeight: 900 }}>
         <span>{hp}/{maxHp}</span>
         <span>{percent}%</span>
       </div>
-      <div style={{ height: "clamp(8px, 0.521vw, 10px)", marginTop: "clamp(5px, 0.365vw, 7px)", overflow: "hidden", borderRadius: 999, background: "rgba(238, 243, 238, 0.3)" }}>
-        <div style={{ height: "100%", width: `${percent}%`, borderRadius: 999, background: color, transition: "width 180ms ease" }} />
+      <div style={{ height: "clamp(8px, 0.521vw, 10px)", marginTop: "clamp(5px, 0.365vw, 7px)", overflow: "hidden", borderRadius: radius.pill, background: colors.glassMedium }}>
+        <div style={{ height: "100%", width: `${percent}%`, borderRadius: radius.pill, background: color, transition: `width ${transitions.slow}` }} />
       </div>
     </div>
   );
@@ -300,7 +301,7 @@ function HealthBar({ hp, maxHp, percent, color }: { hp: number; maxHp: number; p
 
 function HiddenHealthBar() {
   return (
-    <div style={{ boxSizing: "border-box", height: "var(--board-health-height)", borderRadius: 8, background: "rgba(238, 243, 238, 0.3)", border: "1px solid rgba(217, 225, 218, 0.72)", padding: "clamp(6px, 0.417vw, 8px)", boxShadow: "0 12px 30px rgba(17, 24, 39, 0.12)", display: "grid", placeItems: "center", color: uiTextColor, textShadow: uiTextShadow, fontSize: "clamp(10px, 0.625vw, 12px)", fontWeight: 900, backdropFilter: "blur(5px)" }}>
+    <div style={{ boxSizing: "border-box", height: "var(--board-health-height)", borderRadius: radius.md, background: colors.glassMedium, border: borders.glass, padding: "clamp(6px, 0.417vw, 8px)", boxShadow: "0 12px 30px rgba(17, 24, 39, 0.12)", display: "grid", placeItems: "center", color: uiTextColor, textShadow: uiTextShadow, fontSize: "clamp(10px, 0.625vw, 12px)", fontWeight: 900, backdropFilter: filters.glassBlur }}>
       Hidden
     </div>
   );
@@ -308,7 +309,7 @@ function HiddenHealthBar() {
 
 function EmptyHealthBar() {
   return (
-    <div style={{ boxSizing: "border-box", height: "var(--board-health-height)", borderRadius: 8, border: "1px dashed rgba(185, 198, 188, 0.88)", background: "rgba(238, 243, 238, 0.3)", display: "grid", placeItems: "center", color: uiTextColor, textShadow: uiTextShadow, fontSize: "clamp(10px, 0.625vw, 12px)", fontWeight: 900, backdropFilter: "blur(4px)" }}>
+    <div style={{ boxSizing: "border-box", height: "var(--board-health-height)", borderRadius: radius.md, border: borders.neutralDashed, background: colors.glassMedium, display: "grid", placeItems: "center", color: uiTextColor, textShadow: uiTextShadow, fontSize: "clamp(10px, 0.625vw, 12px)", fontWeight: 900, backdropFilter: filters.glassBlurSoft }}>
       No Active
     </div>
   );
@@ -316,16 +317,16 @@ function EmptyHealthBar() {
 
 function ScorePips({ points, fillColor }: { points: number; fillColor: string }) {
   return (
-    <div style={{ display: "flex", gap: 8, alignItems: "center", height: 36, borderRadius: 999, border: "1px solid rgba(217, 225, 218, 0.72)", background: "rgba(238, 243, 238, 0.56)", padding: "0 12px", boxShadow: "0 8px 18px rgba(17, 24, 39, 0.1)", backdropFilter: "blur(5px)" }} aria-label={`${points} of ${MAX_POINTS} points`}>
+    <div style={{ display: "flex", gap: 8, alignItems: "center", height: 36, borderRadius: radius.pill, border: borders.glass, background: "rgba(238, 243, 238, 0.56)", padding: "0 12px", boxShadow: shadows.md, backdropFilter: filters.glassBlur }} aria-label={`${points} of ${MAX_POINTS} points`}>
       {Array.from({ length: MAX_POINTS }, (_, index) => (
         <span
           key={index}
           style={{
             width: 16,
             height: 16,
-            borderRadius: "50%",
-            border: `2px solid ${index < points ? fillColor : "#cbd5e1"}`,
-            background: index < points ? fillColor : "rgba(238, 243, 238, 0.9)",
+            borderRadius: radius.circle,
+            border: `2px solid ${index < points ? fillColor : colors.slate300}`,
+            background: index < points ? fillColor : colors.glassStrong,
             boxShadow: "0 3px 8px rgba(17, 24, 39, 0.12)",
           }}
         />
@@ -339,11 +340,11 @@ function boardStyle(tone: SideTone): CSSProperties {
     ...boardMetricVars,
     position: "relative",
     overflow: "visible",
-    borderRadius: 8,
+    borderRadius: radius.md,
     border: `1px solid ${tone.borderColor}`,
     background: tone.surfaceBackground,
     padding: "var(--board-pad-top) var(--board-pad-x) var(--board-pad-bottom)",
-    boxShadow: "0 26px 80px rgba(17, 24, 39, 0.16)",
+    boxShadow: shadows.board,
   };
 }
 
@@ -378,28 +379,15 @@ function glowStyle(tone: SideTone): CSSProperties {
     right: 70,
     top: 118,
     height: 220,
-    borderRadius: 999,
+    borderRadius: radius.pill,
     background: tone.glowBackground,
     filter: "blur(56px)",
     pointerEvents: "none",
   };
 }
 
-const typeToneBases: Record<UmamusumeType, string> = {
-  Grass: "#7bc03e",
-  Fire: "#e8885a",
-  Water: "#5aa8e8",
-  Lightning: "#dbb94a",
-  Psychic: "#b882d8",
-  Fighting: "#b88a60",
-  Darkness: "#445063",
-  Steel: "#7f8c9b",
-  Colorless: "#a7adba",
-  Dragon: "#d4a72c",
-};
-
 const neutralTone: SideTone = {
-  accent: "#94a3b8",
+  accent: colors.slate400,
   fillColor: "#b4bfcc",
   borderColor: "rgba(148, 163, 184, 0.24)",
   surfaceBackground: "rgba(148, 163, 184, 0.08)",
@@ -412,12 +400,12 @@ const neutralTone: SideTone = {
 
 function getTypeTone(type: UmamusumeType | null): SideTone {
   if (!type) return neutralTone;
-  const base = typeToneBases[type];
+  const base = typeAccentColors[type];
   return {
     accent: base,
     fillColor: base,
     borderColor: alphaColor(base, 0.3),
-    surfaceBackground: `linear-gradient(180deg, ${alphaColor(base, 0.1)} 0%, rgba(238, 243, 238, 0.3) 100%)`,
+    surfaceBackground: `linear-gradient(180deg, ${alphaColor(base, 0.1)} 0%, ${colors.glassMedium} 100%)`,
     glowBackground: alphaColor(base, 0.18),
     hoverBorderColor: alphaColor(base, 0.6),
     hoverBackground: alphaColor(base, 0.12),
@@ -426,30 +414,15 @@ function getTypeTone(type: UmamusumeType | null): SideTone {
   };
 }
 
-function alphaColor(hex: string, alpha: number): string {
-  const { red, green, blue } = hexToRgb(hex);
-  return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
-}
-
-function hexToRgb(hex: string): { red: number; green: number; blue: number } {
-  const normalized = hex.replace("#", "");
-  const value = Number.parseInt(normalized, 16);
-  return {
-    red: (value >> 16) & 255,
-    green: (value >> 8) & 255,
-    blue: value & 255,
-  };
-}
-
 const emptyActiveSpotStyle: CSSProperties = {
   width: "100%",
   maxWidth: "var(--board-active-width)",
-  aspectRatio: "745 / 1040",
+  aspectRatio: CARD_ASPECT_RATIO,
   display: "grid",
   placeItems: "center",
-  borderRadius: 8,
-  border: "1px dashed rgba(185, 198, 188, 0.88)",
-  background: "rgba(238, 243, 238, 0.3)",
+  borderRadius: radius.md,
+  border: borders.neutralDashed,
+  background: colors.glassMedium,
   color: uiTextColor,
   textShadow: uiTextShadow,
   fontSize: 16,

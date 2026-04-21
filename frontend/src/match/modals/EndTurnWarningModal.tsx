@@ -1,6 +1,6 @@
 import type { CSSProperties } from "react";
 import { NeutralButton } from "../../components/buttons/NeutralButton";
-import { overlayBackdropStyle, overlayButtonStyle, overlaySurfaceStyle } from "../../styles/shared";
+import { colors, overlayBackdropStyle, overlayButtonStyle, overlaySurfaceStyle } from "../../styles/shared";
 
 export function EndTurnWarningModal({
   actions,
@@ -64,7 +64,7 @@ const warningShellStyle: CSSProperties = {
   display: "grid",
   gap: 8,
   padding: 18,
-  color: "#000000",
+  color: colors.black,
   textShadow: "none",
 };
 
@@ -74,7 +74,7 @@ const warningHeaderStyle: CSSProperties = {
 
 const warningTitleStyle: CSSProperties = {
   margin: 0,
-  color: "#000000",
+  color: colors.black,
   textShadow: "none",
   fontSize: 22,
   lineHeight: 1.15,
@@ -89,7 +89,7 @@ const warningListStyle: CSSProperties = {
 };
 
 const warningListItemStyle: CSSProperties = {
-  color: "#000000",
+  color: colors.black,
   textShadow: "none",
   fontSize: 13,
   fontWeight: 800,
@@ -101,7 +101,7 @@ const warningCheckboxRowStyle: CSSProperties = {
   alignItems: "center",
   gap: 8,
   minWidth: 0,
-  color: "#000000",
+  color: colors.black,
   textShadow: "none",
   fontSize: 13,
   fontWeight: 800,

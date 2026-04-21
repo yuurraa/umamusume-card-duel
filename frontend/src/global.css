@@ -1,3 +1,7 @@
+:root {
+  --app-background-fallback: #101820;
+}
+
 html,
 body,
 #root {
@@ -9,7 +13,7 @@ body,
 }
 
 body {
-  background: #101820;
+  background: var(--app-background-fallback);
   overflow-x: hidden;
   overflow-y: hidden;
 }

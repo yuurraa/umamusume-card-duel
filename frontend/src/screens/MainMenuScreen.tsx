@@ -2,7 +2,7 @@ import type { CSSProperties } from "react";
 import { NeutralButton } from "../components/buttons/NeutralButton";
 import { DeckSummaryCard } from "./DeckBrowserScreen";
 import type { PremadeDeck } from "../types/ui";
-import { buttonStyle, glassPanelStyle, uiMutedTextColor, uiTextColor, uiTextShadow } from "../styles/shared";
+import { borders, buttonStyle, colors, filters, glassPanelStyle, radius, shadows, uiMutedTextColor, uiTextColor, uiTextShadow } from "../styles/shared";
 
 export function MainMenuScreen({
   equippedDeck,
@@ -68,12 +68,12 @@ const titleRowStyle: CSSProperties = {
   alignItems: "center",
   justifyContent: "center",
   maxWidth: "min(850px, calc(100vw - 28px))",
-  borderRadius: 999,
-  border: "1px solid rgba(217, 225, 218, 0.76)",
-  background: "rgba(238, 243, 238, 0.22)",
-  boxShadow: "0 18px 46px rgba(17, 24, 39, 0.14)",
+  borderRadius: radius.pill,
+  border: borders.glassStrong,
+  background: colors.glass,
+  boxShadow: shadows.xl,
   padding: "30px 25px",
-  backdropFilter: "blur(5px)",
+  backdropFilter: filters.glassBlur,
 };
 
 const headerImageBase: CSSProperties = {

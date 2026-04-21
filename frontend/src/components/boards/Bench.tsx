@@ -6,9 +6,10 @@ import { getAttachedEnergy } from "../cards/attachedEnergy";
 import { applyDragPreview, hasTextDragPayload, readDragPayload, writeDragPayload } from "../drag/dragData";
 import { getCard, getUmamusumeCard } from "../../game/engine";
 import { MAX_BENCH } from "../../../../shared/src/gameData";
-import type { EnergyType, UmamusumeInstance, UmamusumeType, SideState } from "../../../../shared/src/types";
+import type { EnergyType, UmamusumeInstance, SideState } from "../../../../shared/src/types";
 import type { InspectTarget } from "../../inspect";
-import { uiTextColor, uiTextShadow } from "../../styles/shared";
+import { CARD_ASPECT_RATIO, borders, colors, filters, radius, shadows, transitions, uiTextColor, uiTextShadow } from "../../styles/shared";
+import { typeAccentColors } from "../../utils/color";
 
 type BenchProps = {
   side: SideState;
@@ -35,19 +36,6 @@ type BenchProps = {
   animateSetupReveal?: boolean;
   setupRevealToken?: number;
   animateOnNewCards?: boolean;
-};
-
-const benchTypeColors: Record<UmamusumeType, string> = {
-  Grass: "#7bc03e",
-  Fire: "#e8885a",
-  Water: "#5aa8e8",
-  Lightning: "#dbb94a",
-  Psychic: "#b882d8",
-  Fighting: "#b88a60",
-  Darkness: "#445063",
-  Steel: "#7f8c9b",
-  Colorless: "#a7adba",
-  Dragon: "#d4a72c",
 };
 
 const slotStyle: CSSProperties = {
@@ -185,7 +173,7 @@ export function Bench({
                   <FaceDownCard sleeveImage={sleeveImage} />
                 </div>
               </div>
-              <div style={{ height: "var(--board-bench-health-height)", borderRadius: 8, background: "rgba(238, 243, 238, 0.3)", padding: "clamp(3px, 0.208vw, 4px)", boxShadow: "0 6px 14px rgba(17, 24, 39, 0.1)", display: "grid", placeItems: "center", color: uiTextColor, textShadow: uiTextShadow, fontSize: "clamp(7px, 0.469vw, 9px)", fontWeight: 900, backdropFilter: "blur(4px)" }}>
+              <div style={benchHealthShellStyle}>
                 Hidden
               </div>
             </div>
@@ -199,15 +187,15 @@ export function Bench({
                 style={{
                   display: "grid",
                   placeItems: "center",
-                  border: hoveredSlot === index ? `2px solid ${hoverBorderColor}` : "1px dashed rgba(185, 198, 188, 0.88)",
-                  borderRadius: 8,
-                  background: hoveredSlot === index ? hoverBackground : "rgba(238, 243, 238, 0.24)",
+                  border: hoveredSlot === index ? `2px solid ${hoverBorderColor}` : borders.neutralDashed,
+                  borderRadius: radius.md,
+                  background: hoveredSlot === index ? hoverBackground : colors.glassSoft,
                   color: uiTextColor,
                   textShadow: uiTextShadow,
                   fontSize: "clamp(10px, 0.625vw, 12px)",
                   fontWeight: 900,
-                  boxShadow: hoveredSlot === index ? `0 0 0 4px ${hoverRingColor}, 0 0 22px ${hoverGlowColor}` : "none",
-                  transition: "border-color 120ms ease, background 120ms ease, box-shadow 120ms ease",
+                  boxShadow: hoveredSlot === index ? `0 0 0 4px ${hoverRingColor}, 0 0 22px ${hoverGlowColor}` : shadows.none,
+                  transition: `border-color ${transitions.fast}, background ${transitions.fast}, box-shadow ${transitions.fast}`,
                 }}
                 onDragOver={(event) => {
                   if (setupMode) {
@@ -256,7 +244,7 @@ export function Bench({
 
         const card = getUmamusumeCard(umamusume);
         const hpPercent = Math.max(0, Math.round((umamusume.hp / umamusume.maxHp) * 100));
-        const fillColor = benchTypeColors[card.type];
+        const fillColor = typeAccentColors[card.type];
 
         return (
           <BenchSlot
@@ -302,8 +290,8 @@ function BenchSlot({ card, umamusume, side, hidden, setupMode, activeSetupHandIn
       style={{
         ...slotStyle,
         transform: shiftOffset !== undefined ? `translateY(${shiftOffset}px)` : undefined,
-        transition: shiftOffset !== undefined ? "transform 280ms cubic-bezier(0.2, 0.8, 0.2, 1)" : undefined,
-        animation: revealOrder !== undefined ? `setup-reveal-slide-up 320ms cubic-bezier(0.2, 0.8, 0.2, 1) ${revealOrder * 120}ms both` : undefined,
+        transition: shiftOffset !== undefined ? `transform 280ms ${transitions.spring}` : undefined,
+        animation: revealOrder !== undefined ? `setup-reveal-slide-up 320ms ${transitions.spring} ${revealOrder * 120}ms both` : undefined,
       }}
     >
       <button
@@ -314,15 +302,15 @@ function BenchSlot({ card, umamusume, side, hidden, setupMode, activeSetupHandIn
           width: "100%",
           padding: 0,
           border: dropHovered ? `2px solid ${hoverBorderColor}` : 0,
-          borderRadius: 8,
+          borderRadius: radius.md,
           background: dropHovered ? hoverBackground : "transparent",
           cursor: "pointer",
           opacity: isDimmed ? 0.45 : 1,
           overflow: "visible",
           filter: activeHover ? "drop-shadow(0 18px 24px rgba(17, 24, 39, 0.22)) saturate(1.06)" : "drop-shadow(0 14px 18px rgba(17, 24, 39, 0.18))",
           transform: activeHover ? "translateY(-6px) rotate(0.8deg) scale(1.035)" : "translateY(0) rotate(0deg) scale(1)",
-          boxShadow: dropHovered ? `0 0 0 4px ${hoverRingColor}, 0 0 24px ${hoverGlowColor}` : "none",
-          transition: "opacity 160ms ease, transform 160ms ease, filter 160ms ease, box-shadow 120ms ease, border-color 120ms ease",
+          boxShadow: dropHovered ? `0 0 0 4px ${hoverRingColor}, 0 0 24px ${hoverGlowColor}` : shadows.none,
+          transition: `opacity ${transitions.board}, transform ${transitions.board}, filter ${transitions.board}, box-shadow ${transitions.fast}, border-color ${transitions.fast}`,
         }}
         onMouseEnter={() => {
           if (!isDimmed) setHovered(true);
@@ -405,7 +393,7 @@ function BenchSlot({ card, umamusume, side, hidden, setupMode, activeSetupHandIn
         ) : (
           <>
             <img
-              style={{ width: "100%", height: "100%", borderRadius: 8, objectFit: "contain", display: "block" }}
+              style={benchCardImageStyle}
               src={card.portrait}
               alt={card.name}
               draggable={false}
@@ -424,14 +412,14 @@ function BenchSlot({ card, umamusume, side, hidden, setupMode, activeSetupHandIn
         )}
       </button>
       {hidden ? (
-        <div style={{ height: "var(--board-bench-health-height)", borderRadius: 8, background: "rgba(238, 243, 238, 0.3)", padding: "clamp(3px, 0.208vw, 4px)", boxShadow: "0 6px 14px rgba(17, 24, 39, 0.1)", display: "grid", placeItems: "center", color: uiTextColor, textShadow: uiTextShadow, fontSize: "clamp(7px, 0.469vw, 9px)", fontWeight: 900, backdropFilter: "blur(4px)", animation: revealOrder !== undefined ? `hp-bar-appear 220ms ease-out ${80 + revealOrder * 120}ms both` : undefined }}>
+        <div style={{ ...benchHealthShellStyle, animation: revealOrder !== undefined ? `hp-bar-appear 220ms ease-out ${80 + revealOrder * 120}ms both` : undefined }}>
           Hidden
         </div>
       ) : (
-          <div style={{ height: "var(--board-bench-health-height)", borderRadius: 8, background: "rgba(238, 243, 238, 0.3)", color: uiTextColor, textShadow: uiTextShadow, padding: "clamp(3px, 0.208vw, 4px)", boxShadow: "0 6px 14px rgba(17, 24, 39, 0.1)", backdropFilter: "blur(4px)", animation: revealOrder !== undefined ? `hp-bar-appear 220ms ease-out ${80 + revealOrder * 120}ms both` : undefined }}>
+          <div style={{ ...benchHealthPanelStyle, animation: revealOrder !== undefined ? `hp-bar-appear 220ms ease-out ${80 + revealOrder * 120}ms both` : undefined }}>
             <div style={{ height: "clamp(6px, 0.365vw, 7px)", fontSize: "clamp(7px, 0.469vw, 9px)", lineHeight: "clamp(6px, 0.365vw, 7px)", fontWeight: 900 }}>{umamusume.hp}/{umamusume.maxHp}</div>
-            <div style={{ marginTop: "clamp(2px, 0.156vw, 3px)", height: "clamp(4px, 0.26vw, 5px)", overflow: "hidden", borderRadius: 999, background: "rgba(238, 243, 238, 0.3)" }}>
-              <div style={{ width: `${hpPercent}%`, height: "100%", borderRadius: 999, background: fillColor, transition: "width 180ms ease" }} />
+            <div style={{ marginTop: "clamp(2px, 0.156vw, 3px)", height: "clamp(4px, 0.26vw, 5px)", overflow: "hidden", borderRadius: radius.pill, background: colors.glassMedium }}>
+              <div style={{ width: `${hpPercent}%`, height: "100%", borderRadius: radius.pill, background: fillColor, transition: `width ${transitions.slow}` }} />
             </div>
           </div>
       )}
@@ -449,14 +437,39 @@ const hiddenBenchCardWrapStyle: CSSProperties = {
 const hiddenBenchCardFrameStyle: CSSProperties = {
   height: "100%",
   width: "auto",
-  aspectRatio: "745 / 1040",
+  aspectRatio: CARD_ASPECT_RATIO,
 };
 
-function alphaColor(hex: string, alpha: number): string {
-  const normalized = hex.replace("#", "");
-  const value = Number.parseInt(normalized, 16);
-  const red = (value >> 16) & 255;
-  const green = (value >> 8) & 255;
-  const blue = value & 255;
-  return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
-}
+const benchCardImageStyle: CSSProperties = {
+  width: "100%",
+  height: "100%",
+  borderRadius: radius.md,
+  objectFit: "contain",
+  display: "block",
+};
+
+const benchHealthShellStyle: CSSProperties = {
+  height: "var(--board-bench-health-height)",
+  borderRadius: radius.md,
+  background: colors.glassMedium,
+  padding: "clamp(3px, 0.208vw, 4px)",
+  boxShadow: shadows.sm,
+  display: "grid",
+  placeItems: "center",
+  color: uiTextColor,
+  textShadow: uiTextShadow,
+  fontSize: "clamp(7px, 0.469vw, 9px)",
+  fontWeight: 900,
+  backdropFilter: filters.glassBlurSoft,
+};
+
+const benchHealthPanelStyle: CSSProperties = {
+  height: "var(--board-bench-health-height)",
+  borderRadius: radius.md,
+  background: colors.glassMedium,
+  color: uiTextColor,
+  textShadow: uiTextShadow,
+  padding: "clamp(3px, 0.208vw, 4px)",
+  boxShadow: shadows.sm,
+  backdropFilter: filters.glassBlurSoft,
+};

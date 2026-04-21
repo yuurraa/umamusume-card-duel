@@ -4,7 +4,7 @@ import type { InspectTarget } from "../../inspect";
 import { energyLabel, getAllUmamusume, getCard, getDisplayedRetreatCost, getUmamusumeCard } from "../../game/engine";
 import { UMAMUSUME_TYPE_TO_ENERGY } from "../../game/engine/core/constants";
 import { abilityRuby, alphaColor, energyAccentColors, getPreviewTone } from "../../utils/color";
-import { overlayBackdropStyle, overlayButtonStyle, overlaySurfaceStyle, previewKickerStyle } from "../../styles/shared";
+import { borders, colors, neutralButtonStyle, overlayBackdropStyle, overlayButtonStyle, overlaySurfaceStyle, previewKickerStyle, radius, shadows, transitions } from "../../styles/shared";
 import { NeutralButton } from "../../components/buttons/NeutralButton";
 import { PreviewAccentButton } from "../../components/buttons/PreviewAccentButton";
 import { EnergyIcon } from "../../components/cards/EnergyIcon";
@@ -71,8 +71,8 @@ export function CardPreview({ state, target, canUseAttack, canUseRetreat, canUse
                 <span>HP</span>
                 <span>{umamusume.hp}/{umamusume.maxHp}</span>
               </div>
-              <div style={{ height: 9, marginTop: 8, overflow: "hidden", borderRadius: 999, background: "#e2e8f0" }}>
-                <div style={{ height: "100%", width: `${hpPercent}%`, borderRadius: 999, background: previewTone.accent }} />
+              <div style={{ height: 9, marginTop: 8, overflow: "hidden", borderRadius: radius.pill, background: "#e2e8f0" }}>
+                <div style={{ height: "100%", width: `${hpPercent}%`, borderRadius: radius.pill, background: previewTone.accent }} />
               </div>
               {hpEffectLines.length > 0 && (
                 <div style={{ ...modifierListStyle, marginTop: 8 }}>
@@ -89,7 +89,7 @@ export function CardPreview({ state, target, canUseAttack, canUseRetreat, canUse
               <div style={inspectKickerStyle}>Attached Energy</div>
               <div style={{ display: "flex", minHeight: 38, alignItems: "center", gap: 6, marginTop: 8 }}>
                 {attachedEnergy.length === 0 ? (
-                  <span style={{ color: "#000000", fontSize: 12, fontWeight: 800 }}>None</span>
+                  <span style={{ color: colors.black, fontSize: 12, fontWeight: 800 }}>None</span>
                 ) : (
                   attachedEnergy.map((type, index) => (
                     <span key={`${type}-${index}`} style={previewEnergyRingStyle}>
@@ -263,7 +263,7 @@ export function CardPreview({ state, target, canUseAttack, canUseRetreat, canUse
             ) : (
               <section style={previewBlockStyle}>
                 <div style={inspectKickerStyle}>{card.trainerType}</div>
-                <p style={{ margin: "6px 0 0", color: "#000000", fontSize: 14, fontWeight: 800, lineHeight: 1.35 }}>{card.text}</p>
+                <p style={{ margin: "6px 0 0", color: colors.black, fontSize: 14, fontWeight: 800, lineHeight: 1.35 }}>{card.text}</p>
               </section>
             )
           )}
@@ -285,7 +285,7 @@ function RetreatCostDisplay({ cost }: { cost: number }) {
 const previewBackdropStyle: CSSProperties = {
   ...overlayBackdropStyle,
   zIndex: 50,
-  color: "#000000",
+  color: colors.black,
   textShadow: "none",
 };
 
@@ -311,16 +311,16 @@ const previewShellStyle: CSSProperties = {
 const previewImageStyle: CSSProperties = {
   maxHeight: "90vh",
   width: "100%",
-  borderRadius: 8,
+  borderRadius: radius.md,
   objectFit: "contain",
   boxShadow: "0 32px 100px rgba(0, 0, 0, 0.44)",
 };
 
 const previewInfoStyle: CSSProperties = {
   ...overlaySurfaceStyle,
-  border: "1px solid rgba(185, 198, 188, 0.9)",
-  background: "rgba(238, 243, 238, 0.94)",
-  color: "#000000",
+  border: borders.neutralStrong,
+  background: colors.glassOverlay,
+  color: colors.black,
   textShadow: "none",
   padding: 16,
   minWidth: 0,
@@ -328,7 +328,7 @@ const previewInfoStyle: CSSProperties = {
 
 const previewTitleStyle: CSSProperties = {
   margin: "2px 0 14px",
-  color: "#000000",
+  color: colors.black,
   fontSize: 24,
   lineHeight: 1.05,
   fontWeight: 950,
@@ -338,8 +338,8 @@ const previewTitleStyle: CSSProperties = {
 
 const previewBlockStyle: CSSProperties = {
   marginTop: 10,
-  borderRadius: 8,
-  border: "1px solid rgba(185, 198, 188, 0.9)",
+  borderRadius: radius.md,
+  border: borders.neutralStrong,
   background: "rgba(238, 243, 238, 0.82)",
   padding: 10,
 };
@@ -349,10 +349,10 @@ const previewEnergyRingStyle: CSSProperties = {
   height: 38,
   display: "grid",
   placeItems: "center",
-  borderRadius: "50%",
-  border: "1px solid rgba(217, 225, 218, 0.9)",
-  background: "rgba(238, 243, 238, 0.9)",
-  boxShadow: "0 8px 18px rgba(17,24,39,0.14)",
+  borderRadius: radius.circle,
+  border: borders.glass,
+  background: colors.glassStrong,
+  boxShadow: shadows.md,
 };
 
 const attachedToolRowStyle: CSSProperties = {
@@ -364,15 +364,13 @@ const attachedToolRowStyle: CSSProperties = {
 };
 
 const attachedToolNameStyle: CSSProperties = {
-  color: "#000000",
+  color: colors.black,
   fontSize: 13,
   fontWeight: 900,
   lineHeight: 1.25,
   overflowWrap: "anywhere",
   wordBreak: "break-word",
 };
-
-import { neutralButtonStyle } from "../../styles/shared";
 
 function retreatButtonStyle(enabled: boolean, hovered: boolean, accent: string, hasModifierLines: boolean): CSSProperties {
   return {
@@ -398,7 +396,7 @@ function retreatButtonStyle(enabled: boolean, hovered: boolean, accent: string, 
     fontWeight: 900,
     transform: enabled && hovered ? "translateY(-1px)" : undefined,
     boxShadow: enabled && hovered ? "0 14px 30px rgba(23, 33, 28, 0.2)" : undefined,
-    transition: "background 140ms ease, border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease",
+    transition: `background ${transitions.base}, border-color ${transitions.base}, box-shadow ${transitions.base}, transform ${transitions.base}`,
   };
 }
 
@@ -409,7 +407,7 @@ function retreatCostContentStyle(enabled: boolean, hovered: boolean, accent: str
     justifyContent: "flex-end",
     minHeight: 20,
     color: enabled && hovered ? accent : undefined,
-    transition: "color 140ms ease",
+    transition: `color ${transitions.base}`,
   };
 }
 
@@ -422,7 +420,7 @@ const retreatPipListStyle: CSSProperties = {
 const colorlessPipStyle: CSSProperties = {
   width: 18,
   height: 18,
-  borderRadius: "50%",
+  borderRadius: radius.circle,
   border: "2px solid currentColor",
   background: "radial-gradient(circle at center, rgba(255,255,255,0.98) 0 32%, transparent 36%)",
   boxSizing: "border-box",
@@ -433,7 +431,7 @@ const abilitySectionStyle: CSSProperties = {
   position: "relative",
   border: `1px solid ${alphaColor(abilityRuby, 0.74)}`,
   background: abilityRuby,
-  color: "#ffffff",
+  color: colors.white,
   boxShadow: `0 10px 24px ${alphaColor(abilityRuby, 0.18)}`,
 };
 
@@ -450,7 +448,7 @@ function abilityButtonStyle(enabled: boolean, hovered: boolean): CSSProperties {
         ? "linear-gradient(180deg, #d61148 0%, #a30f2a 100%)"
         : abilityRuby
       : "linear-gradient(180deg, #675a63 0%, #4c424a 100%)",
-    color: enabled ? "#ffffff" : "rgba(255, 255, 255, 0.68)",
+    color: enabled ? colors.white : "rgba(255, 255, 255, 0.68)",
     cursor: enabled ? "pointer" : "not-allowed",
     textAlign: "left",
     transform: enabled && hovered ? "translateY(-2px)" : undefined,
@@ -459,13 +457,13 @@ function abilityButtonStyle(enabled: boolean, hovered: boolean): CSSProperties {
       : enabled
         ? abilitySectionStyle.boxShadow
         : "0 8px 18px rgba(17, 24, 39, 0.12)",
-    transition: "background 140ms ease, border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease, color 140ms ease",
+    transition: `background ${transitions.base}, border-color ${transitions.base}, box-shadow ${transitions.base}, transform ${transitions.base}, color ${transitions.base}`,
   };
 }
 
 const inspectKickerStyle: CSSProperties = {
   ...previewKickerStyle,
-  color: "#000000",
+  color: colors.black,
   textShadow: "none",
 };
 
@@ -511,12 +509,12 @@ function attackPreviewButtonStyle(enabled: boolean, hovered: boolean, accent: st
           background: hovered
             ? `linear-gradient(180deg, ${alphaColor("#ffffff", 0.24)} 0%, ${alphaColor("#ffffff", 0)} 44%), ${accent}`
             : accent,
-          color: "#ffffff",
+          color: colors.white,
           transform: hovered ? "translateY(-2px)" : undefined,
           boxShadow: hovered
             ? `0 0 0 2px ${alphaColor(accent, 0.26)}, 0 18px 34px ${alphaColor(accent, 0.34)}`
             : `0 12px 28px ${alphaColor(accent, 0.24)}`,
-          transition: "background 140ms ease, border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease",
+          transition: `background ${transitions.base}, border-color ${transitions.base}, box-shadow ${transitions.base}, transform ${transitions.base}`,
         }
       : {}),
   };
@@ -531,7 +529,7 @@ const modifierListStyle: CSSProperties = {
 
 const modifierLineStyle: CSSProperties = {
   display: "block",
-  color: "#000000",
+  color: colors.black,
   fontSize: 11,
   fontWeight: 800,
   lineHeight: 1.25,

@@ -3,7 +3,7 @@ import type { EnergyType } from "../../../../shared/src/types";
 import { energyLabel } from "../../game/engine";
 import { EnergyIcon } from "../../components/cards/EnergyIcon";
 import { NeutralButton } from "../../components/buttons/NeutralButton";
-import { overlayButtonStyle, overlaySurfaceStyle, inlineEnergyLabelStyle } from "../../styles/shared";
+import { borders, colors, overlayButtonStyle, overlaySurfaceStyle, inlineEnergyLabelStyle, radius } from "../../styles/shared";
 import type { PendingSelection } from "../../types/ui";
 
 export function SelectionPrompt({ pending, onCancel, nextEnergyType, onRetreatDiscardAdjust, onConfirmRetreatDiscard }: {
@@ -179,7 +179,7 @@ function selectionPromptStyle(isRetreatDiscard: boolean): CSSProperties {
   transform: "translateX(-50%)",
   padding: isRetreatDiscard ? "14px 18px" : "12px 86px 12px 18px",
   textAlign: "center",
-  color: "#000000",
+  color: colors.black,
   textShadow: "none",
   ...overlaySurfaceStyle,
   };
@@ -195,7 +195,7 @@ const selectionPromptTextStyle: CSSProperties = {
   wordBreak: "break-word",
   lineHeight: 1.35,
   textAlign: "center",
-  color: "#000000",
+  color: colors.black,
   textShadow: "none",
 };
 
@@ -232,8 +232,8 @@ const retreatDiscardRowStyle: CSSProperties = {
   alignItems: "center",
   justifyContent: "space-between",
   gap: 8,
-  borderRadius: 8,
-  border: "1px solid rgba(185, 198, 188, 0.9)",
+  borderRadius: radius.md,
+  border: borders.neutralStrong,
   background: "rgba(238, 243, 238, 0.82)",
   padding: "6px 10px",
 };
@@ -244,7 +244,7 @@ const retreatDiscardLabelStyle: CSSProperties = {
   gap: 8,
   fontSize: 13,
   fontWeight: 850,
-  color: "#000000",
+  color: colors.black,
   textShadow: "none",
 };
 
@@ -258,9 +258,9 @@ const retreatAdjustButtonStyle: CSSProperties = {
   width: 24,
   height: 24,
   borderRadius: 6,
-  border: "1px solid rgba(185, 198, 188, 0.95)",
+  border: borders.neutralStrong,
   background: "rgba(238, 243, 238, 0.9)",
-  color: "#000000",
+  color: colors.black,
   textShadow: "none",
   fontSize: 14,
   fontWeight: 900,
@@ -274,6 +274,6 @@ const retreatCountTextStyle: CSSProperties = {
   textAlign: "center",
   fontSize: 12,
   fontWeight: 900,
-  color: "#000000",
+  color: colors.black,
   textShadow: "none",
 };

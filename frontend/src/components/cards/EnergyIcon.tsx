@@ -2,6 +2,8 @@ import { type CSSProperties, useState } from "react";
 import { energyImages } from "../../../../shared/src/gameData";
 import type { EnergyType } from "../../../../shared/src/types";
 import { energyLabel } from "../../game/engine";
+import { colors, radius } from "../../styles/shared";
+import { energyAccentColors } from "../../utils/color";
 
 type EnergyIconProps = {
   type: EnergyType;
@@ -17,19 +19,6 @@ const sizes: Record<NonNullable<EnergyIconProps["size"]>, number> = {
 const inertStyle: CSSProperties = {
   pointerEvents: "none",
   userSelect: "none",
-};
-
-const fallbackColors: Record<EnergyType, string> = {
-  grass: "#63b65f",
-  fire: "#ef7a3d",
-  water: "#4c93f0",
-  lightning: "#e6b93d",
-  psychic: "#d6519d",
-  fighting: "#b26a4a",
-  darkness: "#374151",
-  steel: "#94a3b8",
-  colorless: "#a7adba",
-  dragon: "#d4a72c",
 };
 
 const fallbackLabels: Record<EnergyType, string> = {
@@ -51,7 +40,7 @@ export function EnergyIcon({ type, size = "md" }: EnergyIconProps) {
   const style: CSSProperties = {
     width: pixels,
     height: pixels,
-    borderRadius: "50%",
+    borderRadius: radius.circle,
     objectFit: "contain",
     display: "block",
     filter: "drop-shadow(0 6px 8px rgba(17, 24, 39, 0.2))",
@@ -67,8 +56,8 @@ export function EnergyIcon({ type, size = "md" }: EnergyIconProps) {
           ...inertStyle,
           display: "grid",
           placeItems: "center",
-          background: fallbackColors[type],
-          color: "#ffffff",
+          background: energyAccentColors[type],
+          color: colors.white,
           fontSize: pixels * 0.34,
           fontWeight: 900,
           lineHeight: 1,

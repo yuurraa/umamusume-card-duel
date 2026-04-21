@@ -3,7 +3,7 @@ import { getCard, getPlayableAction } from "../../game/engine";
 import type { Card, GameState } from "../../../../shared/src/types";
 import type { InspectTarget } from "../../inspect";
 import { applyDragPreview, writeDragPayload } from "../drag/dragData";
-import { uiTextColor, uiTextShadow } from "../../styles/shared";
+import { CARD_ASPECT_RATIO, borders, colors, fontStacks, radius, shadows, transitions, uiTextColor, uiTextShadow } from "../../styles/shared";
 
 type HandProps = {
   state: GameState;
@@ -330,17 +330,17 @@ function pileSlotButtonStyle(interactive: boolean, hovered: boolean, isEmptyDisc
     position: "relative",
     height: PILE_CARD_HEIGHT,
     width: PILE_CARD_WIDTH,
-    aspectRatio: "745 / 1040",
+    aspectRatio: CARD_ASPECT_RATIO,
     boxSizing: "border-box",
     appearance: "none",
-    borderRadius: 8,
-    border: hovered ? "1px solid rgba(0, 0, 0, 0.36)" : "1px solid rgba(185, 198, 188, 0.88)",
-    background: isEmptyDiscard ? "rgba(238, 243, 238, 0.24)" : "rgba(238, 243, 238, 0.82)",
+    borderRadius: radius.md,
+    border: hovered ? "1px solid rgba(0, 0, 0, 0.36)" : borders.neutral,
+    background: isEmptyDiscard ? colors.glassSoft : "rgba(238, 243, 238, 0.82)",
     padding: 0,
     cursor: interactive ? "pointer" : "help",
     boxShadow: hovered ? "0 16px 34px rgba(17, 24, 39, 0.16)" : "0 10px 24px rgba(17, 24, 39, 0.1)",
     transform: hovered ? "translateY(-2px)" : undefined,
-    transition: "border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease",
+    transition: `border-color ${transitions.base}, box-shadow ${transitions.base}, transform ${transitions.base}`,
     opacity: interactive || hovered ? 1 : 0.94,
     textShadow: "0 0 0",
   };
@@ -349,7 +349,7 @@ function pileSlotButtonStyle(interactive: boolean, hovered: boolean, isEmptyDisc
 const pileCardImageStyle: CSSProperties = {
   width: "100%",
   height: "100%",
-  borderRadius: 8,
+  borderRadius: radius.md,
   objectFit: "contain",
   display: "block",
 };
@@ -360,7 +360,7 @@ const pileImageClipStyle: CSSProperties = {
   display: "block",
   overflow: "hidden",
   position: "relative",
-  borderRadius: 8,
+  borderRadius: radius.md,
 };
 
 const pileSleeveImageStyle: CSSProperties = {
@@ -377,9 +377,9 @@ const pileEmptySlotStyle: CSSProperties = {
   height: "100%",
   display: "grid",
   placeItems: "center",
-  borderRadius: 8,
-  border: "1px dashed rgba(185, 198, 188, 0.88)",
-  background: "rgba(238, 243, 238, 0.24)",
+  borderRadius: radius.md,
+  border: borders.neutralDashed,
+  background: colors.glassSoft,
   color: uiTextColor,
   textShadow: uiTextShadow,
   fontSize: 12,
@@ -392,8 +392,8 @@ const pileCardBackStyle: CSSProperties = {
   height: "100%",
   display: "grid",
   placeItems: "center",
-  borderRadius: 8,
-  border: "1px solid rgba(217, 225, 218, 0.72)",
+  borderRadius: radius.md,
+  border: borders.glass,
   background: "linear-gradient(145deg, #17211c 0%, #284135 48%, #d6519d 100%)",
   boxShadow: "inset 0 0 0 4px rgba(255,255,255,0.18)",
 };
@@ -403,12 +403,12 @@ const pileCardBackMarkStyle: CSSProperties = {
   height: 38,
   display: "grid",
   placeItems: "center",
-  borderRadius: "50%",
-  background: "rgba(238, 243, 238, 0.9)",
-  color: "#000000",
+  borderRadius: radius.circle,
+  background: colors.glassStrong,
+  color: colors.black,
   fontSize: 18,
   fontWeight: 950,
-  fontFamily: "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+  fontFamily: fontStacks.ui,
   lineHeight: 1,
 };
 
@@ -421,13 +421,13 @@ const pileCountBadgeStyle: CSSProperties = {
   display: "grid",
   placeItems: "center",
   padding: "0 6px",
-  borderRadius: 999,
+  borderRadius: radius.pill,
   border: "1px solid rgba(0, 0, 0, 0.18)",
-  background: "#000000",
-  color: "#ffffff",
+  background: colors.black,
+  color: colors.white,
   fontSize: 12,
   fontWeight: 950,
-  boxShadow: "0 8px 18px rgba(17, 24, 39, 0.2)",
+  boxShadow: shadows.badge,
 };
 
 const pileLabelStyle: CSSProperties = {
@@ -446,15 +446,15 @@ const pileTooltipStyle: CSSProperties = {
   transform: "translateX(-50%)",
   width: "max-content",
   maxWidth: 160,
-  borderRadius: 8,
-  border: "1px solid rgba(185, 198, 188, 0.9)",
-  background: "rgba(238, 243, 238, 0.94)",
+  borderRadius: radius.md,
+  border: borders.neutralStrong,
+  background: colors.glassOverlay,
   color: uiTextColor,
   textShadow: uiTextShadow,
   padding: "6px 8px",
   fontSize: 12,
   fontWeight: 900,
-  boxShadow: "0 12px 28px rgba(17, 24, 39, 0.14)",
+  boxShadow: shadows.lg,
   zIndex: 10,
 };
 
@@ -463,7 +463,7 @@ const handCardButtonStyle: CSSProperties = {
   height: "100%",
   padding: 0,
   border: 0,
-  borderRadius: 8,
+  borderRadius: radius.md,
   background: "transparent",
   textAlign: "left",
 };
@@ -471,7 +471,7 @@ const handCardButtonStyle: CSSProperties = {
 const handImageStyle: CSSProperties = {
   width: "100%",
   height: "100%",
-  borderRadius: 8,
+  borderRadius: radius.md,
   objectFit: "contain",
   display: "block",
 };

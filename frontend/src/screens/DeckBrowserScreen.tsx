@@ -5,7 +5,7 @@ import { getDeckCoverCard, getDeckEnergyTypes } from "../utils/deck";
 import { NeutralButton } from "../components/buttons/NeutralButton";
 import { EnergyIcon } from "../components/cards/EnergyIcon";
 import type { PremadeDeck } from "../types/ui";
-import { GLASS_TILE_BACKGROUND, GLASS_TILE_BACKDROP_FILTER, glassPanelStyle, overlayBackdropStyle, overlayButtonStyle, overlaySurfaceStyle, previewKickerStyle, uiTextColor, uiTextShadow } from "../styles/shared";
+import { CARD_ASPECT_RATIO, GLASS_TILE_BACKGROUND, GLASS_TILE_BACKDROP_FILTER, borders, colors, glassPanelStyle, overlayBackdropStyle, overlayButtonStyle, overlaySurfaceStyle, previewKickerStyle, radius, shadows, transitions, uiTextColor, uiTextShadow } from "../styles/shared";
 
 const SELECTED_TICK = "\u2713";
 
@@ -153,7 +153,12 @@ function DeckListModal({
             </div>
             <h2 style={deckModalTitleStyle}>{deck.name}</h2>
           </div>
-          <NeutralButton style={closeDeckModalButtonStyle} onClick={onClose}>Close</NeutralButton>
+          <div style={deckModalHeaderActionsStyle}>
+            <NeutralButton style={deckModalActionButtonStyle} disabled={equipped} onClick={onEquip}>
+              {equipped ? "Equipped" : "Equip"}
+            </NeutralButton>
+            <NeutralButton style={closeDeckModalButtonStyle} onClick={onClose}>Close</NeutralButton>
+          </div>
         </header>
         <div style={deckCardGridStyle}>
           {deckRows.map((row, rowIndex) => (
@@ -178,12 +183,6 @@ function DeckListModal({
               })}
             </div>
           ))}
-        </div>
-        <div style={deckModalActionsStyle}>
-          <NeutralButton style={deckModalActionButtonStyle} onClick={onClose}>Back</NeutralButton>
-          <NeutralButton style={deckModalActionButtonStyle} disabled={equipped} onClick={onEquip}>
-            {equipped ? "Equipped" : "Equip"}
-          </NeutralButton>
         </div>
       </section>
     </div>
@@ -325,8 +324,8 @@ function deckBrowserCardStyle(equipped: boolean, hovered: boolean): CSSPropertie
       ? "2px solid rgba(0, 0, 0, 0.62)"
       : hovered
         ? "1px solid rgba(0, 0, 0, 0.36)"
-        : "1px solid rgba(185, 198, 188, 0.9)",
-    borderRadius: 8,
+        : borders.neutralStrong,
+    borderRadius: radius.md,
     background: GLASS_TILE_BACKGROUND,
     boxShadow: equipped
       ? "0 22px 60px rgba(17, 24, 39, 0.16)"
@@ -339,7 +338,7 @@ function deckBrowserCardStyle(equipped: boolean, hovered: boolean): CSSPropertie
     textShadow: uiTextShadow,
     cursor: "pointer",
     transform: hovered && !equipped ? "translateY(-4px)" : "translateY(0)",
-    transition: "transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease, background 160ms ease",
+    transition: `transform ${transitions.board}, box-shadow ${transitions.board}, border-color ${transitions.board}, background ${transitions.board}`,
     backdropFilter: GLASS_TILE_BACKDROP_FILTER,
   };
 }
@@ -359,12 +358,12 @@ const deckBrowserLockedEditCardStyle: CSSProperties = {
 const deckBrowserLockedEditIconStyle: CSSProperties = {
   width: 52,
   height: 52,
-  borderRadius: "50%",
-  border: "1px solid rgba(185, 198, 188, 0.88)",
+  borderRadius: radius.circle,
+  border: borders.neutral,
   background: "rgba(238, 243, 238, 0.68)",
   display: "grid",
   placeItems: "center",
-  color: "#000000",
+  color: colors.black,
   textShadow: "none",
   fontSize: 26,
   fontWeight: 900,
@@ -382,10 +381,10 @@ function deckSummaryCardStyle(compact: boolean, framed: boolean): CSSProperties 
     gridTemplateColumns: "1fr",
     gap: compact ? 10 : 14,
     alignItems: "center",
-    borderRadius: 8,
-    border: framed ? "1px solid rgba(185, 198, 188, 0.9)" : 0,
+    borderRadius: radius.md,
+    border: framed ? borders.neutralStrong : 0,
     background: framed ? GLASS_TILE_BACKGROUND : "transparent",
-    boxShadow: framed ? "0 16px 42px rgba(17, 24, 39, 0.12)" : "none",
+    boxShadow: framed ? "0 16px 42px rgba(17, 24, 39, 0.12)" : shadows.none,
     padding: framed ? (compact ? 12 : 14) : 0,
   };
 }
@@ -431,7 +430,7 @@ const deckEnergyIconWrapStyle: CSSProperties = {
   justifyContent: "center",
   width: 24,
   height: 24,
-  borderRadius: "50%",
+  borderRadius: radius.circle,
   border: "1px solid rgba(255, 255, 255, 0.9)",
   boxSizing: "border-box",
 };
@@ -441,7 +440,7 @@ function deckCoverImageStyle(compact: boolean): CSSProperties {
     width: "100%",
     maxWidth: compact ? 132 : 256,
     justifySelf: "center",
-    borderRadius: 8,
+    borderRadius: radius.md,
     display: "block",
     objectFit: "contain",
     filter: "drop-shadow(0 18px 28px rgba(17, 24, 39, 0.2))",
@@ -459,8 +458,8 @@ const deckSelectedBadgeStyle: CSSProperties = {
   placeItems: "center",
   borderRadius: "50%",
   border: "1px solid rgba(0, 0, 0, 0.18)",
-  background: "#000000",
-  color: "#ffffff",
+  background: colors.black,
+  color: colors.white,
   fontSize: 18,
   fontWeight: 950,
   boxShadow: "0 10px 20px rgba(17, 24, 39, 0.18)",
@@ -473,16 +472,17 @@ const deckModalBackdropStyle: CSSProperties = {
 
 const deckModalStyle: CSSProperties = {
   ...overlaySurfaceStyle,
-  width: "min(1320px, calc(100vw - 28px))",
-  maxHeight: "calc(100vh - 28px)",
+  width: "min(1320px, calc(100vw - 48px))",
+  maxHeight: "calc(100dvh - 48px)",
   display: "grid",
-  gridTemplateRows: "auto minmax(0, 1fr) auto",
+  gridTemplateRows: "auto minmax(0, 1fr)",
   gap: 10,
   padding: 12,
+  overflow: "hidden",
   background: "rgba(238, 243, 238, 0.95)",
   border: "1px solid rgba(185, 198, 188, 0.72)",
   boxShadow: "0 16px 44px rgba(17, 24, 39, 0.18)",
-  color: "#000000",
+  color: colors.black,
   textShadow: "none",
 };
 
@@ -493,9 +493,15 @@ const deckModalHeaderStyle: CSSProperties = {
   gap: 12,
 };
 
+const deckModalHeaderActionsStyle: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 8,
+};
+
 const deckModalTitleStyle: CSSProperties = {
   margin: "2px 0 0",
-  color: "#000000",
+  color: colors.black,
   textShadow: "none",
   fontSize: 22,
   lineHeight: 1.05,
@@ -504,7 +510,7 @@ const deckModalTitleStyle: CSSProperties = {
 
 const deckModalKickerStyle: CSSProperties = {
   ...previewKickerStyle,
-  color: "#000000",
+  color: colors.black,
   textShadow: "none",
 };
 
@@ -520,7 +526,7 @@ const deckModalMetaStyle: CSSProperties = {
 };
 
 const deckModalInlineCountStyle: CSSProperties = {
-  color: "#000000",
+  color: colors.black,
   textShadow: "none",
   fontSize: 11,
   fontWeight: 900,
@@ -530,50 +536,61 @@ const deckModalInlineCountStyle: CSSProperties = {
 
 const deckCardGridStyle: CSSProperties = {
   minHeight: 0,
-  overflow: "visible",
+  overflowX: "hidden",
+  overflowY: "auto",
   display: "grid",
-  gap: 10,
-  padding: "14px 6px 4px",
+  gap: 8,
+  gridAutoRows: "auto",
+  padding: "14px 8px 8px",
   alignContent: "start",
 };
 
 function deckCardRowStyle(_count: number): CSSProperties {
   return {
+    minHeight: 0,
     display: "grid",
     gridTemplateColumns: "repeat(7, minmax(0, 1fr))",
-    gap: 10,
+    columnGap: 7,
+    rowGap: 8,
   };
 }
 
 function deckCardTileStyle(hovered: boolean): CSSProperties {
   return {
     width: "100%",
-    aspectRatio: "745 / 1040",
-    borderRadius: 8,
+    maxWidth: "100%",
+    height: "auto",
+    justifySelf: "stretch",
+    aspectRatio: CARD_ASPECT_RATIO,
+    borderRadius: radius.lg,
     border: "1px solid rgba(185, 198, 188, 0.58)",
     background: "rgba(238, 243, 238, 0.52)",
-    filter: hovered
-      ? "drop-shadow(0 34px 52px rgba(17, 24, 39, 0.22)) saturate(1.06)"
-      : "drop-shadow(0 28px 42px rgba(17, 24, 39, 0.18))",
+    filter: "none",
     overflow: "hidden",
     cursor: "pointer",
     transform: hovered ? "translateY(-10px) rotate(0.8deg) scale(1.025)" : "translateY(0) rotate(0deg) scale(1)",
-    transition: "transform 180ms ease, filter 180ms ease",
+    transition: `transform ${transitions.slow}`,
     padding: 0,
   };
 }
 
 const deckCardSpacerStyle: CSSProperties = {
   width: "100%",
-  aspectRatio: "745 / 1040",
+  maxWidth: "100%",
+  height: "auto",
+  justifySelf: "stretch",
+  aspectRatio: CARD_ASPECT_RATIO,
 };
 
 const deckLockedEditTileStyle: CSSProperties = {
   width: "100%",
-  aspectRatio: "745 / 1040",
-  borderRadius: 8,
-  border: "1px dashed rgba(185, 198, 188, 0.88)",
-  background: "rgba(238, 243, 238, 0.24)",
+  maxWidth: "100%",
+  height: "auto",
+  justifySelf: "stretch",
+  aspectRatio: CARD_ASPECT_RATIO,
+  borderRadius: radius.lg,
+  border: borders.neutralDashed,
+  background: colors.glassSoft,
   display: "grid",
   placeItems: "center",
   boxShadow: "0 18px 34px rgba(17, 24, 39, 0.1)",
@@ -585,12 +602,12 @@ const deckLockedEditTileStyle: CSSProperties = {
 const deckLockedEditIconStyle: CSSProperties = {
   width: 52,
   height: 52,
-  borderRadius: "50%",
-  border: "1px solid rgba(185, 198, 188, 0.88)",
+  borderRadius: radius.circle,
+  border: borders.neutral,
   background: "rgba(238, 243, 238, 0.68)",
   display: "grid",
   placeItems: "center",
-  color: "#000000",
+  color: colors.black,
   textShadow: "none",
   fontSize: 26,
   fontWeight: 900,
@@ -603,13 +620,6 @@ const deckCardImageStyle: CSSProperties = {
   height: "100%",
   objectFit: "contain",
   display: "block",
-};
-
-const deckModalActionsStyle: CSSProperties = {
-  display: "flex",
-  justifyContent: "flex-end",
-  gap: 8,
-  paddingTop: 0,
 };
 
 const deckModalActionButtonStyle: CSSProperties = {
@@ -632,7 +642,7 @@ const deckInspectSurfaceStyle: CSSProperties = {
 const deckInspectImageStyle: CSSProperties = {
   width: "100%",
   maxHeight: "90vh",
-  borderRadius: 8,
+  borderRadius: radius.md,
   objectFit: "contain",
   display: "block",
   boxShadow: "0 32px 100px rgba(0, 0, 0, 0.44)",

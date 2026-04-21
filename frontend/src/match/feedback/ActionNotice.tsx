@@ -1,6 +1,6 @@
 import type { CSSProperties } from "react";
 import { NeutralButton } from "../../components/buttons/NeutralButton";
-import { overlayButtonStyle, overlaySurfaceStyle } from "../../styles/shared";
+import { colors, overlayButtonStyle, overlaySurfaceStyle } from "../../styles/shared";
 
 type ActionNoticeTone = "default" | "danger" | "info";
 type ActionNoticePlacement = "top" | "bottom";
@@ -76,7 +76,7 @@ function actionNoticeTextStyle(tone: ActionNoticeTone, notice: string): CSSPrope
     wordBreak: "break-word",
     lineHeight: 1.35,
     textAlign: "center",
-    color: tone === "danger" ? "#7f1d1d" : tone === "info" ? "#1e3a8a" : "#111827",
+    color: tone === "danger" ? colors.danger900 : tone === "info" ? colors.info900 : colors.slate900,
     textShadow: "none",
     fontWeight: isKoNotice ? 800 : 500,
   };

@@ -1,6 +1,6 @@
 import { type CSSProperties, type ReactNode, useState } from "react";
 import { NeutralButton } from "../components/buttons/NeutralButton";
-import { GLASS_TILE_BACKGROUND, GLASS_TILE_BACKDROP_FILTER, glassPanelStyle, previewKickerStyle, uiTextColor, uiTextShadow } from "../styles/shared";
+import { APP_BACKGROUND_FALLBACK, CARD_ASPECT_RATIO, GLASS_TILE_BACKGROUND, GLASS_TILE_BACKDROP_FILTER, borders, colors, glassPanelStyle, radius, shadows, previewKickerStyle, uiTextColor, uiTextShadow } from "../styles/shared";
 import type { CustomisationOption, CustomisationSettings } from "../utils/customisation";
 import { playmatOptions, sleeveOptions } from "../utils/customisation";
 
@@ -173,14 +173,14 @@ function optionTileStyle(selected: boolean, hovered: boolean): CSSProperties {
     display: "grid",
     justifyItems: "center",
     gap: 10,
-    borderRadius: 8,
+    borderRadius: radius.md,
     border: selected
       ? "2px solid rgba(0, 0, 0, 0.62)"
       : hovered
         ? "1px solid rgba(0, 0, 0, 0.36)"
-        : "1px solid rgba(185, 198, 188, 0.9)",
+        : borders.neutralStrong,
     background: GLASS_TILE_BACKGROUND,
-    boxShadow: hovered || selected ? "0 18px 42px rgba(17, 24, 39, 0.18)" : "0 12px 30px rgba(17, 24, 39, 0.1)",
+    boxShadow: hovered || selected ? "0 18px 42px rgba(17, 24, 39, 0.18)" : shadows.sm,
     padding: 12,
     cursor: "pointer",
     color: uiTextColor,
@@ -194,11 +194,11 @@ function optionTileStyle(selected: boolean, hovered: boolean): CSSProperties {
 function optionPreviewWrapStyle(kind: "playmat" | "sleeve"): CSSProperties {
   return {
     width: kind === "playmat" ? "100%" : 96,
-    aspectRatio: kind === "playmat" ? "16 / 9" : "745 / 1040",
+    aspectRatio: kind === "playmat" ? "16 / 9" : CARD_ASPECT_RATIO,
     display: "grid",
     placeItems: "center",
     overflow: "hidden",
-    borderRadius: 8,
+    borderRadius: radius.md,
     border: "1px solid rgba(217, 225, 218, 0.82)",
     background: GLASS_TILE_BACKGROUND,
     boxShadow: "0 14px 30px rgba(17, 24, 39, 0.14)",
@@ -238,7 +238,7 @@ function defaultPreviewStyle(kind: "playmat" | "sleeve"): CSSProperties {
     display: "grid",
     placeItems: "center",
     background: kind === "playmat"
-      ? "radial-gradient(circle at 20% 12%, rgba(255,255,255,0.9), transparent 30%), linear-gradient(135deg, #101820 0%, #2a4a45 52%, #d6519d 100%)"
+      ? `radial-gradient(circle at 20% 12%, rgba(255,255,255,0.9), transparent 30%), linear-gradient(135deg, ${APP_BACKGROUND_FALLBACK} 0%, #2a4a45 52%, #d6519d 100%)`
       : "linear-gradient(145deg, #17211c 0%, #284135 48%, #d6519d 100%)",
   };
 }
@@ -248,9 +248,9 @@ const defaultPreviewMarkStyle: CSSProperties = {
   height: 42,
   display: "grid",
   placeItems: "center",
-  borderRadius: "50%",
-  background: "rgba(238, 243, 238, 0.9)",
-  color: "#000000",
+  borderRadius: radius.circle,
+  background: colors.glassStrong,
+  color: colors.black,
   fontSize: 20,
   fontWeight: 950,
   lineHeight: 1,
@@ -273,10 +273,10 @@ const selectedBadgeStyle: CSSProperties = {
   height: 34,
   display: "grid",
   placeItems: "center",
-  borderRadius: "50%",
+  borderRadius: radius.circle,
   border: "1px solid rgba(0, 0, 0, 0.18)",
-  background: "#000000",
-  color: "#ffffff",
+  background: colors.black,
+  color: colors.white,
   fontSize: 18,
   fontWeight: 950,
 };

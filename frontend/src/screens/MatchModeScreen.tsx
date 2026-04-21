@@ -1,6 +1,6 @@
 import type { CSSProperties } from "react";
 import { NeutralButton } from "../components/buttons/NeutralButton";
-import { glassPanelStyle, uiTextColor, uiTextShadow } from "../styles/shared";
+import { colors, glassPanelStyle, uiTextColor, uiTextShadow } from "../styles/shared";
 import type { MatchMode } from "../types/ui";
 
 type ModeOption = {
@@ -11,7 +11,7 @@ type ModeOption = {
 };
 
 const MODE_OPTIONS: ModeOption[] = [
-  { mode: "playerVsPlayer", title: "Player vs Player", subtitle: "Local duel (coming soon)", enabled: false },
+  { mode: "playerVsPlayer", title: "Player vs Player", subtitle: "(Coming soon)", enabled: false },
   { mode: "playerVsAi", title: "Player vs AI", subtitle: "You against the bot", enabled: true },
   { mode: "aiVsAi", title: "AI vs AI", subtitle: "Watch both bots battle", enabled: true },
 ];
@@ -72,8 +72,8 @@ export function MatchModeScreen({
 function PlayerIcon({ mirrored = false }: { mirrored?: boolean }) {
   return (
     <svg viewBox="0 0 44 44" aria-hidden="true" style={iconStyle(mirrored)}>
-      <circle cx="22" cy="14" r="8" fill="#0f172a" />
-      <rect x="10" y="24" width="24" height="14" rx="7" fill="#0f172a" />
+      <circle cx="22" cy="14" r="8" fill={colors.slate800} />
+      <rect x="10" y="24" width="24" height="14" rx="7" fill={colors.slate800} />
     </svg>
   );
 }
@@ -81,12 +81,12 @@ function PlayerIcon({ mirrored = false }: { mirrored?: boolean }) {
 function RobotIcon({ mirrored = false }: { mirrored?: boolean }) {
   return (
     <svg viewBox="0 0 44 44" aria-hidden="true" style={iconStyle(mirrored)}>
-      <rect x="9" y="10" width="26" height="18" rx="4" fill="#1f2937" />
-      <rect x="14" y="30" width="16" height="8" rx="4" fill="#1f2937" />
-      <circle cx="17" cy="19" r="2.5" fill="#e5e7eb" />
-      <circle cx="27" cy="19" r="2.5" fill="#e5e7eb" />
-      <rect x="20.5" y="6" width="3" height="4" rx="1.5" fill="#1f2937" />
-      <circle cx="22" cy="5" r="2" fill="#1f2937" />
+      <rect x="9" y="10" width="26" height="18" rx="4" fill={colors.slate800} />
+      <rect x="14" y="30" width="16" height="8" rx="4" fill={colors.slate800} />
+      <circle cx="17" cy="19" r="2.5" fill={colors.slate100} />
+      <circle cx="27" cy="19" r="2.5" fill={colors.slate100} />
+      <rect x="20.5" y="6" width="3" height="4" rx="1.5" fill={colors.slate800} />
+      <circle cx="22" cy="5" r="2" fill={colors.slate800} />
     </svg>
   );
 }
@@ -164,7 +164,7 @@ function iconStyle(mirrored: boolean): CSSProperties {
 const versusStyle: CSSProperties = {
   fontSize: 11,
   fontWeight: 900,
-  color: "#334155",
+  color: colors.slate700,
   letterSpacing: 0.3,
 };
 
@@ -178,7 +178,7 @@ const cardSubtitleStyle: CSSProperties = {
   fontSize: 12,
   lineHeight: 1.3,
   fontWeight: 700,
-  color: "#475569",
+  color: colors.slate600,
 };
 
 const backButtonStyle: CSSProperties = {

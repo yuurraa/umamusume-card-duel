@@ -1,7 +1,7 @@
 import { useId, useRef, useState, type CSSProperties, type PointerEvent } from "react";
 import { getCard } from "../../game/engine";
 import { NeutralButton } from "../../components/buttons/NeutralButton";
-import { overlayBackdropStyle, overlayButtonStyle, overlaySurfaceStyle, previewKickerStyle } from "../../styles/shared";
+import { borders, colors, overlayBackdropStyle, overlayButtonStyle, overlaySurfaceStyle, previewKickerStyle, radius, transitions } from "../../styles/shared";
 
 type DeckChoiceOption = {
   deckIndex: number;
@@ -132,8 +132,8 @@ const deckModalStyle: CSSProperties = {
   gridTemplateRows: "auto minmax(0, 1fr)",
   gap: 12,
   padding: 16,
-  background: "rgba(238, 243, 238, 0.94)",
-  color: "#000000",
+  background: colors.glassOverlay,
+  color: colors.black,
   textShadow: "none",
 };
 
@@ -146,7 +146,7 @@ const deckHeaderStyle: CSSProperties = {
 
 const deckTitleStyle: CSSProperties = {
   margin: "2px 0 0",
-  color: "#000000",
+  color: colors.black,
   textShadow: "none",
   fontSize: 24,
   lineHeight: 1.05,
@@ -155,7 +155,7 @@ const deckTitleStyle: CSSProperties = {
 
 const deckKickerStyle: CSSProperties = {
   ...previewKickerStyle,
-  color: "#000000",
+  color: colors.black,
   textShadow: "none",
 };
 
@@ -181,29 +181,29 @@ function deckCardButtonStyle(hovered: boolean): CSSProperties {
     width: 140,
     height: 196,
     border: 0,
-    borderRadius: 8,
+    borderRadius: radius.md,
     background: "transparent",
     padding: 0,
     cursor: "pointer",
     filter: hovered ? "drop-shadow(0 18px 22px rgba(17, 24, 39, 0.18)) saturate(1.06)" : "drop-shadow(0 12px 18px rgba(17, 24, 39, 0.12))",
     transform: hovered ? "translateY(-8px) rotate(0.6deg) scale(1.03)" : "translateY(0) rotate(0deg) scale(1)",
-    transition: "transform 170ms ease, filter 170ms ease",
+    transition: `transform ${transitions.card}, filter ${transitions.card}`,
   };
 }
 
 const deckCardImageStyle: CSSProperties = {
   width: "100%",
   height: "100%",
-  borderRadius: 8,
+  borderRadius: radius.md,
   objectFit: "contain",
   display: "block",
 };
 
 const emptyDeckStyle: CSSProperties = {
-  borderRadius: 8,
-  border: "1px dashed rgba(185, 198, 188, 0.88)",
+  borderRadius: radius.md,
+  border: borders.neutralDashed,
   background: "rgba(238, 243, 238, 0.86)",
-  color: "#000000",
+  color: colors.black,
   textShadow: "none",
   padding: 18,
   fontSize: 14,

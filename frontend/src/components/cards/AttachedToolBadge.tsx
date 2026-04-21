@@ -1,5 +1,6 @@
 import type { CSSProperties } from "react";
 import { getCard } from "../../game/engine";
+import { colors, radius, shadows } from "../../styles/shared";
 
 type AttachedToolBadgeProps = {
   toolCardId: string | null | undefined;
@@ -63,10 +64,10 @@ function toolBadgeStyle(size: NonNullable<AttachedToolBadgeProps["size"]>, varia
     overflow: "hidden",
     display: "inline-block",
     flex: "0 0 auto",
-    borderRadius: 4,
+    borderRadius: radius.sm,
     border: `${size === "md" ? 2 : 1}px solid rgba(255, 255, 255, 0.96)`,
-    background: "rgba(255, 255, 255, 0.94)",
-    boxShadow: size === "md" ? "0 6px 14px rgba(17, 24, 39, 0.28)" : "0 3px 8px rgba(17, 24, 39, 0.24)",
+    background: colors.glassOverlay,
+    boxShadow: size === "md" ? "0 6px 14px rgba(17, 24, 39, 0.28)" : shadows.md,
     pointerEvents: interactive ? "auto" : "none",
     cursor: interactive ? "pointer" : "default",
   };

@@ -5,7 +5,9 @@ import { AttachedToolBadge } from "./AttachedToolBadge";
 import { getAttachedEnergy } from "../cards/attachedEnergy";
 import { applyDragPreview, writeDragPayload } from "../drag/dragData";
 import { getUmamusumeCard } from "../../game/engine";
-import type { EnergyType, UmamusumeInstance, UmamusumeType } from "../../../../shared/src/types";
+import type { EnergyType, UmamusumeInstance } from "../../../../shared/src/types";
+import { CARD_ASPECT_RATIO, borders, colors, radius, transitions } from "../../styles/shared";
+import { alphaColor, typeAccentColors } from "../../utils/color";
 
 type UmaCardProps = {
   umamusume: UmamusumeInstance;
@@ -16,19 +18,6 @@ type UmaCardProps = {
   isDimmed?: boolean;
   abilityReady?: boolean;
   sleeveImage?: string | null | undefined;
-};
-
-const typeShadowColors: Record<UmamusumeType, string> = {
-  Grass: "rgba(123, 192, 62, 0.42)",
-  Fire: "rgba(232, 136, 90, 0.42)",
-  Water: "rgba(90, 168, 232, 0.42)",
-  Lightning: "rgba(219, 185, 74, 0.42)",
-  Psychic: "rgba(184, 130, 216, 0.42)",
-  Fighting: "rgba(184, 138, 96, 0.42)",
-  Darkness: "rgba(68, 80, 99, 0.42)",
-  Steel: "rgba(127, 140, 155, 0.42)",
-  Colorless: "rgba(167, 173, 186, 0.42)",
-  Dragon: "rgba(212, 167, 44, 0.42)",
 };
 
 export function UmaCard({
@@ -43,7 +32,7 @@ export function UmaCard({
 }: UmaCardProps) {
   const [hovered, setHovered] = useState(false);
   const card = getUmamusumeCard(umamusume);
-  const shadowColor = hidden ? "rgba(17, 24, 39, 0.24)" : typeShadowColors[card.type];
+  const shadowColor = hidden ? "rgba(17, 24, 39, 0.24)" : alphaColor(typeAccentColors[card.type], 0.42);
   const activeHover = hovered && !hidden && !isDimmed;
 
   return (
@@ -53,10 +42,10 @@ export function UmaCard({
         position: "relative",
         width: "100%",
         maxWidth: 420,
-        aspectRatio: "745 / 1040",
+        aspectRatio: CARD_ASPECT_RATIO,
         padding: 0,
         border: 0,
-        borderRadius: 8,
+        borderRadius: radius.md,
         background: "transparent",
         cursor: "pointer",
         opacity: isDimmed ? 0.45 : 1,
@@ -66,7 +55,7 @@ export function UmaCard({
             ? `drop-shadow(0 34px 52px ${shadowColor}) saturate(1.06)`
             : `drop-shadow(0 28px 42px ${shadowColor})`,
         transform: hidden ? "none" : activeHover ? "translateY(-10px) rotate(0.8deg) scale(1.025)" : "translateY(0) rotate(0deg) scale(1)",
-        transition: "opacity 160ms ease, transform 180ms ease, filter 180ms ease",
+        transition: `opacity ${transitions.board}, transform ${transitions.slow}, filter ${transitions.slow}`,
       }}
       onMouseEnter={() => {
         if (!hidden && !isDimmed) setHovered(true);
@@ -84,7 +73,7 @@ export function UmaCard({
       ) : (
         <>
           <img
-            style={{ width: "100%", height: "100%", borderRadius: 8, objectFit: "contain", display: "block" }}
+            style={umaCardImageStyle}
             src={card.portrait}
             alt={card.name}
           />
@@ -196,12 +185,12 @@ export function AttachedEnergyPips({
             marginLeft: index === 0 ? 0 : -7,
             display: "grid",
             placeItems: "center",
-            borderRadius: "50%",
-            border: "1px solid rgba(217, 225, 218, 0.9)",
+            borderRadius: radius.circle,
+            border: borders.glass,
             background: "rgba(238, 243, 238, 0.74)",
             boxShadow: "0 8px 16px rgba(17, 24, 39, 0.22)",
             cursor: draggableEnergyTypes?.has(type) ? "grab" : "default",
-            animation: shouldAnimate ? `energy-pip-appear 280ms cubic-bezier(0.2, 0.8, 0.2, 1) ${index * 28}ms both` : undefined,
+            animation: shouldAnimate ? `energy-pip-appear 280ms ${transitions.spring} ${index * 28}ms both` : undefined,
           }}
         >
           <EnergyIcon type={type} size={iconSize} />
@@ -228,10 +217,10 @@ function hiddenCardStyle(fontSize: number): CSSProperties {
     placeItems: "center",
     position: "relative",
     overflow: "hidden",
-    borderRadius: 8,
+    borderRadius: radius.md,
     border: "1px solid rgba(23, 33, 28, 0.2)",
     background: "linear-gradient(180deg, #26312d 0%, #17211c 100%)",
-    color: "#ffffff",
+    color: colors.white,
     fontSize,
     fontWeight: 950,
     letterSpacing: 0.3,
@@ -244,5 +233,13 @@ const hiddenSleeveImageStyle: CSSProperties = {
   width: "112%",
   height: "112%",
   objectFit: "cover",
+  display: "block",
+};
+
+const umaCardImageStyle: CSSProperties = {
+  width: "100%",
+  height: "100%",
+  borderRadius: radius.md,
+  objectFit: "contain",
   display: "block",
 };

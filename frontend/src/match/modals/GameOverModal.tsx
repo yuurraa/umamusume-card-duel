@@ -1,7 +1,7 @@
 import type { CSSProperties } from "react";
 import type { GameState } from "../../../../shared/src/types";
 import { NeutralButton } from "../../components/buttons/NeutralButton";
-import { overlayBackdropStyle, overlaySurfaceStyle, previewKickerStyle } from "../../styles/shared";
+import { colors, overlayBackdropStyle, overlaySurfaceStyle, previewKickerStyle, radius } from "../../styles/shared";
 
 export function GameOverModal({ game, onPlayAgain, onMainMenu }: { game: GameState; onPlayAgain: () => void; onMainMenu: () => void }) {
   const playerWon = game.winner === "player";
@@ -59,7 +59,7 @@ function gameOverShellStyle(playerWon: boolean): CSSProperties {
     textAlign: "center",
     border: `1px solid ${hue.border}`,
     background: `linear-gradient(180deg, ${hue.top} 0%, ${hue.bottom} 100%)`,
-    color: "#000000",
+    color: colors.black,
     textShadow: "none",
     boxShadow: `0 26px 80px ${hue.glow}, 0 22px 68px rgba(17, 24, 39, 0.2)`,
   };
@@ -69,10 +69,10 @@ function resultBadgeStyle(playerWon: boolean): CSSProperties {
   return {
     width: "max-content",
     margin: "0 auto 10px",
-    borderRadius: 999,
+    borderRadius: radius.pill,
     border: "1px solid rgba(0, 0, 0, 0.2)",
     background: playerWon ? "rgba(134, 239, 172, 0.68)" : "rgba(252, 165, 165, 0.68)",
-    color: "#000000",
+    color: colors.black,
     textShadow: "none",
     padding: "6px 12px",
     fontSize: 12,
@@ -83,7 +83,7 @@ function resultBadgeStyle(playerWon: boolean): CSSProperties {
 
 const gameOverTitleStyle: CSSProperties = {
   margin: "4px 0 0",
-  color: "#000000",
+  color: colors.black,
   textShadow: "none",
   fontSize: 34,
   lineHeight: 1,
@@ -92,13 +92,13 @@ const gameOverTitleStyle: CSSProperties = {
 
 const gameOverKickerStyle: CSSProperties = {
   ...previewKickerStyle,
-  color: "#000000",
+  color: colors.black,
   textShadow: "none",
 };
 
 const gameOverBodyStyle: CSSProperties = {
   margin: "12px 0 0",
-  color: "#000000",
+  color: colors.black,
   textShadow: "none",
   fontSize: 14,
   lineHeight: 1.4,
@@ -114,7 +114,7 @@ const gameOverScoreRowStyle: CSSProperties = {
 
 function scoreSummaryStyle(highlighted: boolean): CSSProperties {
   return {
-    borderRadius: 8,
+    borderRadius: radius.md,
     border: highlighted ? "2px solid rgba(0, 0, 0, 0.34)" : "1px solid rgba(0, 0, 0, 0.14)",
     background: highlighted ? "rgba(255, 255, 255, 0.32)" : "rgba(238, 243, 238, 0.52)",
     padding: highlighted ? 11 : 12,
@@ -123,7 +123,7 @@ function scoreSummaryStyle(highlighted: boolean): CSSProperties {
 
 const scoreSummaryLabelStyle: CSSProperties = {
   display: "block",
-  color: "#000000",
+  color: colors.black,
   textShadow: "none",
   fontSize: 11,
   fontWeight: 900,
@@ -133,7 +133,7 @@ const scoreSummaryLabelStyle: CSSProperties = {
 const scoreSummaryPointsStyle: CSSProperties = {
   display: "block",
   marginTop: 4,
-  color: "#000000",
+  color: colors.black,
   textShadow: "none",
   fontSize: 26,
   lineHeight: 1,

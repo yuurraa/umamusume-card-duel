@@ -1,4 +1,5 @@
 import type { CSSProperties } from "react";
+import { colors, radius } from "../../styles/shared";
 
 type AbilityReadyBadgeProps = {
   corner?: "topLeft" | "topRight";
@@ -28,7 +29,7 @@ function badgeStyle(corner: NonNullable<AbilityReadyBadgeProps["corner"]>, pixel
     height: pixels,
     display: "grid",
     placeItems: "center",
-    borderRadius: "50%",
+    borderRadius: radius.circle,
     border: "2px solid rgba(255, 255, 255, 0.9)",
     background: "linear-gradient(145deg, #ffd66b 0%, #d80f43 58%, #7f1027 100%)",
     boxShadow: "0 0 0 3px rgba(216, 15, 67, 0.24), 0 0 20px rgba(255, 214, 107, 0.52), 0 8px 16px rgba(17, 24, 39, 0.24)",
@@ -44,7 +45,7 @@ function sparkStyle(pixels: number): CSSProperties {
     width: inner,
     height: inner,
     display: "block",
-    background: "#ffffff",
+    background: colors.white,
     clipPath: "polygon(50% 0, 62% 35%, 100% 50%, 62% 65%, 50% 100%, 38% 65%, 0 50%, 38% 35%)",
     filter: "drop-shadow(0 0 5px rgba(255, 255, 255, 0.9))",
   };

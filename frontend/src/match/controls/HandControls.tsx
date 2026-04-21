@@ -4,8 +4,8 @@ import { energyLabel } from "../../game/engine";
 import { applyDragPreview, writeDragPayload } from "../../components/drag/dragData";
 import { EnergyIcon } from "../../components/cards/EnergyIcon";
 import { NeutralButton } from "../../components/buttons/NeutralButton";
-import { attackButtonStyle } from "../../styles/shared";
-import { alphaColor } from "../../utils/color";
+import { attackButtonStyle, borders, colors, radius, shadows, transitions } from "../../styles/shared";
+import { alphaColor, abilityRuby, energyAccentColors } from "../../utils/color";
 
 export function PlayHandHeader({
   canAttach,
@@ -184,10 +184,10 @@ const turnCounterStyle: CSSProperties = {
   minWidth: 88,
   height: 32,
   padding: "0 12px",
-  borderRadius: 999,
+  borderRadius: radius.pill,
   border: "1px solid rgba(217, 225, 218, 0.86)",
   background: "rgba(238, 243, 238, 0.86)",
-  color: "#000000",
+  color: colors.black,
   textShadow: "none",
   fontSize: 13,
   fontWeight: 900,
@@ -228,11 +228,11 @@ function menuButtonStyle(active: boolean, hovered: boolean): CSSProperties {
     borderRadius: "50%",
     border: ringBorder,
     background: ringBackground,
-    color: active ? "#ffffff" : "#000000",
+    color: active ? colors.white : colors.black,
     cursor: "pointer",
     boxShadow: ringShadow,
     transform: hovered ? "translateY(-1px)" : undefined,
-    transition: "background 140ms ease, border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease",
+    transition: `background ${transitions.base}, border-color ${transitions.base}, box-shadow ${transitions.base}, transform ${transitions.base}`,
     padding: 0,
   };
 }
@@ -240,7 +240,7 @@ function menuButtonStyle(active: boolean, hovered: boolean): CSSProperties {
 const hamburgerLineStyle: CSSProperties = {
   width: 15,
   height: 2,
-  borderRadius: 999,
+  borderRadius: radius.pill,
   background: "currentColor",
   color: "inherit",
   display: "block",
@@ -254,10 +254,10 @@ function battleMenuStyle(placement: "top-start" | "top-end"): CSSProperties {
     zIndex: 20,
     width: 360,
     maxWidth: "calc(100vw - 48px)",
-    borderRadius: 8,
+    borderRadius: radius.md,
     border: "1px solid rgba(217, 225, 218, 0.86)",
     background: "rgba(238, 243, 238, 0.86)",
-    color: "#000000",
+    color: colors.black,
     textShadow: "none",
     boxShadow: "0 24px 70px rgba(17, 24, 39, 0.18)",
     padding: 12,
@@ -274,7 +274,7 @@ const battleMenuHeaderStyle: CSSProperties = {
 const battleMenuTitleStyle: CSSProperties = {
   display: "block",
   marginTop: 2,
-  color: "#000000",
+  color: colors.black,
   textShadow: "none",
   fontSize: 18,
   lineHeight: 1.1,
@@ -282,7 +282,7 @@ const battleMenuTitleStyle: CSSProperties = {
 };
 
 const battleMenuKickerStyle: CSSProperties = {
-  color: "#000000",
+  color: colors.black,
   textShadow: "none",
   fontSize: 11,
   fontWeight: 900,
@@ -310,10 +310,10 @@ const battleLogListStyle: CSSProperties = {
 
 function battleLogEntryStyle(index: number): CSSProperties {
   return {
-    borderRadius: 8,
+    borderRadius: radius.md,
     border: "1px solid rgba(0, 0, 0, 0.12)",
     background: index === 0 ? "rgba(214, 81, 157, 0.1)" : "rgba(247,250,248,0.82)",
-    color: "#000000",
+    color: colors.black,
     textShadow: "none",
     padding: "8px 10px",
     fontSize: 12,
@@ -324,30 +324,17 @@ function battleLogEntryStyle(index: number): CSSProperties {
 }
 
 const battleLogEmptyStyle: CSSProperties = {
-  borderRadius: 8,
-  border: "1px dashed rgba(185, 198, 188, 0.88)",
-  color: "#000000",
+  borderRadius: radius.md,
+  border: borders.neutralDashed,
+  color: colors.black,
   textShadow: "none",
   padding: 12,
   fontSize: 12,
   fontWeight: 850,
 };
 
-const energyGlowColors: Record<EnergyType, string> = {
-  grass: "#63b65f",
-  fire: "#ef7a3d",
-  water: "#4c93f0",
-  lightning: "#e6b93d",
-  psychic: "#d6519d",
-  fighting: "#b26a4a",
-  darkness: "#374151",
-  steel: "#94a3b8",
-  colorless: "#a7adba",
-  dragon: "#d4a72c",
-};
-
 function energyTokenStyle(enabled: boolean, energyType: EnergyType | null, hovered: boolean, refreshing: boolean): CSSProperties {
-  const glowColor = energyType ? energyGlowColors[energyType] : null;
+  const glowColor = energyType ? energyAccentColors[energyType] : null;
   const borderColor = glowColor
     ? alphaColor(glowColor, refreshing ? 0.58 : hovered ? 0.52 : 0.34)
     : "rgba(217, 225, 218, 0.82)";
@@ -365,22 +352,22 @@ function energyTokenStyle(enabled: boolean, energyType: EnergyType | null, hover
     height: 42,
     display: "grid",
     placeItems: "center",
-    borderRadius: "50%",
+    borderRadius: radius.circle,
     border: `1px solid ${borderColor}`,
     background: "rgba(238, 243, 238, 0.82)",
-    color: "#000000",
+    color: colors.black,
     textShadow: "none",
     boxShadow: tokenShadow,
     cursor: enabled ? "grab" : "not-allowed",
     opacity: enabled ? 1 : 0.46,
     userSelect: "none",
     transform: refreshing || hovered ? `translateY(${translateY}px) scale(${scale})` : undefined,
-    transition: "border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease",
+    transition: `border-color ${transitions.base}, box-shadow ${transitions.base}, transform ${transitions.base}`,
   };
 }
 
 const energyTokenEmptyStyle: CSSProperties = {
-  color: "#000000",
+  color: colors.black,
   textShadow: "none",
   fontSize: 16,
   fontWeight: 900,
@@ -395,10 +382,10 @@ const energyTokenBadgeStyle: CSSProperties = {
   display: "grid",
   placeItems: "center",
   padding: "0 4px",
-  borderRadius: 999,
-  background: "#d6519d",
-  color: "#ffffff",
+  borderRadius: radius.pill,
+  background: abilityRuby,
+  color: colors.white,
   fontSize: 10,
   fontWeight: 900,
-  boxShadow: "0 6px 14px rgba(214, 81, 157, 0.28)",
+  boxShadow: shadows.sm,
 };
