@@ -20,6 +20,10 @@ export function performAttack(
   forcedCoinResult?: "heads" | "tails",
 ): void {
   const defenderId = attackerId === "player" ? "opponent" : "player";
+  const pointsBeforeAttack = {
+    attacker: state.sides[attackerId].points,
+    defender: state.sides[defenderId].points,
+  };
   const attacker = state.sides[attackerId];
   const defender = state.sides[defenderId];
   if (!attacker.active || !defender.active) return;
@@ -146,9 +150,14 @@ export function performAttack(
         if (!state.gameOver) deps.refreshContinuousEffects(state);
       }
     });
-  // TODO: when implementing simultaneous-KO tiebreak handling, keep attacker advantage in the
-  // 2-2 deciding-attack scenario (attacker reaches 3 first; Any recoil damage taken should not flip winner).
-  if (!state.gameOver && attacker.active && attacker.active.hp <= 0) {
+  const preserveAttackerWin = shouldPreserveAttackerWinOnSimultaneousKo(state, attackerId, defenderId, pointsBeforeAttack);
+  if (preserveAttackerWin && !state.gameOver) {
+    state.gameOver = true;
+    state.winner = attackerId;
+    state.currentSide = "done";
+    log(state, `${actorName(attacker)} reached 3 points and won.`);
+  }
+  if (!state.gameOver && !preserveAttackerWin && attacker.active && attacker.active.hp <= 0) {
     if (knockOutUmamusume(state, defenderId, attackerId, attacker.active, deps.choosePreferredActiveIndex, "Boxing Gloves")) {
       deps.refreshContinuousEffects(state);
     }
@@ -261,4 +270,21 @@ function isNonDamagingAttack(attack: ReturnType<typeof getPrimaryAttack>): boole
     && !attack.bonusIfTookDamageLastTurn
     && !attack.damagePerAttachedEnergy
     && !attack.damagePerUmamusumeInPlay;
+}
+
+function shouldPreserveAttackerWinOnSimultaneousKo(
+  state: GameState,
+  attackerId: SideId,
+  defenderId: SideId,
+  pointsBeforeAttack: { attacker: number; defender: number },
+): boolean {
+  const attackerAtMatchPointBefore = pointsBeforeAttack.attacker === MAX_POINTS - 1;
+  const defenderAtMatchPointBefore = pointsBeforeAttack.defender === MAX_POINTS - 1;
+  if (!attackerAtMatchPointBefore || !defenderAtMatchPointBefore) return false;
+
+  const attackerPointsAfter = state.sides[attackerId].points;
+  const defenderPointsAfter = state.sides[defenderId].points;
+  const attackerReachedMaxFirst = attackerPointsAfter >= MAX_POINTS && pointsBeforeAttack.attacker < MAX_POINTS;
+  const defenderHadNotReachedMaxBeforeResolution = defenderPointsAfter < MAX_POINTS;
+  return attackerReachedMaxFirst && defenderHadNotReachedMaxBeforeResolution;
 }
