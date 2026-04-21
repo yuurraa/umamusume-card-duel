@@ -3,6 +3,7 @@ import type { AppScreen, MatchMode } from "../types/ui";
 import { MainMenuScreen } from "../screens/MainMenuScreen";
 import { MatchModeScreen } from "../screens/MatchModeScreen";
 import { DeckBrowserScreen } from "../screens/DeckBrowserScreen";
+import { CardBrowserScreen } from "../screens/CardBrowserScreen";
 import { CustomisationScreen } from "../screens/CustomisationScreen";
 import type { PremadeDeck } from "../types/ui";
 import type { CustomisationSettings } from "../utils/customisation";
@@ -46,6 +47,7 @@ export function renderNonMatchScreen(props: NonMatchScreenProps): JSX.Element | 
           equippedDeck={equippedDeck}
           onPlay={playEquippedDeck}
           onOpenDecks={() => navigateToScreen("decks")}
+          onOpenCards={() => navigateToScreen("cards")}
           onOpenCustomisation={() => navigateToScreen("customisation")}
           onQuit={quitApp}
         />
@@ -88,6 +90,15 @@ export function renderNonMatchScreen(props: NonMatchScreenProps): JSX.Element | 
           onChange={setCustomisation}
           onBack={() => navigateToScreen("mainMenu")}
         />
+        <div style={screenFadeOverlayStyle(screenFadeOverlayOpacity)} />
+      </main>
+    );
+  }
+
+  if (screen === "cards") {
+    return (
+      <main style={appStyle(false, selectedPlaymatImage, uiTextTone)}>
+        <CardBrowserScreen onBack={() => navigateToScreen("mainMenu")} />
         <div style={screenFadeOverlayStyle(screenFadeOverlayOpacity)} />
       </main>
     );

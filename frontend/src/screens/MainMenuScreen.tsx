@@ -8,12 +8,14 @@ export function MainMenuScreen({
   equippedDeck,
   onPlay,
   onOpenDecks,
+  onOpenCards,
   onOpenCustomisation,
   onQuit,
 }: {
   equippedDeck: PremadeDeck;
   onPlay: () => void;
   onOpenDecks: () => void;
+  onOpenCards: () => void;
   onOpenCustomisation: () => void;
   onQuit: () => void;
 }) {
@@ -29,6 +31,7 @@ export function MainMenuScreen({
           <div style={menuButtonColumnStyle}>
             <NeutralButton style={menuPrimaryButtonStyle} onClick={onPlay}>Play</NeutralButton>
             <NeutralButton style={menuPrimaryButtonStyle} onClick={onOpenDecks}>Decks</NeutralButton>
+            <NeutralButton style={menuPrimaryButtonStyle} onClick={onOpenCards}>Cards</NeutralButton>
             <NeutralButton style={menuPrimaryButtonStyle} onClick={onOpenCustomisation}>Customisation</NeutralButton>
             <NeutralButton style={menuPrimaryButtonStyle} onClick={onQuit}>Quit</NeutralButton>
           </div>

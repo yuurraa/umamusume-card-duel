@@ -28,7 +28,7 @@ export type ActionNoticeSource =
   | { kind: "traineeScoutTicket" }
   | { kind: "makeDebutScout"; discardedCardName: string };
 
-export type AppScreen = "mainMenu" | "modeSelect" | "decks" | "customisation" | "match";
+export type AppScreen = "mainMenu" | "modeSelect" | "decks" | "cards" | "customisation" | "match";
 export type MatchMode = "playerVsPlayer" | "playerVsAi" | "aiVsAi";
 
 export type PreviewTone = {
