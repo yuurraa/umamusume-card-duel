@@ -8,6 +8,12 @@ export type EnergyRequirement = EnergyType | "colorless";
 export type EnergyCost = Partial<Record<EnergyRequirement, number>>;
 export type TrainerType = "supporter" | "item" | "stadium" | "tool";
 export type OpponentTurnStep = "bench" | "trainerBefore" | "evolve" | "attach" | "trainerAfter" | "attack" | "finish";
+export type PremadeDeck = {
+  id: string;
+  name: string;
+  coverCardId: string;
+  cardIds: string[];
+};
 
 export type Attack = {
   name: string;

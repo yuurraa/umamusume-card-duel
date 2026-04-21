@@ -1,5 +1,4 @@
-import type { EnergyType } from "../../../shared/src/types";
-import type { premadeDecks } from "../../../shared/src/gameData";
+import type { EnergyType, PremadeDeck as SharedPremadeDeck } from "../../../shared/src/types";
 
 export type EnergyCountMap = Partial<Record<EnergyType, number>>;
 
@@ -35,4 +34,4 @@ export type PreviewTone = {
   accent: string;
 };
 
-export type PremadeDeck = (typeof premadeDecks)[number];
+export type PremadeDeck = SharedPremadeDeck;
