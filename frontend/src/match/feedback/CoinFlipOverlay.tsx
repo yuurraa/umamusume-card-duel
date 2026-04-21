@@ -37,7 +37,7 @@ export function CoinFlipOverlay({ result, message, onContinue }: {
 
   useEffect(() => {
     if (!isSettled) return undefined;
-    setCountdown(5);
+    setCountdown(3);
     const intervalId = window.setInterval(() => {
       setCountdown((current) => {
         if (current <= 1) {

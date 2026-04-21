@@ -163,6 +163,7 @@ export function MatchBoardLayout(props: MatchBoardLayoutProps) {
               energyRefreshKey={game.turnNumber}
               energyType={nextPlayerEnergy}
               extraCount={playerExtraEnergyCount}
+              turnNumber={game.turnNumber}
               canEndTurn={canEndTurn}
               onEndTurn={onEndTurn}
               menuOpen={menuOpen}

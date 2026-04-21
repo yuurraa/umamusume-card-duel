@@ -15,7 +15,7 @@ export function actorPossessive(side: SideState): string {
 }
 
 export function actorLowerPossessive(side: SideState): string {
-  return side.id === "player" ? "your" : "their";
+  return side.id === "player" ? "your" : "opponent's";
 }
 
 export function stageName(stage: number): string {

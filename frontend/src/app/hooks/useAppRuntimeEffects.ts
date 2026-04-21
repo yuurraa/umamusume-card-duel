@@ -188,8 +188,16 @@ export function useAppRuntimeEffects({
     if (!isAiVsAi || game.phase !== "setup" || game.gameOver || isTurnFlowBlocked) return;
     const setup = chooseAiSetupSelection(game);
     if (!setup) return;
-    setGame((current) => completePregameSetup(current, setup.activeIndex, setup.benchIndexes));
-  }, [game, isAiVsAi, isTurnFlowBlocked, setGame]);
+    setSetupActiveIndex(setup.activeIndex);
+    setSetupBenchIndexes(setup.benchIndexes);
+    const timeoutId = window.setTimeout(() => {
+      setGame((current) => {
+        if (current.phase !== "setup" || current.gameOver) return current;
+        return completePregameSetup(current, setup.activeIndex, setup.benchIndexes);
+      });
+    }, 1500);
+    return () => window.clearTimeout(timeoutId);
+  }, [game, isAiVsAi, isTurnFlowBlocked, setGame, setSetupActiveIndex, setSetupBenchIndexes]);
 
   useEffect(() => {
     if (!isAiVsAi || !game.pendingPlayerChoice || game.gameOver) return;

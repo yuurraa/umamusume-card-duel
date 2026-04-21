@@ -12,6 +12,7 @@ export function PlayHandHeader({
   energyRefreshKey,
   energyType,
   extraCount,
+  turnNumber,
   canEndTurn,
   menuOpen,
   log,
@@ -24,6 +25,7 @@ export function PlayHandHeader({
   energyRefreshKey: number;
   energyType: EnergyType | null;
   extraCount: number;
+  turnNumber: number;
   canEndTurn: boolean;
   menuOpen: boolean;
   log: string[];
@@ -35,6 +37,7 @@ export function PlayHandHeader({
   return (
     <div style={playHandHeaderStyle}>
       <EnergyDragToken canDrag={canAttach} refreshNonce={energyRefreshKey} energyType={energyType} extraCount={extraCount} />
+      <div style={turnCounterStyle}>Turn {turnNumber}</div>
       <div style={playHandActionRowStyle}>
         <NeutralButton style={endTurnButtonStyle(canEndTurn)} disabled={!canEndTurn} onClick={onEndTurn}>
           End Turn
@@ -168,6 +171,25 @@ const playHandActionRowStyle: CSSProperties = {
   display: "flex",
   gap: 8,
   alignItems: "center",
+};
+
+const turnCounterStyle: CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  minWidth: 88,
+  height: 32,
+  padding: "0 12px",
+  borderRadius: 999,
+  border: "1px solid rgba(217, 225, 218, 0.86)",
+  background: "rgba(238, 243, 238, 0.86)",
+  color: "#000000",
+  textShadow: "none",
+  fontSize: 13,
+  fontWeight: 900,
+  letterSpacing: 0.2,
+  lineHeight: 1,
+  boxShadow: "0 8px 20px rgba(17, 24, 39, 0.08)",
 };
 
 const matchMenuControlWrapStyle: CSSProperties = {

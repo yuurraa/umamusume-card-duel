@@ -1,12 +1,12 @@
 import { MAX_BENCH, MAX_HAND } from "../../../../../../shared/src/gameData";
-import type { Card, GameState, SideState, UmamusumeCard, UmamusumeInstance } from "../../../../../../shared/src/types";
+import type { Card, GameState, SideId, SideState, TrainerCard, UmamusumeCard, UmamusumeInstance } from "../../../../../../shared/src/types";
 import { getCard, getPrimaryAttack, getUmamusumeCard } from "../../core/catalog";
 import { hasEnoughEnergy } from "../energy";
 import { canAttack, canRetreat } from "../eligibility";
 import { hasDamagedHealingTarget } from "../trainers";
 import { getPlayableAction, getRainbowUncapEvolutionHandOptions, getRainbowUncapTargets, getToolTargets } from "../playRules";
 import { choosePreferredActiveIndex, getOpposingSide } from "../board";
-import { effectiveRetreatCost } from "../retreat";
+import { effectiveRetreatCost, retreatCost } from "../retreat";
 import { attachedEnergyCount, getAllUmamusume } from "../../core/umamusume";
 import type { PlayChoices } from "../../core/playTypes";
 import { predictAttackDamage } from "./combatUtils";
@@ -14,6 +14,7 @@ import { predictAttackDamage } from "./combatUtils";
 export function shouldAiPlayTrainer(state: GameState, side: SideState, card: Card, handIndex: number): boolean {
   if (card.kind !== "trainer") return false;
   if (!getPlayableAction(state, side, card.id).canPlay) return false;
+  if (card.trainerType === "stadium") return shouldAiPlayStadium(state, side, card);
   if (card.trainerType === "tool") return getToolTargets(side).length > 0;
   if (card.effect.gustOpponent) return getYayoiAkikawaValue(state, side) > 0;
   if (card.effect.activeAttackDamageBonus) return getAoiKiryuinBonusValue(state, side) > 0;
@@ -42,6 +43,91 @@ export function shouldAiPlayTrainer(state: GameState, side: SideState, card: Car
   }
   if (card.effect.rainbowUncapCrystal) return Boolean(getAiRainbowUncapChoice(state, side));
   return true;
+}
+
+function shouldAiPlayStadium(state: GameState, side: SideState, card: Extract<Card, { kind: "trainer" }>): boolean {
+  if (card.trainerType !== "stadium") return false;
+  const candidateValue = evaluateStadiumNetValue(state, side.id, card);
+
+  if (!state.stadium) {
+    return candidateValue >= 8;
+  }
+
+  const activeStadium = getCard(state.stadium.cardId);
+  const currentValue = activeStadium.kind === "trainer" && activeStadium.trainerType === "stadium"
+    ? evaluateStadiumNetValue(state, side.id, activeStadium)
+    : 0;
+  const improvement = candidateValue - currentValue;
+  if (improvement <= 0) return false;
+
+  if (state.stadium.owner === side.id) {
+    return candidateValue >= 8 && improvement >= 12;
+  }
+  return candidateValue >= 6 && improvement >= 4;
+}
+
+function evaluateStadiumNetValue(state: GameState, perspectiveSideId: SideId, stadium: TrainerCard): number {
+  const opponentSideId: SideId = perspectiveSideId === "player" ? "opponent" : "player";
+  const ownValue = evaluateStadiumSideValue(state, perspectiveSideId, stadium);
+  const opponentValue = evaluateStadiumSideValue(state, opponentSideId, stadium);
+  return ownValue - opponentValue;
+}
+
+function evaluateStadiumSideValue(state: GameState, sideId: SideId, stadium: TrainerCard): number {
+  const side = state.sides[sideId];
+  const opponentSideId: SideId = sideId === "player" ? "opponent" : "player";
+  const opponent = state.sides[opponentSideId];
+  let score = 0;
+
+  const retreatReduction = stadium.effect.globalRetreatCostReduction ?? 0;
+  if (retreatReduction > 0 && side.active && side.bench.length > 0) {
+    const activeRetreatCost = retreatCost(getUmamusumeCard(side.active).retreat);
+    const retreatRelief = Math.min(retreatReduction, activeRetreatCost);
+    score += retreatRelief * 14;
+    if (!canRetreat(state, side) && attachedEnergyCount(side.active) + retreatReduction >= effectiveRetreatCost(state, side)) {
+      score += 36;
+    }
+  }
+
+  const basicHpBonus = stadium.effect.basicHpBonus ?? 0;
+  if (basicHpBonus > 0) {
+    score += countBasicsInPlay(side) * basicHpBonus * 0.7;
+  }
+
+  if (stadium.effect.shuffleHandIntoDeckDraw) {
+    score += scoreShuffleHandIntoDeckDrawValue(state, side);
+  }
+
+  if (stadium.effect.disableTools) {
+    score += countToolsInPlay(opponent) * 22;
+    score -= countToolsInPlay(side) * 18;
+  }
+
+  return score;
+}
+
+function countBasicsInPlay(side: SideState): number {
+  return getAllUmamusume(side).reduce((count, umamusume) => {
+    const card = getUmamusumeCard(umamusume);
+    return count + (card.stage === 0 ? 1 : 0);
+  }, 0);
+}
+
+function countToolsInPlay(side: SideState): number {
+  return getAllUmamusume(side).reduce((count, umamusume) => count + (umamusume.toolCardId ? 1 : 0), 0);
+}
+
+function scoreShuffleHandIntoDeckDrawValue(state: GameState, side: SideState): number {
+  const handSizeScore = side.hand.length <= 1
+    ? 34
+    : side.hand.length <= 3
+      ? 22
+      : side.hand.length <= 5
+        ? 12
+        : 4;
+  const attackPenalty = canAttack(state, side) ? 0.45 : 1;
+  const alreadyUsedPenalty = side.usedStadiumThisTurn ? 0.35 : 1;
+  return handSizeScore * attackPenalty * alreadyUsedPenalty;
 }
 
 export function getAiTrainerChoices(state: GameState, side: SideState, card: Extract<Card, { kind: "trainer" }>, handIndex: number): PlayChoices {

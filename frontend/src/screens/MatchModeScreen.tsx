@@ -29,12 +29,11 @@ export function MatchModeScreen({
         <h1 style={titleStyle}>Choose Match Mode</h1>
         <div style={cardGridStyle}>
           {MODE_OPTIONS.map((option) => (
-            <button
+            <NeutralButton
               key={option.mode}
-              type="button"
               disabled={!option.enabled}
               onClick={() => option.enabled && onChooseMode(option.mode)}
-              style={modeCardStyle(option.enabled)}
+              style={modeOptionButtonStyle(option.enabled)}
             >
               <div style={iconRowStyle}>
                 {option.mode === "playerVsPlayer" && (
@@ -61,7 +60,7 @@ export function MatchModeScreen({
               </div>
               <strong style={cardTitleStyle}>{option.title}</strong>
               <span style={cardSubtitleStyle}>{option.subtitle}</span>
-            </button>
+            </NeutralButton>
           ))}
         </div>
         <NeutralButton style={backButtonStyle} onClick={onBack}>Back</NeutralButton>
@@ -129,17 +128,13 @@ const cardGridStyle: CSSProperties = {
   gap: 10,
 };
 
-function modeCardStyle(enabled: boolean): CSSProperties {
+function modeOptionButtonStyle(enabled: boolean): CSSProperties {
   return {
+    ...backButtonStyle,
+    width: "100%",
     minHeight: 170,
     borderRadius: 10,
-    border: enabled ? "1px solid rgba(17, 24, 39, 0.5)" : "1px solid rgba(156, 163, 175, 0.6)",
-    background: enabled
-      ? "linear-gradient(180deg, rgba(248, 250, 252, 0.94) 0%, rgba(226, 232, 240, 0.88) 100%)"
-      : "linear-gradient(180deg, rgba(229, 231, 235, 0.9) 0%, rgba(209, 213, 219, 0.82) 100%)",
-    boxShadow: enabled ? "0 12px 28px rgba(15, 23, 42, 0.16)" : "none",
-    color: enabled ? "#0f172a" : "#4b5563",
-    cursor: enabled ? "pointer" : "not-allowed",
+    border: "1px solid rgba(17, 24, 39, 0.22)",
     opacity: enabled ? 1 : 0.72,
     display: "grid",
     justifyItems: "center",

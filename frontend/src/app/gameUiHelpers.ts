@@ -91,16 +91,41 @@ export function getTopActionBanner(game: GameState): { title: string; message: s
   if (game.currentSide === "player") {
     return {
       title: "Your turn",
-      message: latest?.startsWith("You ") ? latest : "Your turn.",
+      message: latest && (latest.startsWith("You ") || latest.startsWith("Your ") || latest.toLowerCase().includes("coin flip"))
+        ? latest
+        : "Your turn.",
       paused: false,
     };
   }
 
   return {
-    title: "Opponent turn",
-    message: latest && (latest.includes("Opponent") || latest.includes("coin flip")) ? latest : "Opponent planned their turn.",
+    title: "Opponent's turn",
+    message: latest && (latest.includes("Opponent") || latest.toLowerCase().includes("coin flip"))
+      ? latest
+      : describeOpponentTurnStep(game.opponentTurnStep),
     paused: false,
   };
+}
+
+function describeOpponentTurnStep(step: GameState["opponentTurnStep"]): string {
+  switch (step) {
+    case "bench":
+      return "Opponent is choosing who to bench.";
+    case "trainerBefore":
+      return "Opponent is evaluating trainer plays.";
+    case "evolve":
+      return "Opponent is checking evolutions.";
+    case "attach":
+      return "Opponent is attaching Energy.";
+    case "trainerAfter":
+      return "Opponent is finalizing trainer plays.";
+    case "attack":
+      return "Opponent is preparing an attack.";
+    case "finish":
+      return "Opponent is ending their turn.";
+    default:
+      return "Opponent is taking their turn.";
+  }
 }
 
 export function isBottomActionNotice(notice: string): boolean {

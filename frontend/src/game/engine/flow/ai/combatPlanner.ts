@@ -47,7 +47,9 @@ export function buildCombatCandidates(
     }
   }
 
-  candidates.push(scoreCandidate(state, side.id, deps, { kind: "endTurn" }, "end-turn"));
+  if (candidates.length === 0) {
+    candidates.push(scoreCandidate(state, side.id, deps, { kind: "endTurn" }, "end-turn"));
+  }
   return candidates;
 }
 
