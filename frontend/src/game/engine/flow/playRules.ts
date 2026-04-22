@@ -156,6 +156,5 @@ function hasBasicUmamusumeInDiscard(side: SideState): boolean {
 }
 
 function isSideFirstTurn(state: GameState, sideId: SideState["id"]): boolean {
-  if (sideId === state.firstPlayer) return state.turnNumber === 1;
-  return state.firstPlayer === "player" ? state.turnNumber === 1 : state.turnNumber === 2;
+  return (state.turnsTakenBySide[sideId] ?? 0) <= 1;
 }

@@ -14,6 +14,7 @@ type UseEscapeHotkeyArgs = {
   actionNotice: string | null;
   menuOpen: boolean;
   navigateToScreen: (nextScreen: AppScreen) => void;
+  onEscapeFromPvpLobby: () => void;
   setEndTurnWarningActions: Dispatch<SetStateAction<string[] | null>>;
   setPreviewTarget: Dispatch<SetStateAction<InspectTarget | null>>;
   setDiscardOpen: Dispatch<SetStateAction<boolean>>;
@@ -35,6 +36,7 @@ export function useEscapeHotkey({
   actionNotice,
   menuOpen,
   navigateToScreen,
+  onEscapeFromPvpLobby,
   setEndTurnWarningActions,
   setPreviewTarget,
   setDiscardOpen,
@@ -46,6 +48,11 @@ export function useEscapeHotkey({
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
+      if (screen === "pvpLobby") {
+        event.preventDefault();
+        onEscapeFromPvpLobby();
+        return;
+      }
       if (screen === "decks" || screen === "customisation" || screen === "modeSelect") {
         event.preventDefault();
         navigateToScreen("mainMenu");
@@ -104,6 +111,7 @@ export function useEscapeHotkey({
     actionNotice,
     menuOpen,
     navigateToScreen,
+    onEscapeFromPvpLobby,
     setEndTurnWarningActions,
     setPreviewTarget,
     setDiscardOpen,

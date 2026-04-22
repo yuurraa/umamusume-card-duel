@@ -1,11 +1,12 @@
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
 import type { GameState } from "../../../../shared/src/types";
-import { createGame, playerSurrender } from "../../game/engine";
+import { createGame } from "../../game/engine";
 import type { InspectTarget } from "../../inspect";
 import type { AppScreen, MatchMode, PendingSelection } from "../../types/ui";
 import { pickRandomOpponentDeck } from "../../utils/deck";
 import { getRandomCustomisationSettings, type CustomisationSettings } from "../../utils/customisation";
 import type { PendingCoinAttack } from "./useMatchActions";
+import type { PlayerIntent } from "../../pvp/playerIntent";
 
 export type UseAppNavigationArgs = {
   screen: AppScreen;
@@ -33,6 +34,7 @@ export type UseAppNavigationArgs = {
   setMenuOpen: Dispatch<SetStateAction<boolean>>;
   setOpponentCustomisation: Dispatch<SetStateAction<CustomisationSettings>>;
   setEndTurnWarningActions: Dispatch<SetStateAction<string[] | null>>;
+  submitPlayerIntent: (intent: PlayerIntent) => void;
 };
 
 export function useAppNavigation({
@@ -61,6 +63,7 @@ export function useAppNavigation({
   setMenuOpen,
   setOpponentCustomisation,
   setEndTurnWarningActions,
+  submitPlayerIntent,
 }: UseAppNavigationArgs) {
   const startNewGame = (mode: MatchMode = matchMode) => {
     setMatchMode(mode);
@@ -93,7 +96,11 @@ export function useAppNavigation({
   };
 
   const startWithMode = (mode: MatchMode) => {
-    if (mode === "playerVsPlayer") return;
+    if (mode === "playerVsPlayer") {
+      setMatchMode(mode);
+      navigateToScreen("pvpLobby");
+      return;
+    }
     startNewGame(mode);
     navigateToScreen("match");
   };
@@ -122,7 +129,7 @@ export function useAppNavigation({
 
   const handleSurrender = () => {
     setMenuOpen(false);
-    setGame(playerSurrender);
+    submitPlayerIntent({ type: "surrender" });
   };
 
   const cancelPendingSelection = () => {

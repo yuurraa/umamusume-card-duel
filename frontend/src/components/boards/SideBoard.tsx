@@ -113,7 +113,7 @@ export function SideBoard({
   const baseHealth = hidden
     ? <HiddenHealthBar />
     : side.active
-      ? <HealthBar key={`health-${side.active.uid}`} hp={side.active.hp} maxHp={side.active.maxHp} percent={hpPercent} color={hpColor} />
+      ? <HealthBar key={setupMode ? "health-setup-active" : `health-${side.active.uid}`} hp={side.active.hp} maxHp={side.active.maxHp} percent={hpPercent} color={hpColor} />
       : <EmptyHealthBar />;
   const health = baseHealth;
   const baseActive = side.active ? (

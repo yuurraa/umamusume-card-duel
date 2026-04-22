@@ -22,12 +22,68 @@ const app = express();
 const port = Number(process.env.PORT || 8787);
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const localDecksDir = path.join(repoRoot, "local-data", "decks");
+const PVP_SESSION_TTL_MS = 15 * 60 * 1000;
+const pvpSessions = new Map<string, PvpSession>();
 
 app.use(cors());
 app.use(express.json());
 
 app.get("/api/health", (_request, response) => {
   response.json({ ok: true });
+});
+
+app.post("/api/pvp/sessions", (request, response) => {
+  pruneExpiredPvpSessions();
+  const offer = typeof request.body?.offer === "string" ? request.body.offer.trim() : "";
+  if (!offer) {
+    response.status(400).json({ error: "Offer is required." });
+    return;
+  }
+  const code = createPvpCode();
+  const now = Date.now();
+  const expiresAt = new Date(now + PVP_SESSION_TTL_MS).toISOString();
+  pvpSessions.set(code, { code, offer, answer: null, createdAt: now, expiresAt });
+  response.status(201).json({ code, expiresAt });
+});
+
+app.get("/api/pvp/sessions/:code/offer", (request, response) => {
+  pruneExpiredPvpSessions();
+  const session = readPvpSession(request.params.code);
+  if (!session) {
+    response.status(404).json({ error: "Session not found or expired." });
+    return;
+  }
+  response.json({ offer: session.offer, expiresAt: session.expiresAt });
+});
+
+app.post("/api/pvp/sessions/:code/answer", (request, response) => {
+  pruneExpiredPvpSessions();
+  const session = readPvpSession(request.params.code);
+  if (!session) {
+    response.status(404).json({ error: "Session not found or expired." });
+    return;
+  }
+  const answer = typeof request.body?.answer === "string" ? request.body.answer.trim() : "";
+  if (!answer) {
+    response.status(400).json({ error: "Answer is required." });
+    return;
+  }
+  session.answer = answer;
+  response.json({ answer, expiresAt: session.expiresAt });
+});
+
+app.get("/api/pvp/sessions/:code/answer", (request, response) => {
+  pruneExpiredPvpSessions();
+  const session = readPvpSession(request.params.code);
+  if (!session) {
+    response.status(404).json({ error: "Session not found or expired." });
+    return;
+  }
+  if (!session.answer) {
+    response.status(202).json({ pending: true, expiresAt: session.expiresAt });
+    return;
+  }
+  response.json({ answer: session.answer, expiresAt: session.expiresAt });
 });
 
 app.get("/api/game-data", (_request, response) => {
@@ -207,4 +263,44 @@ async function getUniqueDeckId(baseDeckId: string): Promise<string> {
 
 function isNodeError(error: unknown): error is NodeJS.ErrnoException {
   return typeof error === "object" && error !== null && "code" in error;
+}
+
+type PvpSession = {
+  code: string;
+  offer: string;
+  answer: string | null;
+  createdAt: number;
+  expiresAt: string;
+};
+
+function createPvpCode(length = 6): string {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  for (let attempts = 0; attempts < 32; attempts += 1) {
+    let code = "";
+    for (let index = 0; index < length; index += 1) {
+      const randomIndex = Math.floor(Math.random() * alphabet.length);
+      code += alphabet[randomIndex] ?? "A";
+    }
+    if (!pvpSessions.has(code)) return code;
+  }
+  throw new Error("Unable to allocate a PvP code. Please try again.");
+}
+
+function readPvpSession(rawCode: string | undefined): PvpSession | null {
+  const code = normalizePvpCode(rawCode);
+  if (!code) return null;
+  const session = pvpSessions.get(code);
+  return session ?? null;
+}
+
+function normalizePvpCode(code: string | undefined): string {
+  return (code ?? "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+}
+
+function pruneExpiredPvpSessions(): void {
+  const now = Date.now();
+  for (const [code, session] of pvpSessions.entries()) {
+    if (session.createdAt + PVP_SESSION_TTL_MS > now) continue;
+    pvpSessions.delete(code);
+  }
 }

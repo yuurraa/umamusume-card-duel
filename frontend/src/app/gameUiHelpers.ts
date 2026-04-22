@@ -70,14 +70,15 @@ export function getKoCauseFromEntries(newEntries: string[], koEntry: string): st
 }
 
 export function formatKoActionNotice(koEntry: string, koCause: string | null): string {
-  const normalizedEntry = koEntry.endsWith(".") ? koEntry.slice(0, -1) : koEntry;
+  const normalizedEntry = koEntry.endsWith(".") ? koEntry : `${koEntry}.`;
   return koCause
-    ? `KO | ${normalizedEntry} | Cause: ${koCause}`
+    ? `KO | ${normalizedEntry} | Cause: ${koCause}.`
     : `KO | ${normalizedEntry}`;
 }
 
 export function getTopActionBanner(game: GameState): { title: string; message: string; paused: boolean } | null {
-  if (game.phase !== "play" || game.gameOver) return null;
+  if (game.gameOver) return null;
+  if (game.phase !== "play") return null;
 
   if (game.pendingPlayerChoice && game.currentSide === "opponent") {
     return {

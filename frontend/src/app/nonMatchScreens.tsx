@@ -5,6 +5,7 @@ import { MatchModeScreen } from "../screens/MatchModeScreen";
 import { DeckBrowserScreen } from "../screens/DeckBrowserScreen";
 import { CardBrowserScreen } from "../screens/CardBrowserScreen";
 import { CustomisationScreen } from "../screens/CustomisationScreen";
+import { type PvpRole, PvpLobbyScreen } from "../screens/PvpLobbyScreen";
 import type { PremadeDeck } from "../types/ui";
 import type { CustomisationSettings } from "../utils/customisation";
 import { appStyle, screenFadeOverlayStyle } from "./styles";
@@ -22,6 +23,17 @@ type NonMatchScreenProps = {
   startWithMode: (mode: MatchMode) => void;
   playEquippedDeck: () => void;
   quitApp: () => void;
+  pvpRole: PvpRole | null;
+  pvpStatusDetail: string;
+  pvpLocalSignal: string;
+  pvpRemoteSignal: string;
+  pvpConnected: boolean;
+  onPvpSetRole: (role: PvpRole) => void;
+  onPvpCreateOffer: () => void;
+  onPvpJoinWithOffer: () => void;
+  onPvpRemoteSignalChange: (value: string) => void;
+  onPvpCopyLocalSignal: () => void;
+  onPvpClear: () => void;
 };
 
 export function renderNonMatchScreen(props: NonMatchScreenProps): JSX.Element | null {
@@ -38,6 +50,17 @@ export function renderNonMatchScreen(props: NonMatchScreenProps): JSX.Element | 
     startWithMode,
     playEquippedDeck,
     quitApp,
+    pvpRole,
+    pvpStatusDetail,
+    pvpLocalSignal,
+    pvpRemoteSignal,
+    pvpConnected,
+    onPvpSetRole,
+    onPvpCreateOffer,
+    onPvpJoinWithOffer,
+    onPvpRemoteSignalChange,
+    onPvpCopyLocalSignal,
+    onPvpClear,
   } = props;
 
   if (screen === "mainMenu") {
@@ -62,6 +85,35 @@ export function renderNonMatchScreen(props: NonMatchScreenProps): JSX.Element | 
         <MatchModeScreen
           onBack={() => navigateToScreen("mainMenu")}
           onChooseMode={startWithMode}
+        />
+        <div style={screenFadeOverlayStyle(screenFadeOverlayOpacity)} />
+      </main>
+    );
+  }
+
+  if (screen === "pvpLobby") {
+    return (
+      <main style={appStyle(true, selectedPlaymatImage, uiTextTone)}>
+        <PvpLobbyScreen
+          role={pvpRole}
+          statusDetail={pvpStatusDetail}
+          localSignal={pvpLocalSignal}
+          remoteSignal={pvpRemoteSignal}
+          connected={pvpConnected}
+          onBack={() => {
+            if (pvpRole) {
+              onPvpClear();
+              return;
+            }
+            onPvpClear();
+            navigateToScreen("modeSelect");
+          }}
+          onSetRole={onPvpSetRole}
+          onCreateOffer={onPvpCreateOffer}
+          onJoinWithOffer={onPvpJoinWithOffer}
+          onRemoteSignalChange={onPvpRemoteSignalChange}
+          onCopyLocalSignal={onPvpCopyLocalSignal}
+          onClear={onPvpClear}
         />
         <div style={screenFadeOverlayStyle(screenFadeOverlayOpacity)} />
       </main>

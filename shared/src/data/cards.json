@@ -65,7 +65,8 @@
         {
           "name": "Bad Luck, Dispel!",
           "cost": {
-            "psychic": 2
+            "psychic": 1,
+            "colorless": 1
           },
           "damage": 40,
           "coinBonus": 20,

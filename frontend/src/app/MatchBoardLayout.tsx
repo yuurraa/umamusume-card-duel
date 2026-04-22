@@ -48,6 +48,8 @@ type MatchBoardLayoutProps = {
   nextPlayerEnergy: EnergyType | null;
   playerExtraEnergyCount: number;
   canEndTurn: boolean;
+  turnLabel?: string | undefined;
+  turnAlert?: boolean | undefined;
   onEndTurn: () => void;
   selectableHandIndexes: Set<number> | undefined;
   onChooseHandCard: (handIndex: number) => void;
@@ -94,6 +96,8 @@ export function MatchBoardLayout(props: MatchBoardLayoutProps) {
     nextPlayerEnergy,
     playerExtraEnergyCount,
     canEndTurn,
+    turnLabel,
+    turnAlert,
     onEndTurn,
     selectableHandIndexes,
     onChooseHandCard,
@@ -174,6 +178,8 @@ export function MatchBoardLayout(props: MatchBoardLayoutProps) {
               energyType={nextPlayerEnergy}
               extraCount={playerExtraEnergyCount}
               turnNumber={game.turnNumber}
+              turnLabel={turnLabel}
+              turnAlert={turnAlert}
               canEndTurn={canEndTurn}
               onEndTurn={onEndTurn}
               menuOpen={menuOpen}

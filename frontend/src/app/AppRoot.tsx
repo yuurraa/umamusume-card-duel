@@ -1,7 +1,10 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   canAttachEnergy,
   createGame,
+  opponentAbandonedMatch,
+  tickSetupCountdown,
+  timeoutEndTurn,
 } from "../game/engine";
 import type { InspectTarget } from "../inspect";
 import type { AppScreen, MatchMode, PendingSelection } from "../types/ui";
@@ -48,6 +51,12 @@ import { useAppNavigation } from "./hooks/useAppNavigation";
 import { useAppRuntimeEffects } from "./hooks/useAppRuntimeEffects";
 import { useMatchUiActions } from "./hooks/useMatchUiActions";
 import { useMatchModalActions } from "./hooks/useMatchModalActions";
+import { applyPlayerIntent, type PlayerIntent } from "../pvp/playerIntent";
+import { mirrorGameState, mirrorGameStateForGuest } from "../pvp/stateMirror";
+import { PeerRuntime } from "../pvp/peer";
+import type { PvpWireMessage } from "../pvp/protocol";
+import type { PvpRole } from "../screens/PvpLobbyScreen";
+import { createPvpSession, getPvpAnswer, getPvpOffer, submitPvpAnswer } from "../pvp/signalApi";
 
 export function App() {
   const [screen, setScreen] = useState<AppScreen>("mainMenu");
@@ -55,6 +64,11 @@ export function App() {
   const [screenFadeOverlayOpacity, setScreenFadeOverlayOpacity] = useState(0);
   const [equippedDeckId, setEquippedDeckId] = useState(() => readEquippedDeckId());
   const [matchMode, setMatchMode] = useState<MatchMode>("playerVsAi");
+  const [pvpRole, setPvpRole] = useState<PvpRole | null>(null);
+  const [pvpStatusDetail, setPvpStatusDetail] = useState("Pick Host or Join to begin.");
+  const [pvpLocalSignal, setPvpLocalSignal] = useState("");
+  const [pvpRemoteSignal, setPvpRemoteSignal] = useState("");
+  const [pvpConnected, setPvpConnected] = useState(false);
   const [customisation, setCustomisation] = useState<CustomisationSettings>(() => readCustomisationSettings());
   const [opponentCustomisation, setOpponentCustomisation] = useState<CustomisationSettings>(() => getRandomCustomisationSettings());
   const [game, setGame] = useState(() => {
@@ -76,10 +90,21 @@ export function App() {
   const [setupBenchIndexes, setSetupBenchIndexes] = useState<number[]>([]);
   const [menuOpen, setMenuOpen] = useState(false);
   const [opponentSetupRevealToken, setOpponentSetupRevealToken] = useState(0);
+  const [pvpTimerNowMs, setPvpTimerNowMs] = useState(() => Date.now());
+  const pvpDeadlineTurnKeyRef = useRef<string | null>(null);
   const previousLogRef = useRef<string[]>([]);
   const wasSetupCoinFlipBlockingRef = useRef(false);
   const coinFlipIdRef = useRef(1);
   const skipNextCoinLogMessageRef = useRef<string | null>(null);
+  const pvpPeerRef = useRef<PeerRuntime | null>(null);
+  const pvpAnswerPollTokenRef = useRef(0);
+  const pvpLocalCloseIntentRef = useRef(false);
+  const pvpRoleRef = useRef<PvpRole | null>(null);
+  const matchModeRef = useRef<MatchMode>("playerVsAi");
+  const screenRef = useRef<AppScreen>("mainMenu");
+  const equippedDeckCardIdsRef = useRef<string[]>([]);
+  const remoteDeckRef = useRef<string[] | null>(null);
+  const remoteNameRef = useRef<string>("Opponent");
   const equippedDeck = getDeckById(equippedDeckId);
   const selectedPlaymat = getSelectedPlaymat(customisation);
   const uiTextTone = getPlaymatTextTone(customisation);
@@ -87,7 +112,11 @@ export function App() {
   const opponentPlaymat = getSelectedPlaymat(opponentCustomisation);
   const opponentSleeve = getSelectedSleeve(opponentCustomisation);
   const isAiVsAi = matchMode === "aiVsAi";
+  const isNetworkMatch = matchMode === "playerVsPlayer";
+  const isPvpHost = isNetworkMatch && pvpRole === "host";
+  const isPvpGuest = isNetworkMatch && pvpRole === "guest";
   const player = game.sides.player;
+  const hasLocalPendingChoice = game.pendingPlayerChoice?.sideId === "player";
   const nextPlayerEnergy = player.energyZone[0] ?? null;
   const {
     activePendingSelection,
@@ -111,6 +140,8 @@ export function App() {
   } = useMatchDerivedState({
     game,
     player,
+    isNetworkMatch,
+    timerNowMs: pvpTimerNowMs,
     pendingSelection,
     setupActiveIndex,
     setupBenchIndexes,
@@ -119,6 +150,366 @@ export function App() {
     coinFlipQueue,
     acknowledgedCoinLogMessage,
   });
+
+  useEffect(() => {
+    pvpRoleRef.current = pvpRole;
+  }, [pvpRole]);
+
+  useEffect(() => {
+    matchModeRef.current = matchMode;
+  }, [matchMode]);
+
+  useEffect(() => {
+    screenRef.current = screen;
+  }, [screen]);
+
+  useEffect(() => {
+    equippedDeckCardIdsRef.current = equippedDeck.cardIds;
+  }, [equippedDeck.cardIds]);
+
+  const resetTransientMatchUi = () => {
+    previousLogRef.current = [];
+    setCoinFlipQueue([]);
+    setActiveCoinFlip(null);
+    setAcknowledgedCoinLogMessage(null);
+    setPendingCoinAttack(null);
+    skipNextCoinLogMessageRef.current = null;
+    setSetupActiveIndex(null);
+    setSetupBenchIndexes([]);
+    setPendingSelection(null);
+    setEndTurnWarningActions(null);
+    setPreviewTarget(null);
+    setSuppressEndTurnWarningForGame(false);
+    setActionNotice(null);
+    setDiscardOpen(false);
+    setMenuOpen(false);
+  };
+
+  const syncToGuest = (state: typeof game) => {
+    if (!isPvpHost) return;
+    pvpPeerRef.current?.send({ type: "sync", state });
+  };
+
+  const applyIntentForHost = (intent: PlayerIntent) => {
+    setGame((current) => {
+      const timed = current.turnDeadlineMs !== null
+        && Date.now() >= current.turnDeadlineMs
+        && !current.pendingPlayerChoice
+        && current.phase === "play"
+        && !current.gameOver
+        && current.currentSide !== "done"
+        ? timeoutEndTurn(current)
+        : current;
+      const next = applyPlayerIntent(timed, intent);
+      syncToGuest(next);
+      return next;
+    });
+  };
+
+  const handlePvpMessage = (message: PvpWireMessage) => {
+    const currentRole = pvpRoleRef.current;
+    const currentMode = matchModeRef.current;
+    const currentScreen = screenRef.current;
+    const isHostNow = currentMode === "playerVsPlayer" && currentRole === "host";
+    const isGuestNow = currentMode === "playerVsPlayer" && currentRole === "guest";
+
+    if (message.type === "hello") {
+      if (!isHostNow) return;
+      if (currentScreen !== "pvpLobby") return;
+      remoteDeckRef.current = message.deckCardIds;
+      remoteNameRef.current = message.playerName || "Opponent";
+      resetTransientMatchUi();
+      const starting = createGame(equippedDeckCardIdsRef.current, message.deckCardIds, remoteNameRef.current, "hard", true);
+      setGame(starting);
+      setMatchMode("playerVsPlayer");
+      setScreen("match");
+      setPendingScreen(null);
+      syncToGuest(starting);
+      return;
+    }
+
+    if (message.type === "sync") {
+      if (!isGuestNow) return;
+      if (currentScreen !== "match") resetTransientMatchUi();
+      setGame(mirrorGameStateForGuest(message.state));
+      setMatchMode("playerVsPlayer");
+      setScreen("match");
+      setPendingScreen(null);
+      return;
+    }
+
+    if (message.type === "intent") {
+      if (!isHostNow) return;
+      setGame((current) => {
+        const timed = current.turnDeadlineMs !== null
+          && Date.now() >= current.turnDeadlineMs
+          && !current.pendingPlayerChoice
+          && current.phase === "play"
+          && !current.gameOver
+          && current.currentSide !== "done"
+          ? timeoutEndTurn(current)
+          : current;
+        const mirrored = mirrorGameState(timed);
+        const nextMirrored = applyPlayerIntent(mirrored, message.intent);
+        const canonical = mirrorGameState(nextMirrored);
+        syncToGuest(canonical);
+        return canonical;
+      });
+    }
+  };
+
+  useEffect(() => {
+    if (!isNetworkMatch || game.phase !== "play" || game.gameOver) return;
+    const intervalId = window.setInterval(() => setPvpTimerNowMs(Date.now()), 250);
+    return () => window.clearInterval(intervalId);
+  }, [isNetworkMatch, game.phase, game.gameOver]);
+
+  useEffect(() => {
+    if (!isNetworkMatch || !isPvpHost || game.phase !== "play" || game.gameOver) return;
+    if (game.currentSide === "done") return;
+    const turnKey = `${game.turnNumber}:${game.currentSide}`;
+    if (pvpDeadlineTurnKeyRef.current === turnKey && game.turnDeadlineMs !== null) return;
+    const deadline = Date.now() + 30_000;
+    pvpDeadlineTurnKeyRef.current = turnKey;
+    setGame((current) => {
+      if (current.phase !== "play" || current.gameOver || current.currentSide === "done") return current;
+      const currentTurnKey = `${current.turnNumber}:${current.currentSide}`;
+      if (currentTurnKey !== turnKey) return current;
+      const next = { ...current, turnDeadlineMs: deadline };
+      syncToGuest(next);
+      return next;
+    });
+  }, [isNetworkMatch, isPvpHost, game.phase, game.gameOver, game.currentSide, game.turnNumber, game.turnDeadlineMs]);
+
+  useEffect(() => {
+    if (!isNetworkMatch || !isPvpHost || game.phase !== "play" || game.gameOver) return;
+    if (game.pendingPlayerChoice || game.currentSide === "done") return;
+    const deadline = game.turnDeadlineMs;
+    if (deadline === null) return;
+    const delayMs = Math.max(0, deadline - Date.now());
+    const timeoutId = window.setTimeout(() => {
+      setGame((current) => {
+        if (
+          current.phase !== "play"
+          || current.gameOver
+          || current.pendingPlayerChoice
+          || current.currentSide === "done"
+          || current.turnDeadlineMs === null
+          || Date.now() < current.turnDeadlineMs
+        ) return current;
+        const next = timeoutEndTurn(current);
+        syncToGuest(next);
+        return next;
+      });
+    }, delayMs);
+    return () => window.clearTimeout(timeoutId);
+  }, [
+    isNetworkMatch,
+    isPvpHost,
+    game.phase,
+    game.gameOver,
+    game.pendingPlayerChoice,
+    game.currentSide,
+    game.turnNumber,
+    game.turnDeadlineMs,
+  ]);
+
+  const submitPlayerIntent = (intent: PlayerIntent) => {
+    if (!isNetworkMatch) {
+      setGame((current) => applyPlayerIntent(current, intent));
+      return;
+    }
+    if (isPvpHost) {
+      applyIntentForHost(intent);
+      return;
+    }
+    if (isPvpGuest) {
+      pvpPeerRef.current?.send({ type: "intent", intent });
+    }
+  };
+
+  const ensurePeerRuntime = () => {
+    if (pvpPeerRef.current) return pvpPeerRef.current;
+    const runtime = new PeerRuntime({
+      onStatus: (status, detail) => {
+        if (status === "connected") {
+          setPvpStatusDetail("Opponent found!");
+        } else if (status === "creatingOffer" || status === "awaitingAnswer" || status === "joining" || status === "connecting") {
+          setPvpStatusDetail("Searching for opponent...");
+        } else if (status === "failed") {
+          setPvpStatusDetail(detail);
+        } else if (status === "closed") {
+          setPvpStatusDetail("Connection closed.");
+        } else {
+          setPvpStatusDetail(detail);
+        }
+        setPvpConnected(status === "connected");
+        if (status === "connected") {
+          pvpLocalCloseIntentRef.current = false;
+        }
+        if (status === "closed") {
+          setPvpLocalSignal("");
+        }
+        if (status === "closed" && !pvpLocalCloseIntentRef.current) {
+          const activeScreen = screenRef.current;
+          const activeMode = matchModeRef.current;
+          if (activeScreen === "match" && activeMode === "playerVsPlayer") {
+            setGame((current) => opponentAbandonedMatch(current));
+            setPvpStatusDetail("Opponent disconnected and forfeited.");
+          }
+        }
+      },
+      onMessage: handlePvpMessage,
+    });
+    pvpPeerRef.current = runtime;
+    return runtime;
+  };
+
+  const setPvpRoleAndReset = (role: PvpRole) => {
+    setPvpRole(role);
+    setPvpStatusDetail(role === "host" ? "Searching for opponent..." : "Waiting for code...");
+    setPvpLocalSignal("");
+    setPvpRemoteSignal("");
+    setPvpConnected(false);
+    remoteDeckRef.current = null;
+    remoteNameRef.current = "Opponent";
+    pvpAnswerPollTokenRef.current += 1;
+    pvpLocalCloseIntentRef.current = true;
+    pvpPeerRef.current?.close();
+    pvpPeerRef.current = null;
+  };
+
+  const normalizeCode = (value: string): string => value.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+
+  const createOffer = async () => {
+    try {
+      const runtime = ensurePeerRuntime();
+      const offer = await runtime.hostCreateOffer();
+      const created = await createPvpSession(offer);
+      const code = created.code.toUpperCase();
+      const pollToken = ++pvpAnswerPollTokenRef.current;
+      setPvpLocalSignal(code);
+      try {
+        await navigator.clipboard.writeText(code);
+      } catch {
+        // Ignore clipboard failures; host can still read the code from UI.
+      }
+      setPvpStatusDetail("Searching for opponent...");
+      void waitForHostAnswer(code, runtime, pollToken);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to create offer.";
+      setPvpStatusDetail(message);
+    }
+  };
+
+  const joinWithOffer = async () => {
+    if (!pvpRemoteSignal.trim()) {
+      setPvpStatusDetail("Waiting for code...");
+      return;
+    }
+    try {
+      const code = normalizeCode(pvpRemoteSignal);
+      if (!code) {
+        setPvpStatusDetail("Code is invalid.");
+        return;
+      }
+      const { offer } = await getPvpOffer(code);
+      const runtime = ensurePeerRuntime();
+      setPvpStatusDetail("Searching for opponent...");
+      const answer = await runtime.joinWithOffer(offer);
+      await submitPvpAnswer(code, answer);
+      setPvpStatusDetail("Searching for opponent...");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to join with offer.";
+      setPvpStatusDetail(message);
+    }
+  };
+
+  const copyLocalSignal = async () => {
+    if (!pvpLocalSignal) return;
+    try {
+      await navigator.clipboard.writeText(pvpLocalSignal);
+      setPvpStatusDetail("Searching for opponent...");
+    } catch {
+      setPvpStatusDetail("Copy failed. You can copy manually.");
+    }
+  };
+
+  const clearPvp = () => {
+    setPvpRole(null);
+    setPvpStatusDetail("Reset complete.");
+    setPvpLocalSignal("");
+    setPvpRemoteSignal("");
+    setPvpConnected(false);
+    remoteDeckRef.current = null;
+    remoteNameRef.current = "Opponent";
+    pvpAnswerPollTokenRef.current += 1;
+    pvpLocalCloseIntentRef.current = true;
+    pvpPeerRef.current?.close();
+    pvpPeerRef.current = null;
+  };
+
+  const waitForHostAnswer = async (code: string, runtime: PeerRuntime, token: number) => {
+    try {
+      const started = Date.now();
+      while (Date.now() - started < 120_000) {
+        if (pvpPeerRef.current !== runtime || pvpAnswerPollTokenRef.current !== token) return;
+        const answer = await getPvpAnswer(code);
+        if (answer) {
+          await runtime.hostAcceptAnswer(answer);
+          setPvpStatusDetail("Player joined. Finalizing connection...");
+          return;
+        }
+        await delay(1200);
+      }
+      setPvpStatusDetail("No one joined yet. Keep this code open or create a new one.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed while waiting for player join.";
+      setPvpStatusDetail(message);
+    }
+  };
+
+  useEffect(() => {
+    if (!pvpConnected || pvpRole !== "guest" || screen !== "pvpLobby") return;
+    const sendHello = () => {
+      const runtime = pvpPeerRef.current;
+      if (!runtime || !runtime.isConnected()) return;
+      runtime.send({ type: "hello", playerName: "Guest", deckCardIds: equippedDeck.cardIds });
+    };
+    sendHello();
+    const intervalId = window.setInterval(() => {
+      if (screenRef.current !== "pvpLobby") {
+        window.clearInterval(intervalId);
+        return;
+      }
+      if (matchModeRef.current !== "playerVsPlayer" || pvpRoleRef.current !== "guest") {
+        window.clearInterval(intervalId);
+        return;
+      }
+      sendHello();
+    }, 1200);
+    return () => window.clearInterval(intervalId);
+  }, [pvpConnected, pvpRole, equippedDeck.cardIds, screen]);
+
+  useEffect(() => {
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (matchModeRef.current !== "playerVsPlayer" || screenRef.current !== "match") return;
+      if (game.gameOver) return;
+      pvpLocalCloseIntentRef.current = true;
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [game.gameOver]);
+
+  useEffect(() => {
+    return () => {
+      pvpLocalCloseIntentRef.current = true;
+      pvpPeerRef.current?.close();
+      pvpPeerRef.current = null;
+    };
+  }, []);
 
   const {
     applySetupActive,
@@ -150,7 +541,7 @@ export function App() {
     pendingScreen,
     matchMode,
     equippedDeckCardIds: equippedDeck.cardIds,
-    hasPendingPlayerChoice: Boolean(game.pendingPlayerChoice),
+    hasPendingPlayerChoice: hasLocalPendingChoice,
     isTurnFlowBlocked,
     previousLogRef,
     skipNextCoinLogMessageRef,
@@ -171,6 +562,7 @@ export function App() {
     setMenuOpen,
     setOpponentCustomisation,
     setEndTurnWarningActions,
+    submitPlayerIntent,
   });
 
   const {
@@ -188,6 +580,7 @@ export function App() {
     setGame,
     setPendingSelection,
     setEndTurnWarningActions,
+    submitPlayerIntent,
   });
   const {
     onOpenDiscard,
@@ -201,22 +594,35 @@ export function App() {
     onPlayAgain,
   } = useMatchModalActions({
     isAiVsAi,
+    isNetworkMatch,
     pendingSelection,
-    hasPendingPlayerChoice: Boolean(game.pendingPlayerChoice),
+    hasPendingPlayerChoice: hasLocalPendingChoice,
     startNewGame,
+    navigateToScreen,
     cancelPendingSelection,
-    setGame,
     setDiscardOpen,
     setEndTurnWarningActions,
     setPreviewTarget,
     setPendingSelection,
     setActionNotice,
+    submitPlayerIntent,
   });
+
+  const advanceSetupCountdown = () => {
+    setGame((current) => {
+      const next = tickSetupCountdown(current);
+      if (isPvpHost) syncToGuest(next);
+      return next;
+    });
+  };
 
   useAppRuntimeEffects({
     game,
     player,
     isAiVsAi,
+    isNetworkMatch,
+    shouldDriveSetupCountdown: !isNetworkMatch || isPvpHost,
+    advanceSetupCountdown,
     isTurnFlowBlocked,
     isCoinFlipBlocking,
     hiddenOpponent,
@@ -250,10 +656,19 @@ export function App() {
     setCoinFlipQueue,
   });
 
+  const handleEscapeFromPvpLobby = () => {
+    if (pvpRole) {
+      clearPvp();
+      return;
+    }
+    clearPvp();
+    navigateToScreen("modeSelect");
+  };
+
   useEscapeHotkey({
     screen,
     gameOver: game.gameOver,
-    hasPendingPlayerChoice: Boolean(game.pendingPlayerChoice),
+    hasPendingPlayerChoice: hasLocalPendingChoice,
     isTurnFlowBlocked,
     endTurnWarningActions,
     previewTarget,
@@ -262,6 +677,7 @@ export function App() {
     actionNotice,
     menuOpen,
     navigateToScreen,
+    onEscapeFromPvpLobby: handleEscapeFromPvpLobby,
     setEndTurnWarningActions,
     setPreviewTarget,
     setDiscardOpen,
@@ -316,6 +732,8 @@ export function App() {
     setActiveCoinFlip,
     applyPlayerGameUpdate,
     getPendingAttackCoinFlip,
+    submitPlayerIntent,
+    isNetworkMatch,
   });
   const cardPreviewActions = useCardPreviewActions({
     game,
@@ -330,6 +748,8 @@ export function App() {
     setActiveCoinFlip,
     applyPlayerGameUpdate,
     getPendingAttackCoinFlip,
+    submitPlayerIntent,
+    isNetworkMatch,
   });
   const { handleCoinFlipContinue } = useCoinFlipResolution({
     game,
@@ -345,10 +765,18 @@ export function App() {
   });
   const canAttachInHeader = canAttachEnergy(game, player) && !isBusyWithChoice;
   const canEndTurnInHeader = !isAiVsAi && !game.gameOver && game.currentSide === "player" && !isBusyWithChoice;
-  const canSetupReady = !isAiVsAi;
+  const hasLocalSetupReady = game.phase === "setup" ? (game.setup?.readyBySide.player ?? false) : false;
+  const canSetupReady = !isAiVsAi && !hasLocalSetupReady;
   const canSurrenderInPanels = !game.gameOver && !isTurnFlowBlocked;
   const playerExtraEnergyCount = Math.max(0, player.energyZone.length - 1);
   const topBanner = getTopActionBanner(game);
+  const pvpSecondsRemaining = game.turnDeadlineMs === null
+    ? 30
+    : Math.max(0, Math.ceil((game.turnDeadlineMs - pvpTimerNowMs) / 1000));
+  const turnLabel = isNetworkMatch && game.phase === "play"
+    ? `Turn ${game.turnNumber} • ${pvpSecondsRemaining}s`
+    : undefined;
+  const turnAlert = isNetworkMatch && game.phase === "play" && game.currentSide === "player";
 
   const nonMatchScreen = renderNonMatchScreen({
     screen,
@@ -363,6 +791,17 @@ export function App() {
     startWithMode,
     playEquippedDeck,
     quitApp,
+    pvpRole,
+    pvpStatusDetail,
+    pvpLocalSignal,
+    pvpRemoteSignal,
+    pvpConnected,
+    onPvpSetRole: setPvpRoleAndReset,
+    onPvpCreateOffer: createOffer,
+    onPvpJoinWithOffer: joinWithOffer,
+    onPvpRemoteSignalChange: setPvpRemoteSignal,
+    onPvpCopyLocalSignal: copyLocalSignal,
+    onPvpClear: clearPvp,
   });
   if (nonMatchScreen) return nonMatchScreen;
 
@@ -409,6 +848,8 @@ export function App() {
         nextPlayerEnergy={nextPlayerEnergy}
         playerExtraEnergyCount={playerExtraEnergyCount}
         canEndTurn={canEndTurnInHeader}
+        turnLabel={turnLabel}
+        turnAlert={turnAlert}
         onEndTurn={handleEndTurn}
         selectableHandIndexes={selectableHandIndexes}
         onChooseHandCard={chooseHandCard}
@@ -478,4 +919,10 @@ export function App() {
       <div style={screenFadeOverlayStyle(screenFadeOverlayOpacity)} />
     </main>
   );
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
 }

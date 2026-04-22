@@ -1,8 +1,9 @@
 import type { Dispatch, SetStateAction } from "react";
 import type { GameState, SideState, EnergyType } from "../../../../shared/src/types";
 import type { ActionNoticeSource, PendingSelection } from "../../types/ui";
-import { canAttack, canAttachEnergy, playerEndTurn } from "../../game/engine";
+import { canAttack, canAttachEnergy } from "../../game/engine";
 import { RETREAT_ENERGY_ORDER } from "../gameUiHelpers";
+import type { PlayerIntent } from "../../pvp/playerIntent";
 
 type UseMatchUiActionsArgs = {
   game: GameState;
@@ -14,6 +15,7 @@ type UseMatchUiActionsArgs = {
   setGame: Dispatch<SetStateAction<GameState>>;
   setPendingSelection: Dispatch<SetStateAction<PendingSelection | null>>;
   setEndTurnWarningActions: Dispatch<SetStateAction<string[] | null>>;
+  submitPlayerIntent: (intent: PlayerIntent) => void;
 };
 
 export function useMatchUiActions({
@@ -26,6 +28,7 @@ export function useMatchUiActions({
   setGame,
   setPendingSelection,
   setEndTurnWarningActions,
+  submitPlayerIntent,
 }: UseMatchUiActionsArgs) {
   const adjustRetreatDiscard = (energyType: EnergyType, delta: 1 | -1) => {
     setPendingSelection((current) => {
@@ -67,7 +70,7 @@ export function useMatchUiActions({
       setEndTurnWarningActions(availableActions);
       return;
     }
-    setGame(playerEndTurn);
+    submitPlayerIntent({ type: "endTurn" });
   };
 
   const applyPlayerGameUpdate = (update: (state: GameState) => GameState, noticeSource?: ActionNoticeSource) => {

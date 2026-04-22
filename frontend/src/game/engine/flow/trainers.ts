@@ -101,7 +101,13 @@ export function applyTrainer(
   if (trainer.effect.searchUmamusume) searchUmamusumeFromDeck(state, side, choices.deckCardIndex, Boolean(trainer.effect.revealSearchedCard));
   if (trainer.effect.searchRandomBasicUmamusume) searchRandomBasicUmamusumeFromDeck(state, side, Boolean(trainer.effect.revealSearchedCard));
   if (trainer.effect.randomBasicUmamusumeFromDiscard) moveRandomBasicUmamusumeFromDiscardToHand(state, side);
-  if (discardedCardName) log(state, `${actorName(side)} discarded ${discardedCardName}.`);
+  if (discardedCardName) {
+    if (side.id === "player") {
+      log(state, `${actorName(side)} discarded ${discardedCardName}.`);
+    } else {
+      log(state, `${actorName(side)} discarded 1 card.`);
+    }
+  }
 }
 
 export function hasDamagedHealingTarget(side: SideState, card: TrainerCard): boolean {
@@ -158,7 +164,11 @@ function moveRandomBasicUmamusumeFromDiscardToHand(state: GameState, side: SideS
   const [cardId] = side.discard.splice(chosen.index, 1);
   if (!cardId) return;
   side.hand.push(cardId);
-  log(state, `${actorName(side)} put ${formatCardName(getCard(cardId))} from discard into ${actorLowerPossessive(side)} hand.`);
+  if (side.id === "player") {
+    log(state, `${actorName(side)} put ${formatCardName(getCard(cardId))} from discard into ${actorLowerPossessive(side)} hand.`);
+  } else {
+    log(state, `${actorName(side)} put 1 card from discard into ${actorLowerPossessive(side)} hand.`);
+  }
 }
 
 function moveDeckCardToHand(state: GameState, side: SideState, deckIndex: number, reveal = false): void {

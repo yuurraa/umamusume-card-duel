@@ -3,23 +3,17 @@ import type { EnergyType, GameState, UmamusumeInstance } from "../../../../share
 import type { InspectTarget } from "../../inspect";
 import type { ActionNoticeSource, PendingSelection } from "../../types/ui";
 import {
-  attachPlayerEnergy,
-  completePregameSetup,
   getCard,
-  getDamagedUmamusume,
   getEvolutionTargets,
   getPlayableAction,
   getPrimaryAttack,
   getRainbowUncapTargets,
   getToolTargets,
   getUmamusumeCard,
-  playHandCard,
   playerAttack,
-  playerRetreat,
-  resolvePendingPlayerChoice,
-  usePlayerAbility,
 } from "../../game/engine";
 import type { CoinFlipEvent } from "../gameUiHelpers";
+import type { PlayerIntent } from "../../pvp/playerIntent";
 
 export type PendingCoinAttack = {
   eventId: number;
@@ -46,6 +40,8 @@ type UseMatchActionsArgs = {
   setActiveCoinFlip: Dispatch<SetStateAction<CoinFlipEvent | null>>;
   applyPlayerGameUpdate: (update: (state: GameState) => GameState, noticeSource?: ActionNoticeSource) => void;
   getPendingAttackCoinFlip: (state: GameState, attackerId: "player" | "opponent", id: number) => CoinFlipEvent | null;
+  submitPlayerIntent: (intent: PlayerIntent) => void;
+  isNetworkMatch: boolean;
 };
 
 export function useMatchActions(args: UseMatchActionsArgs) {
@@ -66,6 +62,8 @@ export function useMatchActions(args: UseMatchActionsArgs) {
     setActiveCoinFlip,
     applyPlayerGameUpdate,
     getPendingAttackCoinFlip,
+    submitPlayerIntent,
+    isNetworkMatch,
   } = args;
 
   const playCard = (handIndex: number) => {
@@ -118,14 +116,14 @@ export function useMatchActions(args: UseMatchActionsArgs) {
       }
     }
     if (card.kind === "trainer" && card.effect.searchRandomBasicUmamusume) {
-      applyPlayerGameUpdate((current) => playHandCard(current, handIndex), { kind: "traineeScoutTicket" });
+      submitPlayerIntent({ type: "playHandCard", handIndex });
       return;
     }
     if (card.kind === "trainer" && card.effect.draw) {
-      applyPlayerGameUpdate((current) => playHandCard(current, handIndex), { kind: "genericGain" });
+      submitPlayerIntent({ type: "playHandCard", handIndex });
       return;
     }
-    setGame((current) => playHandCard(current, handIndex));
+    submitPlayerIntent({ type: "playHandCard", handIndex });
   };
 
   const playHandCardOnCenter = (handIndex: number) => {
@@ -153,19 +151,19 @@ export function useMatchActions(args: UseMatchActionsArgs) {
     if (!cardId || pendingSelection || game.phase !== "play" || game.pendingPlayerChoice) return;
     const card = getCard(cardId);
     if (card.kind === "umamusume" && card.stage > 0) {
-      setGame((current) => playHandCard(current, handIndex, { umamusumeTargetUid: umamusumeUid }));
+      submitPlayerIntent({ type: "playHandCard", handIndex, choices: { umamusumeTargetUid: umamusumeUid } });
       return;
     }
     if (card.kind === "trainer" && card.effect.heal) {
-      setGame((current) => playHandCard(current, handIndex, { umamusumeTargetUid: umamusumeUid }));
+      submitPlayerIntent({ type: "playHandCard", handIndex, choices: { umamusumeTargetUid: umamusumeUid } });
       return;
     }
     if (card.kind === "trainer" && card.effect.attachEnergyFromZoneToBench && player.bench.some((umamusume) => umamusume.uid === umamusumeUid)) {
-      setGame((current) => playHandCard(current, handIndex, { umamusumeTargetUid: umamusumeUid }));
+      submitPlayerIntent({ type: "playHandCard", handIndex, choices: { umamusumeTargetUid: umamusumeUid } });
       return;
     }
     if (card.kind === "trainer" && card.trainerType === "tool") {
-      setGame((current) => playHandCard(current, handIndex, { umamusumeTargetUid: umamusumeUid }));
+      submitPlayerIntent({ type: "playHandCard", handIndex, choices: { umamusumeTargetUid: umamusumeUid } });
       return;
     }
     if (card.kind === "trainer" && card.effect.rainbowUncapCrystal) {
@@ -182,21 +180,26 @@ export function useMatchActions(args: UseMatchActionsArgs) {
     if (!cardId || pendingSelection || game.phase !== "play" || game.pendingPlayerChoice) return;
     const card = getCard(cardId);
     if (card.kind === "umamusume" && card.stage === 0) {
-      setGame((current) => playHandCard(current, handIndex));
+      submitPlayerIntent({ type: "playHandCard", handIndex });
     }
   };
 
   const attachEnergyByDrop = (umamusumeUid: number) => {
     if (isTurnFlowBlocked) return;
     if (game.phase !== "play" || pendingSelection || game.pendingPlayerChoice) return;
-    setGame((current) => attachPlayerEnergy(current, umamusumeUid));
+    submitPlayerIntent({ type: "attachEnergy", umamusumeUid });
   };
 
   const moveAbilityEnergyByDrop = (sourceUmamusumeUid: number, energyType: EnergyType) => {
     if (isTurnFlowBlocked) return;
     if (game.phase !== "play" || !pendingSelection || pendingSelection.kind !== "moveEnergyAbility" || game.pendingPlayerChoice) return;
     if (!pendingSelection.energyTypes.includes(energyType)) return;
-    setGame((current) => usePlayerAbility(current, pendingSelection.abilityUmamusumeUid, sourceUmamusumeUid, energyType));
+    submitPlayerIntent({
+      type: "useAbility",
+      abilityUmamusumeUid: pendingSelection.abilityUmamusumeUid,
+      sourceUmamusumeUid,
+      selectedEnergyType: energyType,
+    });
     setPendingSelection(null);
     setPreviewTarget(null);
   };
@@ -206,16 +209,25 @@ export function useMatchActions(args: UseMatchActionsArgs) {
     if (!pendingSelection) return;
     if (!selectableHandIndexes?.has(handIndex)) return;
     if (pendingSelection.kind === "rainbowUncapEvolution") {
-      setGame((current) => playHandCard(current, pendingSelection.handIndex, {
-        umamusumeTargetUid: pendingSelection.umamusumeUid,
-        rainbowEvolutionHandIndex: handIndex,
-      }));
+      submitPlayerIntent({
+        type: "playHandCard",
+        handIndex: pendingSelection.handIndex,
+        choices: {
+          umamusumeTargetUid: pendingSelection.umamusumeUid,
+          rainbowEvolutionHandIndex: handIndex,
+        },
+      });
       setPendingSelection(null);
       setPreviewTarget(null);
       return;
     }
     if (pendingSelection.kind === "discardForAbility") {
-      setGame((current) => usePlayerAbility(current, pendingSelection.abilityUmamusumeUid, pendingSelection.abilityUmamusumeUid, undefined, handIndex));
+      submitPlayerIntent({
+        type: "useAbility",
+        abilityUmamusumeUid: pendingSelection.abilityUmamusumeUid,
+        sourceUmamusumeUid: pendingSelection.abilityUmamusumeUid,
+        discardHandIndex: handIndex,
+      });
       setPendingSelection(null);
       setPreviewTarget(null);
       return;
@@ -236,63 +248,70 @@ export function useMatchActions(args: UseMatchActionsArgs) {
   const chooseScoutDeckCard = (deckCardIndex: number) => {
     if (isTurnFlowBlocked) return;
     if (!pendingSelection || pendingSelection.kind !== "deckForScout") return;
-    applyPlayerGameUpdate(
-      (current) => playHandCard(current, pendingSelection.handIndex, {
+    submitPlayerIntent({
+      type: "playHandCard",
+      handIndex: pendingSelection.handIndex,
+      choices: {
         discardHandIndex: pendingSelection.discardHandIndex,
         deckCardIndex,
-      }),
-      { kind: "3starMakeDebutScout", discardedCardName: pendingSelection.discardedCardName },
-    );
+      },
+    });
     setPendingSelection(null);
     setPreviewTarget(null);
   };
 
   const selectUmamusume = (umamusume: UmamusumeInstance) => {
     if (isTurnFlowBlocked) return;
-    if (game.pendingPlayerChoice) {
-      setGame((current) => resolvePendingPlayerChoice(current, umamusume.uid));
+    if (game.pendingPlayerChoice?.sideId === "player") {
+      submitPlayerIntent({ type: "resolvePendingChoice", umamusumeUid: umamusume.uid });
       setPreviewTarget(null);
       return;
     }
     if (!pendingSelection) return;
     if (pendingSelection.kind === "attachEnergy") {
-      setGame((current) => attachPlayerEnergy(current, umamusume.uid));
+      submitPlayerIntent({ type: "attachEnergy", umamusumeUid: umamusume.uid });
     } else if (pendingSelection.kind === "attackHealTarget") {
-      const active = player.active;
-      const attack = active ? getPrimaryAttack(getUmamusumeCard(active)) : null;
-      const coinAttack = getPendingAttackCoinFlip(game, "player", coinFlipIdRef.current++);
-      if (coinAttack) {
-        setPendingCoinAttack({
-          eventId: coinAttack.id,
-          attackerId: "player",
-          result: coinAttack.result,
-          healTargetUid: umamusume.uid,
-        });
-        setActiveCoinFlip(coinAttack);
-      } else if (attack?.draw) {
-        applyPlayerGameUpdate((current) => playerAttack(current, undefined, umamusume.uid), { kind: "genericGain" });
+      if (isNetworkMatch) {
+        submitPlayerIntent({ type: "attack", healTargetUid: umamusume.uid });
       } else {
-        setGame((current) => playerAttack(current, undefined, umamusume.uid));
+        const active = player.active;
+        const attack = active ? getPrimaryAttack(getUmamusumeCard(active)) : null;
+        const coinAttack = getPendingAttackCoinFlip(game, "player", coinFlipIdRef.current++);
+        if (coinAttack) {
+          setPendingCoinAttack({
+            eventId: coinAttack.id,
+            attackerId: "player",
+            result: coinAttack.result,
+            healTargetUid: umamusume.uid,
+          });
+          setActiveCoinFlip(coinAttack);
+        } else if (attack?.draw) {
+          applyPlayerGameUpdate((current) => playerAttack(current, undefined, umamusume.uid), { kind: "genericGain" });
+        } else {
+          setGame((current) => playerAttack(current, undefined, umamusume.uid));
+        }
       }
     } else if (pendingSelection.kind === "attackDamageTarget") {
-      const active = player.active;
-      const attack = active ? getPrimaryAttack(getUmamusumeCard(active)) : null;
-      if (attack?.draw) {
-        applyPlayerGameUpdate((current) => playerAttack(current, umamusume.uid), { kind: "genericGain" });
+      if (isNetworkMatch) {
+        submitPlayerIntent({ type: "attack", attackTargetUid: umamusume.uid });
       } else {
-        setGame((current) => playerAttack(current, umamusume.uid));
+        const active = player.active;
+        const attack = active ? getPrimaryAttack(getUmamusumeCard(active)) : null;
+        if (attack?.draw) {
+          applyPlayerGameUpdate((current) => playerAttack(current, umamusume.uid), { kind: "genericGain" });
+        } else {
+          setGame((current) => playerAttack(current, umamusume.uid));
+        }
       }
     } else if (pendingSelection.kind === "abilityDamageTarget") {
-      setGame((current) => usePlayerAbility(
-        current,
-        pendingSelection.abilityUmamusumeUid,
-        pendingSelection.abilityUmamusumeUid,
-        undefined,
-        undefined,
-        umamusume.uid,
-      ));
+      submitPlayerIntent({
+        type: "useAbility",
+        abilityUmamusumeUid: pendingSelection.abilityUmamusumeUid,
+        sourceUmamusumeUid: pendingSelection.abilityUmamusumeUid,
+        opponentTargetUmamusumeUid: umamusume.uid,
+      });
     } else if (pendingSelection.kind === "retreatTarget") {
-      setGame((current) => playerRetreat(current, umamusume.uid, pendingSelection.discardEnergyTypes));
+      submitPlayerIntent({ type: "retreat", benchUmamusumeUid: umamusume.uid, discardEnergyTypes: pendingSelection.discardEnergyTypes });
     } else if (pendingSelection.kind === "rainbowUncapTarget") {
       setPendingSelection({ kind: "rainbowUncapEvolution", handIndex: pendingSelection.handIndex, umamusumeUid: umamusume.uid });
       setPreviewTarget(null);
@@ -303,7 +322,7 @@ export function useMatchActions(args: UseMatchActionsArgs) {
       || pendingSelection.kind === "zoneBenchAttachTarget"
       || pendingSelection.kind === "toolTarget"
     ) {
-      setGame((current) => playHandCard(current, pendingSelection.handIndex, { umamusumeTargetUid: umamusume.uid }));
+      submitPlayerIntent({ type: "playHandCard", handIndex: pendingSelection.handIndex, choices: { umamusumeTargetUid: umamusume.uid } });
     }
     setPendingSelection(null);
     setPreviewTarget(null);
@@ -312,7 +331,7 @@ export function useMatchActions(args: UseMatchActionsArgs) {
   const handleSetupReady = () => {
     if (isAiVsAi || isTurnFlowBlocked) return;
     if (setupActiveIndex === null) return;
-    setGame((current) => completePregameSetup(current, setupActiveIndex, setupBenchIndexes));
+    submitPlayerIntent({ type: "completeSetup", activeHandIndex: setupActiveIndex, benchHandIndexes: setupBenchIndexes });
   };
 
   return {

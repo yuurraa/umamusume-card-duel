@@ -51,6 +51,9 @@ export function startTurn(
   skipDraw = false,
 ): void {
   const side = state.sides[sideId];
+  const turnsTaken = state.turnsTakenBySide[sideId] ?? 0;
+  const isSideFirstTurn = turnsTaken === 0;
+  state.turnsTakenBySide[sideId] = turnsTaken + 1;
   state.currentSide = sideId;
   state.opponentTurnStep = sideId === "opponent" ? "bench" : null;
   side.energyAttachmentsThisTurn = 0;
@@ -63,7 +66,7 @@ export function startTurn(
   side.usedAbilityNamesThisTurn = [];
   prepareUmamusumeForTurn(side);
   side.energyZone = [];
-  if (!(state.turnNumber === 1 && state.firstPlayer === sideId)) {
+  if (!(isSideFirstTurn && state.firstPlayer === sideId)) {
     side.energyZone.push(rollEnergyFromPool(side.energyPool));
   }
   refreshContinuousEffects(state);
@@ -74,6 +77,6 @@ export function startTurn(
 export function endTurn(state: GameState, startTurnImpl: (state: GameState, sideId: SideId) => void): void {
   if (state.gameOver || state.currentSide === "done") return;
   const nextSide: SideId = state.currentSide === "player" ? "opponent" : "player";
-  if (nextSide === "player") state.turnNumber += 1;
+  if (nextSide === state.firstPlayer) state.turnNumber += 1;
   startTurnImpl(state, nextSide);
 }

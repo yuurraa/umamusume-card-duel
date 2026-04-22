@@ -208,12 +208,14 @@ export function knockOutUmamusume(
 
   if (!activeKnockout) return true;
 
-  if (knockedSideId === "player") {
+  if (state.humanBySide[knockedSideId]) {
+    const shouldAdvanceTurnAfterChoice = knockedSideId !== state.currentSide;
     state.pendingPlayerChoice = {
       kind: "promoteAfterKnockout",
-      resume: state.currentSide === "opponent" ? "finishOpponentTurn" : "none",
+      sideId: knockedSideId,
+      resume: shouldAdvanceTurnAfterChoice ? "finishOpponentTurn" : "none",
     };
-    log(state, "Choose your next Active Umamusume.");
+    log(state, `${actorName(defender)} must choose the next Active Umamusume.`);
     return true;
   }
 

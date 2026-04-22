@@ -3,7 +3,7 @@ import type { GameState } from "../../../../shared/src/types";
 import type { InspectTarget } from "../../inspect";
 import { Hand } from "../../components/boards/Hand";
 import { NeutralButton } from "../../components/buttons/NeutralButton";
-import { MatchMenuControl } from "../controls/HandControls";
+import { MatchMenuControl, TurnPill } from "../controls/HandControls";
 import { attackButtonStyle, uiTextColor, uiTextShadow } from "../../styles/shared";
 
 export function PregameSetupPanel({
@@ -35,12 +35,20 @@ export function PregameSetupPanel({
   onInspect: (target: InspectTarget) => void;
   sleeveImage?: string | null;
 }) {
+  const setup = game.setup;
+  const setupLabel = !setup?.readyBySide.player
+    ? "Click ready to start"
+    : (!setup.readyBySide.opponent
+      ? "Waiting for opponent..."
+      : `Starts in ${Math.max(1, setup.countdownSecondsRemaining ?? 3)}...`);
+
   return (
     <div style={pregamePanelStyle}>
       <div style={pregamePanelHeaderStyle}>
         <div>
           <h2 style={pregameTitleStyle}>Preparation Phase</h2>
         </div>
+        <TurnPill label={setupLabel} />
         <div style={pregameActionRowStyle}>
           <NeutralButton style={attackButtonStyle(activeIndex !== null && canReady)} disabled={activeIndex === null || !canReady} onClick={onReady}>Ready</NeutralButton>
           <MatchMenuControl
@@ -73,10 +81,12 @@ const pregamePanelStyle: CSSProperties = {
 };
 
 const pregamePanelHeaderStyle: CSSProperties = {
+  position: "relative",
   display: "flex",
   justifyContent: "space-between",
-  alignItems: "flex-start",
+  alignItems: "center",
   gap: 5,
+  minHeight: 44,
 };
 
 const pregameTitleStyle: CSSProperties = {

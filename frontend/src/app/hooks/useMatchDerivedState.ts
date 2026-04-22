@@ -13,6 +13,8 @@ import type { GameState } from "../../../../shared/src/types";
 type UseMatchDerivedStateArgs = {
   game: GameState;
   player: GameState["sides"]["player"];
+  isNetworkMatch: boolean;
+  timerNowMs: number;
   pendingSelection: PendingSelection | null;
   setupActiveIndex: number | null;
   setupBenchIndexes: number[];
@@ -25,6 +27,8 @@ type UseMatchDerivedStateArgs = {
 export function useMatchDerivedState({
   game,
   player,
+  isNetworkMatch,
+  timerNowMs,
   pendingSelection,
   setupActiveIndex,
   setupBenchIndexes,
@@ -33,8 +37,9 @@ export function useMatchDerivedState({
   coinFlipQueue,
   acknowledgedCoinLogMessage,
 }: UseMatchDerivedStateArgs) {
-  const activePendingSelection = game.pendingPlayerChoice
-    ? ({ kind: game.pendingPlayerChoice.kind === "switchAfterGust" ? "forceSwitchActive" : "replaceActive" } as PendingSelection)
+  const localPendingPlayerChoice = game.pendingPlayerChoice?.sideId === "player" ? game.pendingPlayerChoice : null;
+  const activePendingSelection = localPendingPlayerChoice
+    ? ({ kind: localPendingPlayerChoice.kind === "switchAfterGust" ? "forceSwitchActive" : "replaceActive" } as PendingSelection)
     : pendingSelection?.kind === "deckForScout"
       ? null
       : pendingSelection;
@@ -60,12 +65,18 @@ export function useMatchDerivedState({
     ? latestCoinFlipLog
     : null;
   const unresolvedCoinLog = latestCoinFlipMessage !== null && latestCoinFlipMessage !== acknowledgedCoinLogMessage;
-  const isBusyWithChoice = Boolean(pendingSelection || game.pendingPlayerChoice || endTurnWarningActions);
+  const isBusyWithChoice = Boolean(pendingSelection || localPendingPlayerChoice || endTurnWarningActions);
   const isCoinFlipBlocking = Boolean(activeCoinFlip || coinFlipQueue.length > 0 || unresolvedCoinLog);
-  const isTurnFlowBlocked = isCoinFlipBlocking;
+  const isPvpTimerExpiredForLocalPlayerTurn = isNetworkMatch
+    && game.phase === "play"
+    && game.currentSide === "player"
+    && typeof game.turnDeadlineMs === "number"
+    && timerNowMs >= game.turnDeadlineMs;
+  const isTurnFlowBlocked = isCoinFlipBlocking || isPvpTimerExpiredForLocalPlayerTurn;
   const hideOpponentSetupBoard = game.phase === "setup" && isCoinFlipBlocking;
   const opponentBoardHidden = hiddenOpponent && !hideOpponentSetupBoard;
-  const displayedPlayerSide = game.phase === "setup" ? createSetupPreviewSide(player, setupActiveIndex, setupBenchIndexes) : player;
+  const useSetupDraftPreview = game.phase === "setup" && !(game.setup?.readyBySide.player ?? false);
+  const displayedPlayerSide = useSetupDraftPreview ? createSetupPreviewSide(player, setupActiveIndex, setupBenchIndexes) : player;
   const displayedOpponentSide = hideOpponentSetupBoard
     ? createSetupEmptyOpponentSide(game.sides.opponent)
     : hiddenOpponent
@@ -75,7 +86,7 @@ export function useMatchDerivedState({
   const isPlayPhase = game.phase === "play";
   const showPlayerPlaymat = !isPlayPhase || game.currentSide === "player";
   const showOpponentPlaymat = isPlayPhase && game.currentSide === "opponent";
-  const setupDragHandIndexByUid = game.phase === "setup"
+  const setupDragHandIndexByUid = useSetupDraftPreview
     ? {
         ...(setupActiveIndex !== null ? { [-1]: setupActiveIndex } : {}),
         ...Object.fromEntries(setupBenchIndexes.map((handIndex, order) => [-(order + 2), handIndex])),

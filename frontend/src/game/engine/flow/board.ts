@@ -31,13 +31,14 @@ export function switchOutOpponentActive(
 ): void {
   const opponent = getOpposingSide(state, actingSideId);
   if (!opponent.active) return;
-  if (opponent.id === "player") {
+  if (state.humanBySide[opponent.id]) {
     if (opponent.bench.length === 0) return;
     state.pendingPlayerChoice = {
       kind: "switchAfterGust",
+      sideId: opponent.id,
       resume: pendingChoiceResume,
     };
-    log(state, "Choose the benched Umamusume to switch in.");
+    log(state, `${actorName(opponent)} must choose the benched Umamusume to switch in.`);
     return;
   }
   const replacementIndex = choosePreferredActiveIndex(opponent);

@@ -135,13 +135,14 @@ export type UmamusumeInstance = {
 };
 
 export type PendingPlayerChoice =
-  | { kind: "promoteAfterKnockout"; resume: "finishOpponentTurn" | "none" }
-  | { kind: "switchAfterGust"; resume: "resumeOpponentAfterFirstTrainerPass" | "resumeOpponentAfterSecondTrainerPass" | "none" };
+  | { kind: "promoteAfterKnockout"; sideId: SideId; resume: "finishOpponentTurn" | "none" }
+  | { kind: "switchAfterGust"; sideId: SideId; resume: "resumeOpponentAfterFirstTrainerPass" | "resumeOpponentAfterSecondTrainerPass" | "none" };
 
 export type SetupState = {
   coinFlipResult: CoinFlipResult;
-  opponentReady: boolean;
+  readyBySide: Record<SideId, boolean>;
   opponentRevealed: boolean;
+  countdownSecondsRemaining: number | null;
 };
 
 export type SideState = {
@@ -173,9 +174,12 @@ export type GameState = {
   currentSide: SideId | "done";
   opponentTurnStep: OpponentTurnStep | null;
   stadium: { cardId: string; owner: SideId } | null;
+  turnDeadlineMs: number | null;
   turnNumber: number;
   firstPlayer: SideId;
+  turnsTakenBySide: Record<SideId, number>;
   aiDifficulty: AiDifficulty;
+  humanBySide: Record<SideId, boolean>;
   aiDeckStyleBySide: Record<SideId, AiDeckStyle>;
   gameOver: boolean;
   winner: SideId | null;

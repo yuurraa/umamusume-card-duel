@@ -71,19 +71,24 @@ export function createGame(
   opponentDeck = opponentDeckList,
   opponentName = "Opponent",
   _aiDifficulty: AiDifficulty = "hard",
+  opponentIsHuman = false,
 ): GameState {
   resetUmamusumeIdCounter();
   const firstPlayer = Math.random() >= 0.5 ? "player" : "opponent";
   const coinFlipResult = firstPlayer === "player" ? "heads" : "tails";
   const playerOpening = buildOpeningSide("player", "You", playerDeck, false);
-  const opponentOpening = buildOpeningSide("opponent", opponentName, opponentDeck, true);
+  const opponentOpening = buildOpeningSide("opponent", opponentName, opponentDeck, !opponentIsHuman);
 
   const state: GameState = {
     phase: "setup",
     setup: {
       coinFlipResult,
-      opponentReady: true,
+      readyBySide: {
+        player: false,
+        opponent: !opponentIsHuman,
+      },
       opponentRevealed: false,
+      countdownSecondsRemaining: null,
     },
     pendingPlayerChoice: null,
     sides: {
@@ -93,9 +98,18 @@ export function createGame(
     currentSide: firstPlayer,
     opponentTurnStep: null,
     stadium: null,
+    turnDeadlineMs: null,
     turnNumber: 1,
     firstPlayer,
+    turnsTakenBySide: {
+      player: 0,
+      opponent: 0,
+    },
     aiDifficulty: "hard",
+    humanBySide: {
+      player: true,
+      opponent: opponentIsHuman,
+    },
     aiDeckStyleBySide: {
       player: inferDeckStyle(playerDeck),
       opponent: inferDeckStyle(opponentDeck, opponentName),
@@ -201,6 +215,14 @@ export function playerEndTurn(state: GameState): GameState {
   return next;
 }
 
+export function timeoutEndTurn(state: GameState): GameState {
+  if (state.phase !== "play" || state.gameOver || state.pendingPlayerChoice) return state;
+  if (state.currentSide !== "player" && state.currentSide !== "opponent") return state;
+  const next = cloneGame(state);
+  advanceToNextTurn(next);
+  return next;
+}
+
 export function playerUseStadium(state: GameState): GameState {
   const next = cloneGame(state);
   const side = next.sides.player;
@@ -219,6 +241,19 @@ export function playerSurrender(state: GameState): GameState {
   next.winner = "opponent";
   next.currentSide = "done";
   log(next, "You surrendered. Opponent won.");
+  return next;
+}
+
+export function opponentAbandonedMatch(state: GameState): GameState {
+  const next = cloneGame(state);
+  if (next.gameOver || next.currentSide === "done") return next;
+  next.pendingPlayerChoice = null;
+  next.opponentTurnStep = null;
+  next.gameOver = true;
+  next.winner = "player";
+  next.currentSide = "done";
+  next.turnDeadlineMs = null;
+  log(next, "Opponent left the match. You won.");
   return next;
 }
 
@@ -384,7 +419,12 @@ export function usePlayerAbility(
       const drawnCardIds = drawCards(next, side, ability.coinFlipDrawOrActiveDamageCounter.draw);
       const drawnText = drawnCardIds.length > 0 ? formatCardNameList(drawnCardIds) : `0 ${pluralize(0, "card")}`;
       log(next, "Flip a coin and got 1x heads.");
-      log(next, `${actorName(side)} drew ${drawnText}.`);
+      if (side.id === "player") {
+        log(next, `${actorName(side)} drew ${drawnText}.`);
+      } else {
+        const drawn = drawnCardIds.length;
+        log(next, `${actorName(side)} drew ${drawn} ${pluralize(drawn, "card")}.`);
+      }
       return next;
     }
     const damage = ability.coinFlipDrawOrActiveDamageCounter.damageOnTails;
@@ -417,9 +457,13 @@ export function usePlayerAbility(
     abilityUmamusume.usedAbilityThisTurn = true;
     side.usedAbilityNamesThisTurn ??= [];
     if (!side.usedAbilityNamesThisTurn.includes(ability.name)) side.usedAbilityNamesThisTurn.push(ability.name);
-    const discardedCard = getCard(discardedCardId);
-    const drawnText = drawn > 0 ? formatCardNameList(drawnCardIds) : `0 ${pluralize(0, "card")}`;
-    log(next, `${formatUmamusumeCardName(abilityCard)}'s ${ability.name} discarded ${discardedCard.name} and drew ${drawnText}.`);
+    if (side.id === "player") {
+      const discardedCard = getCard(discardedCardId);
+      const drawnText = drawn > 0 ? formatCardNameList(drawnCardIds) : `0 ${pluralize(0, "card")}`;
+      log(next, `${formatUmamusumeCardName(abilityCard)}'s ${ability.name} discarded ${discardedCard.name} and drew ${drawnText}.`);
+    } else {
+      log(next, `${formatUmamusumeCardName(abilityCard)}'s ${ability.name} discarded 1 card and drew ${drawn} ${pluralize(drawn, "card")}.`);
+    }
     return next;
   }
 
@@ -460,6 +504,8 @@ export function usePlayerAbility(
 export function completePregameSetup(state: GameState, activeHandIndex: number, benchHandIndexes: number[]): GameState {
   const next = cloneGame(state);
   if (next.phase !== "setup") return next;
+  const setup = next.setup;
+  if (!setup || setup.readyBySide.player) return next;
   const player = next.sides.player;
   const activeCardId = player.hand[activeHandIndex];
   if (!activeCardId || !isBasicUmamusumeInDeck(activeCardId)) return next;
@@ -476,10 +522,42 @@ export function completePregameSetup(state: GameState, activeHandIndex: number, 
   const taken = new Set([activeHandIndex, ...uniqueBenchIndexes]);
   player.hand = player.hand.filter((_, index) => !taken.has(index));
 
-  next.phase = "play";
-  next.setup = next.setup ? { ...next.setup, opponentRevealed: true } : null;
+  setup.readyBySide.player = true;
   next.pendingPlayerChoice = null;
 
+  if (!setup.readyBySide.opponent) {
+    log(next, "Waiting for opponent to finish preparation.");
+    return next;
+  }
+
+  setup.countdownSecondsRemaining = 3;
+  next.setup = { ...setup, opponentRevealed: false };
+  log(next, "Both players are ready. Match starts in 3...");
+  return next;
+}
+
+export function tickSetupCountdown(state: GameState): GameState {
+  const next = cloneGame(state);
+  if (next.phase !== "setup") return next;
+  const setup = next.setup;
+  if (!setup || !setup.readyBySide.player || !setup.readyBySide.opponent) return next;
+
+  const remaining = setup.countdownSecondsRemaining;
+  if (remaining === null) {
+    setup.countdownSecondsRemaining = 3;
+    next.setup = { ...setup, opponentRevealed: false };
+    return next;
+  }
+
+  if (remaining > 1) {
+    setup.countdownSecondsRemaining = remaining - 1;
+    next.setup = { ...setup, opponentRevealed: false };
+    return next;
+  }
+
+  setup.countdownSecondsRemaining = 0;
+  next.phase = "play";
+  next.setup = { ...setup, opponentRevealed: true };
   startTurn(next, next.firstPlayer, refreshContinuousEffects, true);
   return next;
 }
@@ -487,6 +565,7 @@ export function completePregameSetup(state: GameState, activeHandIndex: number, 
 export function resolvePendingPlayerChoice(state: GameState, umamusumeUid: number): GameState {
   const next = cloneGame(state);
   const pending = next.pendingPlayerChoice;
+  if (pending?.sideId !== "player") return next;
   const player = next.sides.player;
   if (!pending) return next;
 
@@ -523,6 +602,7 @@ export function resolvePendingPlayerChoice(state: GameState, umamusumeUid: numbe
 }
 
 function advanceToNextTurn(state: GameState): void {
+  state.turnDeadlineMs = null;
   endTurn(state, (turnState, sideId) => startTurn(turnState, sideId, refreshContinuousEffects));
 }
 

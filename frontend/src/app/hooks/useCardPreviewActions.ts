@@ -12,11 +12,10 @@ import {
   getPrimaryAttack,
   getUmamusumeCard,
   playerAttack,
-  playerUseStadium,
-  usePlayerAbility,
 } from "../../game/engine";
 import { RETREAT_ENERGY_ORDER, type CoinFlipEvent } from "../gameUiHelpers";
 import type { PendingCoinAttack } from "./useMatchActions";
+import type { PlayerIntent } from "../../pvp/playerIntent";
 
 type UseCardPreviewActionsArgs = {
   game: GameState;
@@ -31,6 +30,8 @@ type UseCardPreviewActionsArgs = {
   setActiveCoinFlip: Dispatch<SetStateAction<CoinFlipEvent | null>>;
   applyPlayerGameUpdate: (update: (state: GameState) => GameState, noticeSource?: ActionNoticeSource) => void;
   getPendingAttackCoinFlip: (state: GameState, attackerId: "player" | "opponent", id: number) => CoinFlipEvent | null;
+  submitPlayerIntent: (intent: PlayerIntent) => void;
+  isNetworkMatch: boolean;
 };
 
 export function useCardPreviewActions(args: UseCardPreviewActionsArgs) {
@@ -47,6 +48,8 @@ export function useCardPreviewActions(args: UseCardPreviewActionsArgs) {
     setActiveCoinFlip,
     applyPlayerGameUpdate,
     getPendingAttackCoinFlip,
+    submitPlayerIntent,
+    isNetworkMatch,
   } = args;
 
   const canUseAttack = Boolean(!isTurnFlowBlocked && player.active && previewTarget?.isActive && previewTarget.sideId === "player" && canAttack(game, player));
@@ -78,17 +81,21 @@ export function useCardPreviewActions(args: UseCardPreviewActionsArgs) {
         return;
       }
     }
-    const coinAttack = getPendingAttackCoinFlip(game, "player", coinFlipIdRef.current++);
-    if (coinAttack) {
-      setPendingCoinAttack({ eventId: coinAttack.id, attackerId: "player", result: coinAttack.result });
-      setActiveCoinFlip(coinAttack);
-      setPreviewTarget(null);
-      return;
-    }
-    if (attack.draw) {
-      applyPlayerGameUpdate(playerAttack, { kind: "genericGain" });
+    if (isNetworkMatch) {
+      submitPlayerIntent({ type: "attack" });
     } else {
-      setGame((current) => playerAttack(current));
+      const coinAttack = getPendingAttackCoinFlip(game, "player", coinFlipIdRef.current++);
+      if (coinAttack) {
+        setPendingCoinAttack({ eventId: coinAttack.id, attackerId: "player", result: coinAttack.result });
+        setActiveCoinFlip(coinAttack);
+        setPreviewTarget(null);
+        return;
+      }
+      if (attack.draw) {
+        applyPlayerGameUpdate(playerAttack, { kind: "genericGain" });
+      } else {
+        setGame((current) => playerAttack(current));
+      }
     }
     setPreviewTarget(null);
   };
@@ -123,7 +130,7 @@ export function useCardPreviewActions(args: UseCardPreviewActionsArgs) {
       && previewTarget.card.trainerType === "stadium"
       && previewTarget.card.effect.shuffleHandIntoDeckDraw
     ) {
-      setGame(playerUseStadium);
+      submitPlayerIntent({ type: "useStadium" });
       setPreviewTarget(null);
       return;
     }
@@ -137,12 +144,20 @@ export function useCardPreviewActions(args: UseCardPreviewActionsArgs) {
       if (ability.damageOpponentTarget === "any") {
         setPendingSelection({ kind: "abilityDamageTarget", abilityUmamusumeUid: previewTarget.umamusume.uid });
       } else {
-        setGame((current) => usePlayerAbility(current, previewTarget.umamusume!.uid, previewTarget.umamusume!.uid));
+        submitPlayerIntent({
+          type: "useAbility",
+          abilityUmamusumeUid: previewTarget.umamusume.uid,
+          sourceUmamusumeUid: previewTarget.umamusume.uid,
+        });
       }
     } else if (ability.discardToDraw && player.hand.length >= ability.discardToDraw.discard) {
       setPendingSelection({ kind: "discardForAbility", abilityUmamusumeUid: previewTarget.umamusume.uid });
     } else if (ability.coinFlipDrawOrActiveDamageCounter) {
-      setGame((current) => usePlayerAbility(current, previewTarget.umamusume!.uid, previewTarget.umamusume!.uid));
+      submitPlayerIntent({
+        type: "useAbility",
+        abilityUmamusumeUid: previewTarget.umamusume.uid,
+        sourceUmamusumeUid: previewTarget.umamusume.uid,
+      });
     } else {
       return;
     }

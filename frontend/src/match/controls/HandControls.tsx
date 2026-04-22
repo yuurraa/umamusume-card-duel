@@ -13,6 +13,8 @@ export function PlayHandHeader({
   energyType,
   extraCount,
   turnNumber,
+  turnLabel,
+  turnAlert,
   canEndTurn,
   menuOpen,
   log,
@@ -26,6 +28,8 @@ export function PlayHandHeader({
   energyType: EnergyType | null;
   extraCount: number;
   turnNumber: number;
+  turnLabel?: string | undefined;
+  turnAlert?: boolean | undefined;
   canEndTurn: boolean;
   menuOpen: boolean;
   log: string[];
@@ -37,7 +41,7 @@ export function PlayHandHeader({
   return (
     <div style={playHandHeaderStyle}>
       <EnergyDragToken canDrag={canAttach} refreshNonce={energyRefreshKey} energyType={energyType} extraCount={extraCount} />
-      <div style={turnCounterStyle}>Turn {turnNumber}</div>
+      <TurnPill label={turnLabel ?? `Turn ${turnNumber}`} alert={Boolean(turnAlert)} />
       <div style={playHandActionRowStyle}>
         <NeutralButton style={endTurnButtonStyle(canEndTurn)} disabled={!canEndTurn} onClick={onEndTurn}>
           End Turn
@@ -53,6 +57,23 @@ export function PlayHandHeader({
       </div>
     </div>
   );
+}
+
+export function TurnPill({ label, alert = false }: { label: string; alert?: boolean }) {
+  const [pulseOn, setPulseOn] = useState(false);
+
+  useEffect(() => {
+    if (!alert) {
+      setPulseOn(false);
+      return;
+    }
+    const intervalId = window.setInterval(() => {
+      setPulseOn((current) => !current);
+    }, 620);
+    return () => window.clearInterval(intervalId);
+  }, [alert]);
+
+  return <div style={turnCounterStyle(alert, pulseOn)}>{label}</div>;
 }
 
 export function MatchMenuControl({
@@ -173,28 +194,33 @@ const playHandActionRowStyle: CSSProperties = {
   alignItems: "center",
 };
 
-const turnCounterStyle: CSSProperties = {
-  position: "absolute",
-  left: "50%",
-  transform: "translateX(-50%)",
-  pointerEvents: "none",
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  minWidth: 88,
-  height: 32,
-  padding: "0 12px",
-  borderRadius: radius.pill,
-  border: "1px solid rgba(217, 225, 218, 0.86)",
-  background: "rgba(238, 243, 238, 0.86)",
-  color: colors.black,
-  textShadow: "none",
-  fontSize: 13,
-  fontWeight: 900,
-  letterSpacing: 0.2,
-  lineHeight: 1,
-  boxShadow: "0 8px 20px rgba(17, 24, 39, 0.08)",
-};
+function turnCounterStyle(alert: boolean, pulseOn: boolean): CSSProperties {
+  return {
+    position: "absolute",
+    left: "50%",
+    transform: "translateX(-50%)",
+    pointerEvents: "none",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    minWidth: 88,
+    height: 32,
+    padding: "0 12px",
+    borderRadius: radius.pill,
+    border: alert ? "1px solid rgba(153, 27, 27, 0.92)" : "1px solid rgba(217, 225, 218, 0.86)",
+    background: alert ? "rgba(254, 226, 226, 0.95)" : "rgba(238, 243, 238, 0.86)",
+    color: alert ? "#7f1d1d" : colors.black,
+    textShadow: "none",
+    fontSize: 13,
+    fontWeight: 900,
+    letterSpacing: 0.2,
+    lineHeight: 1,
+    boxShadow: alert
+      ? (pulseOn ? "0 0 0 4px rgba(239, 68, 68, 0.28), 0 10px 24px rgba(127, 29, 29, 0.2)" : "0 0 0 2px rgba(239, 68, 68, 0.16), 0 8px 20px rgba(127, 29, 29, 0.14)")
+      : "0 8px 20px rgba(17, 24, 39, 0.08)",
+    transition: `box-shadow ${transitions.base}, border-color ${transitions.base}, background ${transitions.base}, color ${transitions.base}`,
+  };
+}
 
 const matchMenuControlWrapStyle: CSSProperties = {
   position: "relative",
