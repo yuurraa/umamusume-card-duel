@@ -10,6 +10,7 @@ type PeerRuntimeOptions = {
 const RTC_CONFIG: RTCConfiguration = {
   iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
 };
+const ICE_GATHERING_TIMEOUT_MS = 6000;
 
 export class PeerRuntime {
   private pc: RTCPeerConnection | null = null;
@@ -136,9 +137,14 @@ export class PeerRuntime {
   private waitForIceGatheringComplete(pc: RTCPeerConnection): Promise<void> {
     if (pc.iceGatheringState === "complete") return Promise.resolve();
     return new Promise((resolve) => {
+      const timeoutId = window.setTimeout(() => {
+        pc.removeEventListener("icegatheringstatechange", onStateChange);
+        resolve();
+      }, ICE_GATHERING_TIMEOUT_MS);
       const onStateChange = () => {
         if (pc.iceGatheringState !== "complete") return;
         pc.removeEventListener("icegatheringstatechange", onStateChange);
+        window.clearTimeout(timeoutId);
         resolve();
       };
       pc.addEventListener("icegatheringstatechange", onStateChange);

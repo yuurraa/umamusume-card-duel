@@ -36,7 +36,7 @@ export function PvpLobbyScreen({
   onBack: () => void;
   onSetRole: (role: PvpRole) => void;
   onCreateOffer: () => void;
-  onJoinWithOffer: () => void;
+  onJoinWithOffer: (codeOverride?: string) => void;
   onRemoteSignalChange: (value: string) => void;
   onCopyLocalSignal: () => void;
   onClear: () => void;
@@ -44,15 +44,7 @@ export function PvpLobbyScreen({
   const isHost = role === "host";
   const isGuest = role === "guest";
   const lastAutoJoinCodeRef = useRef("");
-  const hasErrorStatus = /failed|invalid|error|not found|unable|closed|lost|timed out|ice/i.test(statusDetail);
-  const loopStatus = connected
-    ? "Opponent found!"
-    : isHost
-      ? (localSignal ? "Searching for opponent..." : "Searching for opponent...")
-      : isGuest
-        ? (remoteSignal.trim() ? "Searching for opponent..." : "Waiting for code...")
-        : "Waiting for code...";
-  const statusMessage = hasErrorStatus ? statusDetail : loopStatus;
+  const statusMessage = connected ? "Opponent found!" : statusDetail;
 
   return (
     <section style={screenStyle}>
@@ -90,10 +82,10 @@ export function PvpLobbyScreen({
                       const normalized = value.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
                       if (normalized.length < 6 || normalized === lastAutoJoinCodeRef.current) return;
                       lastAutoJoinCodeRef.current = normalized;
-                      onJoinWithOffer();
+                      onJoinWithOffer(normalized);
                     }}
                     onKeyDown={(event) => {
-                      if (event.key === "Enter" && remoteSignal.trim()) onJoinWithOffer();
+                      if (event.key === "Enter" && remoteSignal.trim()) onJoinWithOffer(remoteSignal);
                     }}
                     style={inputStyle}
                     placeholder="Enter game code"

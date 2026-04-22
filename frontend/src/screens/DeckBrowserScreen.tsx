@@ -36,6 +36,7 @@ import {
   deckBrowserSubtitleStyle,
   deckBrowserTitleStyle,
   localDeckErrorStyle,
+  localDeckPersistenceNoticeStyle,
   menuKickerStyle,
 } from "./deck-browser/styles";
 
@@ -306,6 +307,9 @@ export function DeckBrowserScreen({
         >
           Back
         </NeutralButton>
+      </div>
+      <div style={localDeckPersistenceNoticeStyle}>
+Hosted games do not permanently save created decks. After saving a deck, open it and use Export to keep the deck JSON somewhere safe; paste it back with Import when needed.
       </div>
       <div style={deckBrowserGridStyle}>
         {allDecks.map((deck) => {

@@ -552,6 +552,16 @@ export const localDeckErrorStyle: CSSProperties = {
   padding: 10,
 };
 
+export const localDeckPersistenceNoticeStyle: CSSProperties = {
+  ...glassPanelStyle,
+  color: uiTextColor,
+  textShadow: uiTextShadow,
+  fontSize: 13,
+  fontWeight: 850,
+  lineHeight: 1.45,
+  padding: "12px 14px",
+};
+
 export const deckSelectorModalStyle: CSSProperties = {
   ...deckModalStyle,
   position: "relative",

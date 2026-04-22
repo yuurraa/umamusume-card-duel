@@ -102,6 +102,7 @@ export function App() {
   const pvpRoleRef = useRef<PvpRole | null>(null);
   const matchModeRef = useRef<MatchMode>("playerVsAi");
   const screenRef = useRef<AppScreen>("mainMenu");
+  const gameRef = useRef(game);
   const equippedDeckCardIdsRef = useRef<string[]>([]);
   const remoteDeckRef = useRef<string[] | null>(null);
   const remoteNameRef = useRef<string>("Opponent");
@@ -164,6 +165,10 @@ export function App() {
   }, [screen]);
 
   useEffect(() => {
+    gameRef.current = game;
+  }, [game]);
+
+  useEffect(() => {
     equippedDeckCardIdsRef.current = equippedDeck.cardIds;
   }, [equippedDeck.cardIds]);
 
@@ -186,7 +191,7 @@ export function App() {
   };
 
   const syncToGuest = (state: typeof game) => {
-    if (!isPvpHost) return;
+    if (matchModeRef.current !== "playerVsPlayer" || pvpRoleRef.current !== "host") return;
     pvpPeerRef.current?.send({ type: "sync", state });
   };
 
@@ -215,11 +220,16 @@ export function App() {
 
     if (message.type === "hello") {
       if (!isHostNow) return;
-      if (currentScreen !== "pvpLobby") return;
       remoteDeckRef.current = message.deckCardIds;
       remoteNameRef.current = message.playerName || "Opponent";
+      if (currentScreen === "match") {
+        pvpPeerRef.current?.send({ type: "sync", state: gameRef.current });
+        return;
+      }
+      if (currentScreen !== "pvpLobby") return;
       resetTransientMatchUi();
       const starting = createGame(equippedDeckCardIdsRef.current, message.deckCardIds, remoteNameRef.current, "hard", true);
+      gameRef.current = starting;
       setGame(starting);
       setMatchMode("playerVsPlayer");
       setScreen("match");
@@ -394,7 +404,7 @@ export function App() {
       } catch {
         // Ignore clipboard failures; host can still read the code from UI.
       }
-      setPvpStatusDetail("Searching for opponent...");
+      setPvpStatusDetail("Waiting for guest answer...");
       void waitForHostAnswer(code, runtime, pollToken);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to create offer.";
@@ -402,23 +412,26 @@ export function App() {
     }
   };
 
-  const joinWithOffer = async () => {
-    if (!pvpRemoteSignal.trim()) {
+  const joinWithOffer = async (codeOverride?: string) => {
+    const rawCode = codeOverride ?? pvpRemoteSignal;
+    if (!rawCode.trim()) {
       setPvpStatusDetail("Waiting for code...");
       return;
     }
     try {
-      const code = normalizeCode(pvpRemoteSignal);
+      const code = normalizeCode(rawCode);
       if (!code) {
         setPvpStatusDetail("Code is invalid.");
         return;
       }
+      setPvpStatusDetail("Fetching game offer...");
       const { offer } = await getPvpOffer(code);
       const runtime = ensurePeerRuntime();
-      setPvpStatusDetail("Searching for opponent...");
+      setPvpStatusDetail("Creating connection answer...");
       const answer = await runtime.joinWithOffer(offer);
+      setPvpStatusDetail("Sending answer to host...");
       await submitPvpAnswer(code, answer);
-      setPvpStatusDetail("Searching for opponent...");
+      setPvpStatusDetail("Answer sent. Connecting to host...");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to join with offer.";
       setPvpStatusDetail(message);
@@ -437,7 +450,7 @@ export function App() {
 
   const clearPvp = () => {
     setPvpRole(null);
-    setPvpStatusDetail("Reset complete.");
+    setPvpStatusDetail("Pick Host or Join to begin.");
     setPvpLocalSignal("");
     setPvpRemoteSignal("");
     setPvpConnected(false);
@@ -447,6 +460,13 @@ export function App() {
     pvpLocalCloseIntentRef.current = true;
     pvpPeerRef.current?.close();
     pvpPeerRef.current = null;
+  };
+
+  const returnToPvpLobbyForRematch = () => {
+    resetTransientMatchUi();
+    clearPvp();
+    setMatchMode("playerVsPlayer");
+    navigateToScreen("pvpLobby");
   };
 
   const waitForHostAnswer = async (code: string, runtime: PeerRuntime, token: number) => {
@@ -915,7 +935,13 @@ export function App() {
           onClose={onActionNoticeClose}
         />
       )}
-      {game.gameOver && <GameOverModal game={game} onPlayAgain={onPlayAgain} onMainMenu={returnToMainMenu} />}
+      {game.gameOver && (
+        <GameOverModal
+          game={game}
+          onPlayAgain={isNetworkMatch ? returnToPvpLobbyForRematch : onPlayAgain}
+          onMainMenu={returnToMainMenu}
+        />
+      )}
       <div style={screenFadeOverlayStyle(screenFadeOverlayOpacity)} />
     </main>
   );

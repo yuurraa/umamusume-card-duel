@@ -30,7 +30,7 @@ type NonMatchScreenProps = {
   pvpConnected: boolean;
   onPvpSetRole: (role: PvpRole) => void;
   onPvpCreateOffer: () => void;
-  onPvpJoinWithOffer: () => void;
+  onPvpJoinWithOffer: (codeOverride?: string) => void;
   onPvpRemoteSignalChange: (value: string) => void;
   onPvpCopyLocalSignal: () => void;
   onPvpClear: () => void;
