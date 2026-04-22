@@ -1,6 +1,6 @@
 import express from "express";
 import cors from "cors";
-import { promises as fs } from "node:fs";
+import { existsSync, promises as fs, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -20,8 +20,9 @@ import {
 
 const app = express();
 const port = Number(process.env.PORT || 8787);
-const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+const repoRoot = findRepoRoot(path.dirname(fileURLToPath(import.meta.url)));
 const localDecksDir = path.join(repoRoot, "local-data", "decks");
+const frontendDistDir = path.join(repoRoot, "frontend", "dist");
 const PVP_SESSION_TTL_MS = 15 * 60 * 1000;
 const pvpSessions = new Map<string, PvpSession>();
 
@@ -188,9 +189,39 @@ app.delete("/api/local-decks/:deckId", async (request, response) => {
   }
 });
 
+if (existsSync(path.join(frontendDistDir, "index.html"))) {
+  app.use(express.static(frontendDistDir));
+  app.get("*", (request, response, next) => {
+    if (request.path.startsWith("/api/")) {
+      next();
+      return;
+    }
+    response.sendFile(path.join(frontendDistDir, "index.html"));
+  });
+}
+
 app.listen(port, () => {
-  console.log(`Umamusume Card Duel backend listening on http://127.0.0.1:${port}`);
+  console.log(`Umamusume Card Duel listening on port ${port}`);
 });
+
+function findRepoRoot(startDir: string): string {
+  let currentDir = startDir;
+  while (true) {
+    const packageJsonPath = path.join(currentDir, "package.json");
+    if (existsSync(packageJsonPath)) {
+      try {
+        const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8")) as { workspaces?: unknown };
+        if (Array.isArray(packageJson.workspaces)) return currentDir;
+      } catch {
+        // Keep walking upward if this package.json is not the repo root.
+      }
+    }
+
+    const parentDir = path.dirname(currentDir);
+    if (parentDir === currentDir) return startDir;
+    currentDir = parentDir;
+  }
+}
 
 function validateLocalDeckInput(input: LocalDeckInput | undefined): string | null {
   if (!input || typeof input !== "object") return "Deck payload is required.";
