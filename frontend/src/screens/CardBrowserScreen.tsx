@@ -5,7 +5,7 @@ import { EnergyIcon } from "../components/cards/EnergyIcon";
 import { NeutralButton } from "../components/buttons/NeutralButton";
 import { energyLabel } from "../game/engine";
 import { formatCardName } from "../game/engine/core/labels";
-import { CARD_ASPECT_RATIO, borders, colors, glassPanelStyle, overlayBackdropStyle, radius, transitions, uiTextColor, uiTextShadow } from "../styles/shared";
+import { CARD_ASPECT_RATIO, borders, colors, glassPanelStyle, radius, transitions, uiTextColor, uiTextShadow } from "../styles/shared";
 
 type CategoryFilter = "umamusume" | "trainer" | "item" | "tool" | "stadium";
 type StageFilter = 0 | 1 | 2;
@@ -49,6 +49,31 @@ const cardEntries = Object.values(cards).sort((left, right) => {
   return formatCardName(left).localeCompare(formatCardName(right));
 });
 
+const HOVER_PREVIEW_MAX_WIDTH = 440;
+const HOVER_PREVIEW_VIEWPORT_WIDTH_PADDING = 36;
+const HOVER_PREVIEW_GAP = 12;
+const HOVER_PREVIEW_VIEWPORT_PAD = 10;
+const HOVER_PREVIEW_HEIGHT_PER_WIDTH = 1040 / 745;
+
+function getHoverPreviewPosition(rect: DOMRect): { left: number; top: number } {
+  const popupWidth = Math.min(HOVER_PREVIEW_MAX_WIDTH, Math.max(120, window.innerWidth - HOVER_PREVIEW_VIEWPORT_WIDTH_PADDING));
+  const popupHeight = popupWidth * HOVER_PREVIEW_HEIGHT_PER_WIDTH;
+  const rightCandidate = rect.right + HOVER_PREVIEW_GAP;
+  const leftCandidate = rect.left - HOVER_PREVIEW_GAP - popupWidth;
+  const prefersRight = rightCandidate + popupWidth + HOVER_PREVIEW_VIEWPORT_PAD <= window.innerWidth;
+  const unclampedLeft = prefersRight ? rightCandidate : leftCandidate;
+  const maxLeft = Math.max(HOVER_PREVIEW_VIEWPORT_PAD, window.innerWidth - HOVER_PREVIEW_VIEWPORT_PAD - popupWidth);
+  const left = Math.max(HOVER_PREVIEW_VIEWPORT_PAD, Math.min(maxLeft, unclampedLeft));
+  const preferredCenterY = rect.top + rect.height / 2;
+  const halfHeight = popupHeight / 2;
+  const minCenterY = HOVER_PREVIEW_VIEWPORT_PAD + halfHeight;
+  const maxCenterY = window.innerHeight - HOVER_PREVIEW_VIEWPORT_PAD - halfHeight;
+  const top = minCenterY <= maxCenterY
+    ? Math.max(minCenterY, Math.min(maxCenterY, preferredCenterY))
+    : window.innerHeight / 2;
+  return { left, top };
+}
+
 export function CardBrowserScreen({ onBack }: { onBack: () => void }) {
   const [query, setQuery] = useState("");
   const [categoryFiltersSelected, setCategoryFiltersSelected] = useState<Set<CategoryFilter>>(() => new Set());
@@ -56,7 +81,10 @@ export function CardBrowserScreen({ onBack }: { onBack: () => void }) {
   const [stageFiltersSelected, setStageFiltersSelected] = useState<Set<StageFilter>>(() => new Set());
   const [artFiltersSelected, setArtFiltersSelected] = useState<Set<ArtFilter>>(() => new Set());
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [inspectedCard, setInspectedCard] = useState<Card | null>(null);
+  const [hoverPreviewCard, setHoverPreviewCard] = useState<Card | null>(null);
+  const [hoverPreviewCardId, setHoverPreviewCardId] = useState<string | null>(null);
+  const [hoverPreviewPosition, setHoverPreviewPosition] = useState<{ left: number; top: number } | null>(null);
+  const hoverPreviewTimeoutRef = useRef<number | null>(null);
   const filterMenuWrapRef = useRef<HTMLDivElement | null>(null);
   const activeFilterCount = categoryFiltersSelected.size + energyFiltersSelected.size + stageFiltersSelected.size + artFiltersSelected.size;
 
@@ -79,14 +107,38 @@ export function CardBrowserScreen({ onBack }: { onBack: () => void }) {
     setArtFiltersSelected(new Set());
   };
 
+  const clearHoverPreviewTimer = () => {
+    if (hoverPreviewTimeoutRef.current !== null) {
+      window.clearTimeout(hoverPreviewTimeoutRef.current);
+      hoverPreviewTimeoutRef.current = null;
+    }
+  };
+
+  const scheduleHoverPreview = (card: Card, anchorEl: HTMLButtonElement) => {
+    clearHoverPreviewTimer();
+    hoverPreviewTimeoutRef.current = window.setTimeout(() => {
+      const rect = anchorEl.getBoundingClientRect();
+      const { left, top } = getHoverPreviewPosition(rect);
+      setHoverPreviewCard(card);
+      setHoverPreviewCardId(card.id);
+      setHoverPreviewPosition({ left, top });
+      hoverPreviewTimeoutRef.current = null;
+    }, 500);
+  };
+
+  const hideHoverPreview = () => {
+    clearHoverPreviewTimer();
+    setHoverPreviewCard(null);
+    setHoverPreviewCardId(null);
+  };
+
+  useEffect(() => () => clearHoverPreviewTimer(), []);
+
+  const hoverPreviewActive = Boolean(hoverPreviewCard && hoverPreviewPosition);
+
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
-      if (inspectedCard) {
-        event.preventDefault();
-        setInspectedCard(null);
-        return;
-      }
       if (filtersOpen) {
         event.preventDefault();
         setFiltersOpen(false);
@@ -98,11 +150,11 @@ export function CardBrowserScreen({ onBack }: { onBack: () => void }) {
 
     window.addEventListener("keydown", onKeyDown, { capture: true });
     return () => window.removeEventListener("keydown", onKeyDown, { capture: true });
-  }, [filtersOpen, inspectedCard, onBack]);
+  }, [filtersOpen, onBack]);
 
   useEffect(() => {
     const onPointerDown = (event: PointerEvent) => {
-      if (!filtersOpen || inspectedCard) return;
+      if (!filtersOpen) return;
       const target = event.target;
       if (!(target instanceof Node)) return;
       if (filterMenuWrapRef.current?.contains(target)) return;
@@ -111,7 +163,7 @@ export function CardBrowserScreen({ onBack }: { onBack: () => void }) {
 
     window.addEventListener("pointerdown", onPointerDown, { capture: true });
     return () => window.removeEventListener("pointerdown", onPointerDown, { capture: true });
-  }, [filtersOpen, inspectedCard]);
+  }, [filtersOpen]);
 
   return (
     <section style={cardBrowserShellStyle}>
@@ -225,17 +277,33 @@ export function CardBrowserScreen({ onBack }: { onBack: () => void }) {
         {visibleCards.length > 0 ? (
           <div style={cardGridStyle}>
             {visibleCards.map((card) => (
-              <CardTile key={card.id} card={card} onInspect={() => setInspectedCard(card)} />
+              <CardTile
+                key={card.id}
+                card={card}
+                onHoverStart={(anchorEl) => scheduleHoverPreview(card, anchorEl)}
+                onHoverEnd={hideHoverPreview}
+                previewActive={hoverPreviewCardId === card.id}
+              />
             ))}
           </div>
         ) : (
           <div style={emptyStateStyle}>No cards match those filters.</div>
         )}
       </section>
+      <div style={hoverDimStyle(hoverPreviewActive)} aria-hidden="true" />
+      <aside
+        style={hoverPreviewStyle(
+          hoverPreviewPosition?.left ?? 0,
+          hoverPreviewPosition?.top ?? 0,
+          hoverPreviewActive,
+        )}
+        aria-hidden="true"
+      >
+        {hoverPreviewCard && (
+          <img style={hoverPreviewImageStyle} src={getCardImage(hoverPreviewCard)} alt="" draggable={false} />
+        )}
+      </aside>
 
-      {inspectedCard && (
-        <CardInspectModal card={inspectedCard} onClose={() => setInspectedCard(null)} />
-      )}
     </section>
   );
 }
@@ -248,33 +316,48 @@ function FilterChip({ active, children, onClick }: { active: boolean; children: 
   );
 }
 
-function CardTile({ card, onInspect }: { card: Card; onInspect: () => void }) {
+function CardTile({
+  card,
+  onHoverStart,
+  onHoverEnd,
+  previewActive = false,
+}: {
+  card: Card;
+  onHoverStart?: (anchorEl: HTMLButtonElement) => void;
+  onHoverEnd?: () => void;
+  previewActive?: boolean;
+}) {
   const [hovered, setHovered] = useState(false);
   const image = getCardImage(card);
 
   return (
     <button
       type="button"
-      style={cardTileStyle(hovered)}
-      onClick={onInspect}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      onFocus={() => setHovered(true)}
-      onBlur={() => setHovered(false)}
-      aria-label={`Inspect ${formatCardName(card)}`}
+      style={{
+        ...cardTileStyle(hovered),
+        cursor: "default",
+        ...(previewActive ? { position: "relative", zIndex: 10 } : {}),
+      }}
+      onMouseEnter={(event) => {
+        setHovered(true);
+        onHoverStart?.(event.currentTarget);
+      }}
+      onMouseLeave={() => {
+        setHovered(false);
+        onHoverEnd?.();
+      }}
+      onFocus={(event) => {
+        setHovered(true);
+        onHoverStart?.(event.currentTarget);
+      }}
+      onBlur={() => {
+        setHovered(false);
+        onHoverEnd?.();
+      }}
+      aria-label={formatCardName(card)}
     >
       <img style={cardImageStyle} src={image} alt="" draggable={false} />
     </button>
-  );
-}
-
-function CardInspectModal({ card, onClose }: { card: Card; onClose: () => void }) {
-  return (
-    <div style={inspectBackdropStyle} onClick={onClose}>
-      <section style={inspectSurfaceStyle} onClick={(event) => event.stopPropagation()}>
-        <img style={inspectImageStyle} src={getCardImage(card)} alt="" draggable={false} />
-      </section>
-    </div>
   );
 }
 
@@ -576,7 +659,7 @@ function energyFilterButtonStyle(active: boolean): CSSProperties {
 const cardTrayStyle: CSSProperties = {
   ...glassPanelStyle,
   position: "relative",
-  zIndex: 1,
+  backdropFilter: "none",
   minHeight: 0,
   overflowX: "hidden",
   overflowY: "auto",
@@ -614,6 +697,44 @@ const cardImageStyle: CSSProperties = {
   borderRadius: radius.md,
 };
 
+function hoverDimStyle(active: boolean): CSSProperties {
+  return {
+    position: "fixed",
+    inset: 0,
+    zIndex: 6,
+    pointerEvents: "none",
+    background: "rgba(17, 24, 39, 0.34)",
+    opacity: active ? 1 : 0,
+    transition: `opacity ${transitions.base}`,
+  };
+}
+
+function hoverPreviewStyle(left: number, top: number, active: boolean): CSSProperties {
+  return {
+    position: "fixed",
+    left,
+    top,
+    transform: "translateY(-50%)",
+    width: "min(440px, calc(100vw - 36px))",
+    pointerEvents: "none",
+    zIndex: 9,
+    borderRadius: 0,
+    background: "transparent",
+    padding: 0,
+    opacity: active ? 1 : 0,
+    transition: `opacity ${transitions.base}`,
+  };
+}
+
+const hoverPreviewImageStyle: CSSProperties = {
+  width: "100%",
+  aspectRatio: CARD_ASPECT_RATIO,
+  objectFit: "contain",
+  borderRadius: radius.md,
+  display: "block",
+  filter: "drop-shadow(0 24px 64px rgba(17, 24, 39, 0.34))",
+};
+
 const emptyStateStyle: CSSProperties = {
   padding: 18,
   color: uiTextColor,
@@ -621,25 +742,4 @@ const emptyStateStyle: CSSProperties = {
   fontSize: 15,
   fontWeight: 900,
   textAlign: "center",
-};
-
-const inspectBackdropStyle: CSSProperties = {
-  ...overlayBackdropStyle,
-  zIndex: 65,
-};
-
-const inspectSurfaceStyle: CSSProperties = {
-  position: "relative",
-  width: "min(520px, calc(100vw - 32px))",
-  display: "grid",
-  placeItems: "center",
-};
-
-const inspectImageStyle: CSSProperties = {
-  width: "100%",
-  maxHeight: "90vh",
-  borderRadius: radius.md,
-  objectFit: "contain",
-  display: "block",
-  boxShadow: "0 32px 100px rgba(0, 0, 0, 0.44)",
 };

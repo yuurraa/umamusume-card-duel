@@ -554,6 +554,7 @@ export const localDeckErrorStyle: CSSProperties = {
 
 export const deckSelectorModalStyle: CSSProperties = {
   ...deckModalStyle,
+  position: "relative",
   width: "min(1320px, calc(100vw - 48px))",
   maxHeight: "calc(100dvh - 48px)",
   gridTemplateRows: "auto auto minmax(0, 1fr)",
@@ -571,13 +572,39 @@ export const deckSelectorFilterPanelStyle: CSSProperties = {
 export const deckSelectorCardTrayStyle: CSSProperties = {
   ...glassPanelStyle,
   position: "relative",
-  zIndex: 1,
+  backdropFilter: "none",
   minHeight: 0,
   overflowX: "hidden",
   overflowY: "auto",
   padding: 12,
   boxSizing: "border-box",
 };
+
+export function deckSelectorHoverDimStyle(active: boolean): CSSProperties {
+  return {
+    position: "absolute",
+    inset: 0,
+    zIndex: 6,
+    pointerEvents: "none",
+    borderRadius: radius.md,
+    background: "rgba(17, 24, 39, 0.34)",
+    opacity: active ? 1 : 0,
+    transition: `opacity ${transitions.base}`,
+  };
+}
+
+export function deckModalHoverDimStyle(active: boolean): CSSProperties {
+  return {
+    position: "absolute",
+    inset: 0,
+    zIndex: 6,
+    pointerEvents: "none",
+    borderRadius: radius.lg,
+    background: "rgba(17, 24, 39, 0.34)",
+    opacity: active ? 1 : 0,
+    transition: `opacity ${transitions.base}`,
+  };
+}
 
 export const searchToolbarStyle: CSSProperties = {
   display: "grid",
@@ -761,6 +788,32 @@ export const cardImageStyle: CSSProperties = {
   objectFit: "contain",
   display: "block",
   borderRadius: radius.md,
+};
+
+export function deckSelectorHoverPreviewStyle(left: number, top: number, active: boolean): CSSProperties {
+  return {
+    position: "fixed",
+    left,
+    top,
+    transform: "translateY(-50%)",
+    width: "min(440px, calc(100vw - 36px))",
+    pointerEvents: "none",
+    zIndex: 9,
+    borderRadius: 0,
+    background: "transparent",
+    padding: 0,
+    opacity: active ? 1 : 0,
+    transition: `opacity ${transitions.base}`,
+  };
+}
+
+export const deckSelectorHoverPreviewImageStyle: CSSProperties = {
+  width: "100%",
+  aspectRatio: CARD_ASPECT_RATIO,
+  objectFit: "contain",
+  borderRadius: radius.md,
+  display: "block",
+  filter: "drop-shadow(0 24px 64px rgba(17, 24, 39, 0.34))",
 };
 
 export const emptyStateStyle: CSSProperties = {
