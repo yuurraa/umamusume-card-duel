@@ -3,7 +3,7 @@ import { LOCAL_DECK_FORMAT_VERSION, type LocalDeck } from "../../../shared/src/l
 import { getCard } from "../game/engine";
 import { NeutralButton } from "../components/buttons/NeutralButton";
 import type { PremadeDeck } from "../types/ui";
-import { deleteLocalDeck, importLocalDeck, listLocalDecks, saveLocalDeck } from "../utils/localDeckApi";
+import { deleteLocalDeck, importLocalDeck, listCloudDeckDrafts, listLocalDecks, saveCloudDeckDrafts, saveLocalDeck } from "../utils/localDeckApi";
 import {
   DeckClearAllConfirmModal,
   CreateDeckModal,
@@ -89,6 +89,7 @@ export function DeckBrowserScreen({
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [createDraftDecks, setCreateDraftDecks] = useState<LocalDeck[]>(() => readCreateDraftDecks());
   const [editDraftByDeckId, setEditDraftByDeckId] = useState<Record<string, DeckEditorDraft>>(() => readEditDeckDrafts());
+  const [cloudDraftsLoaded, setCloudDraftsLoaded] = useState(false);
   const [showImportOverwriteConfirm, setShowImportOverwriteConfirm] = useState(false);
   const [showClearAllConfirm, setShowClearAllConfirm] = useState(false);
   const [showUnsavedChangesConfirm, setShowUnsavedChangesConfirm] = useState<"create" | "edit" | null>(null);
@@ -127,7 +128,11 @@ export function DeckBrowserScreen({
 
   useEffect(() => {
     writeCreateDraftDecks(createDraftDecks);
-  }, [createDraftDecks]);
+    if (!cloudDraftsLoaded) return;
+    void saveCloudDeckDrafts(createDraftDecks, editDraftByDeckId).catch((error) => {
+      setLocalDeckError(error instanceof Error ? error.message : "Failed to save deck drafts.");
+    });
+  }, [cloudDraftsLoaded, createDraftDecks, editDraftByDeckId]);
 
   useEffect(() => {
     writeEditDeckDrafts(editDraftByDeckId);
@@ -135,6 +140,13 @@ export function DeckBrowserScreen({
 
   const setEditDraft = (deckId: string, draft: DeckEditorDraft) => {
     setEditDraftByDeckId((current) => ({ ...current, [deckId]: draft }));
+  };
+
+  const persistDrafts = async (nextCreateDrafts = createDraftDecks, nextEditDrafts = editDraftByDeckId): Promise<void> => {
+    writeCreateDraftDecks(nextCreateDrafts);
+    writeEditDeckDrafts(nextEditDrafts);
+    if (!cloudDraftsLoaded) return;
+    await saveCloudDeckDrafts(nextCreateDrafts, nextEditDrafts);
   };
 
   const clearEditDraft = (deckId: string) => {
@@ -181,15 +193,19 @@ export function DeckBrowserScreen({
 
   useEffect(() => {
     let active = true;
-    listLocalDecks()
-      .then((nextDecks) => {
+    Promise.all([listLocalDecks(), listCloudDeckDrafts()])
+      .then(([nextDecks, nextDrafts]) => {
         if (!active) return;
         setLocalDecks(nextDecks);
         writeLocalDeckCache(nextDecks);
+        setCreateDraftDecks(nextDrafts.createDrafts);
+        setEditDraftByDeckId(nextDrafts.editDrafts);
+        setCloudDraftsLoaded(true);
         setLocalDeckError(null);
       })
       .catch((error) => {
         if (!active) return;
+        setCloudDraftsLoaded(true);
         setLocalDeckError(error instanceof Error ? error.message : "Failed to load created decks.");
       });
     return () => {
@@ -672,46 +688,63 @@ Created decks are saved to cloud storage for this test profile. Export still giv
         <DeckUnsavedChangesModal
           mode={showUnsavedChangesConfirm}
           onCancel={() => setShowUnsavedChangesConfirm(null)}
-          onSaveDraft={() => {
+          onSaveDraft={async () => {
             const draft: DeckEditorDraft = {
               name: createName,
               cardIds: [...createCardIds],
               selectedCoverCardId,
             };
-            if (editingDeckId) {
-              setEditDraft(editingDeckId, draft);
-            } else if (editingCreateDraftId) {
-              setEditDraft(editingCreateDraftId, draft);
-              setCreateDraftDecks((current) => current.map((deck) => {
-                if (deck.id !== editingCreateDraftId) return deck;
-                return {
-                  ...deck,
+            try {
+              if (editingDeckId) {
+                const nextEditDrafts = { ...editDraftByDeckId, [editingDeckId]: draft };
+                setEditDraftByDeckId(nextEditDrafts);
+                await persistDrafts(createDraftDecks, nextEditDrafts);
+              } else if (editingCreateDraftId) {
+                const nextEditDrafts = { ...editDraftByDeckId, [editingCreateDraftId]: draft };
+                const nextCreateDrafts = createDraftDecks.map((deck) => {
+                  if (deck.id !== editingCreateDraftId) return deck;
+                  return {
+                    ...deck,
+                    name: draft.name,
+                    coverCardId: resolveDraftCoverCardId(draft),
+                    cardIds: draft.cardIds.filter((cardId): cardId is string => Boolean(cardId)),
+                    updatedAt: new Date().toISOString(),
+                  };
+                });
+                setEditDraftByDeckId(nextEditDrafts);
+                setCreateDraftDecks(nextCreateDrafts);
+                await persistDrafts(nextCreateDrafts, nextEditDrafts);
+              } else {
+                const draftDeckId = buildCreateDraftDeckId(createDraftDecks, editDraftByDeckId);
+                const nowIso = new Date().toISOString();
+                const draftDeck: LocalDeck = {
+                  id: draftDeckId,
                   name: draft.name,
                   coverCardId: resolveDraftCoverCardId(draft),
                   cardIds: draft.cardIds.filter((cardId): cardId is string => Boolean(cardId)),
-                  updatedAt: new Date().toISOString(),
+                  formatVersion: LOCAL_DECK_FORMAT_VERSION,
+                  createdAt: nowIso,
+                  updatedAt: nowIso,
                 };
-              }));
-            } else {
-              const draftDeckId = buildCreateDraftDeckId(createDraftDecks, editDraftByDeckId);
-              const nowIso = new Date().toISOString();
-              const draftDeck: LocalDeck = {
-                id: draftDeckId,
-                name: draft.name,
-                coverCardId: resolveDraftCoverCardId(draft),
-                cardIds: draft.cardIds.filter((cardId): cardId is string => Boolean(cardId)),
-                formatVersion: LOCAL_DECK_FORMAT_VERSION,
-                createdAt: nowIso,
-                updatedAt: nowIso,
-              };
-              setCreateDraftDecks((current) => [draftDeck, ...current]);
-              setEditDraft(draftDeckId, draft);
+                const nextCreateDrafts = [draftDeck, ...createDraftDecks];
+                const nextEditDrafts = { ...editDraftByDeckId, [draftDeckId]: draft };
+                setCreateDraftDecks(nextCreateDrafts);
+                setEditDraftByDeckId(nextEditDrafts);
+                await persistDrafts(nextCreateDrafts, nextEditDrafts);
+              }
+              closeCreateEditorImmediately();
+            } catch (error) {
+              setLocalDeckError(error instanceof Error ? error.message : "Failed to save deck draft.");
             }
-            closeCreateEditorImmediately();
           }}
           onConfirm={() => {
             if (editingDeckId) {
-              clearEditDraft(editingDeckId);
+              const nextEditDrafts = { ...editDraftByDeckId };
+              delete nextEditDrafts[editingDeckId];
+              setEditDraftByDeckId(nextEditDrafts);
+              void persistDrafts(createDraftDecks, nextEditDrafts).catch((error) => {
+                setLocalDeckError(error instanceof Error ? error.message : "Failed to clear deck draft.");
+              });
             }
             closeCreateEditorImmediately();
           }}
@@ -727,8 +760,16 @@ Created decks are saved to cloud storage for this test profile. Export still giv
           }}
           onConfirm={async () => {
             if (deleteDeck.source === "draft") {
-              setCreateDraftDecks((current) => current.filter((deck) => deck.id !== deleteDeck.id));
-              clearEditDraft(deleteDeck.id);
+              const nextCreateDrafts = createDraftDecks.filter((deck) => deck.id !== deleteDeck.id);
+              const nextEditDrafts = { ...editDraftByDeckId };
+              delete nextEditDrafts[deleteDeck.id];
+              setCreateDraftDecks(nextCreateDrafts);
+              setEditDraftByDeckId(nextEditDrafts);
+              try {
+                await persistDrafts(nextCreateDrafts, nextEditDrafts);
+              } catch (error) {
+                setLocalDeckError(error instanceof Error ? error.message : "Failed to delete deck draft.");
+              }
               setDeleteDeckRef(null);
               if (openedDeckRef?.id === deleteDeck.id && openedDeckRef.source === "draft") {
                 setOpenedDeckRef(null);

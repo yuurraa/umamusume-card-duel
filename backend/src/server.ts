@@ -9,6 +9,7 @@ import {
   cards,
   buildLocalDeck,
   createDeckIdFromName,
+  DECK_CARD_COUNT,
   gameData,
   MAX_BENCH,
   MAX_HAND,
@@ -303,6 +304,23 @@ app.delete("/api/cloud-decks/:deckId", asyncHandler(async (request, response) =>
   response.status(204).send();
 }));
 
+app.get("/api/cloud-deck-drafts", asyncHandler(async (request, response) => {
+  const userId = await getCloudDeckUserId(request, response);
+  if (!userId) return;
+  const drafts = await readCloudDeckDrafts(userId);
+  response.json(drafts);
+}));
+
+app.put("/api/cloud-deck-drafts", asyncHandler(async (request, response) => {
+  const userId = await getCloudDeckUserId(request, response);
+  if (!userId) return;
+  const payload = request.body as CloudDeckDraftsPayload;
+  const createDrafts = Array.isArray(payload?.createDrafts) ? payload.createDrafts.filter(isValidCreateDeckDraft) : [];
+  const editDrafts = isRecord(payload?.editDrafts) ? filterEditDeckDrafts(payload.editDrafts) : {};
+  await writeCloudDeckDrafts(userId, { createDrafts, editDrafts });
+  response.json({ createDrafts, editDrafts });
+}));
+
 if (existsSync(path.join(frontendDistDir, "index.html"))) {
   app.use(express.static(frontendDistDir));
   app.get("*", (request, response, next) => {
@@ -450,6 +468,110 @@ async function getUniqueCloudDeckId(userId: string, baseDeckId: string): Promise
   return normalizeDeckId(candidate);
 }
 
+function cloudDeckDraftsCollection(userId: string): CollectionReference<CloudDeckDraft> {
+  return getFirebaseDb()
+    .collection("users")
+    .doc(userId)
+    .collection("deckDrafts") as CollectionReference<CloudDeckDraft>;
+}
+
+async function readCloudDeckDrafts(userId: string): Promise<Required<CloudDeckDraftsPayload>> {
+  const snapshot = await cloudDeckDraftsCollection(userId).orderBy("updatedAt", "desc").get();
+  const createDrafts: LocalDeck[] = [];
+  const editDrafts: Record<string, DeckEditorDraftPayload> = {};
+
+  for (const doc of snapshot.docs) {
+    const draft = doc.data();
+    if (draft.kind === "create" && draft.deck && isValidCreateDeckDraft(draft.deck)) {
+      createDrafts.push(draft.deck);
+      editDrafts[draft.id] = {
+        name: draft.name,
+        cardIds: draft.cardIds,
+        selectedCoverCardId: draft.selectedCoverCardId,
+      };
+    }
+    if (draft.kind === "edit" && draft.sourceDeckId && isValidEditDeckDraft(draft)) {
+      editDrafts[draft.sourceDeckId] = {
+        name: draft.name,
+        cardIds: draft.cardIds,
+        selectedCoverCardId: draft.selectedCoverCardId,
+      };
+    }
+  }
+
+  return { createDrafts, editDrafts };
+}
+
+async function writeCloudDeckDrafts(userId: string, drafts: Required<CloudDeckDraftsPayload>): Promise<void> {
+  const collection = cloudDeckDraftsCollection(userId);
+  const previous = await collection.listDocuments();
+  const batch = getFirebaseDb().batch();
+  for (const doc of previous) batch.delete(doc);
+
+  const nowIso = new Date().toISOString();
+  for (const deck of drafts.createDrafts) {
+    const editDraft = drafts.editDrafts[deck.id];
+    if (!editDraft || !isValidEditDeckDraft(editDraft)) continue;
+    batch.set(collection.doc(`create-${deck.id}`), {
+      id: deck.id,
+      kind: "create",
+      deck,
+      name: editDraft.name,
+      cardIds: editDraft.cardIds,
+      selectedCoverCardId: editDraft.selectedCoverCardId,
+      updatedAt: deck.updatedAt || nowIso,
+    } satisfies CloudDeckDraft);
+  }
+
+  for (const [deckId, editDraft] of Object.entries(drafts.editDrafts)) {
+    if (drafts.createDrafts.some((deck) => deck.id === deckId)) continue;
+    if (!isValidEditDeckDraft(editDraft)) continue;
+    batch.set(collection.doc(`edit-${deckId}`), {
+      id: `edit-${deckId}`,
+      kind: "edit",
+      sourceDeckId: deckId,
+      name: editDraft.name,
+      cardIds: editDraft.cardIds,
+      selectedCoverCardId: editDraft.selectedCoverCardId,
+      updatedAt: nowIso,
+    } satisfies CloudDeckDraft);
+  }
+
+  await batch.commit();
+}
+
+function isValidCreateDeckDraft(deck: unknown): deck is LocalDeck {
+  if (!deck || typeof deck !== "object") return false;
+  const candidate = deck as LocalDeck;
+  if (typeof candidate.id !== "string" || candidate.id.length === 0) return false;
+  if (typeof candidate.name !== "string" || candidate.name.length === 0) return false;
+  if (typeof candidate.coverCardId !== "string" || candidate.coverCardId.length === 0) return false;
+  if (!Array.isArray(candidate.cardIds) || candidate.cardIds.some((cardId) => typeof cardId !== "string")) return false;
+  return typeof candidate.createdAt === "string" && typeof candidate.updatedAt === "string";
+}
+
+function filterEditDeckDrafts(input: Record<string, unknown>): Record<string, DeckEditorDraftPayload> {
+  const output: Record<string, DeckEditorDraftPayload> = {};
+  for (const [deckId, draft] of Object.entries(input)) {
+    if (!isValidEditDeckDraft(draft)) continue;
+    output[normalizeDeckId(deckId) || deckId] = draft;
+  }
+  return output;
+}
+
+function isValidEditDeckDraft(draft: unknown): draft is DeckEditorDraftPayload {
+  if (!draft || typeof draft !== "object") return false;
+  const candidate = draft as DeckEditorDraftPayload;
+  if (typeof candidate.name !== "string") return false;
+  if (!Array.isArray(candidate.cardIds) || candidate.cardIds.length !== DECK_CARD_COUNT) return false;
+  if (candidate.cardIds.some((cardId) => cardId !== null && typeof cardId !== "string")) return false;
+  return candidate.selectedCoverCardId === null || typeof candidate.selectedCoverCardId === "string";
+}
+
+function isRecord(input: unknown): input is Record<string, unknown> {
+  return typeof input === "object" && input !== null && !Array.isArray(input);
+}
+
 async function getCloudDeckUserId(request: express.Request, response: express.Response): Promise<string | null> {
   const authHeader = request.header("authorization") ?? "";
   const token = authHeader.match(/^Bearer\s+(.+)$/i)?.[1];
@@ -499,6 +621,28 @@ type PublicIceServer = {
   credential?: string;
 };
 type PublicIceTransportPolicy = "all" | "relay";
+
+type CloudDeckDraft = {
+  id: string;
+  kind: "create" | "edit";
+  deck?: LocalDeck;
+  sourceDeckId?: string;
+  name: string;
+  cardIds: Array<string | null>;
+  selectedCoverCardId: string | null;
+  updatedAt: string;
+};
+
+type CloudDeckDraftsPayload = {
+  createDrafts?: LocalDeck[];
+  editDrafts?: Record<string, DeckEditorDraftPayload>;
+};
+
+type DeckEditorDraftPayload = {
+  name: string;
+  cardIds: Array<string | null>;
+  selectedCoverCardId: string | null;
+};
 
 function readPvpIceServersFromEnv(): PublicIceServer[] {
   const iceServers: PublicIceServer[] = [];

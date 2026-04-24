@@ -3,6 +3,15 @@ import { getFirebaseAuthToken } from "./firebaseAuth";
 
 type DeckListResponse = { decks: LocalDeck[] };
 type DeckResponse = { deck: LocalDeck };
+export type CloudDeckDraft = {
+  name: string;
+  cardIds: Array<string | null>;
+  selectedCoverCardId: string | null;
+};
+type CloudDeckDraftsResponse = {
+  createDrafts: LocalDeck[];
+  editDrafts: Record<string, CloudDeckDraft>;
+};
 type ErrorResponse = { error: string };
 
 export async function listLocalDecks(baseUrl = ""): Promise<LocalDeck[]> {
@@ -49,6 +58,23 @@ export async function deleteLocalDeck(deckId: string, baseUrl = ""): Promise<voi
   const response = await fetch(`${baseUrl}/api/cloud-decks/${encodeURIComponent(deckId)}`, {
     method: "DELETE",
     headers: await authHeaders(),
+  });
+  if (!response.ok) throw await parseError(response);
+}
+
+export async function listCloudDeckDrafts(baseUrl = ""): Promise<CloudDeckDraftsResponse> {
+  const response = await fetch(`${baseUrl}/api/cloud-deck-drafts`, {
+    headers: await authHeaders(),
+  });
+  if (!response.ok) throw await parseError(response);
+  return (await response.json()) as CloudDeckDraftsResponse;
+}
+
+export async function saveCloudDeckDrafts(createDrafts: LocalDeck[], editDrafts: Record<string, CloudDeckDraft>, baseUrl = ""): Promise<void> {
+  const response = await fetch(`${baseUrl}/api/cloud-deck-drafts`, {
+    method: "PUT",
+    headers: await jsonAuthHeaders(),
+    body: JSON.stringify({ createDrafts, editDrafts }),
   });
   if (!response.ok) throw await parseError(response);
 }
