@@ -1,4 +1,5 @@
 import type { Card } from "../../../shared/src/types";
+import { getCardRarity, isFullArtCard } from "../../../shared/src/cardRarity";
 import { formatCardName } from "../game/engine/core/labels";
 
 export type CardSortKey = "default" | "alphabetical" | "rarity";
@@ -38,8 +39,7 @@ function compareBySortKey(left: Card, right: Card, key: Exclude<CardSortKey, "de
 }
 
 function getRarityRank(card: Card): number {
-  const fullArtBonus = isFullArtCard(card) ? 100 : 0;
-  return fullArtBonus + getCategoryRank(card);
+  return getRarityTierRank(card) * 100 + getCategoryRank(card);
 }
 
 function getCategoryRank(card: Card): number {
@@ -50,8 +50,12 @@ function getCategoryRank(card: Card): number {
   return 50;
 }
 
-function isFullArtCard(card: Card): boolean {
-  return card.id.endsWith("FullArt");
+function getRarityTierRank(card: Card): number {
+  const rarity = getCardRarity(card);
+  if (rarity === "common") return 10;
+  if (rarity === "uncommon") return 20;
+  if (rarity === "rare") return 30;
+  return 40;
 }
 
 function compareByName(left: Card, right: Card): number {

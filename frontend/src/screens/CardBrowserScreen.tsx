@@ -1,6 +1,7 @@
 import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
+import { CARD_RARITY_LABELS, CARD_RARITY_SHORT_LABELS, getCardRarity, isFullArtCard } from "../../../shared/src/cardRarity";
 import { allCards, ownedStarterCardIds } from "../../../shared/src/gameData";
-import type { Card, EnergyType, TrainerType, UmamusumeType } from "../../../shared/src/types";
+import type { Card, CardRarity, EnergyType, TrainerType, UmamusumeType } from "../../../shared/src/types";
 import { EnergyIcon } from "../components/cards/EnergyIcon";
 import { NeutralButton } from "../components/buttons/NeutralButton";
 import { energyLabel } from "../game/engine";
@@ -12,6 +13,7 @@ type CategoryFilter = "umamusume" | "trainer" | "item" | "tool" | "stadium";
 type StageFilter = 0 | 1 | 2;
 type ArtFilter = "normal" | "fullArt";
 type OwnershipFilter = "owned" | "unowned";
+type RarityFilter = CardRarity;
 
 const categoryFilters: Array<{ id: CategoryFilter; label: string }> = [
   { id: "umamusume", label: "Umamusume" },
@@ -48,6 +50,13 @@ const artFilters: Array<{ id: ArtFilter; label: string }> = [
 const ownershipFilters: Array<{ id: OwnershipFilter; label: string }> = [
   { id: "owned", label: "Owned" },
   { id: "unowned", label: "Unowned" },
+];
+
+const rarityFilters: Array<{ id: RarityFilter; label: string }> = [
+  { id: "common", label: CARD_RARITY_LABELS.common },
+  { id: "uncommon", label: CARD_RARITY_LABELS.uncommon },
+  { id: "rare", label: CARD_RARITY_LABELS.rare },
+  { id: "doubleRare", label: CARD_RARITY_LABELS.doubleRare },
 ];
 
 const cardEntries = Object.values(allCards).sort((left, right) => {
@@ -89,6 +98,7 @@ export function CardBrowserScreen({ onBack }: { onBack: () => void }) {
   const [stageFiltersSelected, setStageFiltersSelected] = useState<Set<StageFilter>>(() => new Set());
   const [artFiltersSelected, setArtFiltersSelected] = useState<Set<ArtFilter>>(() => new Set());
   const [ownershipFiltersSelected, setOwnershipFiltersSelected] = useState<Set<OwnershipFilter>>(() => new Set());
+  const [rarityFiltersSelected, setRarityFiltersSelected] = useState<Set<RarityFilter>>(() => new Set());
   const [sortOption, setSortOption] = useState<CardSortOption>(DEFAULT_CARD_SORT);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [hoverPreviewCard, setHoverPreviewCard] = useState<Card | null>(null);
@@ -96,7 +106,7 @@ export function CardBrowserScreen({ onBack }: { onBack: () => void }) {
   const [hoverPreviewPosition, setHoverPreviewPosition] = useState<{ left: number; top: number } | null>(null);
   const hoverPreviewTimeoutRef = useRef<number | null>(null);
   const filterMenuWrapRef = useRef<HTMLDivElement | null>(null);
-  const activeFilterCount = categoryFiltersSelected.size + energyFiltersSelected.size + stageFiltersSelected.size + artFiltersSelected.size + ownershipFiltersSelected.size;
+  const activeFilterCount = categoryFiltersSelected.size + energyFiltersSelected.size + stageFiltersSelected.size + artFiltersSelected.size + ownershipFiltersSelected.size + rarityFiltersSelected.size;
 
   const visibleCards = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -106,11 +116,12 @@ export function CardBrowserScreen({ onBack }: { onBack: () => void }) {
       if (stageFiltersSelected.size > 0 && !matchesAnyStageFilter(card, stageFiltersSelected)) return false;
       if (artFiltersSelected.size > 0 && !matchesAnyArtFilter(card, artFiltersSelected)) return false;
       if (ownershipFiltersSelected.size > 0 && !matchesAnyOwnershipFilter(card, ownershipFiltersSelected)) return false;
+      if (rarityFiltersSelected.size > 0 && !matchesAnyRarityFilter(card, rarityFiltersSelected)) return false;
       if (!normalizedQuery) return true;
       return getSearchText(card).includes(normalizedQuery);
     });
     return sortCardsForCollection(filtered, sortOption, (card) => ownedStarterCardIds.has(card.id));
-  }, [artFiltersSelected, categoryFiltersSelected, energyFiltersSelected, ownershipFiltersSelected, query, sortOption, stageFiltersSelected]);
+  }, [artFiltersSelected, categoryFiltersSelected, energyFiltersSelected, ownershipFiltersSelected, query, rarityFiltersSelected, sortOption, stageFiltersSelected]);
 
   const clearFilters = () => {
     setCategoryFiltersSelected(new Set());
@@ -118,6 +129,7 @@ export function CardBrowserScreen({ onBack }: { onBack: () => void }) {
     setStageFiltersSelected(new Set());
     setArtFiltersSelected(new Set());
     setOwnershipFiltersSelected(new Set());
+    setRarityFiltersSelected(new Set());
   };
 
   const clearHoverPreviewTimer = () => {
@@ -253,6 +265,20 @@ export function CardBrowserScreen({ onBack }: { onBack: () => void }) {
                         key={filter.id}
                         active={ownershipFiltersSelected.has(filter.id)}
                         onClick={() => setOwnershipFiltersSelected((selected) => toggleSetValue(selected, filter.id))}
+                      >
+                        {filter.label}
+                      </FilterChip>
+                    ))}
+                  </div>
+                </div>
+                <div style={filterGroupStyle}>
+                  <div style={filterGroupLabelStyle}>Rarity</div>
+                  <div style={filterOptionGridStyle}>
+                    {rarityFilters.map((filter) => (
+                      <FilterChip
+                        key={filter.id}
+                        active={rarityFiltersSelected.has(filter.id)}
+                        onClick={() => setRarityFiltersSelected((selected) => toggleSetValue(selected, filter.id))}
                       >
                         {filter.label}
                       </FilterChip>
@@ -411,6 +437,7 @@ function CardTile({
       aria-label={formatCardName(card)}
     >
       <img style={cardImageStyle(owned)} src={image} alt="" draggable={false} />
+      <span style={rarityBadgeStyle(getCardRarity(card))}>{CARD_RARITY_SHORT_LABELS[getCardRarity(card)]}</span>
       <span style={ownershipBadgeStyle(owned)}>{owned ? "Owned" : "Unowned"}</span>
     </button>
   );
@@ -457,9 +484,8 @@ function matchesAnyOwnershipFilter(card: Card, filters: Set<OwnershipFilter>): b
   return filters.has(ownedStarterCardIds.has(card.id) ? "owned" : "unowned");
 }
 
-function isFullArtCard(card: Card): boolean {
-  const image = getCardImage(card);
-  return card.id.endsWith("FullArt") || image.includes("-fullart.");
+function matchesAnyRarityFilter(card: Card, filters: Set<RarityFilter>): boolean {
+  return filters.has(getCardRarity(card));
 }
 
 function getCardImage(card: Card): string {
@@ -481,6 +507,7 @@ function getSearchText(card: Card): string {
       card.label,
       card.trainerType,
       trainerTypeLabel(card.trainerType),
+      CARD_RARITY_LABELS[getCardRarity(card)],
       card.text,
     ].join(" ").toLowerCase();
   }
@@ -490,6 +517,7 @@ function getSearchText(card: Card): string {
     card.label,
     card.species,
     card.type,
+    CARD_RARITY_LABELS[getCardRarity(card)],
     card.evolvesFrom ?? "",
     card.ability?.name ?? "",
     card.ability?.text ?? "",
@@ -808,6 +836,49 @@ function ownershipBadgeStyle(owned: boolean): CSSProperties {
     color: colors.white,
     textShadow: uiTextShadow,
     padding: "4px 8px",
+    fontSize: 10,
+    fontWeight: 950,
+    textTransform: "uppercase",
+    pointerEvents: "none",
+    boxShadow: "0 8px 18px rgba(17, 24, 39, 0.24)",
+  };
+}
+
+function rarityBadgeStyle(rarity: ReturnType<typeof getCardRarity>): CSSProperties {
+  const palette: Record<ReturnType<typeof getCardRarity>, { border: string; background: string; color: string }> = {
+    common: {
+      border: "1px solid rgba(255, 255, 255, 0.64)",
+      background: "rgba(31, 41, 55, 0.76)",
+      color: colors.white,
+    },
+    uncommon: {
+      border: "1px solid rgba(52, 211, 153, 0.72)",
+      background: "rgba(6, 95, 70, 0.86)",
+      color: colors.white,
+    },
+    rare: {
+      border: "1px solid rgba(96, 165, 250, 0.78)",
+      background: "rgba(30, 64, 175, 0.86)",
+      color: colors.white,
+    },
+    doubleRare: {
+      border: "1px solid rgba(250, 204, 21, 0.86)",
+      background: "rgba(133, 77, 14, 0.9)",
+      color: "#fff7cc",
+    },
+  };
+  const color = palette[rarity];
+  return {
+    position: "absolute",
+    right: 8,
+    bottom: 8,
+    minWidth: 24,
+    borderRadius: radius.pill,
+    border: color.border,
+    background: color.background,
+    color: color.color,
+    textShadow: uiTextShadow,
+    padding: "4px 7px",
     fontSize: 10,
     fontWeight: 950,
     textTransform: "uppercase",

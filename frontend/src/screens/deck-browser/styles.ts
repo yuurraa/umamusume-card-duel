@@ -810,6 +810,7 @@ export const cardGridStyle: CSSProperties = {
 export function cardTileStyle(hovered: boolean, disabled: boolean): CSSProperties {
   return {
     display: "block",
+    position: "relative",
     minWidth: 0,
     border: 0,
     borderRadius: radius.md,
@@ -834,6 +835,49 @@ export const cardImageStyle: CSSProperties = {
   display: "block",
   borderRadius: radius.md,
 };
+
+export function rarityBadgeStyle(rarity: "common" | "uncommon" | "rare" | "doubleRare"): CSSProperties {
+  const palette: Record<typeof rarity, { border: string; background: string; color: string }> = {
+    common: {
+      border: "1px solid rgba(255, 255, 255, 0.64)",
+      background: "rgba(31, 41, 55, 0.76)",
+      color: colors.white,
+    },
+    uncommon: {
+      border: "1px solid rgba(52, 211, 153, 0.72)",
+      background: "rgba(6, 95, 70, 0.86)",
+      color: colors.white,
+    },
+    rare: {
+      border: "1px solid rgba(96, 165, 250, 0.78)",
+      background: "rgba(30, 64, 175, 0.86)",
+      color: colors.white,
+    },
+    doubleRare: {
+      border: "1px solid rgba(250, 204, 21, 0.86)",
+      background: "rgba(133, 77, 14, 0.9)",
+      color: "#fff7cc",
+    },
+  };
+  const color = palette[rarity];
+  return {
+    position: "absolute",
+    right: 8,
+    bottom: 8,
+    minWidth: 24,
+    borderRadius: radius.pill,
+    border: color.border,
+    background: color.background,
+    color: color.color,
+    textShadow: uiTextShadow,
+    padding: "4px 7px",
+    fontSize: 10,
+    fontWeight: 950,
+    textTransform: "uppercase",
+    pointerEvents: "none",
+    boxShadow: "0 8px 18px rgba(17, 24, 39, 0.24)",
+  };
+}
 
 export function deckSelectorHoverPreviewStyle(left: number, top: number, active: boolean): CSSProperties {
   return {

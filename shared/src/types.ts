@@ -7,6 +7,8 @@ export type UmamusumeType = "Grass" | "Fire" | "Water" | "Lightning" | "Psychic"
 export type EnergyRequirement = EnergyType | "colorless";
 export type EnergyCost = Partial<Record<EnergyRequirement, number>>;
 export type TrainerType = "supporter" | "item" | "stadium" | "tool";
+export type CardRarity = "common" | "uncommon" | "rare" | "doubleRare";
+export type CardPrintVariant = "standard" | "holographic";
 export type OpponentTurnStep = "bench" | "trainerBefore" | "evolve" | "attach" | "trainerAfter" | "attack" | "finish";
 export type PremadeDeck = {
   id: string;

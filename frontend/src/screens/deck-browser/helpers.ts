@@ -1,5 +1,6 @@
+import { CARD_RARITY_LABELS, getCardRarity } from "../../../../shared/src/cardRarity";
 import { cards } from "../../../../shared/src/gameData";
-import type { Card, EnergyType, TrainerType, UmamusumeType } from "../../../../shared/src/types";
+import type { Card, CardRarity, EnergyType, TrainerType, UmamusumeType } from "../../../../shared/src/types";
 import type { LocalDeck } from "../../../../shared/src/localDecks";
 import type { PremadeDeck } from "../../types/ui";
 import { LOCAL_DECK_CACHE_STORAGE_KEY } from "../../utils/deck";
@@ -19,6 +20,7 @@ export type DeckJsonPayload = { name: string; cardIds: string[]; coverCardId: st
 export type CategoryFilter = "umamusume" | "trainer" | "item" | "tool" | "stadium";
 export type StageFilter = 0 | 1 | 2;
 export type ArtFilter = "normal" | "fullArt";
+export type RarityFilter = CardRarity;
 
 export const categoryFilters: Array<{ id: CategoryFilter; label: string }> = [
   { id: "umamusume", label: "Umamusume" },
@@ -50,6 +52,13 @@ export const stageFilters: Array<{ id: StageFilter; label: string }> = [
 export const artFilters: Array<{ id: ArtFilter; label: string }> = [
   { id: "normal", label: "Normal Art" },
   { id: "fullArt", label: "Full Art" },
+];
+
+export const rarityFilters: Array<{ id: RarityFilter; label: string }> = [
+  { id: "common", label: CARD_RARITY_LABELS.common },
+  { id: "uncommon", label: CARD_RARITY_LABELS.uncommon },
+  { id: "rare", label: CARD_RARITY_LABELS.rare },
+  { id: "doubleRare", label: CARD_RARITY_LABELS.doubleRare },
 ];
 
 export const cardEntries = Object.values(cards).sort((left, right) => {
@@ -162,6 +171,10 @@ export function matchesAnyArtFilter(card: Card, filters: Set<ArtFilter>): boolea
   return filters.has(isFullArtCard(card) ? "fullArt" : "normal");
 }
 
+export function matchesAnyRarityFilter(card: Card, filters: Set<RarityFilter>): boolean {
+  return filters.has(getCardRarity(card));
+}
+
 function isFullArtCard(card: Card): boolean {
   const image = getCardImage(card);
   return card.id.endsWith("FullArt") || image.includes("-fullart.");
@@ -211,6 +224,7 @@ export function getSearchText(card: Card): string {
       card.label,
       card.trainerType,
       trainerTypeLabel(card.trainerType),
+      CARD_RARITY_LABELS[getCardRarity(card)],
       card.text,
     ].join(" ").toLowerCase();
   }
@@ -220,6 +234,7 @@ export function getSearchText(card: Card): string {
     card.label,
     card.species,
     card.type,
+    CARD_RARITY_LABELS[getCardRarity(card)],
     card.evolvesFrom ?? "",
     card.ability?.name ?? "",
     card.ability?.text ?? "",

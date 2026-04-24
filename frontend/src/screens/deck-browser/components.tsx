@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { CARD_RARITY_SHORT_LABELS, getCardRarity } from "../../../../shared/src/cardRarity";
 import type { Card, EnergyType } from "../../../../shared/src/types";
 import { energyLabel, getCard } from "../../game/engine";
 import { formatCardName } from "../../game/engine/core/labels";
@@ -10,6 +11,7 @@ import { DEFAULT_CARD_SORT, sortCardsForCollection, type CardSortKey, type CardS
 import {
   ArtFilter,
   CategoryFilter,
+  RarityFilter,
   StageFilter,
   DeckEntity,
   artFilters,
@@ -22,7 +24,9 @@ import {
   matchesAnyArtFilter,
   matchesAnyCategoryFilter,
   matchesAnyEnergyFilter,
+  matchesAnyRarityFilter,
   matchesAnyStageFilter,
+  rarityFilters,
   stageFilters,
   toDeckCountKey,
   toggleSetValue,
@@ -91,6 +95,7 @@ import {
   filterPopoverHeaderStyle,
   filterPopoverStyle,
   filterPopoverTitleStyle,
+  rarityBadgeStyle,
   searchInputStyle,
   searchToolbarStyle,
   sortControlGroupStyle,
@@ -620,9 +625,10 @@ export function DeckCardSelectorModal({
   const [energyFiltersSelected, setEnergyFiltersSelected] = useState<Set<EnergyType>>(() => new Set());
   const [stageFiltersSelected, setStageFiltersSelected] = useState<Set<StageFilter>>(() => new Set());
   const [artFiltersSelected, setArtFiltersSelected] = useState<Set<ArtFilter>>(() => new Set());
+  const [rarityFiltersSelected, setRarityFiltersSelected] = useState<Set<RarityFilter>>(() => new Set());
   const [sortOption, setSortOption] = useState<CardSortOption>(DEFAULT_CARD_SORT);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const activeFilterCount = categoryFiltersSelected.size + energyFiltersSelected.size + stageFiltersSelected.size + artFiltersSelected.size;
+  const activeFilterCount = categoryFiltersSelected.size + energyFiltersSelected.size + stageFiltersSelected.size + artFiltersSelected.size + rarityFiltersSelected.size;
 
   const visibleCards = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -631,11 +637,12 @@ export function DeckCardSelectorModal({
       if (energyFiltersSelected.size > 0 && !matchesAnyEnergyFilter(card, energyFiltersSelected)) return false;
       if (stageFiltersSelected.size > 0 && !matchesAnyStageFilter(card, stageFiltersSelected)) return false;
       if (artFiltersSelected.size > 0 && !matchesAnyArtFilter(card, artFiltersSelected)) return false;
+      if (rarityFiltersSelected.size > 0 && !matchesAnyRarityFilter(card, rarityFiltersSelected)) return false;
       if (!normalizedQuery) return true;
       return getSearchText(card).includes(normalizedQuery);
     });
     return sortCardsForCollection(filtered, sortOption, () => true);
-  }, [artFiltersSelected, categoryFiltersSelected, energyFiltersSelected, query, sortOption, stageFiltersSelected]);
+  }, [artFiltersSelected, categoryFiltersSelected, energyFiltersSelected, query, rarityFiltersSelected, sortOption, stageFiltersSelected]);
 
   const cardCounts = useMemo(() => {
     const counts = new Map<string, number>();
@@ -652,6 +659,7 @@ export function DeckCardSelectorModal({
     setEnergyFiltersSelected(new Set());
     setStageFiltersSelected(new Set());
     setArtFiltersSelected(new Set());
+    setRarityFiltersSelected(new Set());
   };
 
   const clearHoverPreviewTimer = () => {
@@ -780,6 +788,20 @@ export function DeckCardSelectorModal({
                           key={filter.id}
                           active={categoryFiltersSelected.has(filter.id)}
                           onClick={() => setCategoryFiltersSelected((selected) => toggleSetValue(selected, filter.id))}
+                        >
+                          {filter.label}
+                        </FilterChip>
+                      ))}
+                    </div>
+                  </div>
+                  <div style={filterGroupStyle}>
+                    <div style={filterGroupLabelStyle}>Rarity</div>
+                    <div style={filterOptionGridStyle}>
+                      {rarityFilters.map((filter) => (
+                        <FilterChip
+                          key={filter.id}
+                          active={rarityFiltersSelected.has(filter.id)}
+                          onClick={() => setRarityFiltersSelected((selected) => toggleSetValue(selected, filter.id))}
                         >
                           {filter.label}
                         </FilterChip>
@@ -947,6 +969,7 @@ function CardTile({
       title={disabled ? `Max 2 copies per deck (${name})` : undefined}
     >
       <img style={cardImageStyle} src={image} alt="" draggable={false} />
+      <span style={rarityBadgeStyle(getCardRarity(card))}>{CARD_RARITY_SHORT_LABELS[getCardRarity(card)]}</span>
     </button>
   );
 }
