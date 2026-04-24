@@ -2,6 +2,7 @@ type CreateSessionResponse = { code: string; expiresAt: string };
 type OfferResponse = { offer: string; expiresAt: string };
 type AnswerResponse = { answer: string; expiresAt: string };
 type PendingAnswerResponse = { pending: true; expiresAt: string };
+type IceServersResponse = { iceServers: RTCIceServer[] };
 type ErrorResponse = { error?: string };
 
 export async function createPvpSession(offer: string, baseUrl = ""): Promise<CreateSessionResponse> {
@@ -39,6 +40,13 @@ export async function getPvpAnswer(code: string, baseUrl = ""): Promise<string |
   if (!response.ok) throw await parseError(response);
   const payload = (await response.json()) as AnswerResponse;
   return payload.answer;
+}
+
+export async function getPvpIceServers(baseUrl = ""): Promise<RTCIceServer[]> {
+  const response = await fetch(`${baseUrl}/api/pvp/ice-servers`);
+  if (!response.ok) throw await parseError(response);
+  const payload = (await response.json()) as IceServersResponse;
+  return Array.isArray(payload.iceServers) ? payload.iceServers : [];
 }
 
 async function parseError(response: Response): Promise<Error> {

@@ -3,13 +3,13 @@ import { parsePvpMessage, type PvpWireMessage } from "./protocol";
 export type PeerStatus = "idle" | "creatingOffer" | "awaitingAnswer" | "joining" | "connecting" | "connected" | "failed" | "closed";
 
 type PeerRuntimeOptions = {
+  rtcConfig: RTCConfiguration;
   onStatus: (status: PeerStatus, detail: string) => void;
   onMessage: (message: PvpWireMessage) => void;
 };
 
-const RTC_CONFIG: RTCConfiguration = {
-  iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
-};
+export const DEFAULT_ICE_SERVERS: RTCIceServer[] = [{ urls: "stun:stun.l.google.com:19302" }];
+export const DEFAULT_RTC_CONFIG: RTCConfiguration = { iceServers: DEFAULT_ICE_SERVERS };
 const ICE_GATHERING_TIMEOUT_MS = 6000;
 
 export class PeerRuntime {
@@ -93,7 +93,7 @@ export class PeerRuntime {
   }
 
   private createPeerConnection(): RTCPeerConnection {
-    const pc = new RTCPeerConnection(RTC_CONFIG);
+    const pc = new RTCPeerConnection(this.options.rtcConfig);
     pc.onconnectionstatechange = () => {
       const state = pc.connectionState;
       if (state === "connected") this.options.onStatus("connected", "Connected.");

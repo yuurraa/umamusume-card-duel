@@ -53,10 +53,10 @@ import { useMatchUiActions } from "./hooks/useMatchUiActions";
 import { useMatchModalActions } from "./hooks/useMatchModalActions";
 import { applyPlayerIntent, type PlayerIntent } from "../pvp/playerIntent";
 import { mirrorGameState, mirrorGameStateForGuest } from "../pvp/stateMirror";
-import { PeerRuntime } from "../pvp/peer";
+import { DEFAULT_ICE_SERVERS, PeerRuntime } from "../pvp/peer";
 import type { PvpWireMessage } from "../pvp/protocol";
 import type { PvpRole } from "../screens/PvpLobbyScreen";
-import { createPvpSession, getPvpAnswer, getPvpOffer, submitPvpAnswer } from "../pvp/signalApi";
+import { createPvpSession, getPvpAnswer, getPvpIceServers, getPvpOffer, submitPvpAnswer } from "../pvp/signalApi";
 
 export function App() {
   const [screen, setScreen] = useState<AppScreen>("mainMenu");
@@ -97,6 +97,7 @@ export function App() {
   const coinFlipIdRef = useRef(1);
   const skipNextCoinLogMessageRef = useRef<string | null>(null);
   const pvpPeerRef = useRef<PeerRuntime | null>(null);
+  const pvpRtcConfigRef = useRef<RTCConfiguration | null>(null);
   const pvpAnswerPollTokenRef = useRef(0);
   const pvpLocalCloseIntentRef = useRef(false);
   const pvpRoleRef = useRef<PvpRole | null>(null);
@@ -338,9 +339,19 @@ export function App() {
     }
   };
 
-  const ensurePeerRuntime = () => {
+  const loadPvpRtcConfig = async (): Promise<RTCConfiguration> => {
+    if (pvpRtcConfigRef.current) return pvpRtcConfigRef.current;
+    const iceServers = await getPvpIceServers();
+    const rtcConfig = { iceServers: iceServers.length > 0 ? iceServers : DEFAULT_ICE_SERVERS };
+    pvpRtcConfigRef.current = rtcConfig;
+    return rtcConfig;
+  };
+
+  const ensurePeerRuntime = async () => {
     if (pvpPeerRef.current) return pvpPeerRef.current;
+    const rtcConfig = await loadPvpRtcConfig();
     const runtime = new PeerRuntime({
+      rtcConfig,
       onStatus: (status, detail) => {
         if (status === "connected") {
           setPvpStatusDetail("Opponent found!");
@@ -393,7 +404,8 @@ export function App() {
 
   const createOffer = async () => {
     try {
-      const runtime = ensurePeerRuntime();
+      setPvpStatusDetail("Loading network relay settings...");
+      const runtime = await ensurePeerRuntime();
       const offer = await runtime.hostCreateOffer();
       const created = await createPvpSession(offer);
       const code = created.code.toUpperCase();
@@ -426,7 +438,8 @@ export function App() {
       }
       setPvpStatusDetail("Fetching game offer...");
       const { offer } = await getPvpOffer(code);
-      const runtime = ensurePeerRuntime();
+      setPvpStatusDetail("Loading network relay settings...");
+      const runtime = await ensurePeerRuntime();
       setPvpStatusDetail("Creating connection answer...");
       const answer = await runtime.joinWithOffer(offer);
       setPvpStatusDetail("Sending answer to host...");

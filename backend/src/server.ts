@@ -25,12 +25,17 @@ const localDecksDir = path.join(repoRoot, "local-data", "decks");
 const frontendDistDir = path.join(repoRoot, "frontend", "dist");
 const PVP_SESSION_TTL_MS = 15 * 60 * 1000;
 const pvpSessions = new Map<string, PvpSession>();
+const pvpIceServers = readPvpIceServersFromEnv();
 
 app.use(cors());
 app.use(express.json());
 
 app.get("/api/health", (_request, response) => {
   response.json({ ok: true });
+});
+
+app.get("/api/pvp/ice-servers", (_request, response) => {
+  response.json({ iceServers: pvpIceServers });
 });
 
 app.post("/api/pvp/sessions", (request, response) => {
@@ -303,6 +308,38 @@ type PvpSession = {
   createdAt: number;
   expiresAt: string;
 };
+
+type PublicIceServer = {
+  urls: string | string[];
+  username?: string;
+  credential?: string;
+};
+
+function readPvpIceServersFromEnv(): PublicIceServer[] {
+  const iceServers: PublicIceServer[] = [];
+  const stunUrls = readCsvEnv("PVP_STUN_URLS");
+  iceServers.push({ urls: stunUrls.length > 0 ? stunUrls : "stun:stun.l.google.com:19302" });
+
+  const turnUrls = readCsvEnv("PVP_TURN_URLS");
+  if (turnUrls.length === 0) return iceServers;
+
+  const username = process.env.PVP_TURN_USERNAME?.trim();
+  const credential = process.env.PVP_TURN_CREDENTIAL?.trim();
+  if (!username || !credential) {
+    console.warn("PVP_TURN_URLS is set, but PVP_TURN_USERNAME or PVP_TURN_CREDENTIAL is missing. TURN will not be advertised.");
+    return iceServers;
+  }
+
+  iceServers.push({ urls: turnUrls, username, credential });
+  return iceServers;
+}
+
+function readCsvEnv(name: string): string[] {
+  return (process.env[name] ?? "")
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+}
 
 function createPvpCode(length = 6): string {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
