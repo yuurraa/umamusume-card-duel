@@ -56,7 +56,7 @@ import { mirrorGameState, mirrorGameStateForGuest } from "../pvp/stateMirror";
 import { DEFAULT_ICE_SERVERS, PeerRuntime } from "../pvp/peer";
 import type { PvpWireMessage } from "../pvp/protocol";
 import type { PvpRole } from "../screens/PvpLobbyScreen";
-import { createPvpSession, getPvpAnswer, getPvpIceServers, getPvpOffer, submitPvpAnswer } from "../pvp/signalApi";
+import { createPvpSession, getPvpAnswer, getPvpOffer, getPvpRtcConfig, submitPvpAnswer } from "../pvp/signalApi";
 
 export function App() {
   const [screen, setScreen] = useState<AppScreen>("mainMenu");
@@ -341,8 +341,13 @@ export function App() {
 
   const loadPvpRtcConfig = async (): Promise<RTCConfiguration> => {
     if (pvpRtcConfigRef.current) return pvpRtcConfigRef.current;
-    const iceServers = await getPvpIceServers();
-    const rtcConfig = { iceServers: iceServers.length > 0 ? iceServers : DEFAULT_ICE_SERVERS };
+    const serverConfig = await getPvpRtcConfig();
+    const rtcConfig = {
+      ...serverConfig,
+      iceServers: serverConfig.iceServers && serverConfig.iceServers.length > 0
+        ? serverConfig.iceServers
+        : DEFAULT_ICE_SERVERS,
+    };
     pvpRtcConfigRef.current = rtcConfig;
     return rtcConfig;
   };

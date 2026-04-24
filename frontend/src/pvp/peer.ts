@@ -10,16 +10,21 @@ type PeerRuntimeOptions = {
 
 export const DEFAULT_ICE_SERVERS: RTCIceServer[] = [{ urls: "stun:stun.l.google.com:19302" }];
 export const DEFAULT_RTC_CONFIG: RTCConfiguration = { iceServers: DEFAULT_ICE_SERVERS };
-const ICE_GATHERING_TIMEOUT_MS = 6000;
+const ICE_GATHERING_TIMEOUT_MS = 30000;
+const RELAY_CANDIDATE_GRACE_MS = 2500;
 
 export class PeerRuntime {
   private pc: RTCPeerConnection | null = null;
   private channel: RTCDataChannel | null = null;
+  private hasRelayCandidate = false;
+  private gatheredCandidateLines: string[] = [];
 
   constructor(private readonly options: PeerRuntimeOptions) {}
 
   async hostCreateOffer(): Promise<string> {
     this.close();
+    this.hasRelayCandidate = false;
+    this.gatheredCandidateLines = [];
     this.options.onStatus("creatingOffer", "Creating offer...");
     const pc = this.createPeerConnection();
     const channel = pc.createDataChannel("game", { ordered: true });
@@ -31,9 +36,10 @@ export class PeerRuntime {
     await pc.setLocalDescription(offer);
     await this.waitForIceGatheringComplete(pc);
     if (!pc.localDescription) throw new Error("Missing local description.");
+    this.assertRelayCandidateIfRequired();
 
     this.options.onStatus("awaitingAnswer", "Offer ready.");
-    return JSON.stringify(pc.localDescription);
+    return this.serializeLocalDescription(pc.localDescription);
   }
 
   async hostAcceptAnswer(answerText: string): Promise<void> {
@@ -46,6 +52,8 @@ export class PeerRuntime {
 
   async joinWithOffer(offerText: string): Promise<string> {
     this.close();
+    this.hasRelayCandidate = false;
+    this.gatheredCandidateLines = [];
     this.options.onStatus("joining", "Joining host...");
     const pc = this.createPeerConnection();
     pc.ondatachannel = (event) => {
@@ -60,9 +68,10 @@ export class PeerRuntime {
     await pc.setLocalDescription(answer);
     await this.waitForIceGatheringComplete(pc);
     if (!pc.localDescription) throw new Error("Missing local description.");
+    this.assertRelayCandidateIfRequired();
 
     this.options.onStatus("connecting", "Joining host...");
-    return JSON.stringify(pc.localDescription);
+    return this.serializeLocalDescription(pc.localDescription);
   }
 
   send(message: PvpWireMessage): void {
@@ -94,6 +103,16 @@ export class PeerRuntime {
 
   private createPeerConnection(): RTCPeerConnection {
     const pc = new RTCPeerConnection(this.options.rtcConfig);
+    pc.onicecandidate = (event) => {
+      const candidateLine = event.candidate?.candidate;
+      if (!candidateLine) return;
+      if (!this.gatheredCandidateLines.includes(candidateLine)) {
+        this.gatheredCandidateLines.push(candidateLine);
+      }
+      if (candidateLine.includes(" typ relay ")) {
+        this.hasRelayCandidate = true;
+      }
+    };
     pc.onconnectionstatechange = () => {
       const state = pc.connectionState;
       if (state === "connected") this.options.onStatus("connected", "Connected.");
@@ -134,8 +153,21 @@ export class PeerRuntime {
     return { type: expectedType, sdp: payload.sdp };
   }
 
+  private serializeLocalDescription(description: RTCSessionDescription): string {
+    let sdp = description.sdp;
+    if (sdp.includes("\r\na=candidate:") || sdp.startsWith("a=candidate:")) {
+      return JSON.stringify({ type: description.type, sdp });
+    }
+    for (const candidateLine of this.gatheredCandidateLines) {
+      const attributeLine = `a=${candidateLine}`;
+      if (sdp.includes(attributeLine)) continue;
+      sdp = `${sdp}${sdp.endsWith("\r\n") ? "" : "\r\n"}${attributeLine}\r\n`;
+    }
+    return JSON.stringify({ type: description.type, sdp });
+  }
+
   private waitForIceGatheringComplete(pc: RTCPeerConnection): Promise<void> {
-    if (pc.iceGatheringState === "complete") return Promise.resolve();
+    if (pc.iceGatheringState === "complete") return this.waitForRelayGraceIfNeeded();
     return new Promise((resolve) => {
       const timeoutId = window.setTimeout(() => {
         pc.removeEventListener("icegatheringstatechange", onStateChange);
@@ -145,9 +177,27 @@ export class PeerRuntime {
         if (pc.iceGatheringState !== "complete") return;
         pc.removeEventListener("icegatheringstatechange", onStateChange);
         window.clearTimeout(timeoutId);
-        resolve();
+        void this.waitForRelayGraceIfNeeded().then(resolve);
       };
       pc.addEventListener("icegatheringstatechange", onStateChange);
     });
   }
+
+  private waitForRelayGraceIfNeeded(): Promise<void> {
+    if (this.hasRelayCandidate || !this.options.rtcConfig.iceServers?.some(hasTurnUrl)) return Promise.resolve();
+    return new Promise((resolve) => window.setTimeout(resolve, RELAY_CANDIDATE_GRACE_MS));
+  }
+
+  private assertRelayCandidateIfRequired(): void {
+    if (this.options.rtcConfig.iceTransportPolicy !== "relay") return;
+    const descriptionSdp = this.pc?.localDescription?.sdp ?? "";
+    const sdpHasRelay = descriptionSdp.includes(" typ relay ");
+    if (this.hasRelayCandidate || sdpHasRelay) return;
+    throw new Error("TURN relay candidate was not available. Check the TURN URLs, credentials, and whether this network allows TURN/TLS.");
+  }
+}
+
+function hasTurnUrl(server: RTCIceServer): boolean {
+  const urls = Array.isArray(server.urls) ? server.urls : [server.urls];
+  return urls.some((url) => url.startsWith("turn:") || url.startsWith("turns:"));
 }

@@ -35,7 +35,7 @@ app.get("/api/health", (_request, response) => {
 });
 
 app.get("/api/pvp/ice-servers", (_request, response) => {
-  response.json({ iceServers: pvpIceServers });
+  response.json({ iceServers: pvpIceServers, iceTransportPolicy: readPvpIceTransportPolicyFromEnv() });
 });
 
 app.post("/api/pvp/sessions", (request, response) => {
@@ -314,6 +314,7 @@ type PublicIceServer = {
   username?: string;
   credential?: string;
 };
+type PublicIceTransportPolicy = "all" | "relay";
 
 function readPvpIceServersFromEnv(): PublicIceServer[] {
   const iceServers: PublicIceServer[] = [];
@@ -339,6 +340,11 @@ function readCsvEnv(name: string): string[] {
     .split(",")
     .map((entry) => entry.trim())
     .filter((entry) => entry.length > 0);
+}
+
+function readPvpIceTransportPolicyFromEnv(): PublicIceTransportPolicy | undefined {
+  const policy = process.env.PVP_ICE_TRANSPORT_POLICY?.trim().toLowerCase();
+  return policy === "relay" || policy === "all" ? policy : undefined;
 }
 
 function createPvpCode(length = 6): string {
