@@ -343,9 +343,9 @@ export function DeckBrowserScreen({
           Back
         </NeutralButton>
       </div>
-      <div style={localDeckPersistenceNoticeStyle}>
+      {/* <div style={localDeckPersistenceNoticeStyle}>
 Created decks are saved to cloud storage for this test profile. Export still gives you a portable JSON backup.
-      </div>
+      </div> */}
       <div style={deckBrowserGridStyle}>
         {allDecks.map((deck) => {
           const equipped = deck.source !== "draft" && deck.id === equippedDeckId;
@@ -929,7 +929,7 @@ function normalizeDeckNameForCompare(name: string): string {
 function resolveDraftCoverCardId(draft: DeckEditorDraft): string {
   return draft.selectedCoverCardId
     ?? draft.cardIds.find((cardId): cardId is string => Boolean(cardId))
-    ?? "mihonoBourbonStage2";
+    ?? "matikanetannhauserStage2";
 }
 
 function buildCreateDraftDeckId(

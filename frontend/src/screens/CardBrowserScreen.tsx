@@ -1,5 +1,5 @@
 import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
-import { cards } from "../../../shared/src/gameData";
+import { allCards, ownedStarterCardIds } from "../../../shared/src/gameData";
 import type { Card, EnergyType, TrainerType, UmamusumeType } from "../../../shared/src/types";
 import { EnergyIcon } from "../components/cards/EnergyIcon";
 import { NeutralButton } from "../components/buttons/NeutralButton";
@@ -10,6 +10,7 @@ import { CARD_ASPECT_RATIO, borders, colors, glassPanelStyle, radius, transition
 type CategoryFilter = "umamusume" | "trainer" | "item" | "tool" | "stadium";
 type StageFilter = 0 | 1 | 2;
 type ArtFilter = "normal" | "fullArt";
+type OwnershipFilter = "owned" | "unowned";
 
 const categoryFilters: Array<{ id: CategoryFilter; label: string }> = [
   { id: "umamusume", label: "Umamusume" },
@@ -43,11 +44,17 @@ const artFilters: Array<{ id: ArtFilter; label: string }> = [
   { id: "fullArt", label: "Full Art" },
 ];
 
-const cardEntries = Object.values(cards).sort((left, right) => {
+const ownershipFilters: Array<{ id: OwnershipFilter; label: string }> = [
+  { id: "owned", label: "Owned" },
+  { id: "unowned", label: "Unowned" },
+];
+
+const cardEntries = Object.values(allCards).sort((left, right) => {
   const groupSort = getCardSortGroup(left) - getCardSortGroup(right);
   if (groupSort !== 0) return groupSort;
   return formatCardName(left).localeCompare(formatCardName(right));
 });
+const ownedCardCount = cardEntries.filter((card) => ownedStarterCardIds.has(card.id)).length;
 
 const HOVER_PREVIEW_MAX_WIDTH = 440;
 const HOVER_PREVIEW_VIEWPORT_WIDTH_PADDING = 36;
@@ -80,13 +87,14 @@ export function CardBrowserScreen({ onBack }: { onBack: () => void }) {
   const [energyFiltersSelected, setEnergyFiltersSelected] = useState<Set<EnergyType>>(() => new Set());
   const [stageFiltersSelected, setStageFiltersSelected] = useState<Set<StageFilter>>(() => new Set());
   const [artFiltersSelected, setArtFiltersSelected] = useState<Set<ArtFilter>>(() => new Set());
+  const [ownershipFiltersSelected, setOwnershipFiltersSelected] = useState<Set<OwnershipFilter>>(() => new Set());
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [hoverPreviewCard, setHoverPreviewCard] = useState<Card | null>(null);
   const [hoverPreviewCardId, setHoverPreviewCardId] = useState<string | null>(null);
   const [hoverPreviewPosition, setHoverPreviewPosition] = useState<{ left: number; top: number } | null>(null);
   const hoverPreviewTimeoutRef = useRef<number | null>(null);
   const filterMenuWrapRef = useRef<HTMLDivElement | null>(null);
-  const activeFilterCount = categoryFiltersSelected.size + energyFiltersSelected.size + stageFiltersSelected.size + artFiltersSelected.size;
+  const activeFilterCount = categoryFiltersSelected.size + energyFiltersSelected.size + stageFiltersSelected.size + artFiltersSelected.size + ownershipFiltersSelected.size;
 
   const visibleCards = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -95,16 +103,18 @@ export function CardBrowserScreen({ onBack }: { onBack: () => void }) {
       if (energyFiltersSelected.size > 0 && !matchesAnyEnergyFilter(card, energyFiltersSelected)) return false;
       if (stageFiltersSelected.size > 0 && !matchesAnyStageFilter(card, stageFiltersSelected)) return false;
       if (artFiltersSelected.size > 0 && !matchesAnyArtFilter(card, artFiltersSelected)) return false;
+      if (ownershipFiltersSelected.size > 0 && !matchesAnyOwnershipFilter(card, ownershipFiltersSelected)) return false;
       if (!normalizedQuery) return true;
       return getSearchText(card).includes(normalizedQuery);
     });
-  }, [artFiltersSelected, categoryFiltersSelected, energyFiltersSelected, query, stageFiltersSelected]);
+  }, [artFiltersSelected, categoryFiltersSelected, energyFiltersSelected, ownershipFiltersSelected, query, stageFiltersSelected]);
 
   const clearFilters = () => {
     setCategoryFiltersSelected(new Set());
     setEnergyFiltersSelected(new Set());
     setStageFiltersSelected(new Set());
     setArtFiltersSelected(new Set());
+    setOwnershipFiltersSelected(new Set());
   };
 
   const clearHoverPreviewTimer = () => {
@@ -171,7 +181,7 @@ export function CardBrowserScreen({ onBack }: { onBack: () => void }) {
         <div>
           <div style={menuKickerStyle}>Cards</div>
           <h1 style={cardBrowserTitleStyle}>Browse available cards</h1>
-          <p style={cardBrowserSubtitleStyle}>{visibleCards.length} of {cardEntries.length} cards shown</p>
+          <p style={cardBrowserSubtitleStyle}>{visibleCards.length} of {cardEntries.length} cards shown • {ownedCardCount} owned</p>
         </div>
         <NeutralButton style={cardBrowserBackButtonStyle} onClick={onBack}>Back</NeutralButton>
       </header>
@@ -207,6 +217,20 @@ export function CardBrowserScreen({ onBack }: { onBack: () => void }) {
                   >
                     Clear
                   </button>
+                </div>
+                <div style={filterGroupStyle}>
+                  <div style={filterGroupLabelStyle}>Ownership</div>
+                  <div style={filterOptionGridStyle}>
+                    {ownershipFilters.map((filter) => (
+                      <FilterChip
+                        key={filter.id}
+                        active={ownershipFiltersSelected.has(filter.id)}
+                        onClick={() => setOwnershipFiltersSelected((selected) => toggleSetValue(selected, filter.id))}
+                      >
+                        {filter.label}
+                      </FilterChip>
+                    ))}
+                  </div>
                 </div>
                 <div style={filterGroupStyle}>
                   <div style={filterGroupLabelStyle}>Card Type</div>
@@ -280,6 +304,7 @@ export function CardBrowserScreen({ onBack }: { onBack: () => void }) {
               <CardTile
                 key={card.id}
                 card={card}
+                owned={ownedStarterCardIds.has(card.id)}
                 onHoverStart={(anchorEl) => scheduleHoverPreview(card, anchorEl)}
                 onHoverEnd={hideHoverPreview}
                 previewActive={hoverPreviewCardId === card.id}
@@ -318,11 +343,13 @@ function FilterChip({ active, children, onClick }: { active: boolean; children: 
 
 function CardTile({
   card,
+  owned,
   onHoverStart,
   onHoverEnd,
   previewActive = false,
 }: {
   card: Card;
+  owned: boolean;
   onHoverStart?: (anchorEl: HTMLButtonElement) => void;
   onHoverEnd?: () => void;
   previewActive?: boolean;
@@ -356,7 +383,8 @@ function CardTile({
       }}
       aria-label={formatCardName(card)}
     >
-      <img style={cardImageStyle} src={image} alt="" draggable={false} />
+      <img style={cardImageStyle(owned)} src={image} alt="" draggable={false} />
+      <span style={ownershipBadgeStyle(owned)}>{owned ? "Owned" : "Unowned"}</span>
     </button>
   );
 }
@@ -396,6 +424,10 @@ function matchesAnyStageFilter(card: Card, filters: Set<StageFilter>): boolean {
 
 function matchesAnyArtFilter(card: Card, filters: Set<ArtFilter>): boolean {
   return filters.has(isFullArtCard(card) ? "fullArt" : "normal");
+}
+
+function matchesAnyOwnershipFilter(card: Card, filters: Set<OwnershipFilter>): boolean {
+  return filters.has(ownedStarterCardIds.has(card.id) ? "owned" : "unowned");
 }
 
 function isFullArtCard(card: Card): boolean {
@@ -677,6 +709,7 @@ const cardGridStyle: CSSProperties = {
 function cardTileStyle(hovered: boolean): CSSProperties {
   return {
     display: "block",
+    position: "relative",
     minWidth: 0,
     border: 0,
     borderRadius: radius.md,
@@ -689,13 +722,37 @@ function cardTileStyle(hovered: boolean): CSSProperties {
   };
 }
 
-const cardImageStyle: CSSProperties = {
-  width: "100%",
-  aspectRatio: CARD_ASPECT_RATIO,
-  objectFit: "contain",
-  display: "block",
-  borderRadius: radius.md,
-};
+function cardImageStyle(owned: boolean): CSSProperties {
+  return {
+    width: "100%",
+    aspectRatio: CARD_ASPECT_RATIO,
+    objectFit: "contain",
+    display: "block",
+    borderRadius: radius.md,
+    filter: owned ? "none" : "grayscale(1) saturate(0.24) brightness(0.72)",
+    opacity: owned ? 1 : 0.58,
+    transition: `filter ${transitions.base}, opacity ${transitions.base}`,
+  };
+}
+
+function ownershipBadgeStyle(owned: boolean): CSSProperties {
+  return {
+    position: "absolute",
+    left: 8,
+    bottom: 8,
+    borderRadius: radius.pill,
+    border: owned ? "1px solid rgba(45, 212, 191, 0.72)" : "1px solid rgba(255, 255, 255, 0.56)",
+    background: owned ? "rgba(13, 148, 136, 0.88)" : "rgba(31, 41, 55, 0.78)",
+    color: colors.white,
+    textShadow: uiTextShadow,
+    padding: "4px 8px",
+    fontSize: 10,
+    fontWeight: 950,
+    textTransform: "uppercase",
+    pointerEvents: "none",
+    boxShadow: "0 8px 18px rgba(17, 24, 39, 0.24)",
+  };
+}
 
 function hoverDimStyle(active: boolean): CSSProperties {
   return {

@@ -28,7 +28,7 @@ export function getDeckById(deckId: string): PremadeDeck {
     ?? readCachedLocalDecks().find((deck) => deck.id === resolvedDeckId)
     ?? premadeDecks.find((deck) => deck.id === defaultPlayerDeckId)
     ?? premadeDecks[0]
-    ?? { id: defaultPlayerDeckId, name: "Deck", coverCardId: "mihonoBourbonStage2", cardIds: [] };
+    ?? { id: defaultPlayerDeckId, name: "Deck", coverCardId: "matikanetannhauserStage2", cardIds: [] };
 }
 
 export function readEquippedDeckId(): string {
@@ -65,7 +65,7 @@ export function getDeckCoverCard(deck: PremadeDeck) {
     if (fallbackCard) return fallbackCard;
   }
 
-  return getCard("mihonoBourbonStage2");
+  return getCard("matikanetannhauserStage2");
 }
 
 export function getDeckEnergyTypes(deck: PremadeDeck): EnergyType[] {

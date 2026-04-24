@@ -41,8 +41,13 @@ export const energyImages: Record<EnergyType, string> = {
 
 const baseCards = cardsData.baseCards;
 const fullArtBaseCardIds = cardsData.fullArtBaseCardIds;
+const starterCardIds = new Set(
+  premadeDecksData.premadeDecks.flatMap((deck) => [deck.coverCardId, ...deck.cardIds]),
+);
 
-export const cards = withFullArtVariants(baseCards, fullArtBaseCardIds);
+export const allCards = withFullArtVariants(baseCards, fullArtBaseCardIds);
+export const ownedStarterCardIds: ReadonlySet<string> = starterCardIds;
+export const cards = filterCardsById(allCards, ownedStarterCardIds);
 
 function withFullArtVariants(sourceCards: Record<string, Card>, baseCardIds: readonly string[]): Record<string, Card> {
   const nextCards: Record<string, Card> = { ...sourceCards };
@@ -73,6 +78,12 @@ function toFullArtAssetPath(assetPath: string): string {
   return assetPath.endsWith(".png")
     ? assetPath.slice(0, -4) + `${FULL_ART_SUFFIX}.png`
     : `${assetPath}${FULL_ART_SUFFIX}`;
+}
+
+function filterCardsById(sourceCards: Record<string, Card>, allowedCardIds: ReadonlySet<string>): Record<string, Card> {
+  return Object.fromEntries(
+    Object.entries(sourceCards).filter(([cardId]) => allowedCardIds.has(cardId)),
+  );
 }
 
 export const premadeDecks = premadeDecksData.premadeDecks;
