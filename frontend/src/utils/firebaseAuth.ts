@@ -48,6 +48,22 @@ type FirebaseLookupResponse = {
 
 type FirebaseProviderResponse = FirebaseSignInResponse;
 
+type FirebaseErrorResponse = {
+  error?: {
+    message?: string;
+  };
+};
+
+class FirebaseAuthRequestError extends Error {
+  code: string;
+
+  constructor(code: string, fallbackMessage: string) {
+    super(getFirebaseAuthErrorMessage(code, fallbackMessage));
+    this.name = "FirebaseAuthRequestError";
+    this.code = code;
+  }
+}
+
 export type FirebaseAccountSnapshot = {
   configured: boolean;
   localId: string | null;
@@ -149,7 +165,13 @@ export async function linkFirebaseAccountWithGoogle(): Promise<FirebaseAccountSn
   const currentIdToken = await getFirebaseAuthToken();
   if (!currentIdToken) throw new Error("Guest profile is not ready.");
   const accessToken = await requestGoogleAccessToken(googleClientId);
-  const session = await signInWithGoogleProvider(apiKey, currentIdToken, accessToken);
+  let session: FirebaseAnonymousSession;
+  try {
+    session = await signInWithGoogleProvider(apiKey, accessToken, currentIdToken);
+  } catch (error) {
+    if (!isProviderAlreadyLinkedError(error)) throw error;
+    session = await signInWithGoogleProvider(apiKey, accessToken);
+  }
   writeSession(session);
   return getFirebaseAccountSnapshot();
 }
@@ -189,7 +211,7 @@ async function refreshAnonymousSession(apiKey: string, previousSession: Firebase
   return toSession(nextPayload);
 }
 
-async function signInWithGoogleProvider(apiKey: string, currentIdToken: string, googleAccessToken: string): Promise<FirebaseAnonymousSession> {
+async function signInWithGoogleProvider(apiKey: string, googleAccessToken: string, currentIdToken?: string): Promise<FirebaseAnonymousSession> {
   const response = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithIdp?key=${encodeURIComponent(apiKey)}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -199,14 +221,39 @@ async function signInWithGoogleProvider(apiKey: string, currentIdToken: string, 
         providerId: "google.com",
       }).toString(),
       requestUri: window.location.origin,
-      idToken: currentIdToken,
+      ...(currentIdToken ? { idToken: currentIdToken } : {}),
       returnSecureToken: true,
       returnIdpCredential: true,
     }),
   });
-  if (!response.ok) throw new Error("Failed to link Google account.");
+  if (!response.ok) throw await toFirebaseAuthRequestError(response, "Failed to link Google account.");
   const payload = (await response.json()) as FirebaseProviderResponse;
   return toSession({ ...payload, providerId: "google.com" });
+}
+
+async function toFirebaseAuthRequestError(response: Response, fallbackMessage: string): Promise<FirebaseAuthRequestError> {
+  try {
+    const payload = (await response.json()) as FirebaseErrorResponse;
+    return new FirebaseAuthRequestError(payload.error?.message ?? response.statusText, fallbackMessage);
+  } catch {
+    return new FirebaseAuthRequestError(response.statusText, fallbackMessage);
+  }
+}
+
+function isProviderAlreadyLinkedError(error: unknown): boolean {
+  return error instanceof FirebaseAuthRequestError && (
+    error.code.includes("FEDERATED_USER_ID_ALREADY_LINKED") ||
+    error.code.includes("EMAIL_EXISTS") ||
+    error.code.includes("CREDENTIAL_ALREADY_IN_USE")
+  );
+}
+
+function getFirebaseAuthErrorMessage(code: string, fallbackMessage: string): string {
+  if (code.includes("FEDERATED_USER_ID_ALREADY_LINKED") || code.includes("CREDENTIAL_ALREADY_IN_USE")) {
+    return "That Google account is already linked. Signing into it instead.";
+  }
+  if (code.includes("EMAIL_EXISTS")) return "That email is already linked to another account.";
+  return fallbackMessage;
 }
 
 function toSession(payload: FirebaseSignInResponse): FirebaseAnonymousSession {
