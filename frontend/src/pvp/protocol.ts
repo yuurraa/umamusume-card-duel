@@ -3,6 +3,7 @@ import type { PlayerIntent } from "./playerIntent";
 
 const COMPRESSED_MESSAGE_PREFIX = "UCDM1.";
 const COMPRESSION_THRESHOLD_BYTES = 1024;
+const MAX_WIRE_MESSAGE_CHARS = 512_000;
 
 export type PvpWireMessage =
   | { type: "hello"; playerName: string; deckCardIds: string[] }
@@ -22,10 +23,12 @@ export async function encodePvpMessage(message: PvpWireMessage): Promise<string>
 }
 
 export async function parsePvpMessage(raw: string): Promise<PvpWireMessage | null> {
+  if (raw.length > MAX_WIRE_MESSAGE_CHARS) return null;
   try {
     const decoded = raw.startsWith(COMPRESSED_MESSAGE_PREFIX)
       ? await decodeCompressedMessage(raw)
       : raw;
+    if (decoded.length > MAX_WIRE_MESSAGE_CHARS) return null;
     return parseRawPvpMessage(decoded);
   } catch {
     return null;

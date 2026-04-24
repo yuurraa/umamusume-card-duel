@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import { existsSync, promises as fs, readFileSync } from "node:fs";
 import path from "node:path";
+import { randomInt } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import type { CollectionReference } from "firebase-admin/firestore";
 import { getFirebaseAuth, getFirebaseDb, isFirebaseConfigured, readFirebaseProjectId } from "./firebase";
@@ -27,11 +28,13 @@ const repoRoot = findRepoRoot(path.dirname(fileURLToPath(import.meta.url)));
 const localDecksDir = path.join(repoRoot, "local-data", "decks");
 const frontendDistDir = path.join(repoRoot, "frontend", "dist");
 const PVP_SESSION_TTL_MS = 15 * 60 * 1000;
+const PVP_SIGNAL_MAX_LENGTH = 64_000;
+const localDeckApiEnabled = process.env.ENABLE_LOCAL_DECK_API === "true";
 const pvpSessions = new Map<string, PvpSession>();
 const pvpIceServers = readPvpIceServersFromEnv();
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: "256kb" }));
 
 app.get("/api/health", (_request, response) => {
   response.json({ ok: true });
@@ -64,6 +67,10 @@ app.post("/api/pvp/sessions", (request, response) => {
     response.status(400).json({ error: "Offer is required." });
     return;
   }
+  if (offer.length > PVP_SIGNAL_MAX_LENGTH) {
+    response.status(413).json({ error: "Offer is too large." });
+    return;
+  }
   const code = createPvpCode();
   const now = Date.now();
   const expiresAt = new Date(now + PVP_SESSION_TTL_MS).toISOString();
@@ -91,6 +98,14 @@ app.post("/api/pvp/sessions/:code/answer", (request, response) => {
   const answer = typeof request.body?.answer === "string" ? request.body.answer.trim() : "";
   if (!answer) {
     response.status(400).json({ error: "Answer is required." });
+    return;
+  }
+  if (answer.length > PVP_SIGNAL_MAX_LENGTH) {
+    response.status(413).json({ error: "Answer is too large." });
+    return;
+  }
+  if (session.answer) {
+    response.status(409).json({ error: "Answer has already been submitted." });
     return;
   }
   session.answer = answer;
@@ -128,90 +143,96 @@ app.get("/api/game-data", (_request, response) => {
   });
 });
 
-app.get("/api/local-decks", async (_request, response) => {
-  const decks = await readLocalDecks();
-  response.json({ decks });
-});
+if (localDeckApiEnabled) {
+  app.get("/api/local-decks", async (_request, response) => {
+    const decks = await readLocalDecks();
+    response.json({ decks });
+  });
 
-app.get("/api/local-decks/:deckId", async (request, response) => {
-  const deckId = normalizeDeckId(request.params.deckId ?? "");
-  if (!deckId) {
-    response.status(400).json({ error: "Deck id is invalid." });
-    return;
-  }
-  const deck = await readLocalDeckById(deckId);
-  if (!deck) {
-    response.status(404).json({ error: "Deck not found." });
-    return;
-  }
-  response.json({ deck });
-});
-
-app.put("/api/local-decks/:deckId", async (request, response) => {
-  const deckId = normalizeDeckId(request.params.deckId ?? "");
-  if (!deckId) {
-    response.status(400).json({ error: "Deck id is invalid." });
-    return;
-  }
-
-  const input = request.body as LocalDeckInput;
-  const parseError = validateLocalDeckInput(input);
-  if (parseError) {
-    response.status(400).json({ error: parseError });
-    return;
-  }
-
-  const existing = await readLocalDeckById(deckId);
-  const nextDeck = buildLocalDeck(deckId, input, new Date().toISOString(), existing ?? undefined);
-  const validity = validateLocalDeck(nextDeck, cards);
-  if (!validity.ok) {
-    response.status(400).json({ error: validity.reason });
-    return;
-  }
-
-  await writeLocalDeck(nextDeck);
-  response.json({ deck: nextDeck });
-});
-
-app.post("/api/local-decks/import", async (request, response) => {
-  const input = request.body as LocalDeckInput;
-  const parseError = validateLocalDeckInput(input);
-  if (parseError) {
-    response.status(400).json({ error: parseError });
-    return;
-  }
-
-  const baseDeckId = createDeckIdFromName(input.name);
-  const deckId = await getUniqueDeckId(baseDeckId);
-  const nextDeck = buildLocalDeck(deckId, input, new Date().toISOString());
-  const validity = validateLocalDeck(nextDeck, cards);
-  if (!validity.ok) {
-    response.status(400).json({ error: validity.reason });
-    return;
-  }
-
-  await writeLocalDeck(nextDeck);
-  response.status(201).json({ deck: nextDeck });
-});
-
-app.delete("/api/local-decks/:deckId", async (request, response) => {
-  const deckId = normalizeDeckId(request.params.deckId ?? "");
-  if (!deckId) {
-    response.status(400).json({ error: "Deck id is invalid." });
-    return;
-  }
-  const deckPath = deckFilePath(deckId);
-  try {
-    await fs.unlink(deckPath);
-    response.status(204).send();
-  } catch (error) {
-    if (isNodeError(error) && error.code === "ENOENT") {
+  app.get("/api/local-decks/:deckId", async (request, response) => {
+    const deckId = normalizeDeckId(request.params.deckId ?? "");
+    if (!deckId) {
+      response.status(400).json({ error: "Deck id is invalid." });
+      return;
+    }
+    const deck = await readLocalDeckById(deckId);
+    if (!deck) {
       response.status(404).json({ error: "Deck not found." });
       return;
     }
-    throw error;
-  }
-});
+    response.json({ deck });
+  });
+
+  app.put("/api/local-decks/:deckId", async (request, response) => {
+    const deckId = normalizeDeckId(request.params.deckId ?? "");
+    if (!deckId) {
+      response.status(400).json({ error: "Deck id is invalid." });
+      return;
+    }
+
+    const input = request.body as LocalDeckInput;
+    const parseError = validateLocalDeckInput(input);
+    if (parseError) {
+      response.status(400).json({ error: parseError });
+      return;
+    }
+
+    const existing = await readLocalDeckById(deckId);
+    const nextDeck = buildLocalDeck(deckId, input, new Date().toISOString(), existing ?? undefined);
+    const validity = validateLocalDeck(nextDeck, cards);
+    if (!validity.ok) {
+      response.status(400).json({ error: validity.reason });
+      return;
+    }
+
+    await writeLocalDeck(nextDeck);
+    response.json({ deck: nextDeck });
+  });
+
+  app.post("/api/local-decks/import", async (request, response) => {
+    const input = request.body as LocalDeckInput;
+    const parseError = validateLocalDeckInput(input);
+    if (parseError) {
+      response.status(400).json({ error: parseError });
+      return;
+    }
+
+    const baseDeckId = createDeckIdFromName(input.name);
+    const deckId = await getUniqueDeckId(baseDeckId);
+    const nextDeck = buildLocalDeck(deckId, input, new Date().toISOString());
+    const validity = validateLocalDeck(nextDeck, cards);
+    if (!validity.ok) {
+      response.status(400).json({ error: validity.reason });
+      return;
+    }
+
+    await writeLocalDeck(nextDeck);
+    response.status(201).json({ deck: nextDeck });
+  });
+
+  app.delete("/api/local-decks/:deckId", async (request, response) => {
+    const deckId = normalizeDeckId(request.params.deckId ?? "");
+    if (!deckId) {
+      response.status(400).json({ error: "Deck id is invalid." });
+      return;
+    }
+    const deckPath = deckFilePath(deckId);
+    try {
+      await fs.unlink(deckPath);
+      response.status(204).send();
+    } catch (error) {
+      if (isNodeError(error) && error.code === "ENOENT") {
+        response.status(404).json({ error: "Deck not found." });
+        return;
+      }
+      throw error;
+    }
+  });
+} else {
+  app.all(["/api/local-decks", "/api/local-decks/*"], (_request, response) => {
+    response.status(404).json({ error: "Local deck API is disabled." });
+  });
+}
 
 app.get("/api/cloud-decks", asyncHandler(async (request, response) => {
   const userId = await getCloudDeckUserId(request, response);
@@ -575,7 +596,11 @@ function isRecord(input: unknown): input is Record<string, unknown> {
 async function getCloudDeckUserId(request: express.Request, response: express.Response): Promise<string | null> {
   const authHeader = request.header("authorization") ?? "";
   const token = authHeader.match(/^Bearer\s+(.+)$/i)?.[1];
-  if (!token) return getFallbackCloudDeckUserId();
+  if (!token) {
+    if (!isFirebaseConfigured()) return getFallbackCloudDeckUserId();
+    response.status(401).json({ error: "Firebase auth token is required." });
+    return null;
+  }
 
   if (!isFirebaseConfigured()) {
     response.status(503).json({ error: "Firebase is not configured." });
@@ -687,7 +712,7 @@ function createPvpCode(length = 6): string {
   for (let attempts = 0; attempts < 32; attempts += 1) {
     let code = "";
     for (let index = 0; index < length; index += 1) {
-      const randomIndex = Math.floor(Math.random() * alphabet.length);
+      const randomIndex = randomInt(alphabet.length);
       code += alphabet[randomIndex] ?? "A";
     }
     if (!pvpSessions.has(code)) return code;

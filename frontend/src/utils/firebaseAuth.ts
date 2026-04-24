@@ -2,6 +2,12 @@ const FIREBASE_AUTH_SESSION_KEY = "umamusume-firebase-anonymous-session";
 const TOKEN_EXPIRY_SAFETY_MS = 60_000;
 const GOOGLE_SIGN_IN_TIMEOUT_MS = 10_000;
 const GOOGLE_SCRIPT_SRC = "https://accounts.google.com/gsi/client";
+const STALE_FIREBASE_SESSION_ERROR_CODES = [
+  "INVALID_ID_TOKEN",
+  "TOKEN_EXPIRED",
+  "USER_DISABLED",
+  "USER_NOT_FOUND",
+];
 
 type FirebaseAnonymousSession = {
   idToken: string;
@@ -119,7 +125,13 @@ export async function getFirebaseAccountSnapshot(): Promise<FirebaseAccountSnaps
   const apiKey = import.meta.env.VITE_FIREBASE_API_KEY as string | undefined;
   if (!apiKey) return { configured: false, localId: null, displayName: null, email: null, photoUrl: null, isGoogleLinked: false };
   const idToken = await getFirebaseAuthToken();
-  if (idToken) await hydrateSessionProfile(apiKey, idToken);
+  if (idToken) {
+    const hydrated = await hydrateSessionProfile(apiKey, idToken);
+    if (!hydrated && !readSession()) {
+      const freshIdToken = await getFirebaseAuthToken();
+      if (freshIdToken) await hydrateSessionProfile(apiKey, freshIdToken);
+    }
+  }
   const session = readSession();
   return {
     configured: true,
@@ -131,21 +143,25 @@ export async function getFirebaseAccountSnapshot(): Promise<FirebaseAccountSnaps
   };
 }
 
-async function hydrateSessionProfile(apiKey: string, idToken: string): Promise<void> {
+async function hydrateSessionProfile(apiKey: string, idToken: string): Promise<boolean> {
   const session = readSession();
-  if (!session) return;
+  if (!session) return false;
 
   const response = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${encodeURIComponent(apiKey)}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ idToken }),
   });
-  if (!response.ok) return;
+  if (!response.ok) {
+    const error = await toFirebaseAuthRequestError(response, "Failed to load Firebase profile.");
+    if (isStaleFirebaseSessionError(error)) clearSession();
+    return false;
+  }
 
   const payload = (await response.json()) as FirebaseLookupResponse;
   const user = payload.users?.[0];
   const googleProfile = user?.providerUserInfo?.find((profile) => profile.providerId === "google.com");
-  if (!user && !googleProfile) return;
+  if (!user && !googleProfile) return false;
 
   const displayName = googleProfile?.displayName ?? user?.displayName;
   const email = googleProfile?.email ?? user?.email;
@@ -157,6 +173,7 @@ async function hydrateSessionProfile(apiKey: string, idToken: string): Promise<v
     ...(photoUrl ? { photoUrl } : {}),
     ...(googleProfile ? { providerId: "google.com" } : {}),
   });
+  return true;
 }
 
 export async function linkFirebaseAccountWithGoogle(): Promise<FirebaseAccountSnapshot> {
@@ -172,7 +189,11 @@ export async function linkFirebaseAccountWithGoogle(): Promise<FirebaseAccountSn
   try {
     session = await signInWithGoogleProvider(apiKey, accessToken, currentIdToken);
   } catch (error) {
-    if (!isExistingGoogleAccountError(error)) throw error;
+    if (isStaleFirebaseSessionError(error)) {
+      clearSession();
+    } else if (!isExistingGoogleAccountError(error)) {
+      throw error;
+    }
     session = await signInWithGoogleProvider(apiKey, accessToken);
   }
   writeSession(session);
@@ -180,7 +201,7 @@ export async function linkFirebaseAccountWithGoogle(): Promise<FirebaseAccountSn
 }
 
 export async function signOutFirebaseAccount(): Promise<FirebaseAccountSnapshot> {
-  window.localStorage.removeItem(FIREBASE_AUTH_SESSION_KEY);
+  clearSession();
   return getFirebaseAccountSnapshot();
 }
 
@@ -269,7 +290,14 @@ function isExistingGoogleAccountError(error: unknown): boolean {
   );
 }
 
+function isStaleFirebaseSessionError(error: unknown): boolean {
+  return error instanceof FirebaseAuthRequestError && STALE_FIREBASE_SESSION_ERROR_CODES.some((code) => error.code.includes(code));
+}
+
 function getFirebaseAuthErrorMessage(code: string, fallbackMessage: string): string {
+  if (STALE_FIREBASE_SESSION_ERROR_CODES.some((staleCode) => code.includes(staleCode))) {
+    return "Your previous Firebase session no longer exists. Starting a fresh sign-in.";
+  }
   if (code.includes("FEDERATED_USER_ID_ALREADY_LINKED") || code.includes("CREDENTIAL_ALREADY_IN_USE")) {
     return "That Google account is already linked. Signing into it instead.";
   }
@@ -361,4 +389,8 @@ function readSession(): FirebaseAnonymousSession | null {
 
 function writeSession(session: FirebaseAnonymousSession): void {
   window.localStorage.setItem(FIREBASE_AUTH_SESSION_KEY, JSON.stringify(session));
+}
+
+function clearSession(): void {
+  window.localStorage.removeItem(FIREBASE_AUTH_SESSION_KEY);
 }
