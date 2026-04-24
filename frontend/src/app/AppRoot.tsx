@@ -57,7 +57,7 @@ import { DEFAULT_ICE_SERVERS, PeerRuntime } from "../pvp/peer";
 import type { PvpWireMessage } from "../pvp/protocol";
 import type { PvpRole } from "../screens/PvpLobbyScreen";
 import { createPvpSession, getPvpAnswer, getPvpOffer, getPvpRtcConfig, submitPvpAnswer } from "../pvp/signalApi";
-import { getFirebaseAccountSnapshot, linkFirebaseAccountWithGoogle, type FirebaseAccountSnapshot } from "../utils/firebaseAuth";
+import { getFirebaseAccountSnapshot, linkFirebaseAccountWithGoogle, signOutFirebaseAccount, type FirebaseAccountSnapshot } from "../utils/firebaseAuth";
 
 const EMPTY_FIREBASE_ACCOUNT: FirebaseAccountSnapshot = {
   configured: false,
@@ -195,6 +195,18 @@ export function App() {
       setFirebaseAccount(await linkFirebaseAccountWithGoogle());
     } catch (error) {
       setActionNotice(error instanceof Error ? error.message : "Failed to link Google account.");
+    } finally {
+      setAccountBusy(false);
+    }
+  };
+
+  const logoutAccount = async () => {
+    if (accountBusy) return;
+    setAccountBusy(true);
+    try {
+      setFirebaseAccount(await signOutFirebaseAccount());
+    } catch (error) {
+      setActionNotice(error instanceof Error ? error.message : "Failed to log out.");
     } finally {
       setAccountBusy(false);
     }
@@ -884,6 +896,7 @@ export function App() {
     startWithMode,
     playEquippedDeck,
     linkGoogleAccount,
+    logoutAccount,
     quitApp,
     pvpRole,
     pvpStatusDetail,

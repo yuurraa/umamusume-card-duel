@@ -26,6 +26,7 @@ type NonMatchScreenProps = {
   startWithMode: (mode: MatchMode) => void;
   playEquippedDeck: () => void;
   linkGoogleAccount: () => void;
+  logoutAccount: () => void;
   quitApp: () => void;
   pvpRole: PvpRole | null;
   pvpStatusDetail: string;
@@ -56,6 +57,7 @@ export function renderNonMatchScreen(props: NonMatchScreenProps): JSX.Element | 
     startWithMode,
     playEquippedDeck,
     linkGoogleAccount,
+    logoutAccount,
     quitApp,
     pvpRole,
     pvpStatusDetail,
@@ -86,6 +88,7 @@ export function renderNonMatchScreen(props: NonMatchScreenProps): JSX.Element | 
           onOpenCards={() => navigateToScreen("cards")}
           onOpenCustomisation={() => navigateToScreen("customisation")}
           onLinkGoogleAccount={linkGoogleAccount}
+          onLogoutAccount={logoutAccount}
           onQuit={quitApp}
         />
         <div style={screenFadeOverlayStyle(screenFadeOverlayOpacity)} />

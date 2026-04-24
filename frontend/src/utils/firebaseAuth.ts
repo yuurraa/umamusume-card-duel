@@ -1,6 +1,6 @@
 const FIREBASE_AUTH_SESSION_KEY = "umamusume-firebase-anonymous-session";
 const TOKEN_EXPIRY_SAFETY_MS = 60_000;
-const GOOGLE_SIGN_IN_TIMEOUT_MS = 20_000;
+const GOOGLE_SIGN_IN_TIMEOUT_MS = 10_000;
 const GOOGLE_SCRIPT_SRC = "https://accounts.google.com/gsi/client";
 
 type FirebaseAnonymousSession = {
@@ -78,6 +78,11 @@ type GoogleTokenResponse = {
   error?: string;
 };
 
+type GoogleTokenErrorResponse = {
+  type?: string;
+  message?: string;
+};
+
 type GoogleTokenClient = {
   requestAccessToken: () => void;
 };
@@ -91,6 +96,7 @@ declare global {
             client_id: string;
             scope: string;
             callback: (response: GoogleTokenResponse) => void;
+            error_callback?: (response: GoogleTokenErrorResponse) => void;
           }) => GoogleTokenClient;
         };
       };
@@ -173,6 +179,11 @@ export async function linkFirebaseAccountWithGoogle(): Promise<FirebaseAccountSn
     session = await signInWithGoogleProvider(apiKey, accessToken);
   }
   writeSession(session);
+  return getFirebaseAccountSnapshot();
+}
+
+export async function signOutFirebaseAccount(): Promise<FirebaseAccountSnapshot> {
+  window.localStorage.removeItem(FIREBASE_AUTH_SESSION_KEY);
   return getFirebaseAccountSnapshot();
 }
 
@@ -292,6 +303,9 @@ async function requestGoogleAccessToken(clientId: string): Promise<string> {
         }
         const accessToken = response.access_token;
         settle(() => resolve(accessToken));
+      },
+      error_callback: (response) => {
+        settle(() => reject(new Error(response.message ?? response.type ?? "Google sign-in was cancelled.")));
       },
     });
     if (!tokenClient) {

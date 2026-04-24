@@ -17,6 +17,7 @@ export function MainMenuScreen({
   onOpenCards,
   onOpenCustomisation,
   onLinkGoogleAccount,
+  onLogoutAccount,
   onQuit,
 }: {
   equippedDeck: PremadeDeck;
@@ -31,9 +32,12 @@ export function MainMenuScreen({
   onOpenCards: () => void;
   onOpenCustomisation: () => void;
   onLinkGoogleAccount: () => void;
+  onLogoutAccount: () => void;
   onQuit: () => void;
 }) {
   const [accountOpen, setAccountOpen] = useState(false);
+  const accountCloudAvailable = cloudAvailable && isGoogleLinked;
+  const accountCloudLabel = accountBusy ? "Cloud Connecting" : accountCloudAvailable ? "Cloud Available" : "Cloud Unavailable";
 
   return (
     <section style={menuScreenStyle}>
@@ -56,12 +60,16 @@ export function MainMenuScreen({
         {accountOpen ? (
           <div style={accountPopoverStyle}>
             <div style={accountCloudRowStyle}>
-              <span style={accountCloudDotStyle(cloudAvailable && !accountBusy)} />
-              <span>{accountBusy ? "Cloud Connecting" : cloudAvailable ? "Cloud Available" : "Cloud Unavailable"}</span>
+              <span style={accountCloudDotStyle(accountCloudAvailable && !accountBusy)} />
+              <span>{accountCloudLabel}</span>
             </div>
             <div style={accountDetailStyle}>Logged in as {isGoogleLinked ? accountLabel : "Guest"}</div>
-            <NeutralButton style={accountButtonStyle} disabled={accountBusy || !cloudAvailable || isGoogleLinked} onClick={onLinkGoogleAccount}>
-              {accountBusy ? "Connecting..." : isGoogleLinked ? "Google Linked" : "Login to Google"}
+            <NeutralButton
+              style={accountButtonStyle}
+              disabled={accountBusy || !cloudAvailable}
+              onClick={isGoogleLinked ? onLogoutAccount : onLinkGoogleAccount}
+            >
+              {accountBusy ? (isGoogleLinked ? "Logging out..." : "Connecting...") : isGoogleLinked ? "Logout" : "Login to Google"}
             </NeutralButton>
           </div>
         ) : null}
@@ -257,6 +265,8 @@ const accountCloudRowStyle: CSSProperties = {
   alignItems: "center",
   gap: 7,
   color: uiTextColor,
+  textShadow: uiTextShadow,
+  filter: "none",
   fontSize: 12,
   fontWeight: 950,
 };
@@ -278,6 +288,8 @@ const accountKickerStyle: CSSProperties = {
 
 const accountDetailStyle: CSSProperties = {
   color: uiTextColor,
+  textShadow: uiTextShadow,
+  filter: "none",
   fontSize: 13,
   fontWeight: 800,
   overflow: "hidden",
