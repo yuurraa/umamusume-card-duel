@@ -11,7 +11,7 @@ type ModeOption = {
 };
 
 const MODE_OPTIONS: ModeOption[] = [
-  { mode: "playerVsPlayer", title: "Player vs Player", subtitle: "Online manual connect", enabled: true },
+  { mode: "playerVsPlayer", title: "Player vs Player", subtitle: "You against a friend", enabled: true },
   { mode: "playerVsAi", title: "Player vs AI", subtitle: "You against a bot", enabled: true },
   { mode: "aiVsAi", title: "AI vs AI", subtitle: "Watch two bots battle", enabled: true },
 ];

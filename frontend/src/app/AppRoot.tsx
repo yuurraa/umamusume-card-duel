@@ -58,6 +58,7 @@ import type { PvpWireMessage } from "../pvp/protocol";
 import type { PvpRole } from "../screens/PvpLobbyScreen";
 import { createPvpSession, getPvpAnswer, getPvpOffer, getPvpRtcConfig, submitPvpAnswer } from "../pvp/signalApi";
 import { getFirebaseAccountSnapshot, linkFirebaseAccountWithGoogle, signOutFirebaseAccount, type FirebaseAccountSnapshot } from "../utils/firebaseAuth";
+import { formatBattleText, getAccountPlayerName } from "../utils/playerNames";
 
 const EMPTY_FIREBASE_ACCOUNT: FirebaseAccountSnapshot = {
   configured: false,
@@ -131,6 +132,10 @@ export function App() {
   const isPvpHost = isNetworkMatch && pvpRole === "host";
   const isPvpGuest = isNetworkMatch && pvpRole === "guest";
   const player = game.sides.player;
+  const localPlayerName = getAccountPlayerName(firebaseAccount);
+  const opponentDisplayName = game.sides.opponent.title || "Opponent";
+  const formatMatchText = (text: string): string => formatBattleText(text, localPlayerName, opponentDisplayName);
+  const displayLog = game.log.map(formatMatchText);
   const hasLocalPendingChoice = game.pendingPlayerChoice?.sideId === "player";
   const nextPlayerEnergy = player.energyZone[0] ?? null;
   const {
@@ -281,7 +286,7 @@ export function App() {
       }
       if (currentScreen !== "pvpLobby") return;
       resetTransientMatchUi();
-      const starting = createGame(equippedDeckCardIdsRef.current, message.deckCardIds, remoteNameRef.current, "hard", true);
+      const starting = createGame(equippedDeckCardIdsRef.current, message.deckCardIds, remoteNameRef.current, "hard", true, localPlayerName);
       gameRef.current = starting;
       setGame(starting);
       setMatchMode("playerVsPlayer");
@@ -573,7 +578,7 @@ export function App() {
       if (pvpHelloAckRef.current) return;
       const runtime = pvpPeerRef.current;
       if (!runtime || !runtime.isConnected()) return;
-      runtime.send({ type: "hello", playerName: "Guest", deckCardIds: equippedDeck.cardIds });
+      runtime.send({ type: "hello", playerName: localPlayerName, deckCardIds: equippedDeck.cardIds });
     };
     sendHello();
     const intervalId = window.setInterval(() => {
@@ -592,7 +597,7 @@ export function App() {
       sendHello();
     }, 1200);
     return () => window.clearInterval(intervalId);
-  }, [pvpConnected, pvpRole, equippedDeck.cardIds, screen]);
+  }, [pvpConnected, pvpRole, equippedDeck.cardIds, screen, localPlayerName]);
 
   useEffect(() => {
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
@@ -644,6 +649,7 @@ export function App() {
     pendingScreen,
     matchMode,
     equippedDeckCardIds: equippedDeck.cardIds,
+    playerName: localPlayerName,
     hasPendingPlayerChoice: hasLocalPendingChoice,
     isTurnFlowBlocked,
     previousLogRef,
@@ -873,6 +879,13 @@ export function App() {
   const canSurrenderInPanels = !game.gameOver && !isTurnFlowBlocked;
   const playerExtraEnergyCount = Math.max(0, player.energyZone.length - 1);
   const topBanner = getTopActionBanner(game);
+  const displayTopBanner = topBanner
+    ? {
+        ...topBanner,
+        title: formatMatchText(topBanner.title),
+        message: formatMatchText(topBanner.message),
+      }
+    : null;
   const pvpSecondsRemaining = game.turnDeadlineMs === null
     ? 30
     : Math.max(0, Math.ceil((game.turnDeadlineMs - pvpTimerNowMs) / 1000));
@@ -961,13 +974,14 @@ export function App() {
         selectableHandIndexes={selectableHandIndexes}
         onChooseHandCard={chooseHandCard}
         onOpenDiscard={onOpenDiscard}
+        displayLog={displayLog}
       />
-      {topBanner && <OpponentActionBanner title={topBanner.title} message={topBanner.message} paused={topBanner.paused} />}
+      {displayTopBanner && <OpponentActionBanner title={displayTopBanner.title} message={displayTopBanner.message} paused={displayTopBanner.paused} />}
       {activeCoinFlip && (
         <CoinFlipOverlay
           key={activeCoinFlip.id}
           result={activeCoinFlip.result}
-          message={activeCoinFlip.message}
+          message={formatMatchText(activeCoinFlip.message)}
           onContinue={handleCoinFlipContinue}
         />
       )}
@@ -1015,7 +1029,7 @@ export function App() {
       )}
       {actionNotice && (
         <ActionNotice
-          notice={actionNotice}
+          notice={formatMatchText(actionNotice)}
           tone={getActionNoticeTone(actionNotice)}
           placement={isBottomActionNotice(actionNotice) ? "bottom" : "top"}
           interactive={isBottomActionNotice(actionNotice)}
@@ -1025,6 +1039,9 @@ export function App() {
       {game.gameOver && (
         <GameOverModal
           game={game}
+          playerName={localPlayerName}
+          opponentName={opponentDisplayName}
+          latest={displayLog[0]}
           onPlayAgain={isNetworkMatch ? returnToPvpLobbyForRematch : onPlayAgain}
           onMainMenu={returnToMainMenu}
         />

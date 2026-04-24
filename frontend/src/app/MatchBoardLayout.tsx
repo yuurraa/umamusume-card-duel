@@ -54,6 +54,7 @@ type MatchBoardLayoutProps = {
   selectableHandIndexes: Set<number> | undefined;
   onChooseHandCard: (handIndex: number) => void;
   onOpenDiscard: () => void;
+  displayLog: string[];
 };
 
 export function MatchBoardLayout(props: MatchBoardLayoutProps) {
@@ -102,6 +103,7 @@ export function MatchBoardLayout(props: MatchBoardLayoutProps) {
     selectableHandIndexes,
     onChooseHandCard,
     onOpenDiscard,
+    displayLog,
   } = props;
 
   return (
@@ -160,7 +162,7 @@ export function MatchBoardLayout(props: MatchBoardLayoutProps) {
             activeIndex={setupActiveIndex}
             benchIndexes={setupBenchIndexes}
             menuOpen={menuOpen}
-            log={game.log}
+            log={displayLog}
             canSurrender={canSurrender}
             onToggleMenu={onToggleMenu}
             onSurrender={onSurrender}
@@ -183,7 +185,7 @@ export function MatchBoardLayout(props: MatchBoardLayoutProps) {
               canEndTurn={canEndTurn}
               onEndTurn={onEndTurn}
               menuOpen={menuOpen}
-              log={game.log}
+              log={displayLog}
               canSurrender={canSurrender}
               onToggleMenu={onToggleMenu}
               onSurrender={onSurrender}

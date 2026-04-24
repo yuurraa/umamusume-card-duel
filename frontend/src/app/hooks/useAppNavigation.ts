@@ -13,6 +13,7 @@ export type UseAppNavigationArgs = {
   pendingScreen: AppScreen | null;
   matchMode: MatchMode;
   equippedDeckCardIds: string[];
+  playerName: string;
   hasPendingPlayerChoice: boolean;
   isTurnFlowBlocked: boolean;
   previousLogRef: MutableRefObject<string[]>;
@@ -42,6 +43,7 @@ export function useAppNavigation({
   pendingScreen,
   matchMode,
   equippedDeckCardIds,
+  playerName,
   hasPendingPlayerChoice,
   isTurnFlowBlocked,
   previousLogRef,
@@ -83,7 +85,7 @@ export function useAppNavigation({
     setMenuOpen(false);
     setOpponentCustomisation(getRandomCustomisationSettings());
     const opponent = pickRandomOpponentDeck();
-    setGame(createGame(equippedDeckCardIds, opponent.cardIds, opponent.name));
+    setGame(createGame(equippedDeckCardIds, opponent.cardIds, opponent.name, "hard", false, playerName));
   };
 
   const navigateToScreen = (nextScreen: AppScreen) => {

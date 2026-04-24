@@ -72,11 +72,12 @@ export function createGame(
   opponentName = "Opponent",
   _aiDifficulty: AiDifficulty = "hard",
   opponentIsHuman = false,
+  playerName = "Guest",
 ): GameState {
   resetUmamusumeIdCounter();
   const firstPlayer = Math.random() >= 0.5 ? "player" : "opponent";
   const coinFlipResult = firstPlayer === "player" ? "heads" : "tails";
-  const playerOpening = buildOpeningSide("player", "You", playerDeck, false);
+  const playerOpening = buildOpeningSide("player", playerName, playerDeck, false);
   const opponentOpening = buildOpeningSide("opponent", opponentName, opponentDeck, !opponentIsHuman);
 
   const state: GameState = {

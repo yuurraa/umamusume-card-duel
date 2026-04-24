@@ -9,6 +9,7 @@ import { type PvpRole, PvpLobbyScreen } from "../screens/PvpLobbyScreen";
 import type { PremadeDeck } from "../types/ui";
 import type { CustomisationSettings } from "../utils/customisation";
 import type { FirebaseAccountSnapshot } from "../utils/firebaseAuth";
+import { getAccountPlayerName } from "../utils/playerNames";
 import { appStyle, screenFadeOverlayStyle } from "./styles";
 
 type NonMatchScreenProps = {
@@ -77,7 +78,7 @@ export function renderNonMatchScreen(props: NonMatchScreenProps): JSX.Element | 
       <main style={appStyle(true, selectedPlaymatImage, uiTextTone)}>
         <MainMenuScreen
           equippedDeck={equippedDeck}
-          accountLabel={account.email ?? account.displayName ?? "Guest"}
+          accountLabel={getAccountPlayerName(account)}
           accountDetail={account.localId ? `Guest ${account.localId.slice(0, 8)}` : "Guest"}
           accountPhotoUrl={account.photoUrl}
           accountBusy={accountBusy}

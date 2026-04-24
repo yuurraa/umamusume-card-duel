@@ -3,10 +3,24 @@ import type { GameState } from "../../../../shared/src/types";
 import { NeutralButton } from "../../components/buttons/NeutralButton";
 import { colors, overlayBackdropStyle, overlaySurfaceStyle, previewKickerStyle, radius } from "../../styles/shared";
 
-export function GameOverModal({ game, onPlayAgain, onMainMenu }: { game: GameState; onPlayAgain: () => void; onMainMenu: () => void }) {
+export function GameOverModal({
+  game,
+  playerName,
+  opponentName,
+  latest,
+  onPlayAgain,
+  onMainMenu,
+}: {
+  game: GameState;
+  playerName: string;
+  opponentName: string;
+  latest?: string | undefined;
+  onPlayAgain: () => void;
+  onMainMenu: () => void;
+}) {
   const playerWon = game.winner === "player";
-  const title = playerWon ? "You Win" : "Opponent Wins";
-  const latest = game.log[0] ?? (playerWon ? "First to three points." : "The duel is over.");
+  const title = playerWon ? `${playerName} Wins` : `${opponentName} Wins`;
+  const body = latest ?? (playerWon ? "First to three points." : "The duel is over.");
 
   return (
     <div style={gameOverBackdropStyle}>
@@ -14,10 +28,10 @@ export function GameOverModal({ game, onPlayAgain, onMainMenu }: { game: GameSta
         <div style={resultBadgeStyle(playerWon)}>{playerWon ? "Victory" : "Defeat"}</div>
         <div style={gameOverKickerStyle}>Duel Finished</div>
         <h2 style={gameOverTitleStyle}>{title}</h2>
-        <p style={gameOverBodyStyle}>{latest}</p>
+        <p style={gameOverBodyStyle}>{body}</p>
         <div style={gameOverScoreRowStyle}>
-          <ScoreSummary label="You" points={game.sides.player.points} highlighted={playerWon} />
-          <ScoreSummary label="Opponent" points={game.sides.opponent.points} highlighted={!playerWon} />
+          <ScoreSummary label={playerName} points={game.sides.player.points} highlighted={playerWon} />
+          <ScoreSummary label={opponentName} points={game.sides.opponent.points} highlighted={!playerWon} />
         </div>
         <NeutralButton style={gameOverButtonStyle} onClick={onPlayAgain}>Play Again</NeutralButton>
         <NeutralButton style={gameOverSecondaryButtonStyle} onClick={onMainMenu}>Main Menu</NeutralButton>
