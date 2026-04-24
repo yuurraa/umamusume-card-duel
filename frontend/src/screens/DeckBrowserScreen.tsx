@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { LOCAL_DECK_FORMAT_VERSION, type LocalDeck } from "../../../shared/src/localDecks";
+import { createDeckIdFromName, LOCAL_DECK_FORMAT_VERSION, type LocalDeck } from "../../../shared/src/localDecks";
 import { getCard } from "../game/engine";
 import { NeutralButton } from "../components/buttons/NeutralButton";
 import type { PremadeDeck } from "../types/ui";
@@ -168,6 +168,25 @@ export function DeckBrowserScreen({
       if (editorBaseline.cardIds[index] !== createCardIds[index]) return true;
     }
     return false;
+  };
+
+  const validateDeckNameAvailability = (name: string, currentDeckId: string | null = null): string | null => {
+    const nextDeckId = createDeckIdFromName(name);
+    const normalizedName = normalizeDeckNameForCompare(name);
+    const currentId = currentDeckId ?? "";
+
+    for (const deck of [...decks, ...localDecks, ...createDraftDecks]) {
+      if (deck.id === currentId) continue;
+      if (deck.id === nextDeckId || normalizeDeckNameForCompare(deck.name) === normalizedName) {
+        return `A deck named ${deck.name} already exists.`;
+      }
+    }
+
+    if (Object.keys(editDraftByDeckId).some((deckId) => deckId !== currentId && deckId === nextDeckId)) {
+      return "A draft with this deck name already exists.";
+    }
+
+    return null;
   };
 
   const closeCreateEditorImmediately = () => {
@@ -497,6 +516,11 @@ Created decks are saved to cloud storage for this test profile. Export still giv
           onValidate={async () => {
             if (isSavingCreateDeck) return;
             if (pendingValidatedDeck) {
+              const deckNameError = validateDeckNameAvailability(pendingValidatedDeck.name, pendingValidatedDeck.deckId);
+              if (deckNameError) {
+                setCreateError(deckNameError);
+                return;
+              }
               const coverCardId = selectedCoverCardId ?? pendingValidatedDeck.cardIds[0];
               if (!coverCardId) {
                 setCreateError("Select a cover card before saving.");
@@ -519,11 +543,18 @@ Created decks are saved to cloud storage for this test profile. Export still giv
                 setSelectedCoverCardId(null);
                 if (!pendingValidatedDeck.deckId) {
                   if (editingCreateDraftId) {
-                    setCreateDraftDecks((current) => current.filter((deck) => deck.id !== editingCreateDraftId));
-                    clearEditDraft(editingCreateDraftId);
+                    const nextCreateDrafts = createDraftDecks.filter((draftDeck) => draftDeck.id !== editingCreateDraftId);
+                    const nextEditDrafts = { ...editDraftByDeckId };
+                    delete nextEditDrafts[editingCreateDraftId];
+                    setCreateDraftDecks(nextCreateDrafts);
+                    setEditDraftByDeckId(nextEditDrafts);
+                    await persistDrafts(nextCreateDrafts, nextEditDrafts);
                   }
                 } else {
-                  clearEditDraft(pendingValidatedDeck.deckId);
+                  const nextEditDrafts = { ...editDraftByDeckId };
+                  delete nextEditDrafts[pendingValidatedDeck.deckId];
+                  setEditDraftByDeckId(nextEditDrafts);
+                  await persistDrafts(createDraftDecks, nextEditDrafts);
                 }
                 setIsCreateOpen(false);
                 setOpenedDeckRef({ id: deck.id, source: "local" });
@@ -541,6 +572,11 @@ Created decks are saved to cloud storage for this test profile. Export still giv
             }
             if (createName.trim().length === 0) {
               setCreateError("Deck name is required.");
+              return;
+            }
+            const deckNameError = validateDeckNameAvailability(createName, editingDeckId ?? editingCreateDraftId);
+            if (deckNameError) {
+              setCreateError(deckNameError);
               return;
             }
             setCreateError(null);
@@ -568,7 +604,7 @@ Created decks are saved to cloud storage for this test profile. Export still giv
               setPendingValidatedDeck({
                 name: createName.trim(),
                 cardIds: resolvedCardIds,
-                deckId: editingDeckId,
+                deckId: editingDeckId ?? null,
               });
               setSelectedCoverCardId(initialCoverCardId);
             } catch (error) {
@@ -694,6 +730,12 @@ Created decks are saved to cloud storage for this test profile. Export still giv
               cardIds: [...createCardIds],
               selectedCoverCardId,
             };
+            const deckNameError = validateDeckNameAvailability(createName, editingDeckId ?? editingCreateDraftId);
+            if (deckNameError) {
+              setCreateError(deckNameError);
+              setShowUnsavedChangesConfirm(null);
+              return;
+            }
             try {
               if (editingDeckId) {
                 const nextEditDrafts = { ...editDraftByDeckId, [editingDeckId]: draft };
@@ -715,7 +757,7 @@ Created decks are saved to cloud storage for this test profile. Export still giv
                 setCreateDraftDecks(nextCreateDrafts);
                 await persistDrafts(nextCreateDrafts, nextEditDrafts);
               } else {
-                const draftDeckId = buildCreateDraftDeckId(createDraftDecks, editDraftByDeckId);
+                const draftDeckId = buildCreateDraftDeckId(draft.name, createDraftDecks, editDraftByDeckId);
                 const nowIso = new Date().toISOString();
                 const draftDeck: LocalDeck = {
                   id: draftDeckId,
@@ -734,7 +776,8 @@ Created decks are saved to cloud storage for this test profile. Export still giv
               }
               closeCreateEditorImmediately();
             } catch (error) {
-              setLocalDeckError(error instanceof Error ? error.message : "Failed to save deck draft.");
+              setCreateError(error instanceof Error ? error.message : "Failed to save deck draft.");
+              setShowUnsavedChangesConfirm(null);
             }
           }}
           onConfirm={() => {
@@ -879,6 +922,10 @@ function writeEditDeckDrafts(drafts: Record<string, DeckEditorDraft>): void {
   window.localStorage.setItem(EDIT_DECK_DRAFT_STORAGE_KEY, JSON.stringify(drafts));
 }
 
+function normalizeDeckNameForCompare(name: string): string {
+  return name.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
 function resolveDraftCoverCardId(draft: DeckEditorDraft): string {
   return draft.selectedCoverCardId
     ?? draft.cardIds.find((cardId): cardId is string => Boolean(cardId))
@@ -886,6 +933,7 @@ function resolveDraftCoverCardId(draft: DeckEditorDraft): string {
 }
 
 function buildCreateDraftDeckId(
+  deckName: string,
   createDraftDecks: LocalDeck[],
   editDraftByDeckId: Record<string, DeckEditorDraft>,
 ): string {
@@ -893,7 +941,7 @@ function buildCreateDraftDeckId(
     ...createDraftDecks.map((deck) => deck.id),
     ...Object.keys(editDraftByDeckId),
   ]);
-  const base = `draft-${Date.now()}`;
+  const base = createDeckIdFromName(deckName);
   let candidate = base;
   let suffix = 1;
   while (existingIds.has(candidate)) {
