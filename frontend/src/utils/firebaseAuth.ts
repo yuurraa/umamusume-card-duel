@@ -15,15 +15,18 @@ type FirebaseAnonymousSession = {
 };
 
 type FirebaseSignInResponse = {
-  idToken: string;
-  refreshToken: string;
-  localId: string;
-  expiresIn: string;
+  idToken?: string;
+  refreshToken?: string;
+  localId?: string;
+  expiresIn?: string;
   displayName?: string;
   email?: string;
   photoUrl?: string;
   providerId?: string;
+  needConfirmation?: boolean;
 };
+
+type CompleteFirebaseSignInResponse = Required<Pick<FirebaseSignInResponse, "idToken" | "refreshToken" | "localId" | "expiresIn">> & FirebaseSignInResponse;
 
 type FirebaseRefreshResponse = {
   id_token: string;
@@ -78,11 +81,6 @@ type GoogleTokenResponse = {
   error?: string;
 };
 
-type GoogleTokenErrorResponse = {
-  type?: string;
-  message?: string;
-};
-
 type GoogleTokenClient = {
   requestAccessToken: () => void;
 };
@@ -96,7 +94,6 @@ declare global {
             client_id: string;
             scope: string;
             callback: (response: GoogleTokenResponse) => void;
-            error_callback?: (response: GoogleTokenErrorResponse) => void;
           }) => GoogleTokenClient;
         };
       };
@@ -175,7 +172,7 @@ export async function linkFirebaseAccountWithGoogle(): Promise<FirebaseAccountSn
   try {
     session = await signInWithGoogleProvider(apiKey, accessToken, currentIdToken);
   } catch (error) {
-    if (!isProviderAlreadyLinkedError(error)) throw error;
+    if (!isExistingGoogleAccountError(error)) throw error;
     session = await signInWithGoogleProvider(apiKey, accessToken);
   }
   writeSession(session);
@@ -195,6 +192,7 @@ async function createAnonymousSession(apiKey: string): Promise<FirebaseAnonymous
   });
   if (!response.ok) throw new Error("Failed to sign in anonymously.");
   const payload = (await response.json()) as FirebaseSignInResponse;
+  if (!isCompleteSignInResponse(payload)) throw new Error("Failed to sign in anonymously.");
   return toSession(payload);
 }
 
@@ -209,7 +207,7 @@ async function refreshAnonymousSession(apiKey: string, previousSession: Firebase
   });
   if (!response.ok) return createAnonymousSession(apiKey);
   const payload = (await response.json()) as FirebaseRefreshResponse;
-  const nextPayload: FirebaseSignInResponse = {
+  const nextPayload: CompleteFirebaseSignInResponse = {
     idToken: payload.id_token,
     refreshToken: payload.refresh_token,
     localId: payload.user_id,
@@ -239,6 +237,12 @@ async function signInWithGoogleProvider(apiKey: string, googleAccessToken: strin
   });
   if (!response.ok) throw await toFirebaseAuthRequestError(response, "Failed to link Google account.");
   const payload = (await response.json()) as FirebaseProviderResponse;
+  if (!isCompleteSignInResponse(payload)) {
+    throw new FirebaseAuthRequestError(
+      payload.needConfirmation ? "NEED_CONFIRMATION" : "INCOMPLETE_SIGN_IN_RESPONSE",
+      "Failed to finish Google sign-in.",
+    );
+  }
   return toSession({ ...payload, providerId: "google.com" });
 }
 
@@ -251,11 +255,17 @@ async function toFirebaseAuthRequestError(response: Response, fallbackMessage: s
   }
 }
 
-function isProviderAlreadyLinkedError(error: unknown): boolean {
+function isCompleteSignInResponse(payload: FirebaseSignInResponse): payload is Required<Pick<FirebaseSignInResponse, "idToken" | "refreshToken" | "localId" | "expiresIn">> & FirebaseSignInResponse {
+  return Boolean(payload.idToken && payload.refreshToken && payload.localId && payload.expiresIn);
+}
+
+function isExistingGoogleAccountError(error: unknown): boolean {
   return error instanceof FirebaseAuthRequestError && (
     error.code.includes("FEDERATED_USER_ID_ALREADY_LINKED") ||
     error.code.includes("EMAIL_EXISTS") ||
-    error.code.includes("CREDENTIAL_ALREADY_IN_USE")
+    error.code.includes("CREDENTIAL_ALREADY_IN_USE") ||
+    error.code.includes("NEED_CONFIRMATION") ||
+    error.code.includes("INCOMPLETE_SIGN_IN_RESPONSE")
   );
 }
 
@@ -263,11 +273,14 @@ function getFirebaseAuthErrorMessage(code: string, fallbackMessage: string): str
   if (code.includes("FEDERATED_USER_ID_ALREADY_LINKED") || code.includes("CREDENTIAL_ALREADY_IN_USE")) {
     return "That Google account is already linked. Signing into it instead.";
   }
+  if (code.includes("NEED_CONFIRMATION") || code.includes("INCOMPLETE_SIGN_IN_RESPONSE")) {
+    return "Signing into the existing Google account.";
+  }
   if (code.includes("EMAIL_EXISTS")) return "That email is already linked to another account.";
   return fallbackMessage;
 }
 
-function toSession(payload: FirebaseSignInResponse): FirebaseAnonymousSession {
+function toSession(payload: CompleteFirebaseSignInResponse): FirebaseAnonymousSession {
   return {
     idToken: payload.idToken,
     refreshToken: payload.refreshToken,
@@ -303,9 +316,6 @@ async function requestGoogleAccessToken(clientId: string): Promise<string> {
         }
         const accessToken = response.access_token;
         settle(() => resolve(accessToken));
-      },
-      error_callback: (response) => {
-        settle(() => reject(new Error(response.message ?? response.type ?? "Google sign-in was cancelled.")));
       },
     });
     if (!tokenClient) {
