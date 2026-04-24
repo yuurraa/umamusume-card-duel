@@ -1,7 +1,9 @@
 import { cert, getApps, initializeApp, type ServiceAccount } from "firebase-admin/app";
+import { getAuth, type Auth } from "firebase-admin/auth";
 import { getFirestore, type Firestore } from "firebase-admin/firestore";
 
 let cachedDb: Firestore | null = null;
+let cachedAuth: Auth | null = null;
 
 export function isFirebaseConfigured(): boolean {
   return Boolean(process.env.FIREBASE_SERVICE_ACCOUNT_JSON?.trim());
@@ -10,15 +12,26 @@ export function isFirebaseConfigured(): boolean {
 export function getFirebaseDb(): Firestore {
   if (cachedDb) return cachedDb;
 
+  initializeFirebaseApp();
+  cachedDb = getFirestore();
+  return cachedDb;
+}
+
+export function getFirebaseAuth(): Auth {
+  if (cachedAuth) return cachedAuth;
+
+  initializeFirebaseApp();
+  cachedAuth = getAuth();
+  return cachedAuth;
+}
+
+function initializeFirebaseApp(): void {
   const serviceAccount = readFirebaseServiceAccount();
   if (getApps().length === 0) {
     initializeApp({
       credential: cert(serviceAccount),
     });
   }
-
-  cachedDb = getFirestore();
-  return cachedDb;
 }
 
 export function readFirebaseProjectId(): string | null {
