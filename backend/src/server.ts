@@ -3,6 +3,7 @@ import cors from "cors";
 import { existsSync, promises as fs, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import type { CollectionReference } from "firebase-admin/firestore";
 import { getFirebaseDb, isFirebaseConfigured, readFirebaseProjectId } from "./firebase";
 import {
   cards,
@@ -211,6 +212,87 @@ app.delete("/api/local-decks/:deckId", async (request, response) => {
   }
 });
 
+app.get("/api/cloud-decks", asyncHandler(async (_request, response) => {
+  const decks = await readCloudDecks();
+  response.json({ decks });
+}));
+
+app.get("/api/cloud-decks/:deckId", asyncHandler(async (request, response) => {
+  const deckId = normalizeDeckId(request.params.deckId ?? "");
+  if (!deckId) {
+    response.status(400).json({ error: "Deck id is invalid." });
+    return;
+  }
+  const deck = await readCloudDeckById(deckId);
+  if (!deck) {
+    response.status(404).json({ error: "Deck not found." });
+    return;
+  }
+  response.json({ deck });
+}));
+
+app.put("/api/cloud-decks/:deckId", asyncHandler(async (request, response) => {
+  const deckId = normalizeDeckId(request.params.deckId ?? "");
+  if (!deckId) {
+    response.status(400).json({ error: "Deck id is invalid." });
+    return;
+  }
+
+  const input = request.body as LocalDeckInput;
+  const parseError = validateLocalDeckInput(input);
+  if (parseError) {
+    response.status(400).json({ error: parseError });
+    return;
+  }
+
+  const existing = await readCloudDeckById(deckId);
+  const nextDeck = buildLocalDeck(deckId, input, new Date().toISOString(), existing ?? undefined);
+  const validity = validateLocalDeck(nextDeck, cards);
+  if (!validity.ok) {
+    response.status(400).json({ error: validity.reason });
+    return;
+  }
+
+  await writeCloudDeck(nextDeck);
+  response.json({ deck: nextDeck });
+}));
+
+app.post("/api/cloud-decks/import", asyncHandler(async (request, response) => {
+  const input = request.body as LocalDeckInput;
+  const parseError = validateLocalDeckInput(input);
+  if (parseError) {
+    response.status(400).json({ error: parseError });
+    return;
+  }
+
+  const baseDeckId = createDeckIdFromName(input.name);
+  const deckId = await getUniqueCloudDeckId(baseDeckId);
+  const nextDeck = buildLocalDeck(deckId, input, new Date().toISOString());
+  const validity = validateLocalDeck(nextDeck, cards);
+  if (!validity.ok) {
+    response.status(400).json({ error: validity.reason });
+    return;
+  }
+
+  await writeCloudDeck(nextDeck);
+  response.status(201).json({ deck: nextDeck });
+}));
+
+app.delete("/api/cloud-decks/:deckId", asyncHandler(async (request, response) => {
+  const deckId = normalizeDeckId(request.params.deckId ?? "");
+  if (!deckId) {
+    response.status(400).json({ error: "Deck id is invalid." });
+    return;
+  }
+  const deck = await readCloudDeckById(deckId);
+  if (!deck) {
+    response.status(404).json({ error: "Deck not found." });
+    return;
+  }
+  await cloudDecksCollection().doc(deckId).delete();
+  response.status(204).send();
+}));
+
 if (existsSync(path.join(frontendDistDir, "index.html"))) {
   app.use(express.static(frontendDistDir));
   app.get("*", (request, response, next) => {
@@ -312,6 +394,62 @@ async function getUniqueDeckId(baseDeckId: string): Promise<string> {
     candidate = `${baseDeckId}-${suffix}`;
   }
   return normalizeDeckId(candidate);
+}
+
+function cloudDecksCollection(): CollectionReference<LocalDeck> {
+  return getFirebaseDb()
+    .collection("users")
+    .doc(getCloudDeckUserId())
+    .collection("decks") as CollectionReference<LocalDeck>;
+}
+
+async function readCloudDecks(): Promise<LocalDeck[]> {
+  const snapshot = await cloudDecksCollection().orderBy("updatedAt", "desc").get();
+  const decks: LocalDeck[] = [];
+
+  for (const doc of snapshot.docs) {
+    const deck = doc.data();
+    const validity = validateLocalDeck(deck, cards);
+    if (validity.ok) decks.push(deck);
+  }
+
+  return decks;
+}
+
+async function readCloudDeckById(deckId: string): Promise<LocalDeck | null> {
+  const snapshot = await cloudDecksCollection().doc(deckId).get();
+  if (!snapshot.exists) return null;
+  const deck = snapshot.data();
+  if (!deck) return null;
+  const validity = validateLocalDeck(deck, cards);
+  return validity.ok ? deck : null;
+}
+
+async function writeCloudDeck(deck: LocalDeck): Promise<void> {
+  await cloudDecksCollection().doc(deck.id).set(deck);
+}
+
+async function getUniqueCloudDeckId(baseDeckId: string): Promise<string> {
+  let candidate = normalizeDeckId(baseDeckId);
+  if (!candidate) candidate = "deck";
+  let suffix = 1;
+  while (await readCloudDeckById(candidate)) {
+    suffix += 1;
+    candidate = `${baseDeckId}-${suffix}`;
+  }
+  return normalizeDeckId(candidate);
+}
+
+function getCloudDeckUserId(): string {
+  return normalizeDeckId(process.env.FIREBASE_DEV_USER_ID ?? "local-dev-user") || "local-dev-user";
+}
+
+function asyncHandler(
+  handler: (request: express.Request, response: express.Response) => Promise<void>,
+): express.RequestHandler {
+  return (request, response, next) => {
+    handler(request, response).catch(next);
+  };
 }
 
 function isNodeError(error: unknown): error is NodeJS.ErrnoException {
