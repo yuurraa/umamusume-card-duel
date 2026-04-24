@@ -309,7 +309,7 @@ export function DeckBrowserScreen({
         </NeutralButton>
       </div>
       <div style={localDeckPersistenceNoticeStyle}>
-Hosted games do not permanently save created decks. After saving a deck, open it and use Export to keep the deck JSON somewhere safe; paste it back with Import when needed.
+Created decks are saved to cloud storage for this test profile. Export still gives you a portable JSON backup.
       </div>
       <div style={deckBrowserGridStyle}>
         {allDecks.map((deck) => {
