@@ -8,6 +8,7 @@ import { CustomisationScreen } from "../screens/CustomisationScreen";
 import { type PvpRole, PvpLobbyScreen } from "../screens/PvpLobbyScreen";
 import type { PremadeDeck } from "../types/ui";
 import type { CustomisationSettings } from "../utils/customisation";
+import type { FirebaseAccountSnapshot } from "../utils/firebaseAuth";
 import { appStyle, screenFadeOverlayStyle } from "./styles";
 
 type NonMatchScreenProps = {
@@ -16,12 +17,15 @@ type NonMatchScreenProps = {
   uiTextTone: "light" | "dark";
   screenFadeOverlayOpacity: number;
   equippedDeck: PremadeDeck;
+  account: FirebaseAccountSnapshot;
+  accountBusy: boolean;
   customisation: CustomisationSettings;
   navigateToScreen: (screen: AppScreen) => void;
   setEquippedDeckId: (deckId: string) => void;
   setCustomisation: (settings: CustomisationSettings) => void;
   startWithMode: (mode: MatchMode) => void;
   playEquippedDeck: () => void;
+  linkGoogleAccount: () => void;
   quitApp: () => void;
   pvpRole: PvpRole | null;
   pvpStatusDetail: string;
@@ -43,12 +47,15 @@ export function renderNonMatchScreen(props: NonMatchScreenProps): JSX.Element | 
     uiTextTone,
     screenFadeOverlayOpacity,
     equippedDeck,
+    account,
+    accountBusy,
     customisation,
     navigateToScreen,
     setEquippedDeckId,
     setCustomisation,
     startWithMode,
     playEquippedDeck,
+    linkGoogleAccount,
     quitApp,
     pvpRole,
     pvpStatusDetail,
@@ -68,10 +75,17 @@ export function renderNonMatchScreen(props: NonMatchScreenProps): JSX.Element | 
       <main style={appStyle(true, selectedPlaymatImage, uiTextTone)}>
         <MainMenuScreen
           equippedDeck={equippedDeck}
+          accountLabel={account.email ?? account.displayName ?? "Guest"}
+          accountDetail={account.localId ? `Guest ${account.localId.slice(0, 8)}` : "Guest"}
+          accountPhotoUrl={account.photoUrl}
+          accountBusy={accountBusy}
+          cloudAvailable={account.configured}
+          isGoogleLinked={account.isGoogleLinked}
           onPlay={playEquippedDeck}
           onOpenDecks={() => navigateToScreen("decks")}
           onOpenCards={() => navigateToScreen("cards")}
           onOpenCustomisation={() => navigateToScreen("customisation")}
+          onLinkGoogleAccount={linkGoogleAccount}
           onQuit={quitApp}
         />
         <div style={screenFadeOverlayStyle(screenFadeOverlayOpacity)} />

@@ -584,6 +584,13 @@ async function getCloudDeckUserId(request: express.Request, response: express.Re
 
   try {
     const decoded = await getFirebaseAuth().verifyIdToken(token);
+    await getFirebaseDb().collection("users").doc(decoded.uid).set({
+      displayName: typeof decoded.name === "string" ? decoded.name : null,
+      email: typeof decoded.email === "string" ? decoded.email : null,
+      photoUrl: typeof decoded.picture === "string" ? decoded.picture : null,
+      isAnonymous: decoded.firebase.sign_in_provider === "anonymous",
+      updatedAt: new Date().toISOString(),
+    }, { merge: true });
     return decoded.uid;
   } catch {
     response.status(401).json({ error: "Firebase auth token is invalid or expired." });

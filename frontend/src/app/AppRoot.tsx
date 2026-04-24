@@ -57,6 +57,16 @@ import { DEFAULT_ICE_SERVERS, PeerRuntime } from "../pvp/peer";
 import type { PvpWireMessage } from "../pvp/protocol";
 import type { PvpRole } from "../screens/PvpLobbyScreen";
 import { createPvpSession, getPvpAnswer, getPvpOffer, getPvpRtcConfig, submitPvpAnswer } from "../pvp/signalApi";
+import { getFirebaseAccountSnapshot, linkFirebaseAccountWithGoogle, type FirebaseAccountSnapshot } from "../utils/firebaseAuth";
+
+const EMPTY_FIREBASE_ACCOUNT: FirebaseAccountSnapshot = {
+  configured: false,
+  localId: null,
+  displayName: null,
+  email: null,
+  photoUrl: null,
+  isGoogleLinked: false,
+};
 
 export function App() {
   const [screen, setScreen] = useState<AppScreen>("mainMenu");
@@ -69,6 +79,8 @@ export function App() {
   const [pvpLocalSignal, setPvpLocalSignal] = useState("");
   const [pvpRemoteSignal, setPvpRemoteSignal] = useState("");
   const [pvpConnected, setPvpConnected] = useState(false);
+  const [firebaseAccount, setFirebaseAccount] = useState<FirebaseAccountSnapshot>(EMPTY_FIREBASE_ACCOUNT);
+  const [accountBusy, setAccountBusy] = useState(false);
   const [customisation, setCustomisation] = useState<CustomisationSettings>(() => readCustomisationSettings());
   const [opponentCustomisation, setOpponentCustomisation] = useState<CustomisationSettings>(() => getRandomCustomisationSettings());
   const [game, setGame] = useState(() => {
@@ -161,6 +173,32 @@ export function App() {
   useEffect(() => {
     matchModeRef.current = matchMode;
   }, [matchMode]);
+
+  useEffect(() => {
+    let active = true;
+    void getFirebaseAccountSnapshot()
+      .then((snapshot) => {
+        if (active) setFirebaseAccount(snapshot);
+      })
+      .catch(() => {
+        if (active) setFirebaseAccount(EMPTY_FIREBASE_ACCOUNT);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const linkGoogleAccount = async () => {
+    if (accountBusy) return;
+    setAccountBusy(true);
+    try {
+      setFirebaseAccount(await linkFirebaseAccountWithGoogle());
+    } catch (error) {
+      setActionNotice(error instanceof Error ? error.message : "Failed to link Google account.");
+    } finally {
+      setAccountBusy(false);
+    }
+  };
 
   useEffect(() => {
     screenRef.current = screen;
@@ -837,12 +875,15 @@ export function App() {
     uiTextTone,
     screenFadeOverlayOpacity,
     equippedDeck,
+    account: firebaseAccount,
+    accountBusy,
     customisation,
     navigateToScreen,
     setEquippedDeckId,
     setCustomisation,
     startWithMode,
     playEquippedDeck,
+    linkGoogleAccount,
     quitApp,
     pvpRole,
     pvpStatusDetail,
