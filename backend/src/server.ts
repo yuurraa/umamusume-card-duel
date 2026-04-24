@@ -3,6 +3,7 @@ import cors from "cors";
 import { existsSync, promises as fs, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { getFirebaseDb, isFirebaseConfigured, readFirebaseProjectId } from "./firebase";
 import {
   cards,
   buildLocalDeck,
@@ -32,6 +33,22 @@ app.use(express.json());
 
 app.get("/api/health", (_request, response) => {
   response.json({ ok: true });
+});
+
+app.get("/api/firebase/health", async (_request, response) => {
+  if (!isFirebaseConfigured()) {
+    response.status(503).json({ ok: false, configured: false, error: "FIREBASE_SERVICE_ACCOUNT_JSON is not configured." });
+    return;
+  }
+
+  try {
+    const db = getFirebaseDb();
+    await db.listCollections();
+    response.json({ ok: true, configured: true, projectId: readFirebaseProjectId() });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Firebase health check failed.";
+    response.status(500).json({ ok: false, configured: true, error: message });
+  }
 });
 
 app.get("/api/pvp/ice-servers", (_request, response) => {
