@@ -1,4 +1,4 @@
-import { parsePvpMessage, type PvpWireMessage } from "./protocol";
+import { encodePvpMessage, parsePvpMessage, type PvpWireMessage } from "./protocol";
 
 export type PeerStatus = "idle" | "creatingOffer" | "awaitingAnswer" | "joining" | "connecting" | "connected" | "failed" | "closed";
 
@@ -18,6 +18,7 @@ export class PeerRuntime {
   private channel: RTCDataChannel | null = null;
   private hasRelayCandidate = false;
   private gatheredCandidateLines: string[] = [];
+  private sendQueue: Promise<void> = Promise.resolve();
 
   constructor(private readonly options: PeerRuntimeOptions) {}
 
@@ -76,7 +77,15 @@ export class PeerRuntime {
 
   send(message: PvpWireMessage): void {
     if (!this.channel || this.channel.readyState !== "open") return;
-    this.channel.send(JSON.stringify(message));
+    const channel = this.channel;
+    this.sendQueue = this.sendQueue
+      .then(async () => {
+        if (channel.readyState !== "open") return;
+        channel.send(await encodePvpMessage(message));
+      })
+      .catch(() => {
+        this.options.onStatus("failed", "Data channel send failed.");
+      });
   }
 
   close(): void {
@@ -132,9 +141,10 @@ export class PeerRuntime {
     channel.onclose = () => this.options.onStatus("closed", "Data channel closed.");
     channel.onerror = () => this.options.onStatus("failed", "Data channel error.");
     channel.onmessage = (event) => {
-      const message = parsePvpMessage(String(event.data));
-      if (!message) return;
-      this.options.onMessage(message);
+      void parsePvpMessage(String(event.data)).then((message) => {
+        if (!message) return;
+        this.options.onMessage(message);
+      });
     };
   }
 

@@ -1,5 +1,7 @@
 import type { GameState, SideId } from "../../../shared/src/types";
 
+const HIDDEN_CARD_ID = "";
+
 function swapSideId(sideId: SideId): SideId {
   return sideId === "player" ? "opponent" : "player";
 }
@@ -53,6 +55,22 @@ export function mirrorGameStateForGuest(state: GameState): GameState {
   const mirrored = mirrorGameState(state);
   mirrored.log = mirrored.log.map((entry) => redactOpponentPrivateInfo(entry));
   return mirrored;
+}
+
+export function createGuestSyncState(state: GameState): GameState {
+  const guestState = structuredClone(state);
+  const hostSide = guestState.sides.player;
+  hostSide.hand = createHiddenCardList(hostSide.hand.length);
+  hostSide.deck = createHiddenCardList(hostSide.deck.length);
+  hostSide.energyPool = [];
+  return guestState;
+}
+
+export function redactOpponentLogPrivateInfo(state: GameState): GameState {
+  return {
+    ...state,
+    log: state.log.map((entry) => redactOpponentPrivateInfo(entry)),
+  };
 }
 
 function swapPerspectiveText(entry: string): string {
@@ -131,4 +149,8 @@ function redactOpponentPrivateInfo(entry: string): string {
 
 function replaceAllLiteral(input: string, search: string, replacement: string): string {
   return input.split(search).join(replacement);
+}
+
+function createHiddenCardList(count: number): string[] {
+  return Array.from({ length: count }, () => HIDDEN_CARD_ID);
 }

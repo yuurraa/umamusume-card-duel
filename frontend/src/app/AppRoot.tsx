@@ -52,7 +52,7 @@ import { useAppRuntimeEffects } from "./hooks/useAppRuntimeEffects";
 import { useMatchUiActions } from "./hooks/useMatchUiActions";
 import { useMatchModalActions } from "./hooks/useMatchModalActions";
 import { applyPlayerIntent, type PlayerIntent } from "../pvp/playerIntent";
-import { mirrorGameState, mirrorGameStateForGuest } from "../pvp/stateMirror";
+import { createGuestSyncState, mirrorGameState, mirrorGameStateForGuest, redactOpponentLogPrivateInfo } from "../pvp/stateMirror";
 import { DEFAULT_ICE_SERVERS, PeerRuntime } from "../pvp/peer";
 import type { PvpWireMessage } from "../pvp/protocol";
 import type { PvpRole } from "../screens/PvpLobbyScreen";
@@ -99,6 +99,7 @@ export function App() {
   const pvpPeerRef = useRef<PeerRuntime | null>(null);
   const pvpRtcConfigRef = useRef<RTCConfiguration | null>(null);
   const pvpAnswerPollTokenRef = useRef(0);
+  const pvpHelloAckRef = useRef(false);
   const pvpLocalCloseIntentRef = useRef(false);
   const pvpRoleRef = useRef<PvpRole | null>(null);
   const matchModeRef = useRef<MatchMode>("playerVsAi");
@@ -193,7 +194,7 @@ export function App() {
 
   const syncToGuest = (state: typeof game) => {
     if (matchModeRef.current !== "playerVsPlayer" || pvpRoleRef.current !== "host") return;
-    pvpPeerRef.current?.send({ type: "sync", state });
+    pvpPeerRef.current?.send({ type: "sync", state: createGuestSyncState(state) });
   };
 
   const applyIntentForHost = (intent: PlayerIntent) => {
@@ -221,10 +222,11 @@ export function App() {
 
     if (message.type === "hello") {
       if (!isHostNow) return;
+      pvpPeerRef.current?.send({ type: "helloAck" });
       remoteDeckRef.current = message.deckCardIds;
       remoteNameRef.current = message.playerName || "Opponent";
       if (currentScreen === "match") {
-        pvpPeerRef.current?.send({ type: "sync", state: gameRef.current });
+        syncToGuest(gameRef.current);
         return;
       }
       if (currentScreen !== "pvpLobby") return;
@@ -236,6 +238,12 @@ export function App() {
       setScreen("match");
       setPendingScreen(null);
       syncToGuest(starting);
+      return;
+    }
+
+    if (message.type === "helloAck") {
+      if (!isGuestNow) return;
+      pvpHelloAckRef.current = true;
       return;
     }
 
@@ -262,7 +270,7 @@ export function App() {
           : current;
         const mirrored = mirrorGameState(timed);
         const nextMirrored = applyPlayerIntent(mirrored, message.intent);
-        const canonical = mirrorGameState(nextMirrored);
+        const canonical = redactOpponentLogPrivateInfo(mirrorGameState(nextMirrored));
         syncToGuest(canonical);
         return canonical;
       });
@@ -397,6 +405,7 @@ export function App() {
     setPvpLocalSignal("");
     setPvpRemoteSignal("");
     setPvpConnected(false);
+    pvpHelloAckRef.current = false;
     remoteDeckRef.current = null;
     remoteNameRef.current = "Opponent";
     pvpAnswerPollTokenRef.current += 1;
@@ -472,6 +481,7 @@ export function App() {
     setPvpLocalSignal("");
     setPvpRemoteSignal("");
     setPvpConnected(false);
+    pvpHelloAckRef.current = false;
     remoteDeckRef.current = null;
     remoteNameRef.current = "Opponent";
     pvpAnswerPollTokenRef.current += 1;
@@ -510,6 +520,7 @@ export function App() {
   useEffect(() => {
     if (!pvpConnected || pvpRole !== "guest" || screen !== "pvpLobby") return;
     const sendHello = () => {
+      if (pvpHelloAckRef.current) return;
       const runtime = pvpPeerRef.current;
       if (!runtime || !runtime.isConnected()) return;
       runtime.send({ type: "hello", playerName: "Guest", deckCardIds: equippedDeck.cardIds });
@@ -521,6 +532,10 @@ export function App() {
         return;
       }
       if (matchModeRef.current !== "playerVsPlayer" || pvpRoleRef.current !== "guest") {
+        window.clearInterval(intervalId);
+        return;
+      }
+      if (pvpHelloAckRef.current) {
         window.clearInterval(intervalId);
         return;
       }
