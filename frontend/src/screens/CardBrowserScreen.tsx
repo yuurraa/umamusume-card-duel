@@ -6,6 +6,7 @@ import { NeutralButton } from "../components/buttons/NeutralButton";
 import { energyLabel } from "../game/engine";
 import { formatCardName } from "../game/engine/core/labels";
 import { CARD_ASPECT_RATIO, borders, colors, glassPanelStyle, radius, transitions, uiTextColor, uiTextShadow } from "../styles/shared";
+import { DEFAULT_CARD_SORT, sortCardsForCollection, type CardSortKey, type CardSortOption } from "../utils/cardSorting";
 
 type CategoryFilter = "umamusume" | "trainer" | "item" | "tool" | "stadium";
 type StageFilter = 0 | 1 | 2;
@@ -88,6 +89,7 @@ export function CardBrowserScreen({ onBack }: { onBack: () => void }) {
   const [stageFiltersSelected, setStageFiltersSelected] = useState<Set<StageFilter>>(() => new Set());
   const [artFiltersSelected, setArtFiltersSelected] = useState<Set<ArtFilter>>(() => new Set());
   const [ownershipFiltersSelected, setOwnershipFiltersSelected] = useState<Set<OwnershipFilter>>(() => new Set());
+  const [sortOption, setSortOption] = useState<CardSortOption>(DEFAULT_CARD_SORT);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [hoverPreviewCard, setHoverPreviewCard] = useState<Card | null>(null);
   const [hoverPreviewCardId, setHoverPreviewCardId] = useState<string | null>(null);
@@ -98,7 +100,7 @@ export function CardBrowserScreen({ onBack }: { onBack: () => void }) {
 
   const visibleCards = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
-    return cardEntries.filter((card) => {
+    const filtered = cardEntries.filter((card) => {
       if (categoryFiltersSelected.size > 0 && !matchesAnyCategoryFilter(card, categoryFiltersSelected)) return false;
       if (energyFiltersSelected.size > 0 && !matchesAnyEnergyFilter(card, energyFiltersSelected)) return false;
       if (stageFiltersSelected.size > 0 && !matchesAnyStageFilter(card, stageFiltersSelected)) return false;
@@ -107,7 +109,8 @@ export function CardBrowserScreen({ onBack }: { onBack: () => void }) {
       if (!normalizedQuery) return true;
       return getSearchText(card).includes(normalizedQuery);
     });
-  }, [artFiltersSelected, categoryFiltersSelected, energyFiltersSelected, ownershipFiltersSelected, query, stageFiltersSelected]);
+    return sortCardsForCollection(filtered, sortOption, (card) => ownedStarterCardIds.has(card.id));
+  }, [artFiltersSelected, categoryFiltersSelected, energyFiltersSelected, ownershipFiltersSelected, query, sortOption, stageFiltersSelected]);
 
   const clearFilters = () => {
     setCategoryFiltersSelected(new Set());
@@ -195,6 +198,30 @@ export function CardBrowserScreen({ onBack }: { onBack: () => void }) {
             aria-label="Search cards"
             style={searchInputStyle}
           />
+          <div style={sortControlGroupStyle}>
+            <select
+              value={sortOption.key}
+              aria-label="Sort cards"
+              style={sortSelectStyle}
+              onChange={(event) => setSortOption((current) => ({ ...current, key: event.target.value as CardSortKey }))}
+            >
+              <option value="default">Default</option>
+              <option value="alphabetical">Alphabetical</option>
+              <option value="rarity">Rarity</option>
+            </select>
+            <button
+              type="button"
+              aria-label="Toggle sort direction"
+              style={sortDirectionButtonStyle(sortOption.key !== "default")}
+              disabled={sortOption.key === "default"}
+              onClick={() => setSortOption((current) => ({
+                ...current,
+                direction: current.direction === "asc" ? "desc" : "asc",
+              }))}
+            >
+              {sortOption.direction === "asc" ? "Asc" : "Desc"}
+            </button>
+          </div>
           <div ref={filterMenuWrapRef} style={filterMenuWrapStyle}>
             <button
               type="button"
@@ -541,10 +568,45 @@ const filterPanelStyle: CSSProperties = {
 
 const searchToolbarStyle: CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "minmax(0, 1fr) auto",
+  gridTemplateColumns: "minmax(0, 1fr) auto auto",
   gap: 10,
   alignItems: "center",
 };
+
+const sortControlGroupStyle: CSSProperties = {
+  display: "flex",
+  gap: 8,
+  alignItems: "center",
+};
+
+const sortSelectStyle: CSSProperties = {
+  height: 46,
+  minWidth: 126,
+  borderRadius: radius.md,
+  border: borders.neutralStrong,
+  background: "rgba(245, 248, 245, 0.94)",
+  color: colors.black,
+  padding: "0 10px",
+  fontSize: 13,
+  fontWeight: 900,
+  outline: "none",
+  boxShadow: "0 10px 24px rgba(17, 24, 39, 0.08)",
+};
+
+function sortDirectionButtonStyle(enabled: boolean): CSSProperties {
+  return {
+    height: 46,
+    minWidth: 64,
+    borderRadius: radius.md,
+    border: enabled ? "1px solid rgba(0, 0, 0, 0.42)" : borders.neutralStrong,
+    background: enabled ? "rgba(245, 248, 245, 0.94)" : "rgba(238, 243, 238, 0.62)",
+    color: enabled ? colors.black : "rgba(0, 0, 0, 0.48)",
+    fontSize: 12,
+    fontWeight: 950,
+    cursor: enabled ? "pointer" : "not-allowed",
+    boxShadow: "0 10px 24px rgba(17, 24, 39, 0.08)",
+  };
+}
 
 const searchInputStyle: CSSProperties = {
   width: "100%",

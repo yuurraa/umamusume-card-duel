@@ -6,6 +6,7 @@ import { getDeckCoverCard, getDeckEnergyTypes } from "../../utils/deck";
 import { NeutralButton } from "../../components/buttons/NeutralButton";
 import { EnergyIcon } from "../../components/cards/EnergyIcon";
 import { ActionNotice } from "../../match/feedback/ActionNotice";
+import { DEFAULT_CARD_SORT, sortCardsForCollection, type CardSortKey, type CardSortOption } from "../../utils/cardSorting";
 import {
   ArtFilter,
   CategoryFilter,
@@ -92,6 +93,9 @@ import {
   filterPopoverTitleStyle,
   searchInputStyle,
   searchToolbarStyle,
+  sortControlGroupStyle,
+  sortDirectionButtonStyle,
+  sortSelectStyle,
   deckJsonModalStyle,
   deckJsonTextareaStyle,
   deckJsonActionsStyle,
@@ -616,12 +620,13 @@ export function DeckCardSelectorModal({
   const [energyFiltersSelected, setEnergyFiltersSelected] = useState<Set<EnergyType>>(() => new Set());
   const [stageFiltersSelected, setStageFiltersSelected] = useState<Set<StageFilter>>(() => new Set());
   const [artFiltersSelected, setArtFiltersSelected] = useState<Set<ArtFilter>>(() => new Set());
+  const [sortOption, setSortOption] = useState<CardSortOption>(DEFAULT_CARD_SORT);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const activeFilterCount = categoryFiltersSelected.size + energyFiltersSelected.size + stageFiltersSelected.size + artFiltersSelected.size;
 
   const visibleCards = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
-    return cardEntries.filter((card) => {
+    const filtered = cardEntries.filter((card) => {
       if (categoryFiltersSelected.size > 0 && !matchesAnyCategoryFilter(card, categoryFiltersSelected)) return false;
       if (energyFiltersSelected.size > 0 && !matchesAnyEnergyFilter(card, energyFiltersSelected)) return false;
       if (stageFiltersSelected.size > 0 && !matchesAnyStageFilter(card, stageFiltersSelected)) return false;
@@ -629,7 +634,8 @@ export function DeckCardSelectorModal({
       if (!normalizedQuery) return true;
       return getSearchText(card).includes(normalizedQuery);
     });
-  }, [artFiltersSelected, categoryFiltersSelected, energyFiltersSelected, query, stageFiltersSelected]);
+    return sortCardsForCollection(filtered, sortOption, () => true);
+  }, [artFiltersSelected, categoryFiltersSelected, energyFiltersSelected, query, sortOption, stageFiltersSelected]);
 
   const cardCounts = useMemo(() => {
     const counts = new Map<string, number>();
@@ -719,6 +725,30 @@ export function DeckCardSelectorModal({
               aria-label="Search cards for slot"
               style={searchInputStyle}
             />
+            <div style={sortControlGroupStyle}>
+              <select
+                value={sortOption.key}
+                aria-label="Sort cards"
+                style={sortSelectStyle}
+                onChange={(event) => setSortOption((current) => ({ ...current, key: event.target.value as CardSortKey }))}
+              >
+                <option value="default">Default</option>
+                <option value="alphabetical">Alphabetical</option>
+                <option value="rarity">Rarity</option>
+              </select>
+              <button
+                type="button"
+                aria-label="Toggle sort direction"
+                style={sortDirectionButtonStyle(sortOption.key !== "default")}
+                disabled={sortOption.key === "default"}
+                onClick={() => setSortOption((current) => ({
+                  ...current,
+                  direction: current.direction === "asc" ? "desc" : "asc",
+                }))}
+              >
+                {sortOption.direction === "asc" ? "Asc" : "Desc"}
+              </button>
+            </div>
             <div style={filterMenuWrapStyle}>
               <button
                 type="button"

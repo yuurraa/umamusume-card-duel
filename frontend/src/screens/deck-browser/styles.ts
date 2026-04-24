@@ -618,10 +618,45 @@ export function deckModalHoverDimStyle(active: boolean): CSSProperties {
 
 export const searchToolbarStyle: CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "minmax(0, 1fr) auto",
+  gridTemplateColumns: "minmax(0, 1fr) auto auto",
   gap: 10,
   alignItems: "center",
 };
+
+export const sortControlGroupStyle: CSSProperties = {
+  display: "flex",
+  gap: 8,
+  alignItems: "center",
+};
+
+export const sortSelectStyle: CSSProperties = {
+  height: 46,
+  minWidth: 126,
+  borderRadius: radius.md,
+  border: borders.neutralStrong,
+  background: "rgba(245, 248, 245, 0.94)",
+  color: colors.black,
+  padding: "0 10px",
+  fontSize: 13,
+  fontWeight: 900,
+  outline: "none",
+  boxShadow: "0 10px 24px rgba(17, 24, 39, 0.08)",
+};
+
+export function sortDirectionButtonStyle(enabled: boolean): CSSProperties {
+  return {
+    height: 46,
+    minWidth: 64,
+    borderRadius: radius.md,
+    border: enabled ? "1px solid rgba(0, 0, 0, 0.42)" : borders.neutralStrong,
+    background: enabled ? "rgba(245, 248, 245, 0.94)" : "rgba(238, 243, 238, 0.62)",
+    color: enabled ? colors.black : "rgba(0, 0, 0, 0.48)",
+    fontSize: 12,
+    fontWeight: 950,
+    cursor: enabled ? "pointer" : "not-allowed",
+    boxShadow: "0 10px 24px rgba(17, 24, 39, 0.08)",
+  };
+}
 
 export const searchInputStyle: CSSProperties = {
   width: "100%",
