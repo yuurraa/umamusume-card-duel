@@ -1,5 +1,6 @@
 const FIREBASE_AUTH_SESSION_KEY = "umamusume-firebase-anonymous-session";
 const TOKEN_EXPIRY_SAFETY_MS = 60_000;
+const GOOGLE_SIGN_IN_TIMEOUT_MS = 20_000;
 const GOOGLE_SCRIPT_SRC = "https://accounts.google.com/gsi/client";
 
 type FirebaseAnonymousSession = {
@@ -224,19 +225,30 @@ function toSession(payload: FirebaseSignInResponse): FirebaseAnonymousSession {
 async function requestGoogleAccessToken(clientId: string): Promise<string> {
   await loadGoogleScript();
   return new Promise((resolve, reject) => {
+    let settled = false;
+    const settle = (callback: () => void) => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timeoutId);
+      callback();
+    };
+    const timeoutId = window.setTimeout(() => {
+      settle(() => reject(new Error("Google sign-in did not complete. Check the Google OAuth client URL settings.")));
+    }, GOOGLE_SIGN_IN_TIMEOUT_MS);
     const tokenClient = window.google?.accounts?.oauth2?.initTokenClient({
       client_id: clientId,
       scope: "openid email profile",
       callback: (response) => {
         if (response.error || !response.access_token) {
-          reject(new Error(response.error ?? "Google sign-in was cancelled."));
+          settle(() => reject(new Error(response.error ?? "Google sign-in was cancelled.")));
           return;
         }
-        resolve(response.access_token);
+        const accessToken = response.access_token;
+        settle(() => resolve(accessToken));
       },
     });
     if (!tokenClient) {
-      reject(new Error("Google sign-in is unavailable."));
+      settle(() => reject(new Error("Google sign-in is unavailable.")));
       return;
     }
     tokenClient.requestAccessToken();

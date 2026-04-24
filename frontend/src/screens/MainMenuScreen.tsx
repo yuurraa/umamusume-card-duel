@@ -56,8 +56,8 @@ export function MainMenuScreen({
         {accountOpen ? (
           <div style={accountPopoverStyle}>
             <div style={accountCloudRowStyle}>
-              <span style={accountCloudDotStyle(cloudAvailable)} />
-              <span>{cloudAvailable ? "Cloud Available" : "Cloud Unavailable"}</span>
+              <span style={accountCloudDotStyle(cloudAvailable && !accountBusy)} />
+              <span>{accountBusy ? "Cloud Connecting" : cloudAvailable ? "Cloud Available" : "Cloud Unavailable"}</span>
             </div>
             <div style={accountDetailStyle}>Logged in as {isGoogleLinked ? accountLabel : "Guest"}</div>
             <NeutralButton style={accountButtonStyle} disabled={accountBusy || !cloudAvailable || isGoogleLinked} onClick={onLinkGoogleAccount}>
@@ -257,7 +257,6 @@ const accountCloudRowStyle: CSSProperties = {
   alignItems: "center",
   gap: 7,
   color: uiTextColor,
-  textShadow: uiTextShadow,
   fontSize: 12,
   fontWeight: 950,
 };
@@ -272,7 +271,6 @@ const accountCloudDotStyle = (available: boolean): CSSProperties => ({
 
 const accountKickerStyle: CSSProperties = {
   color: uiMutedTextColor,
-  textShadow: uiTextShadow,
   fontSize: 11,
   fontWeight: 900,
   textTransform: "uppercase",
@@ -280,7 +278,6 @@ const accountKickerStyle: CSSProperties = {
 
 const accountDetailStyle: CSSProperties = {
   color: uiTextColor,
-  textShadow: uiTextShadow,
   fontSize: 13,
   fontWeight: 800,
   overflow: "hidden",
