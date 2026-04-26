@@ -7,16 +7,19 @@ import { fileURLToPath } from "node:url";
 import type { CollectionReference } from "firebase-admin/firestore";
 import { getFirebaseAuth, getFirebaseDb, isFirebaseConfigured, readFirebaseProjectId } from "./firebase";
 import {
+  aiPremadeDecks,
   cards,
   buildLocalDeck,
   createDeckIdFromName,
   DECK_CARD_COUNT,
   gameData,
+  LOCAL_DECK_FORMAT_VERSION,
   MAX_BENCH,
   MAX_HAND,
   MAX_POINTS,
   OPENING_HAND,
   ownedStarterCardIds,
+  premadeDecks,
   type LocalDeck,
   type LocalDeckInput,
   normalizeDeckId,
@@ -458,20 +461,22 @@ async function getUniqueDeckId(baseDeckId: string): Promise<string> {
   return normalizeDeckId(candidate);
 }
 
-function cloudDecksCollection(userId: string): CollectionReference<LocalDeck> {
+function cloudDecksCollection(userId: string): CollectionReference<CloudDeckDoc> {
   return getFirebaseDb()
     .collection("users")
     .doc(userId)
-    .collection("decks") as CollectionReference<LocalDeck>;
+    .collection("decks") as CollectionReference<CloudDeckDoc>;
 }
 
 async function readCloudDecks(userId: string): Promise<LocalDeck[]> {
   if (!isFirebaseConfigured()) return readFallbackCloudDecks(userId);
+  await ensureCloudSeedDecks(userId);
   const snapshot = await cloudDecksCollection(userId).orderBy("updatedAt", "desc").get();
   const decks: LocalDeck[] = [];
 
   for (const doc of snapshot.docs) {
     const deck = doc.data();
+    if (isSeedDeckDoc(deck)) continue;
     const validity = validateLocalDeck(deck, cards);
     if (validity.ok) decks.push(deck);
   }
@@ -481,10 +486,12 @@ async function readCloudDecks(userId: string): Promise<LocalDeck[]> {
 
 async function readCloudDeckById(userId: string, deckId: string): Promise<LocalDeck | null> {
   if (!isFirebaseConfigured()) return readFallbackCloudDeckById(userId, deckId);
+  await ensureCloudSeedDecks(userId);
   const snapshot = await cloudDecksCollection(userId).doc(deckId).get();
   if (!snapshot.exists) return null;
   const deck = snapshot.data();
   if (!deck) return null;
+  if (isSeedDeckDoc(deck)) return null;
   const validity = validateLocalDeck(deck, cards);
   return validity.ok ? deck : null;
 }
@@ -501,11 +508,18 @@ async function getUniqueCloudDeckId(userId: string, baseDeckId: string): Promise
   let candidate = normalizeDeckId(baseDeckId);
   if (!candidate) candidate = "deck";
   let suffix = 1;
-  while (await readCloudDeckById(userId, candidate)) {
+  while (await cloudDeckDocumentExists(userId, candidate)) {
     suffix += 1;
     candidate = `${baseDeckId}-${suffix}`;
   }
   return normalizeDeckId(candidate);
+}
+
+async function cloudDeckDocumentExists(userId: string, deckId: string): Promise<boolean> {
+  if (!isFirebaseConfigured()) return Boolean(await readFallbackCloudDeckById(userId, deckId));
+  await ensureCloudSeedDecks(userId);
+  const snapshot = await cloudDecksCollection(userId).doc(deckId).get();
+  return snapshot.exists;
 }
 
 function cloudDeckDraftsCollection(userId: string): CollectionReference<CloudDeckDraft> {
@@ -557,7 +571,7 @@ async function writeCloudDeckDrafts(userId: string, drafts: Required<CloudDeckDr
   for (const deck of drafts.createDrafts) {
     const editDraft = drafts.editDrafts[deck.id];
     if (!editDraft || !isValidEditDeckDraft(editDraft)) continue;
-    batch.set(collection.doc(`create-${deck.id}`), {
+    batch.set(collection.doc(`${deck.id}`), {
       id: deck.id,
       kind: "create",
       deck,
@@ -712,11 +726,52 @@ async function getCloudDeckUserId(request: express.Request, response: express.Re
       isAnonymous: decoded.firebase.sign_in_provider === "anonymous",
       updatedAt: new Date().toISOString(),
     }, { merge: true });
+    await ensureCloudSeedDecks(decoded.uid);
     return decoded.uid;
   } catch {
     response.status(401).json({ error: "Firebase auth token is invalid or expired." });
     return null;
   }
+}
+
+async function ensureCloudSeedDecks(userId: string): Promise<void> {
+  if (!isFirebaseConfigured()) return;
+
+  const allPremadeDecksById = new Map<string, { id: string; name: string; coverCardId: string; cardIds: string[] }>();
+  for (const deck of premadeDecks) allPremadeDecksById.set(deck.id, deck);
+  for (const deck of aiPremadeDecks) {
+    if (!allPremadeDecksById.has(deck.id)) allPremadeDecksById.set(deck.id, deck);
+  }
+
+  if (allPremadeDecksById.size === 0) return;
+
+  const nowIso = new Date().toISOString();
+  const batch = getFirebaseDb().batch();
+  let hasWrites = false;
+
+  for (const deck of allPremadeDecksById.values()) {
+    const docRef = cloudDecksCollection(userId).doc(deck.id);
+    const snapshot = await docRef.get();
+    if (snapshot.exists) continue;
+    batch.set(docRef, {
+      id: deck.id,
+      name: deck.name,
+      coverCardId: deck.coverCardId,
+      cardIds: [...deck.cardIds],
+      formatVersion: LOCAL_DECK_FORMAT_VERSION,
+      createdAt: nowIso,
+      updatedAt: nowIso,
+      seedKind: "premade",
+    } satisfies CloudDeckDoc);
+    hasWrites = true;
+  }
+
+  if (!hasWrites) return;
+  await batch.commit();
+}
+
+function isSeedDeckDoc(deck: CloudDeckDoc): boolean {
+  return deck.seedKind === "premade";
 }
 
 function getFallbackCloudDeckUserId(): string {
@@ -865,6 +920,10 @@ type CloudDeckDraft = {
   cardIds: Array<string | null>;
   selectedCoverCardId: string | null;
   updatedAt: string;
+};
+
+type CloudDeckDoc = LocalDeck & {
+  seedKind?: "premade";
 };
 
 type CloudCardCollectionDoc = {
