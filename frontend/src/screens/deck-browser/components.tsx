@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CARD_RARITY_SHORT_LABELS, getCardRarity } from "../../../../shared/src/cardRarity";
+import { ownedStarterCardIds } from "../../../../shared/src/gameData";
 import type { Card, EnergyType } from "../../../../shared/src/types";
 import { energyLabel, getCard } from "../../game/engine";
+import { devUnlocksEnabled } from "../../config/devUnlocks";
 import { formatCardName } from "../../game/engine/core/labels";
 import { getDeckCoverCard, getDeckEnergyTypes } from "../../utils/deck";
+import { readCloudCardCollection } from "../../utils/cardCollectionApi";
 import { NeutralButton } from "../../components/buttons/NeutralButton";
 import { EnergyIcon } from "../../components/cards/EnergyIcon";
 import { ActionNotice } from "../../match/feedback/ActionNotice";
@@ -614,6 +617,7 @@ export function DeckCardSelectorModal({
   onClose: () => void;
   onSelectCard: (cardId: string) => void;
 }) {
+  const [ownedCardCounts, setOwnedCardCounts] = useState<Record<string, number> | null>(null);
   const [query, setQuery] = useState("");
   const [hoverPreviewCard, setHoverPreviewCard] = useState<Card | null>(null);
   const [hoverPreviewCardId, setHoverPreviewCardId] = useState<string | null>(null);
@@ -629,6 +633,29 @@ export function DeckCardSelectorModal({
   const [sortOption, setSortOption] = useState<CardSortOption>(DEFAULT_CARD_SORT);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const activeFilterCount = categoryFiltersSelected.size + energyFiltersSelected.size + stageFiltersSelected.size + artFiltersSelected.size + rarityFiltersSelected.size;
+
+  const getOwnedCount = (cardId: string): number => {
+    const value = ownedCardCounts?.[cardId];
+    if (typeof value === "number") return value;
+    if (devUnlocksEnabled) return 2;
+    return ownedStarterCardIds.has(cardId) ? 2 : 0;
+  };
+
+  useEffect(() => {
+    let active = true;
+    readCloudCardCollection()
+      .then((counts) => {
+        if (!active) return;
+        setOwnedCardCounts(counts);
+      })
+      .catch(() => {
+        if (!active) return;
+        setOwnedCardCounts(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const visibleCards = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -865,11 +892,13 @@ export function DeckCardSelectorModal({
               {visibleCards.map((card) => {
                 const copyKey = toDeckCountKey(card.id);
                 const copyCount = cardCounts.get(copyKey) ?? 0;
+                const ownedCount = getOwnedCount(card.id);
                 const isDisabled = copyCount >= 2;
                 return (
                   <CardTile
                     key={card.id}
                     card={card}
+                    ownedCount={ownedCount}
                     disabled={isDisabled}
                     onInspect={() => {
                       if (isDisabled) return;
@@ -923,6 +952,7 @@ function FilterChip({ active, children, onClick }: { active: boolean; children: 
 
 function CardTile({
   card,
+  ownedCount,
   disabled = false,
   onInspect,
   onHoverStart,
@@ -930,6 +960,7 @@ function CardTile({
   previewActive = false,
 }: {
   card: Card;
+  ownedCount: number;
   disabled?: boolean;
   onInspect: () => void;
   onHoverStart?: (anchorEl: HTMLButtonElement) => void;
@@ -939,6 +970,8 @@ function CardTile({
   const [hovered, setHovered] = useState(false);
   const image = getCardImage(card);
   const name = formatCardName(card);
+  const owned = ownedCount > 0;
+  const ownershipLabel = owned ? `${ownedCount}x Owned` : "Unowned";
 
   return (
     <button
@@ -970,8 +1003,27 @@ function CardTile({
     >
       <img style={cardImageStyle} src={image} alt="" draggable={false} />
       <span style={rarityBadgeStyle(getCardRarity(card))}>{CARD_RARITY_SHORT_LABELS[getCardRarity(card)]}</span>
+      <span style={selectorOwnershipBadgeStyle(owned)}>{ownershipLabel}</span>
     </button>
   );
+}
+
+function selectorOwnershipBadgeStyle(owned: boolean): React.CSSProperties {
+  return {
+    position: "absolute",
+    left: 8,
+    bottom: 8,
+    borderRadius: 999,
+    border: owned ? "1px solid rgba(45, 212, 191, 0.72)" : "1px solid rgba(255, 255, 255, 0.56)",
+    background: owned ? "rgba(13, 148, 136, 0.88)" : "rgba(31, 41, 55, 0.78)",
+    color: "#fff",
+    padding: "4px 8px",
+    fontSize: 10,
+    fontWeight: 950,
+    textTransform: "uppercase",
+    pointerEvents: "none",
+    boxShadow: "0 8px 18px rgba(17, 24, 39, 0.24)",
+  };
 }
 
 function chunkDeckRows(cardIds: Array<string | null>, perRow: number): (string | null)[][] {

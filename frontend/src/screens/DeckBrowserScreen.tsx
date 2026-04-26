@@ -39,7 +39,6 @@ import {
   localDeckPersistenceNoticeStyle,
   menuKickerStyle,
 } from "./deck-browser/styles";
-import { devUnlocksEnabled } from "../config/devUnlocks";
 
 export { DeckSummaryCard } from "./deck-browser/components";
 
@@ -69,7 +68,7 @@ export function DeckBrowserScreen({
   onEquipDeck: (deckId: string) => void;
   onBack: () => void;
 }) {
-  const customDecksEnabled = devUnlocksEnabled;
+  const customDecksEnabled = true;
   const [openedDeckRef, setOpenedDeckRef] = useState<{ id: string; source: "premade" | "local" | "draft" } | null>(null);
   const [inspectedDeckCardId, setInspectedDeckCardId] = useState<string | null>(null);
   const [localDecks, setLocalDecks] = useState<LocalDeck[]>([]);

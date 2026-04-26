@@ -16,6 +16,7 @@ import {
   MAX_HAND,
   MAX_POINTS,
   OPENING_HAND,
+  ownedStarterCardIds,
   type LocalDeck,
   type LocalDeckInput,
   normalizeDeckId,
@@ -342,6 +343,13 @@ app.put("/api/cloud-deck-drafts", asyncHandler(async (request, response) => {
   response.json({ createDrafts, editDrafts });
 }));
 
+app.get("/api/cloud-card-collection", asyncHandler(async (request, response) => {
+  const userId = await getCloudDeckUserId(request, response);
+  if (!userId) return;
+  const cardCounts = await readCloudCardCollection(userId);
+  response.json({ cardCounts });
+}));
+
 if (existsSync(path.join(frontendDistDir, "index.html"))) {
   app.use(express.static(frontendDistDir));
   app.get("*", (request, response, next) => {
@@ -561,6 +569,74 @@ async function writeCloudDeckDrafts(userId: string, drafts: Required<CloudDeckDr
   await batch.commit();
 }
 
+function cloudCardCollectionDoc(userId: string) {
+  return getFirebaseDb()
+    .collection("users")
+    .doc(userId)
+    .collection("inventory")
+    .doc("cards");
+}
+
+async function readCloudCardCollection(userId: string): Promise<Record<string, number>> {
+  const seededCounts = buildDefaultCardCollection();
+  if (!isFirebaseConfigured()) return seededCounts;
+
+  const collectionDoc = cloudCardCollectionDoc(userId);
+  const snapshot = await collectionDoc.get();
+  if (!snapshot.exists) {
+    const nowIso = new Date().toISOString();
+    await collectionDoc.set({
+      cardCounts: seededCounts,
+      seededAt: nowIso,
+      updatedAt: nowIso,
+    } satisfies CloudCardCollectionDoc);
+    return seededCounts;
+  }
+
+  const payload = snapshot.data() as CloudCardCollectionDoc | undefined;
+  const cardCounts = sanitizeCardCollectionCounts(payload?.cardCounts);
+  if (Object.keys(cardCounts).length > 0) return cardCounts;
+
+  const nowIso = new Date().toISOString();
+  await collectionDoc.set({
+    cardCounts: seededCounts,
+    updatedAt: nowIso,
+  } satisfies Partial<CloudCardCollectionDoc>, { merge: true });
+  return seededCounts;
+}
+
+function buildDefaultCardCollection(): Record<string, number> {
+  if (isLocalDevRuntime()) {
+    return Object.keys(cards).reduce<Record<string, number>>((counts, cardId) => {
+      counts[cardId] = 2;
+      return counts;
+    }, {});
+  }
+
+  return Array.from(ownedStarterCardIds).reduce<Record<string, number>>((counts, cardId) => {
+    if (!cards[cardId]) return counts;
+    counts[cardId] = 2;
+    return counts;
+  }, {});
+}
+
+function sanitizeCardCollectionCounts(input: unknown): Record<string, number> {
+  if (!isRecord(input)) return {};
+  const output: Record<string, number> = {};
+  for (const [cardId, count] of Object.entries(input)) {
+    if (!cards[cardId]) continue;
+    if (typeof count !== "number" || !Number.isFinite(count)) continue;
+    const normalized = Math.floor(count);
+    if (normalized <= 0) continue;
+    output[cardId] = normalized;
+  }
+  return output;
+}
+
+function isLocalDevRuntime(): boolean {
+  return process.env.NODE_ENV !== "production";
+}
+
 function isValidCreateDeckDraft(deck: unknown): deck is LocalDeck {
   if (!deck || typeof deck !== "object") return false;
   const candidate = deck as LocalDeck;
@@ -662,6 +738,12 @@ type CloudDeckDraft = {
   name: string;
   cardIds: Array<string | null>;
   selectedCoverCardId: string | null;
+  updatedAt: string;
+};
+
+type CloudCardCollectionDoc = {
+  cardCounts: Record<string, number>;
+  seededAt?: string;
   updatedAt: string;
 };
 

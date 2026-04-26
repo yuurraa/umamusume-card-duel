@@ -8,6 +8,7 @@ import { energyLabel } from "../game/engine";
 import { formatCardName } from "../game/engine/core/labels";
 import { devUnlocksEnabled } from "../config/devUnlocks";
 import { CARD_ASPECT_RATIO, borders, colors, glassPanelStyle, radius, transitions, uiTextColor, uiTextShadow } from "../styles/shared";
+import { readCloudCardCollection } from "../utils/cardCollectionApi";
 import { DEFAULT_CARD_SORT, sortCardsForCollection, type CardSortKey, type CardSortOption } from "../utils/cardSorting";
 
 type CategoryFilter = "umamusume" | "trainer" | "item" | "tool" | "stadium";
@@ -65,7 +66,10 @@ const cardEntries = Object.values(allCards).sort((left, right) => {
   if (groupSort !== 0) return groupSort;
   return formatCardName(left).localeCompare(formatCardName(right));
 });
-const ownedCardCount = cardEntries.filter((card) => isCardOwned(card.id)).length;
+const starterCardCounts = Array.from(ownedStarterCardIds).reduce<Record<string, number>>((counts, cardId) => {
+  counts[cardId] = 2;
+  return counts;
+}, {});
 
 const HOVER_PREVIEW_MAX_WIDTH = 440;
 const HOVER_PREVIEW_VIEWPORT_WIDTH_PADDING = 36;
@@ -93,6 +97,7 @@ function getHoverPreviewPosition(rect: DOMRect): { left: number; top: number } {
 }
 
 export function CardBrowserScreen({ onBack }: { onBack: () => void }) {
+  const [ownedCardCounts, setOwnedCardCounts] = useState<Record<string, number> | null>(null);
   const [query, setQuery] = useState("");
   const [categoryFiltersSelected, setCategoryFiltersSelected] = useState<Set<CategoryFilter>>(() => new Set());
   const [energyFiltersSelected, setEnergyFiltersSelected] = useState<Set<EnergyType>>(() => new Set());
@@ -109,6 +114,36 @@ export function CardBrowserScreen({ onBack }: { onBack: () => void }) {
   const filterMenuWrapRef = useRef<HTMLDivElement | null>(null);
   const activeFilterCount = categoryFiltersSelected.size + energyFiltersSelected.size + stageFiltersSelected.size + artFiltersSelected.size + ownershipFiltersSelected.size + rarityFiltersSelected.size;
 
+  const getOwnedCount = (cardId: string): number => {
+    const value = ownedCardCounts?.[cardId];
+    if (typeof value === "number") return value;
+    if (devUnlocksEnabled) return 2;
+    return starterCardCounts[cardId] ?? 0;
+  };
+
+  const isOwned = (cardId: string): boolean => getOwnedCount(cardId) > 0;
+
+  const ownedCardCount = useMemo(
+    () => cardEntries.filter((card) => isOwned(card.id)).length,
+    [ownedCardCounts],
+  );
+
+  useEffect(() => {
+    let active = true;
+    readCloudCardCollection()
+      .then((counts) => {
+        if (!active) return;
+        setOwnedCardCounts(counts);
+      })
+      .catch(() => {
+        if (!active) return;
+        setOwnedCardCounts(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const visibleCards = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
     const filtered = cardEntries.filter((card) => {
@@ -116,13 +151,13 @@ export function CardBrowserScreen({ onBack }: { onBack: () => void }) {
       if (energyFiltersSelected.size > 0 && !matchesAnyEnergyFilter(card, energyFiltersSelected)) return false;
       if (stageFiltersSelected.size > 0 && !matchesAnyStageFilter(card, stageFiltersSelected)) return false;
       if (artFiltersSelected.size > 0 && !matchesAnyArtFilter(card, artFiltersSelected)) return false;
-      if (ownershipFiltersSelected.size > 0 && !matchesAnyOwnershipFilter(card, ownershipFiltersSelected)) return false;
+      if (ownershipFiltersSelected.size > 0 && !matchesAnyOwnershipFilter(card, ownershipFiltersSelected, isOwned)) return false;
       if (rarityFiltersSelected.size > 0 && !matchesAnyRarityFilter(card, rarityFiltersSelected)) return false;
       if (!normalizedQuery) return true;
       return getSearchText(card).includes(normalizedQuery);
     });
-    return sortCardsForCollection(filtered, sortOption, (card) => isCardOwned(card.id));
-  }, [artFiltersSelected, categoryFiltersSelected, energyFiltersSelected, ownershipFiltersSelected, query, rarityFiltersSelected, sortOption, stageFiltersSelected]);
+    return sortCardsForCollection(filtered, sortOption, (card) => isOwned(card.id));
+  }, [artFiltersSelected, categoryFiltersSelected, energyFiltersSelected, isOwned, ownershipFiltersSelected, query, rarityFiltersSelected, sortOption, stageFiltersSelected]);
 
   const clearFilters = () => {
     setCategoryFiltersSelected(new Set());
@@ -358,7 +393,7 @@ export function CardBrowserScreen({ onBack }: { onBack: () => void }) {
               <CardTile
                 key={card.id}
                 card={card}
-                owned={isCardOwned(card.id)}
+                ownedCount={getOwnedCount(card.id)}
                 onHoverStart={(anchorEl) => scheduleHoverPreview(card, anchorEl)}
                 onHoverEnd={hideHoverPreview}
                 previewActive={hoverPreviewCardId === card.id}
@@ -397,19 +432,21 @@ function FilterChip({ active, children, onClick }: { active: boolean; children: 
 
 function CardTile({
   card,
-  owned,
+  ownedCount,
   onHoverStart,
   onHoverEnd,
   previewActive = false,
 }: {
   card: Card;
-  owned: boolean;
+  ownedCount: number;
   onHoverStart?: (anchorEl: HTMLButtonElement) => void;
   onHoverEnd?: () => void;
   previewActive?: boolean;
 }) {
   const [hovered, setHovered] = useState(false);
   const image = getCardImage(card);
+  const owned = ownedCount > 0;
+  const ownershipLabel = owned ? `${ownedCount}x Owned` : "Unowned";
 
   return (
     <button
@@ -439,7 +476,7 @@ function CardTile({
     >
       <img style={cardImageStyle(owned)} src={image} alt="" draggable={false} />
       <span style={rarityBadgeStyle(getCardRarity(card))}>{CARD_RARITY_SHORT_LABELS[getCardRarity(card)]}</span>
-      <span style={ownershipBadgeStyle(owned)}>{owned ? "Owned" : "Unowned"}</span>
+      <span style={ownershipBadgeStyle(owned)}>{ownershipLabel}</span>
     </button>
   );
 }
@@ -481,12 +518,12 @@ function matchesAnyArtFilter(card: Card, filters: Set<ArtFilter>): boolean {
   return filters.has(isFullArtCard(card) ? "fullArt" : "normal");
 }
 
-function matchesAnyOwnershipFilter(card: Card, filters: Set<OwnershipFilter>): boolean {
-  return filters.has(isCardOwned(card.id) ? "owned" : "unowned");
-}
-
-function isCardOwned(cardId: string): boolean {
-  return devUnlocksEnabled || ownedStarterCardIds.has(cardId);
+function matchesAnyOwnershipFilter(
+  card: Card,
+  filters: Set<OwnershipFilter>,
+  isOwned: (cardId: string) => boolean,
+): boolean {
+  return filters.has(isOwned(card.id) ? "owned" : "unowned");
 }
 
 function matchesAnyRarityFilter(card: Card, filters: Set<RarityFilter>): boolean {
