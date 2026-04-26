@@ -634,10 +634,10 @@
       "hp": 50,
       "portrait": "/assets/umamusume/tamamo-cross-basic.png",
       "weakness": {
-        "type": "Fighting",
+        "type": "Steel",
         "amount": 20
       },
-      "retreat": "Colorless",
+      "retreat": "Empty",
       "attacks": [
         {
           "name": "Spark Dash",
@@ -662,7 +662,7 @@
       "hp": 70,
       "portrait": "/assets/umamusume/tamamo-cross-stage1.png",
       "weakness": {
-        "type": "Fighting",
+        "type": "Steel",
         "amount": 20
       },
       "retreat": "Colorless",
@@ -691,10 +691,10 @@
       "hp": 100,
       "portrait": "/assets/umamusume/tamamo-cross-stage2.png",
       "weakness": {
-        "type": "Fighting",
+        "type": "Steel",
         "amount": 20
       },
-      "retreat": "Colorless",
+      "retreat": "Colorless x2",
       "ability": {
         "name": "Thunderbolt Step",
         "text": "If this Umamusume evolved last turn, her attacks do +20 damage.",
@@ -733,7 +733,7 @@
         "type": "Lightning",
         "amount": 20
       },
-      "retreat": "Colorless x2",
+      "retreat": "Colorless",
       "attacks": [
         {
           "name": "Flowing Stream",

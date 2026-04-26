@@ -17,7 +17,7 @@ const scenarios: Scenario[] = [
   { name: "hard does not retreat when attacking now is clearly better", run: scenarioNoUnneededRetreat },
   { name: "Tamamo Cross Stage 1 evolves from deck after attacking", run: scenarioTamamoAttackEvolvesFromDeck },
   { name: "Thunderbolt Step adds damage when evolved last turn", run: scenarioThunderboltStepDamage },
-  { name: "White Lightning shuffles Tamamo Cross and attached Tool into deck", run: scenarioWhiteLightningShuffle },
+  { name: "White Lightning shuffles Tamamo Cross and attached cards into deck", run: scenarioWhiteLightningShuffle },
   { name: "Team Rigil discards opponent active Energy", run: scenarioTeamRigilDiscardEnergy },
   { name: "Team Spica searches an Evolution Umamusume", run: scenarioTeamSpicaSearchEvolution },
   { name: "Leftover Carrot heals active at end of turn", run: scenarioLeftoverCarrotEndTurnHeal },
