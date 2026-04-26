@@ -27,6 +27,7 @@ const app = express();
 const port = Number(process.env.PORT || 8787);
 const repoRoot = findRepoRoot(path.dirname(fileURLToPath(import.meta.url)));
 const localDecksDir = path.join(repoRoot, "local-data", "decks");
+const cloudFallbackDir = path.join(repoRoot, "local-data", "cloud-fallback");
 const frontendDistDir = path.join(repoRoot, "frontend", "dist");
 const PVP_SESSION_TTL_MS = 15 * 60 * 1000;
 const PVP_SIGNAL_MAX_LENGTH = 64_000;
@@ -322,7 +323,11 @@ app.delete("/api/cloud-decks/:deckId", asyncHandler(async (request, response) =>
     response.status(404).json({ error: "Deck not found." });
     return;
   }
-  await cloudDecksCollection(userId).doc(deckId).delete();
+  if (isFirebaseConfigured()) {
+    await cloudDecksCollection(userId).doc(deckId).delete();
+  } else {
+    await deleteFallbackCloudDeck(userId, deckId);
+  }
   response.status(204).send();
 }));
 
@@ -461,6 +466,7 @@ function cloudDecksCollection(userId: string): CollectionReference<LocalDeck> {
 }
 
 async function readCloudDecks(userId: string): Promise<LocalDeck[]> {
+  if (!isFirebaseConfigured()) return readFallbackCloudDecks(userId);
   const snapshot = await cloudDecksCollection(userId).orderBy("updatedAt", "desc").get();
   const decks: LocalDeck[] = [];
 
@@ -474,6 +480,7 @@ async function readCloudDecks(userId: string): Promise<LocalDeck[]> {
 }
 
 async function readCloudDeckById(userId: string, deckId: string): Promise<LocalDeck | null> {
+  if (!isFirebaseConfigured()) return readFallbackCloudDeckById(userId, deckId);
   const snapshot = await cloudDecksCollection(userId).doc(deckId).get();
   if (!snapshot.exists) return null;
   const deck = snapshot.data();
@@ -483,6 +490,10 @@ async function readCloudDeckById(userId: string, deckId: string): Promise<LocalD
 }
 
 async function writeCloudDeck(userId: string, deck: LocalDeck): Promise<void> {
+  if (!isFirebaseConfigured()) {
+    await writeFallbackCloudDeck(userId, deck);
+    return;
+  }
   await cloudDecksCollection(userId).doc(deck.id).set(deck);
 }
 
@@ -505,6 +516,7 @@ function cloudDeckDraftsCollection(userId: string): CollectionReference<CloudDec
 }
 
 async function readCloudDeckDrafts(userId: string): Promise<Required<CloudDeckDraftsPayload>> {
+  if (!isFirebaseConfigured()) return readFallbackCloudDeckDrafts(userId);
   const snapshot = await cloudDeckDraftsCollection(userId).orderBy("updatedAt", "desc").get();
   const createDrafts: LocalDeck[] = [];
   const editDrafts: Record<string, DeckEditorDraftPayload> = {};
@@ -532,6 +544,10 @@ async function readCloudDeckDrafts(userId: string): Promise<Required<CloudDeckDr
 }
 
 async function writeCloudDeckDrafts(userId: string, drafts: Required<CloudDeckDraftsPayload>): Promise<void> {
+  if (!isFirebaseConfigured()) {
+    await writeFallbackCloudDeckDrafts(userId, drafts);
+    return;
+  }
   const collection = cloudDeckDraftsCollection(userId);
   const previous = await collection.listDocuments();
   const batch = getFirebaseDb().batch();
@@ -670,6 +686,10 @@ function isRecord(input: unknown): input is Record<string, unknown> {
 }
 
 async function getCloudDeckUserId(request: express.Request, response: express.Response): Promise<string | null> {
+  if (!isFirebaseConfigured() && isLocalDevRuntime()) {
+    return getFallbackCloudDeckUserId();
+  }
+
   const authHeader = request.header("authorization") ?? "";
   const token = authHeader.match(/^Bearer\s+(.+)$/i)?.[1];
   if (!token) {
@@ -701,6 +721,112 @@ async function getCloudDeckUserId(request: express.Request, response: express.Re
 
 function getFallbackCloudDeckUserId(): string {
   return process.env.FIREBASE_DEV_USER_ID?.trim() || "local-dev-user";
+}
+
+function fallbackUserDir(userId: string): string {
+  return path.join(cloudFallbackDir, sanitizeFallbackUserId(userId));
+}
+
+function fallbackDecksDir(userId: string): string {
+  return path.join(fallbackUserDir(userId), "decks");
+}
+
+function fallbackDeckPath(userId: string, deckId: string): string {
+  return path.join(fallbackDecksDir(userId), `${deckId}.json`);
+}
+
+function fallbackDeckDraftsPath(userId: string): string {
+  return path.join(fallbackUserDir(userId), "deckDrafts.json");
+}
+
+async function ensureFallbackDecksDir(userId: string): Promise<void> {
+  await fs.mkdir(fallbackDecksDir(userId), { recursive: true });
+}
+
+async function ensureFallbackUserDir(userId: string): Promise<void> {
+  await fs.mkdir(fallbackUserDir(userId), { recursive: true });
+}
+
+async function readFallbackCloudDeckById(userId: string, deckId: string): Promise<LocalDeck | null> {
+  await ensureFallbackDecksDir(userId);
+  const targetPath = fallbackDeckPath(userId, deckId);
+  try {
+    const content = await fs.readFile(targetPath, "utf8");
+    const parsed = JSON.parse(content) as LocalDeck;
+    const validity = validateLocalDeck(parsed, cards);
+    return validity.ok ? parsed : null;
+  } catch (error) {
+    if (isNodeError(error) && error.code === "ENOENT") return null;
+    throw error;
+  }
+}
+
+async function writeFallbackCloudDeck(userId: string, deck: LocalDeck): Promise<void> {
+  await ensureFallbackDecksDir(userId);
+  const targetPath = fallbackDeckPath(userId, deck.id);
+  const tempPath = `${targetPath}.tmp`;
+  await fs.writeFile(tempPath, `${JSON.stringify(deck, null, 2)}\n`, "utf8");
+  await fs.rename(tempPath, targetPath);
+}
+
+async function readFallbackCloudDecks(userId: string): Promise<LocalDeck[]> {
+  await ensureFallbackDecksDir(userId);
+  const files = await fs.readdir(fallbackDecksDir(userId));
+  const decks: LocalDeck[] = [];
+
+  for (const file of files) {
+    if (!file.endsWith(".json")) continue;
+    try {
+      const content = await fs.readFile(path.join(fallbackDecksDir(userId), file), "utf8");
+      const parsed = JSON.parse(content) as LocalDeck;
+      const validity = validateLocalDeck(parsed, cards);
+      if (validity.ok) decks.push(parsed);
+    } catch {
+      continue;
+    }
+  }
+
+  decks.sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+  return decks;
+}
+
+async function deleteFallbackCloudDeck(userId: string, deckId: string): Promise<void> {
+  await ensureFallbackDecksDir(userId);
+  const targetPath = fallbackDeckPath(userId, deckId);
+  await fs.unlink(targetPath);
+}
+
+async function readFallbackCloudDeckDrafts(userId: string): Promise<Required<CloudDeckDraftsPayload>> {
+  await ensureFallbackUserDir(userId);
+  const targetPath = fallbackDeckDraftsPath(userId);
+  try {
+    const content = await fs.readFile(targetPath, "utf8");
+    const parsed = JSON.parse(content) as CloudDeckDraftsPayload;
+    const createDrafts = Array.isArray(parsed?.createDrafts)
+      ? parsed.createDrafts.filter(isValidCreateDeckDraft)
+      : [];
+    const editDrafts = isRecord(parsed?.editDrafts)
+      ? filterEditDeckDrafts(parsed.editDrafts)
+      : {};
+    return { createDrafts, editDrafts };
+  } catch (error) {
+    if (isNodeError(error) && error.code === "ENOENT") return { createDrafts: [], editDrafts: {} };
+    throw error;
+  }
+}
+
+async function writeFallbackCloudDeckDrafts(userId: string, drafts: Required<CloudDeckDraftsPayload>): Promise<void> {
+  await ensureFallbackUserDir(userId);
+  const targetPath = fallbackDeckDraftsPath(userId);
+  const tempPath = `${targetPath}.tmp`;
+  await fs.writeFile(tempPath, `${JSON.stringify(drafts, null, 2)}\n`, "utf8");
+  await fs.rename(tempPath, targetPath);
+}
+
+function sanitizeFallbackUserId(userId: string): string {
+  const trimmed = userId.trim();
+  const normalized = trimmed.replace(/[^a-zA-Z0-9_-]/g, "_");
+  return normalized.length > 0 ? normalized : "local-dev-user";
 }
 
 function asyncHandler(
