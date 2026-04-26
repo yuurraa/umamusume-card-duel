@@ -6,6 +6,7 @@ import { EnergyIcon } from "../components/cards/EnergyIcon";
 import { NeutralButton } from "../components/buttons/NeutralButton";
 import { energyLabel } from "../game/engine";
 import { formatCardName } from "../game/engine/core/labels";
+import { devUnlocksEnabled } from "../config/devUnlocks";
 import { CARD_ASPECT_RATIO, borders, colors, glassPanelStyle, radius, transitions, uiTextColor, uiTextShadow } from "../styles/shared";
 import { DEFAULT_CARD_SORT, sortCardsForCollection, type CardSortKey, type CardSortOption } from "../utils/cardSorting";
 
@@ -64,7 +65,7 @@ const cardEntries = Object.values(allCards).sort((left, right) => {
   if (groupSort !== 0) return groupSort;
   return formatCardName(left).localeCompare(formatCardName(right));
 });
-const ownedCardCount = cardEntries.filter((card) => ownedStarterCardIds.has(card.id)).length;
+const ownedCardCount = cardEntries.filter((card) => isCardOwned(card.id)).length;
 
 const HOVER_PREVIEW_MAX_WIDTH = 440;
 const HOVER_PREVIEW_VIEWPORT_WIDTH_PADDING = 36;
@@ -120,7 +121,7 @@ export function CardBrowserScreen({ onBack }: { onBack: () => void }) {
       if (!normalizedQuery) return true;
       return getSearchText(card).includes(normalizedQuery);
     });
-    return sortCardsForCollection(filtered, sortOption, (card) => ownedStarterCardIds.has(card.id));
+    return sortCardsForCollection(filtered, sortOption, (card) => isCardOwned(card.id));
   }, [artFiltersSelected, categoryFiltersSelected, energyFiltersSelected, ownershipFiltersSelected, query, rarityFiltersSelected, sortOption, stageFiltersSelected]);
 
   const clearFilters = () => {
@@ -357,7 +358,7 @@ export function CardBrowserScreen({ onBack }: { onBack: () => void }) {
               <CardTile
                 key={card.id}
                 card={card}
-                owned={ownedStarterCardIds.has(card.id)}
+                owned={isCardOwned(card.id)}
                 onHoverStart={(anchorEl) => scheduleHoverPreview(card, anchorEl)}
                 onHoverEnd={hideHoverPreview}
                 previewActive={hoverPreviewCardId === card.id}
@@ -481,7 +482,11 @@ function matchesAnyArtFilter(card: Card, filters: Set<ArtFilter>): boolean {
 }
 
 function matchesAnyOwnershipFilter(card: Card, filters: Set<OwnershipFilter>): boolean {
-  return filters.has(ownedStarterCardIds.has(card.id) ? "owned" : "unowned");
+  return filters.has(isCardOwned(card.id) ? "owned" : "unowned");
+}
+
+function isCardOwned(cardId: string): boolean {
+  return devUnlocksEnabled || ownedStarterCardIds.has(cardId);
 }
 
 function matchesAnyRarityFilter(card: Card, filters: Set<RarityFilter>): boolean {

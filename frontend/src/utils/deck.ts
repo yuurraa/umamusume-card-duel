@@ -2,6 +2,7 @@ import { aiPremadeDecks, defaultPlayerDeckId, premadeDecks } from "../../../shar
 import { getCard } from "../game/engine";
 import type { EnergyType, UmamusumeType } from "../../../shared/src/types";
 import type { PremadeDeck } from "../types/ui";
+import { devUnlocksEnabled } from "../config/devUnlocks";
 
 const EQUIPPED_DECK_STORAGE_KEY = "umamusume-tcg-pocket-equipped-deck";
 export const LOCAL_DECK_CACHE_STORAGE_KEY = "umamusume-tcg-pocket-local-decks-cache";
@@ -25,21 +26,31 @@ const DECK_TYPE_TO_ENERGY: Record<UmamusumeType, EnergyType> = {
 
 export function getDeckById(deckId: string): PremadeDeck {
   const resolvedDeckId = LEGACY_DECK_ID_MAP[deckId] ?? deckId;
-  return premadeDecks.find((deck) => deck.id === resolvedDeckId)
-    ?? readCachedLocalDecks().find((deck) => deck.id === resolvedDeckId)
-    ?? premadeDecks.find((deck) => deck.id === defaultPlayerDeckId)
-    ?? premadeDecks[0]
+  const selectablePremadeDecks = devUnlocksEnabled ? aiPremadeDecks : premadeDecks;
+  const defaultSelectableDeckId = selectablePremadeDecks.find((deck) => deck.id === defaultPlayerDeckId)?.id
+    ?? selectablePremadeDecks[0]?.id
+    ?? defaultPlayerDeckId;
+  const localDecks = devUnlocksEnabled ? readCachedLocalDecks() : [];
+  return selectablePremadeDecks.find((deck) => deck.id === resolvedDeckId)
+    ?? localDecks.find((deck) => deck.id === resolvedDeckId)
+    ?? selectablePremadeDecks.find((deck) => deck.id === defaultSelectableDeckId)
+    ?? selectablePremadeDecks[0]
     ?? { id: defaultPlayerDeckId, name: "Deck", coverCardId: "matikanetannhauserStage2", cardIds: [] };
 }
 
 export function readEquippedDeckId(): string {
-  if (typeof window === "undefined") return defaultPlayerDeckId;
+  const selectablePremadeDecks = devUnlocksEnabled ? aiPremadeDecks : premadeDecks;
+  const defaultSelectableDeckId = selectablePremadeDecks.find((deck) => deck.id === defaultPlayerDeckId)?.id
+    ?? selectablePremadeDecks[0]?.id
+    ?? defaultPlayerDeckId;
+  if (typeof window === "undefined") return defaultSelectableDeckId;
   const stored = window.localStorage.getItem(EQUIPPED_DECK_STORAGE_KEY);
-  if (!stored) return defaultPlayerDeckId;
+  if (!stored) return defaultSelectableDeckId;
   const resolvedDeckId = LEGACY_DECK_ID_MAP[stored] ?? stored;
-  const exists = premadeDecks.some((deck) => deck.id === resolvedDeckId)
-    || readCachedLocalDecks().some((deck) => deck.id === resolvedDeckId);
-  return exists ? resolvedDeckId : defaultPlayerDeckId;
+  const localDecks = devUnlocksEnabled ? readCachedLocalDecks() : [];
+  const exists = selectablePremadeDecks.some((deck) => deck.id === resolvedDeckId)
+    || localDecks.some((deck) => deck.id === resolvedDeckId);
+  return exists ? resolvedDeckId : defaultSelectableDeckId;
 }
 
 export function writeEquippedDeckId(deckId: string): void {

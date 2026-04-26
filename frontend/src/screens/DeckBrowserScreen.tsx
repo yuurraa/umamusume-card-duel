@@ -39,6 +39,7 @@ import {
   localDeckPersistenceNoticeStyle,
   menuKickerStyle,
 } from "./deck-browser/styles";
+import { devUnlocksEnabled } from "../config/devUnlocks";
 
 export { DeckSummaryCard } from "./deck-browser/components";
 
@@ -68,6 +69,7 @@ export function DeckBrowserScreen({
   onEquipDeck: (deckId: string) => void;
   onBack: () => void;
 }) {
+  const customDecksEnabled = devUnlocksEnabled;
   const [openedDeckRef, setOpenedDeckRef] = useState<{ id: string; source: "premade" | "local" | "draft" } | null>(null);
   const [inspectedDeckCardId, setInspectedDeckCardId] = useState<string | null>(null);
   const [localDecks, setLocalDecks] = useState<LocalDeck[]>([]);
@@ -104,10 +106,10 @@ export function DeckBrowserScreen({
   const allDecks = useMemo(
     () => [
       ...decks.map((deck) => ({ ...deck, source: "premade" as const })),
-      ...localDecks.map((deck) => ({ ...deck, source: "local" as const })),
-      ...createDraftDecks.map((deck) => ({ ...deck, source: "draft" as const })),
+      ...(customDecksEnabled ? localDecks.map((deck) => ({ ...deck, source: "local" as const })) : []),
+      ...(customDecksEnabled ? createDraftDecks.map((deck) => ({ ...deck, source: "draft" as const })) : []),
     ],
-    [createDraftDecks, decks, localDecks],
+    [createDraftDecks, customDecksEnabled, decks, localDecks],
   );
   const openedDeck = openedDeckRef
     ? allDecks.find((deck) => deck.id === openedDeckRef.id && deck.source === openedDeckRef.source) ?? null
@@ -211,6 +213,15 @@ export function DeckBrowserScreen({
   };
 
   useEffect(() => {
+    if (!customDecksEnabled) {
+      setLocalDecks([]);
+      setCreateDraftDecks([]);
+      setEditDraftByDeckId({});
+      setCloudDraftsLoaded(true);
+      setLocalDeckError(null);
+      return;
+    }
+
     let active = true;
     Promise.all([listLocalDecks(), listCloudDeckDrafts()])
       .then(([nextDecks, nextDrafts]) => {
@@ -230,7 +241,7 @@ export function DeckBrowserScreen({
     return () => {
       active = false;
     };
-  }, []);
+  }, [customDecksEnabled]);
 
   useEffect(() => {
     const onDeckEscape = (event: KeyboardEvent) => {
@@ -303,6 +314,11 @@ export function DeckBrowserScreen({
   }, [isCreateOpen]);
 
   const refreshLocalDecks = async () => {
+    if (!customDecksEnabled) {
+      setLocalDecks([]);
+      writeLocalDeckCache([]);
+      return;
+    }
     const nextDecks = await listLocalDecks();
     setLocalDecks(nextDecks);
     writeLocalDeckCache(nextDecks);
@@ -361,28 +377,30 @@ Created decks are saved to cloud storage for this test profile. Export still giv
             />
           );
         })}
-        <DeckBrowserCreateTile
-          onOpen={() => {
-            const blankCardIds = Array.from({ length: DECK_CARD_COUNT }, () => null as string | null);
-            setCreateName("New Deck");
-            setCreateCardIds(blankCardIds);
-            setCreateError(null);
-            setPickerSlotIndex(null);
-            setEditingDeckId(null);
-            setEditingCreateDraftId(null);
-            setPendingValidatedDeck(null);
-            setSelectedCoverCardId(null);
-            setShowImportOverwriteConfirm(false);
-            setShowClearAllConfirm(false);
-            setShowUnsavedChangesConfirm(null);
-            setEditorBaseline({
-              name: "New Deck",
-              cardIds: blankCardIds,
-              selectedCoverCardId: null,
-            });
-            setIsCreateOpen(true);
-        }}
-        />
+        {customDecksEnabled && (
+          <DeckBrowserCreateTile
+            onOpen={() => {
+              const blankCardIds = Array.from({ length: DECK_CARD_COUNT }, () => null as string | null);
+              setCreateName("New Deck");
+              setCreateCardIds(blankCardIds);
+              setCreateError(null);
+              setPickerSlotIndex(null);
+              setEditingDeckId(null);
+              setEditingCreateDraftId(null);
+              setPendingValidatedDeck(null);
+              setSelectedCoverCardId(null);
+              setShowImportOverwriteConfirm(false);
+              setShowClearAllConfirm(false);
+              setShowUnsavedChangesConfirm(null);
+              setEditorBaseline({
+                name: "New Deck",
+                cardIds: blankCardIds,
+                selectedCoverCardId: null,
+              });
+              setIsCreateOpen(true);
+          }}
+          />
+        )}
       </div>
       {localDeckError && <div style={localDeckErrorStyle}>{localDeckError}</div>}
       {openedDeck && (
@@ -392,7 +410,7 @@ Created decks are saved to cloud storage for this test profile. Export still giv
           canEquip
           equipDisabled={openedDeck.source === "draft" || openedDeckHasDraft}
           canExport={!openedDeckHasDraft}
-          canEdit={openedDeck.source !== "premade"}
+          canEdit={customDecksEnabled && openedDeck.source !== "premade"}
           {...(openedDeckDraft
             ? {
               displayCardIds: openedDeckDraft.cardIds,
@@ -453,12 +471,12 @@ Created decks are saved to cloud storage for this test profile. Export still giv
             if (openedDeck.source === "premade") return;
             setDeleteDeckRef({ id: openedDeck.id, source: openedDeck.source });
           }}
-          canDelete={openedDeck.source !== "premade"}
-          canImport={openedDeck.source === "local"}
+          canDelete={customDecksEnabled && openedDeck.source !== "premade"}
+          canImport={customDecksEnabled && openedDeck.source === "local"}
           onInspectCard={setInspectedDeckCardId}
         />
       )}
-      {isCreateOpen && (
+      {customDecksEnabled && isCreateOpen && (
         <CreateDeckModal
           title={editingDeckId || editingCreateDraftId ? "Edit Deck" : "Create Deck"}
           name={createName}
@@ -613,7 +631,7 @@ Created decks are saved to cloud storage for this test profile. Export still giv
           }}
         />
       )}
-      {pickerSlotIndex !== null && (
+      {customDecksEnabled && pickerSlotIndex !== null && (
         <DeckCardSelectorModal
           slotIndex={pickerSlotIndex}
           currentCardIds={createCardIds}

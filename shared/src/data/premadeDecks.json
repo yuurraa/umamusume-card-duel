@@ -166,6 +166,33 @@
         "tracenAcademy"
       ]
     },
+        {
+      "id": "superCreek",
+      "name": "Super Creek",
+      "coverCardId": "superCreekStage1FullArt",
+      "cardIds": [
+        "superCreekBasic",
+        "superCreekBasic",
+        "superCreekStage1",
+        "superCreekStage1FullArt",
+        "nishinoFlowerBasic",
+        "nishinoFlowerBasicFullArt",
+        "3starMakeDebutScout",
+        "3starMakeDebutScout",
+        "teamSpica",
+        "teamSpicaFullArt",
+        "teamRigil",
+        "teamRigilFullArt",
+        "carrotHamburgerSteak",
+        "carrotHamburgerSteak",
+        "takoyakiBox",
+        "leftoverCarrot",
+        "trainingHelmet",
+        "tazunaHayakawa",
+        "hanshinRacetrack",
+        "nakayamaTurf"
+      ]
+    },
     {
       "id": "tamamoCross",
       "name": "Tamamo Cross",
@@ -190,33 +217,6 @@
         "leftoverCarrot",
         "trainingHelmet",
         "aoiKiryuin",
-        "nakayamaTurf"
-      ]
-    },
-    {
-      "id": "superCreek",
-      "name": "Super Creek",
-      "coverCardId": "superCreekStage1FullArt",
-      "cardIds": [
-        "superCreekBasic",
-        "superCreekBasic",
-        "superCreekStage1",
-        "superCreekStage1FullArt",
-        "nishinoFlowerBasic",
-        "nishinoFlowerBasicFullArt",
-        "3starMakeDebutScout",
-        "3starMakeDebutScout",
-        "teamSpica",
-        "teamSpicaFullArt",
-        "teamRigil",
-        "teamRigilFullArt",
-        "carrotHamburgerSteak",
-        "carrotHamburgerSteak",
-        "takoyakiBox",
-        "leftoverCarrot",
-        "trainingHelmet",
-        "tazunaHayakawa",
-        "hanshinRacetrack",
         "nakayamaTurf"
       ]
     }

@@ -1,4 +1,4 @@
-import { premadeDecks } from "../../../shared/src/gameData";
+import { aiPremadeDecks, premadeDecks } from "../../../shared/src/gameData";
 import type { AppScreen, MatchMode } from "../types/ui";
 import { MainMenuScreen } from "../screens/MainMenuScreen";
 import { MatchModeScreen } from "../screens/MatchModeScreen";
@@ -10,6 +10,7 @@ import type { PremadeDeck } from "../types/ui";
 import type { CustomisationSettings } from "../utils/customisation";
 import type { FirebaseAccountSnapshot } from "../utils/firebaseAuth";
 import { getAccountPlayerName } from "../utils/playerNames";
+import { devUnlocksEnabled } from "../config/devUnlocks";
 import { appStyle, screenFadeOverlayStyle } from "./styles";
 
 type NonMatchScreenProps = {
@@ -43,6 +44,10 @@ type NonMatchScreenProps = {
 };
 
 export function renderNonMatchScreen(props: NonMatchScreenProps): JSX.Element | null {
+  const selectablePremadeDecks = devUnlocksEnabled
+    ? aiPremadeDecks
+    : premadeDecks;
+
   const {
     screen,
     selectedPlaymatImage,
@@ -142,7 +147,7 @@ export function renderNonMatchScreen(props: NonMatchScreenProps): JSX.Element | 
     return (
       <main style={appStyle(false, selectedPlaymatImage, uiTextTone)}>
         <DeckBrowserScreen
-          decks={premadeDecks}
+          decks={selectablePremadeDecks}
           equippedDeckId={equippedDeck.id}
           onEquipDeck={(deckId) => setEquippedDeckId(deckId)}
           onBack={() => navigateToScreen("mainMenu")}
