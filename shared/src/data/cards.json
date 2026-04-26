@@ -740,8 +740,8 @@
           "cost": {
             "water": 1
           },
-          "damage": 10,
-          "text": "Do 10 damage to the Active Umamusume."
+          "damage": 20,
+          "text": "Do 20 damage to the Active Umamusume."
         }
       ]
     },
@@ -769,7 +769,7 @@
             "water": 1,
             "colorless": 2
           },
-          "damage": 50,
+          "damage": 60,
           "heal": 20,
           "healTarget": "any",
           "recoverSpecialConditions": true,
