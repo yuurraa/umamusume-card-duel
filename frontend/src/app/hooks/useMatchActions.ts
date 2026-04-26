@@ -119,6 +119,11 @@ export function useMatchActions(args: UseMatchActionsArgs) {
       submitPlayerIntent({ type: "playHandCard", handIndex });
       return;
     }
+    if (card.kind === "trainer" && card.effect.searchEvolutionUmamusume) {
+      setPendingSelection({ kind: "deckForEvolutionSearch", handIndex });
+      setPreviewTarget(null);
+      return;
+    }
     if (card.kind === "trainer" && card.effect.draw) {
       submitPlayerIntent({ type: "playHandCard", handIndex });
       return;
@@ -247,7 +252,19 @@ export function useMatchActions(args: UseMatchActionsArgs) {
 
   const chooseScoutDeckCard = (deckCardIndex: number) => {
     if (isTurnFlowBlocked) return;
-    if (!pendingSelection || pendingSelection.kind !== "deckForScout") return;
+    if (!pendingSelection || (pendingSelection.kind !== "deckForScout" && pendingSelection.kind !== "deckForEvolutionSearch")) return;
+    if (pendingSelection.kind === "deckForEvolutionSearch") {
+      submitPlayerIntent({
+        type: "playHandCard",
+        handIndex: pendingSelection.handIndex,
+        choices: {
+          deckCardIndex,
+        },
+      });
+      setPendingSelection(null);
+      setPreviewTarget(null);
+      return;
+    }
     submitPlayerIntent({
       type: "playHandCard",
       handIndex: pendingSelection.handIndex,

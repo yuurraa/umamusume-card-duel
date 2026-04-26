@@ -89,7 +89,7 @@ export function estimateAttackDamageOutput(
   const allInPlayCount = ownInPlayCount + 1 + defendingSide.bench.length;
   const targets = attack.targetOpponent === "any" ? getAllUmamusume(defendingSide) : defendingSide.active ? [defendingSide.active] : [];
   if (targets.length === 0) return 0;
-  return Math.max(...targets.map((target) => predictAttackDamage(attacker, target, attackingSide.activeAttackDamageBonus, ownInPlayCount, allInPlayCount)));
+  return Math.max(...targets.map((target) => predictAttackDamage(attacker, target, attackingSide.activeAttackDamageBonus, ownInPlayCount, allInPlayCount, state.turnNumber)));
 }
 
 function shouldAttachForDamageScaling(umamusume: UmamusumeInstance, nextEnergyType: keyof UmamusumeInstance["energies"]): boolean {

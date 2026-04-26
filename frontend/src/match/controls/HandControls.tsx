@@ -20,6 +20,7 @@ export function PlayHandHeader({
   log,
   canSurrender,
   onEndTurn,
+  onSwitchPov,
   onToggleMenu,
   onSurrender,
 }: {
@@ -35,6 +36,7 @@ export function PlayHandHeader({
   log: string[];
   canSurrender: boolean;
   onEndTurn: () => void;
+  onSwitchPov?: (() => void) | undefined;
   onToggleMenu: () => void;
   onSurrender: () => void;
 }) {
@@ -43,6 +45,11 @@ export function PlayHandHeader({
       <EnergyDragToken canDrag={canAttach} refreshNonce={energyRefreshKey} energyType={energyType} extraCount={extraCount} />
       <TurnPill label={turnLabel ?? `Turn ${turnNumber}`} alert={Boolean(turnAlert)} />
       <div style={playHandActionRowStyle}>
+        {onSwitchPov && (
+          <NeutralButton style={endTurnButtonStyle(true)} onClick={onSwitchPov}>
+            Switch POV
+          </NeutralButton>
+        )}
         <NeutralButton style={endTurnButtonStyle(canEndTurn)} disabled={!canEndTurn} onClick={onEndTurn}>
           End Turn
         </NeutralButton>

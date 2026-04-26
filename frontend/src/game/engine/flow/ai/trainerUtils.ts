@@ -18,6 +18,7 @@ export function shouldAiPlayTrainer(state: GameState, side: SideState, card: Car
   if (card.trainerType === "tool") return getToolTargets(side).length > 0;
   if (card.effect.gustOpponent) return getYayoiAkikawaValue(state, side) > 0;
   if (card.effect.activeAttackDamageBonus) return getAoiKiryuinBonusValue(state, side) > 0;
+  if (card.effect.discardRandomOpponentActiveEnergy) return getOpponentActiveEnergyCount(state, side) > 0;
   if (card.effect.attachEnergyFromZoneToBench) return side.bench.length > 0;
   if (card.effect.extraEnergyAttach) return true;
   if (card.effect.retreatCostReduction) {
@@ -27,7 +28,7 @@ export function shouldAiPlayTrainer(state: GameState, side: SideState, card: Car
   }
   if (card.effect.heal && !hasDamagedHealingTarget(side, card)) return Boolean(card.effect.draw && side.hand.length < MAX_HAND);
   if (card.effect.draw && side.hand.length >= MAX_HAND) return false;
-  if (card.effect.searchUmamusume || card.effect.searchRandomBasicUmamusume) {
+  if (card.effect.searchUmamusume || card.effect.searchEvolutionUmamusume || card.effect.searchRandomBasicUmamusume) {
     if (side.hand.length >= MAX_HAND) return false;
     if (card.effect.discardOtherCard) {
       const discardIndex = chooseAiDiscardHandIndex(state, side, handIndex);
@@ -42,6 +43,7 @@ export function shouldAiPlayTrainer(state: GameState, side: SideState, card: Car
     return true;
   }
   if (card.effect.rainbowUncapCrystal) return Boolean(getAiRainbowUncapChoice(state, side));
+  if (card.effect.recoverActiveSpecialConditions) return Boolean(side.active && side.active.specialConditions.length > 0);
   return true;
 }
 
@@ -144,6 +146,10 @@ export function getAiTrainerChoices(state: GameState, side: SideState, card: Ext
     const deckCardIndex = chooseAiSearchDeckIndex(state, side);
     if (deckCardIndex !== undefined) choices.deckCardIndex = deckCardIndex;
   }
+  if (card.effect.searchEvolutionUmamusume) {
+    const deckCardIndex = chooseAiSearchDeckIndex(state, side, true);
+    if (deckCardIndex !== undefined) choices.deckCardIndex = deckCardIndex;
+  }
   if (card.trainerType === "tool") {
     const toolTarget = chooseAiToolTarget(side);
     if (toolTarget) choices.umamusumeTargetUid = toolTarget.uid;
@@ -220,10 +226,13 @@ function chooseAiDiscardHandIndex(state: GameState, side: SideState, excludingHa
   return sorted[0]?.handIndex;
 }
 
-function chooseAiSearchDeckIndex(state: GameState, side: SideState): number | undefined {
+function chooseAiSearchDeckIndex(state: GameState, side: SideState, evolutionOnly = false): number | undefined {
   const options = side.deck
     .map((cardId, deckCardIndex) => ({ cardId, deckCardIndex }))
-    .filter(({ cardId }) => getCard(cardId).kind === "umamusume");
+    .filter(({ cardId }) => {
+      const card = getCard(cardId);
+      return card.kind === "umamusume" && (!evolutionOnly || card.stage > 0);
+    });
   if (options.length === 0) return undefined;
   const sorted = [...options].sort((left, right) => scoreCardFutureValue(state, side, right.cardId) - scoreCardFutureValue(state, side, left.cardId));
   return sorted[0]?.deckCardIndex;
@@ -237,6 +246,7 @@ function scoreCardFutureValue(state: GameState, side: SideState, cardId: string)
     if (card.effect.draw) value += 24;
     if (card.effect.activeAttackDamageBonus) value += getAoiKiryuinBonusValue(state, side);
     if (card.effect.gustOpponent) value += getYayoiAkikawaValue(state, side);
+    if (card.effect.discardRandomOpponentActiveEnergy) value += getOpponentActiveEnergyCount(state, side) * 18;
     if (card.effect.rainbowUncapCrystal) value += getAiRainbowUncapChoice(state, side) ? 42 : 0;
     return value;
   }
@@ -251,6 +261,12 @@ function scoreCardFutureValue(state: GameState, side: SideState, cardId: string)
   return value;
 }
 
+function getOpponentActiveEnergyCount(state: GameState, side: SideState): number {
+  const opponent = state.sides[side.id === "player" ? "opponent" : "player"];
+  if (!opponent.active) return 0;
+  return Object.values(opponent.active.energies).reduce((sum, count) => sum + count, 0);
+}
+
 function getAoiKiryuinBonusValue(state: GameState, side: SideState): number {
   if (!side.active || !canAttack(state, side)) return 0;
   const opponent = getOpposingSide(state, side.id);
@@ -258,8 +274,8 @@ function getAoiKiryuinBonusValue(state: GameState, side: SideState): number {
   if (!target) return 0;
   const ownInPlayCount = 1 + side.bench.length;
   const allInPlayCount = ownInPlayCount + 1 + opponent.bench.length;
-  const withoutBonus = predictAttackDamage(side.active, target, side.activeAttackDamageBonus, ownInPlayCount, allInPlayCount);
-  const withBonus = predictAttackDamage(side.active, target, side.activeAttackDamageBonus + 10, ownInPlayCount, allInPlayCount);
+  const withoutBonus = predictAttackDamage(side.active, target, side.activeAttackDamageBonus, ownInPlayCount, allInPlayCount, state.turnNumber);
+  const withBonus = predictAttackDamage(side.active, target, side.activeAttackDamageBonus + 10, ownInPlayCount, allInPlayCount, state.turnNumber);
   const delta = Math.max(0, withBonus - withoutBonus);
   const koSwing = withoutBonus < target.hp && withBonus >= target.hp ? 90 : 0;
   return delta * 2 + koSwing;
@@ -271,12 +287,12 @@ function getYayoiAkikawaValue(state: GameState, side: SideState): number {
   if (!opponent.active || opponent.bench.length === 0) return 0;
   const ownInPlayCount = 1 + side.bench.length;
   const allInPlayCount = ownInPlayCount + 1 + opponent.bench.length;
-  const damageNow = predictAttackDamage(side.active, opponent.active, side.activeAttackDamageBonus, ownInPlayCount, allInPlayCount);
+  const damageNow = predictAttackDamage(side.active, opponent.active, side.activeAttackDamageBonus, ownInPlayCount, allInPlayCount, state.turnNumber);
 
   const preferredBenchIndex = choosePreferredActiveIndex(opponent);
   const fallbackTarget = preferredBenchIndex >= 0 ? opponent.bench[preferredBenchIndex] : opponent.bench[0];
   if (!fallbackTarget) return 0;
-  const damageAfterGust = predictAttackDamage(side.active, fallbackTarget, side.activeAttackDamageBonus, ownInPlayCount, allInPlayCount);
+  const damageAfterGust = predictAttackDamage(side.active, fallbackTarget, side.activeAttackDamageBonus, ownInPlayCount, allInPlayCount, state.turnNumber);
   const koNow = damageNow >= opponent.active.hp;
   const koAfter = damageAfterGust >= fallbackTarget.hp;
   if (!koNow && koAfter) return 120;

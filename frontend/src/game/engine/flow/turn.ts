@@ -1,9 +1,9 @@
 import { MAX_HAND } from "../../../../../shared/src/gameData";
 import type { GameState, SideId, SideState } from "../../../../../shared/src/types";
-import { actorName, actorPossessive, formatUmamusumeCardName } from "../core/labels";
+import { actorName, actorPossessive, formatUmamusumeCardName, formatUmamusumeInstanceName } from "../core/labels";
 import { log } from "../core/log";
 import { getAllUmamusume } from "../core/umamusume";
-import { getUmamusumeCard } from "../core/catalog";
+import { getCard, getUmamusumeCard } from "../core/catalog";
 import { rollEnergyFromPool } from "../core/random";
 
 export function prepareUmamusumeForTurn(side: SideState): void {
@@ -76,7 +76,28 @@ export function startTurn(
 
 export function endTurn(state: GameState, startTurnImpl: (state: GameState, sideId: SideId) => void): void {
   if (state.gameOver || state.currentSide === "done") return;
+  applyEndTurnToolTriggers(state, state.currentSide);
   const nextSide: SideId = state.currentSide === "player" ? "opponent" : "player";
   if (nextSide === state.firstPlayer) state.turnNumber += 1;
   startTurnImpl(state, nextSide);
+}
+
+function applyEndTurnToolTriggers(state: GameState, sideId: SideId): void {
+  const side = state.sides[sideId];
+  const active = side.active;
+  if (!active || !active.toolCardId || areToolsDisabled(state)) return;
+  const tool = getCard(active.toolCardId);
+  if (tool.kind !== "trainer") return;
+  const heal = tool.effect.toolEndTurnHealActive ?? 0;
+  if (heal <= 0) return;
+  const before = active.hp;
+  active.hp = Math.min(active.maxHp, active.hp + heal);
+  const healed = active.hp - before;
+  if (healed > 0) log(state, `${tool.name} healed ${formatUmamusumeInstanceName(active)} for ${healed} HP.`);
+}
+
+function areToolsDisabled(state: GameState): boolean {
+  if (!state.stadium) return false;
+  const stadium = getCard(state.stadium.cardId);
+  return stadium.kind === "trainer" && Boolean(stadium.effect.disableTools);
 }

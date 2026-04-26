@@ -20,7 +20,8 @@ export type PendingSelection =
   | { kind: "abilityDamageTarget"; abilityUmamusumeUid: number }
   | { kind: "discardForAbility"; abilityUmamusumeUid: number }
   | { kind: "discardForScout"; handIndex: number }
-  | { kind: "deckForScout"; handIndex: number; discardHandIndex: number; discardedCardName: string };
+  | { kind: "deckForScout"; handIndex: number; discardHandIndex: number; discardedCardName: string }
+  | { kind: "deckForEvolutionSearch"; handIndex: number };
 
 export type ActionNoticeSource =
   | { kind: "genericGain" }

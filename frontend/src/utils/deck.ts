@@ -1,4 +1,4 @@
-import { defaultPlayerDeckId, premadeDecks } from "../../../shared/src/gameData";
+import { aiPremadeDecks, defaultPlayerDeckId, premadeDecks } from "../../../shared/src/gameData";
 import { getCard } from "../game/engine";
 import type { EnergyType, UmamusumeType } from "../../../shared/src/types";
 import type { PremadeDeck } from "../types/ui";
@@ -6,7 +6,8 @@ import type { PremadeDeck } from "../types/ui";
 const EQUIPPED_DECK_STORAGE_KEY = "umamusume-tcg-pocket-equipped-deck";
 export const LOCAL_DECK_CACHE_STORAGE_KEY = "umamusume-tcg-pocket-local-decks-cache";
 const LEGACY_DECK_ID_MAP: Record<string, string> = {
-  agnesTachyon: "agnesDigital",
+  matikanetannhauserNiceNature: "matikanetannhauser",
+  riceShowerHaruUrara: "riceShower",
 };
 
 const DECK_TYPE_TO_ENERGY: Record<UmamusumeType, EnergyType> = {
@@ -47,7 +48,7 @@ export function writeEquippedDeckId(deckId: string): void {
 }
 
 export function pickRandomOpponentDeck(): PremadeDeck {
-  return premadeDecks[Math.floor(Math.random() * premadeDecks.length)] ?? premadeDecks[0]!;
+  return aiPremadeDecks[Math.floor(Math.random() * aiPremadeDecks.length)] ?? aiPremadeDecks[0] ?? premadeDecks[0]!;
 }
 
 export function getDeckCoverCard(deck: PremadeDeck) {

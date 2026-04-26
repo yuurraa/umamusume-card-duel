@@ -82,6 +82,10 @@ export function useEscapeHotkey({
         setPendingSelection({ kind: "discardForScout", handIndex: pendingSelection.handIndex });
         return;
       }
+      if (pendingSelection?.kind === "deckForEvolutionSearch") {
+        setPendingSelection(null);
+        return;
+      }
       if (actionNotice && isBottomActionNotice(actionNotice)) {
         setActionNotice(null);
         return;

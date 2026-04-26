@@ -248,7 +248,7 @@ export function Bench({
 
         return (
           <BenchSlot
-            key={`bench-umamusume-${umamusume.uid}`}
+            key={`bench-umamusume-${umamusume.uid}-${animateSetupReveal ? setupRevealToken : 0}`}
             card={card}
             umamusume={umamusume}
             side={side}
@@ -270,7 +270,7 @@ export function Bench({
             isDimmed={isChoosingUmamusume && !selectableUmamusumeUids?.has(umamusume.uid)}
             abilityEnergyTypes={abilityEnergyTypes}
             sleeveImage={sleeveImage}
-            revealOrder={playedBenchRevealOrderByUid[umamusume.uid]}
+            revealOrder={animateSetupReveal ? index : playedBenchRevealOrderByUid[umamusume.uid]}
             shiftOffset={benchShiftOffsetByUid[umamusume.uid]}
             onInspect={onInspect}
             onUmamusumeSelect={onUmamusumeSelect}

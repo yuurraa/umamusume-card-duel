@@ -14,6 +14,10 @@
     "riceShowerStage2",
     "tazunaHayakawa",
     "teamCanopus",
+    "superCreekStage1",
+    "tamamoCrossStage2",
+    "teamRigil",
+    "teamSpica",
     "yayoiAkikawa"
   ],
   "baseCards": {
@@ -616,6 +620,209 @@
       "text": "Draw 2 cards.",
       "effect": {
         "draw": 2
+      }
+    },
+    "tamamoCrossBasic": {
+      "id": "tamamoCrossBasic",
+      "owner": "player",
+      "kind": "umamusume",
+      "name": "Tamamo Cross",
+      "label": "Umamusume - Lightning - Basic",
+      "species": "Tamamo Cross",
+      "type": "Lightning",
+      "stage": 0,
+      "hp": 50,
+      "portrait": "/assets/umamusume/tamamo-cross-basic.png",
+      "weakness": {
+        "type": "Fighting",
+        "amount": 20
+      },
+      "retreat": "Colorless",
+      "attacks": [
+        {
+          "name": "Spark Dash",
+          "cost": {
+            "lightning": 1
+          },
+          "damage": 20,
+          "text": "Do 20 damage to the Active Umamusume."
+        }
+      ]
+    },
+    "tamamoCrossStage1": {
+      "id": "tamamoCrossStage1",
+      "owner": "player",
+      "kind": "umamusume",
+      "name": "Tamamo Cross",
+      "label": "Umamusume - Lightning - Stage 1",
+      "species": "Tamamo Cross",
+      "type": "Lightning",
+      "stage": 1,
+      "evolvesFrom": "Tamamo Cross",
+      "hp": 70,
+      "portrait": "/assets/umamusume/tamamo-cross-stage1.png",
+      "weakness": {
+        "type": "Fighting",
+        "amount": 20
+      },
+      "retreat": "Colorless",
+      "attacks": [
+        {
+          "name": "Fast As Lightning",
+          "cost": {
+            "lightning": 1
+          },
+          "damage": 20,
+          "evolveFromDeck": true,
+          "text": "Search your deck for a card that evolves from this Umamusume and put her onto this Umamusume to evolve her."
+        }
+      ]
+    },
+    "tamamoCrossStage2": {
+      "id": "tamamoCrossStage2",
+      "owner": "player",
+      "kind": "umamusume",
+      "name": "Tamamo Cross",
+      "label": "Umamusume - Lightning - Stage 2",
+      "species": "Tamamo Cross",
+      "type": "Lightning",
+      "stage": 2,
+      "evolvesFrom": "Tamamo Cross",
+      "hp": 100,
+      "portrait": "/assets/umamusume/tamamo-cross-stage2.png",
+      "weakness": {
+        "type": "Fighting",
+        "amount": 20
+      },
+      "retreat": "Colorless",
+      "ability": {
+        "name": "Thunderbolt Step",
+        "text": "If this Umamusume evolved last turn, her attacks do +20 damage.",
+        "attackDamageBonusIfEvolvedLastTurn": 20
+      },
+      "attacks": [
+        {
+          "name": "White Lightning",
+          "cost": {
+            "lightning": 1,
+            "colorless": 1
+          },
+          "damage": 40,
+          "shuffleSelfIntoDeck": {
+            "discardEnergy": {
+              "lightning": 3
+            },
+            "requiresBench": true
+          },
+          "text": "You may discard 3 [L] Energy from this Umamusume. If you do, shuffle this card and all attached cards back into your deck. You must have at least 1 Benched Umamusume to do so."
+        }
+      ]
+    },
+    "superCreekBasic": {
+      "id": "superCreekBasic",
+      "owner": "player",
+      "kind": "umamusume",
+      "name": "Super Creek",
+      "label": "Umamusume - Water - Basic",
+      "species": "Super Creek",
+      "type": "Water",
+      "stage": 0,
+      "hp": 70,
+      "portrait": "/assets/umamusume/super-creek-basic.png",
+      "weakness": {
+        "type": "Lightning",
+        "amount": 20
+      },
+      "retreat": "Colorless x2",
+      "attacks": [
+        {
+          "name": "Flowing Stream",
+          "cost": {
+            "water": 1
+          },
+          "damage": 10,
+          "text": "Do 10 damage to the Active Umamusume."
+        }
+      ]
+    },
+    "superCreekStage1": {
+      "id": "superCreekStage1",
+      "owner": "player",
+      "kind": "umamusume",
+      "name": "Super Creek",
+      "label": "Umamusume - Water - Stage 1",
+      "species": "Super Creek",
+      "type": "Water",
+      "stage": 1,
+      "evolvesFrom": "Super Creek",
+      "hp": 120,
+      "portrait": "/assets/umamusume/super-creek-stage1.png",
+      "weakness": {
+        "type": "Lightning",
+        "amount": 20
+      },
+      "retreat": "Colorless x2",
+      "attacks": [
+        {
+          "name": "Clear Heart",
+          "cost": {
+            "water": 1,
+            "colorless": 2
+          },
+          "damage": 50,
+          "heal": 20,
+          "healTarget": "any",
+          "recoverSpecialConditions": true,
+          "text": "Heal 20 damage from 1 of your Umamusume. That Umamusume recovers from all Special Conditions."
+        }
+      ]
+    },
+    "teamRigil": {
+      "id": "teamRigil",
+      "kind": "trainer",
+      "trainerType": "supporter",
+      "name": "Team Rigil",
+      "label": "Trainer - Supporter",
+      "image": "/assets/trainer/supporter/team-rigil.png",
+      "text": "Discard 1 random Energy from the opponent's Active Umamusume.",
+      "effect": {
+        "discardRandomOpponentActiveEnergy": true
+      }
+    },
+    "teamSpica": {
+      "id": "teamSpica",
+      "kind": "trainer",
+      "trainerType": "supporter",
+      "name": "Team Spica",
+      "label": "Trainer - Supporter",
+      "image": "/assets/trainer/supporter/team-spica.png",
+      "text": "Search your deck for 1 Evolution Umamusume and put her into your hand.",
+      "effect": {
+        "searchEvolutionUmamusume": true
+      }
+    },
+    "leftoverCarrot": {
+      "id": "leftoverCarrot",
+      "kind": "trainer",
+      "trainerType": "tool",
+      "name": "Leftover Carrot",
+      "label": "Trainer - Tool",
+      "image": "/assets/trainer/tool/leftover-carrot.png",
+      "text": "At the end of your turn, if the Umamusume this card is attached to is in the Active Spot, heal 10 damage from that Umamusume.",
+      "effect": {
+        "toolEndTurnHealActive": 10
+      }
+    },
+    "takoyakiBox": {
+      "id": "takoyakiBox",
+      "kind": "trainer",
+      "trainerType": "item",
+      "name": "Takoyaki Box",
+      "label": "Trainer - Item",
+      "image": "/assets/trainer/item/takoyaki-box.png",
+      "text": "Your Active Umamusume recovers from all Special Conditions.",
+      "effect": {
+        "recoverActiveSpecialConditions": true
       }
     },
     "carrotHamburgerSteak": {

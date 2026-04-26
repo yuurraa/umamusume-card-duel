@@ -46,6 +46,10 @@ export function useMatchModalActions({
   };
 
   const onDeckScoutClose = () => {
+    if (pendingSelection?.kind === "deckForEvolutionSearch") {
+      setPendingSelection(null);
+      return;
+    }
     if (pendingSelection?.kind !== "deckForScout") return;
     setPendingSelection({ kind: "discardForScout", handIndex: pendingSelection.handIndex });
   };

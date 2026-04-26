@@ -18,6 +18,7 @@ export function PregameSetupPanel({
   onSetActive,
   onReady,
   canReady,
+  onSwitchPov,
   onInspect,
   sleeveImage,
 }: {
@@ -32,6 +33,7 @@ export function PregameSetupPanel({
   onSetActive: (index: number) => void;
   onReady: () => void;
   canReady: boolean;
+  onSwitchPov?: (() => void) | undefined;
   onInspect: (target: InspectTarget) => void;
   sleeveImage?: string | null;
 }) {
@@ -50,6 +52,11 @@ export function PregameSetupPanel({
         </div>
         <TurnPill label={setupLabel} />
         <div style={pregameActionRowStyle}>
+          {onSwitchPov && (
+            <NeutralButton style={attackButtonStyle(true)} onClick={onSwitchPov}>
+              Switch POV
+            </NeutralButton>
+          )}
           <NeutralButton style={attackButtonStyle(activeIndex !== null && canReady)} disabled={activeIndex === null || !canReady} onClick={onReady}>Ready</NeutralButton>
           <MatchMenuControl
             menuOpen={menuOpen}
@@ -64,6 +71,7 @@ export function PregameSetupPanel({
       <Hand
         state={game}
         mode="setup"
+        canPlayCards={canReady}
         setupActiveIndex={activeIndex}
         setupBenchIndexes={benchIndexes}
         onSetupChooseActive={onSetActive}

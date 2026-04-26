@@ -4,14 +4,14 @@ export const CARD_RARITY_LABELS: Record<CardRarity, string> = {
   common: "Common",
   uncommon: "Uncommon",
   rare: "Rare",
-  doubleRare: "Double Rare",
+  doubleRare: "Ultra Rare",
 };
 
 export const CARD_RARITY_SHORT_LABELS: Record<CardRarity, string> = {
   common: "C",
   uncommon: "UC",
   rare: "R",
-  doubleRare: "RR",
+  doubleRare: "UR",
 };
 
 export const CARD_PRINT_VARIANT_LABELS: Record<CardPrintVariant, string> = {
@@ -25,6 +25,7 @@ export function getCardRarity(card: Card): CardRarity {
     if (card.stage >= 2) return "rare";
     if (card.stage === 1) return "uncommon";
   }
+  if (card.kind === "trainer" && card.trainerType === "tool") return "uncommon";
   return "common";
 }
 

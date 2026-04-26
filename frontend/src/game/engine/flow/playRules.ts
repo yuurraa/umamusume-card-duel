@@ -37,6 +37,15 @@ export function getPlayableAction(state: GameState, side: SideState, cardId: str
     if (card.effect.randomBasicUmamusumeFromDiscard && side.hand.length >= MAX_HAND) {
       return { canPlay: false, reason: "Your hand is full." };
     }
+    if (card.effect.searchEvolutionUmamusume && side.hand.length >= MAX_HAND) {
+      return { canPlay: false, reason: "Your hand is full." };
+    }
+    if (card.effect.searchEvolutionUmamusume && !hasEvolutionUmamusumeInDeck(side)) {
+      return { canPlay: false, reason: "You need an Evolution Umamusume in deck." };
+    }
+    if (card.effect.discardRandomOpponentActiveEnergy && !opponentActiveHasEnergy(state, side)) {
+      return { canPlay: false, reason: "Opponent's Active Umamusume has no Energy." };
+    }
     if (card.effect.rainbowUncapCrystal && !getRainbowUncapTargets(state, side).length) {
       return { canPlay: false, reason: "No Basic Umamusume can skip to Stage 2." };
     }
@@ -153,6 +162,19 @@ function hasBasicUmamusumeInDiscard(side: SideState): boolean {
     const card = getCard(cardId);
     return card.kind === "umamusume" && card.stage === 0;
   });
+}
+
+function hasEvolutionUmamusumeInDeck(side: SideState): boolean {
+  return side.deck.some((cardId) => {
+    const card = getCard(cardId);
+    return card.kind === "umamusume" && card.stage > 0;
+  });
+}
+
+function opponentActiveHasEnergy(state: GameState, side: SideState): boolean {
+  const opponent = state.sides[side.id === "player" ? "opponent" : "player"];
+  if (!opponent.active) return false;
+  return Object.values(opponent.active.energies).some((amount) => amount > 0);
 }
 
 function isSideFirstTurn(state: GameState, sideId: SideState["id"]): boolean {

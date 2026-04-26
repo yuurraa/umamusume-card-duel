@@ -7,6 +7,7 @@ export type UmamusumeType = "Grass" | "Fire" | "Water" | "Lightning" | "Psychic"
 export type EnergyRequirement = EnergyType | "colorless";
 export type EnergyCost = Partial<Record<EnergyRequirement, number>>;
 export type TrainerType = "supporter" | "item" | "stadium" | "tool";
+export type SpecialCondition = "asleep" | "burned" | "confused" | "paralyzed" | "poisoned";
 export type CardRarity = "common" | "uncommon" | "rare" | "doubleRare";
 export type CardPrintVariant = "standard" | "holographic";
 export type OpponentTurnStep = "bench" | "trainerBefore" | "evolve" | "attach" | "trainerAfter" | "attack" | "finish";
@@ -30,6 +31,12 @@ export type Attack = {
   heal?: number;
   healTarget?: "self" | "any";
   discardEnergy?: Partial<Record<EnergyType, number>>;
+  evolveFromDeck?: boolean;
+  recoverSpecialConditions?: boolean;
+  shuffleSelfIntoDeck?: {
+    discardEnergy: Partial<Record<EnergyType, number>>;
+    requiresBench: boolean;
+  };
   preventDamageNextTurn?: number;
   bonusIfTookDamageLastTurn?: number;
   damagePerAttachedEnergy?: {
@@ -57,6 +64,7 @@ export type Ability = {
     min: number;
     amount: number;
   };
+  attackDamageBonusIfEvolvedLastTurn?: number;
   discardToDraw?: {
     discard: number;
     draw: number;
@@ -99,6 +107,7 @@ export type TrainerCard = {
     healTarget?: "active" | "any";
     discardOtherCard?: boolean;
     searchUmamusume?: boolean;
+    searchEvolutionUmamusume?: boolean;
     searchRandomBasicUmamusume?: boolean;
     revealSearchedCard?: boolean;
     retreatCostReduction?: number;
@@ -111,8 +120,11 @@ export type TrainerCard = {
     shuffleHandIntoDeckDraw?: number;
     randomBasicUmamusumeFromDiscard?: boolean;
     rainbowUncapCrystal?: boolean;
+    discardRandomOpponentActiveEnergy?: boolean;
+    recoverActiveSpecialConditions?: boolean;
     toolDamageReduction?: number;
     toolCounterDamage?: number;
+    toolEndTurnHealActive?: number;
     disableTools?: boolean;
   };
 };
@@ -127,6 +139,7 @@ export type UmamusumeInstance = {
   hp: number;
   maxHp: number;
   energies: Record<EnergyType, number>;
+  specialConditions: SpecialCondition[];
   enteredTurn: number;
   evolvedTurn: number | null;
   tookDamageLastTurn: boolean;

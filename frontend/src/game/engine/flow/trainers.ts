@@ -1,7 +1,7 @@
 import { MAX_HAND } from "../../../../../shared/src/gameData";
-import type { GameState, PendingPlayerChoice, SideId, SideState, TrainerCard, UmamusumeInstance } from "../../../../../shared/src/types";
+import type { EnergyType, GameState, PendingPlayerChoice, SideId, SideState, TrainerCard, UmamusumeInstance } from "../../../../../shared/src/types";
 import { getCard, isUmamusumeInDeck } from "../core/catalog";
-import { actorLowerPossessive, actorName, energyLabel, formatCardName, formatUmamusumeInstanceName, pluralize } from "../core/labels";
+import { actorLowerPossessive, actorName, actorPossessive, energyLabel, formatCardName, formatUmamusumeInstanceName, pluralize } from "../core/labels";
 import { log, logPrimaryFirst } from "../core/log";
 import { findMostDamagedUmamusume, findOwnUmamusumeByUid } from "../core/umamusume";
 import { drawCards } from "./turn";
@@ -99,8 +99,11 @@ export function applyTrainer(
     }
   }
   if (trainer.effect.searchUmamusume) searchUmamusumeFromDeck(state, side, choices.deckCardIndex, Boolean(trainer.effect.revealSearchedCard));
+  if (trainer.effect.searchEvolutionUmamusume) searchEvolutionUmamusumeFromDeck(state, side, choices.deckCardIndex, Boolean(trainer.effect.revealSearchedCard));
   if (trainer.effect.searchRandomBasicUmamusume) searchRandomBasicUmamusumeFromDeck(state, side, Boolean(trainer.effect.revealSearchedCard));
   if (trainer.effect.randomBasicUmamusumeFromDiscard) moveRandomBasicUmamusumeFromDiscardToHand(state, side);
+  if (trainer.effect.discardRandomOpponentActiveEnergy) discardRandomOpponentActiveEnergy(state, side, trainer);
+  if (trainer.effect.recoverActiveSpecialConditions) recoverActiveSpecialConditions(state, side, trainer);
   if (discardedCardName) {
     if (side.id === "player") {
       log(state, `${actorName(side)} discarded ${discardedCardName}.`);
@@ -146,6 +149,18 @@ function searchUmamusumeFromDeck(state: GameState, side: SideState, deckCardInde
   moveDeckCardToHand(state, side, index, reveal);
 }
 
+function searchEvolutionUmamusumeFromDeck(state: GameState, side: SideState, deckCardIndex?: number, reveal = false): void {
+  const chosenCard = deckCardIndex === undefined ? undefined : side.deck[deckCardIndex];
+  const isEvolutionUmamusume = (cardId: string) => {
+    const card = getCard(cardId);
+    return card.kind === "umamusume" && card.stage > 0;
+  };
+  const index = chosenCard && isEvolutionUmamusume(chosenCard) && deckCardIndex !== undefined
+    ? deckCardIndex
+    : side.deck.findIndex(isEvolutionUmamusume);
+  moveDeckCardToHand(state, side, index, reveal);
+}
+
 function searchRandomBasicUmamusumeFromDeck(state: GameState, side: SideState, reveal = false): void {
   const candidates = side.deck
     .map((cardId, index) => ({ card: getCard(cardId), index }))
@@ -169,6 +184,25 @@ function moveRandomBasicUmamusumeFromDiscardToHand(state: GameState, side: SideS
   } else {
     log(state, `${actorName(side)} put 1 card from discard into ${actorLowerPossessive(side)} hand.`);
   }
+}
+
+function discardRandomOpponentActiveEnergy(state: GameState, side: SideState, trainer: TrainerCard): void {
+  const opponent = state.sides[side.id === "player" ? "opponent" : "player"];
+  const active = opponent.active;
+  if (!active) return;
+  const energyPool = (Object.entries(active.energies) as [EnergyType, number][])
+    .flatMap(([energyType, count]) => Array.from({ length: count }, () => energyType));
+  const energyType = energyPool[Math.floor(Math.random() * energyPool.length)];
+  if (!energyType) return;
+  active.energies[energyType] = Math.max(0, active.energies[energyType] - 1);
+  log(state, `${trainer.name} discarded 1 ${energyLabel(energyType)} from ${actorPossessive(opponent)} Active Umamusume.`);
+}
+
+function recoverActiveSpecialConditions(state: GameState, side: SideState, trainer: TrainerCard): void {
+  const active = side.active;
+  if (!active || active.specialConditions.length === 0) return;
+  active.specialConditions = [];
+  log(state, `${trainer.name} cleared all Special Conditions from ${formatUmamusumeInstanceName(active)}.`);
 }
 
 function moveDeckCardToHand(state: GameState, side: SideState, deckIndex: number, reveal = false): void {

@@ -16,6 +16,7 @@ type MatchBoardLayoutProps = {
   hiddenOpponent: boolean;
   opponentBoardHidden: boolean;
   opponentSetupRevealToken: number;
+  povSwitchAnimationToken: number;
   hiddenOpponentBenchCount: number | undefined;
   abilityReadyUmamusumeUids: Set<number> | undefined;
   playerSelectableUmamusumeUids: Set<number> | undefined;
@@ -43,7 +44,9 @@ type MatchBoardLayoutProps = {
   onSurrender: () => void;
   onSetupReady: () => void;
   canSetupReady: boolean;
+  onSwitchPov?: (() => void) | undefined;
   selectedSleeveImage: string | null;
+  canPlayHandCards: boolean;
   canAttach: boolean;
   nextPlayerEnergy: EnergyType | null;
   playerExtraEnergyCount: number;
@@ -65,6 +68,7 @@ export function MatchBoardLayout(props: MatchBoardLayoutProps) {
     hiddenOpponent,
     opponentBoardHidden,
     opponentSetupRevealToken,
+    povSwitchAnimationToken,
     hiddenOpponentBenchCount,
     abilityReadyUmamusumeUids,
     playerSelectableUmamusumeUids,
@@ -92,7 +96,9 @@ export function MatchBoardLayout(props: MatchBoardLayoutProps) {
     onSurrender,
     onSetupReady,
     canSetupReady,
+    onSwitchPov,
     selectedSleeveImage,
+    canPlayHandCards,
     canAttach,
     nextPlayerEnergy,
     playerExtraEnergyCount,
@@ -129,6 +135,8 @@ export function MatchBoardLayout(props: MatchBoardLayoutProps) {
               onEnergyDropOnUmamusume={onEnergyDropOnUmamusume}
               onAbilityEnergyDropOnActive={onAbilityEnergyDropOnActive}
               setupDragHandIndexByUid={setupDragHandIndexByUid}
+              animateSetupReveal={povSwitchAnimationToken > 0}
+              setupRevealToken={povSwitchAnimationToken}
             />
           </div>
           <div style={opponentBoardSlotStyle}>
@@ -141,8 +149,8 @@ export function MatchBoardLayout(props: MatchBoardLayoutProps) {
               selectableUmamusumeUids={game.phase === "play" ? opponentSelectableUmamusumeUids : undefined}
               onUmamusumeSelect={onUmamusumeSelect}
               sleeveImage={opponentSleeveImage}
-              animateSetupReveal={game.phase === "setup" && opponentBoardHidden && opponentSetupRevealToken > 0}
-              setupRevealToken={opponentSetupRevealToken}
+              animateSetupReveal={(game.phase === "setup" && opponentBoardHidden && opponentSetupRevealToken > 0) || povSwitchAnimationToken > 0}
+              setupRevealToken={povSwitchAnimationToken > 0 ? povSwitchAnimationToken : opponentSetupRevealToken}
               {...(hiddenOpponentBenchCount !== undefined ? { hiddenBenchCount: hiddenOpponentBenchCount } : {})}
             />
           </div>
@@ -169,6 +177,7 @@ export function MatchBoardLayout(props: MatchBoardLayoutProps) {
             onSetActive={onSetupDropActive}
             onReady={onSetupReady}
             canReady={canSetupReady}
+            onSwitchPov={onSwitchPov}
             onInspect={onInspect}
             sleeveImage={selectedSleeveImage}
           />
@@ -183,6 +192,7 @@ export function MatchBoardLayout(props: MatchBoardLayoutProps) {
               turnLabel={turnLabel}
               turnAlert={turnAlert}
               canEndTurn={canEndTurn}
+              onSwitchPov={onSwitchPov}
               onEndTurn={onEndTurn}
               menuOpen={menuOpen}
               log={displayLog}
@@ -193,6 +203,7 @@ export function MatchBoardLayout(props: MatchBoardLayoutProps) {
             <Hand
               state={game}
               onInspect={onInspect}
+              canPlayCards={canPlayHandCards}
               selectableHandIndexes={selectableHandIndexes}
               onChooseHandCard={onChooseHandCard}
               onOpenDiscard={onOpenDiscard}

@@ -1,5 +1,5 @@
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
-import type { GameState } from "../../../../shared/src/types";
+import type { GameState, SideId } from "../../../../shared/src/types";
 import { createGame } from "../../game/engine";
 import type { InspectTarget } from "../../inspect";
 import type { AppScreen, MatchMode, PendingSelection } from "../../types/ui";
@@ -34,6 +34,8 @@ export type UseAppNavigationArgs = {
   setDiscardOpen: Dispatch<SetStateAction<boolean>>;
   setMenuOpen: Dispatch<SetStateAction<boolean>>;
   setOpponentCustomisation: Dispatch<SetStateAction<CustomisationSettings>>;
+  setAiPerspective: Dispatch<SetStateAction<SideId>>;
+  setPovSwitchAnimationToken: Dispatch<SetStateAction<number>>;
   setEndTurnWarningActions: Dispatch<SetStateAction<string[] | null>>;
   submitPlayerIntent: (intent: PlayerIntent) => void;
 };
@@ -64,11 +66,15 @@ export function useAppNavigation({
   setDiscardOpen,
   setMenuOpen,
   setOpponentCustomisation,
+  setAiPerspective,
+  setPovSwitchAnimationToken,
   setEndTurnWarningActions,
   submitPlayerIntent,
 }: UseAppNavigationArgs) {
   const startNewGame = (mode: MatchMode = matchMode) => {
     setMatchMode(mode);
+    setAiPerspective("player");
+    setPovSwitchAnimationToken(0);
     previousLogRef.current = [];
     setCoinFlipQueue([]);
     setActiveCoinFlip(null);
@@ -84,8 +90,16 @@ export function useAppNavigation({
     setDiscardOpen(false);
     setMenuOpen(false);
     setOpponentCustomisation(getRandomCustomisationSettings());
+    const playerAiDeck = mode === "aiVsAi" ? pickRandomOpponentDeck() : null;
     const opponent = pickRandomOpponentDeck();
-    setGame(createGame(equippedDeckCardIds, opponent.cardIds, opponent.name, "hard", false, playerName));
+    setGame(createGame(
+      playerAiDeck?.cardIds ?? equippedDeckCardIds,
+      opponent.cardIds,
+      opponent.name,
+      "hard",
+      false,
+      playerAiDeck?.name ?? playerName,
+    ));
   };
 
   const navigateToScreen = (nextScreen: AppScreen) => {

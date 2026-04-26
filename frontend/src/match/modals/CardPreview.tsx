@@ -583,10 +583,15 @@ function getMiscEffectGroups(state: GameState, umamusume: NonNullable<InspectTar
   if (umamusume.nextTurnDamageReduction > 0) {
     buffs.push(`-${umamusume.nextTurnDamageReduction} Damage Taken - Next Attack This Turn`);
   }
+  const evolvedLastTurnBonus = card.ability?.attackDamageBonusIfEvolvedLastTurn ?? 0;
+  if (evolvedLastTurnBonus > 0 && umamusume.evolvedTurn === state.turnNumber - 1) {
+    buffs.push(`+${evolvedLastTurnBonus} Attack Damage - ${card.ability?.name}`);
+  }
   if (!areToolsDisabled(state) && umamusume.toolCardId) {
     const tool = getCard(umamusume.toolCardId);
     if (tool.kind === "trainer" && tool.effect.toolDamageReduction) buffs.push(`-${tool.effect.toolDamageReduction} Damage Reduction - ${tool.name}`);
     if (tool.kind === "trainer" && tool.effect.toolCounterDamage) buffs.push(`${tool.effect.toolCounterDamage} Counter Damage - ${tool.name}`);
+    if (tool.kind === "trainer" && tool.effect.toolEndTurnHealActive) buffs.push(`${tool.effect.toolEndTurnHealActive} End Turn Healing - ${tool.name}`);
   }
 
   return { buffs, debuffs };
@@ -647,6 +652,12 @@ function getAttackPreview(
   if (!nonDamagingAttack && conditionalAttackBonus && umamusume.energies[conditionalAttackBonus.type] >= conditionalAttackBonus.min) {
     damage += conditionalAttackBonus.amount;
     notes.push(`+${conditionalAttackBonus.amount} damage - ${card.ability?.name}`);
+  }
+
+  const evolvedLastTurnBonus = card.ability?.attackDamageBonusIfEvolvedLastTurn ?? 0;
+  if (!nonDamagingAttack && evolvedLastTurnBonus > 0 && umamusume.evolvedTurn === state.turnNumber - 1) {
+    damage += evolvedLastTurnBonus;
+    notes.push(`+${evolvedLastTurnBonus} damage - ${card.ability?.name}`);
   }
 
   if (!nonDamagingAttack && attack.coinBonus) {

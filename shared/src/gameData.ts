@@ -16,8 +16,9 @@ type CardsDataFile = {
 
 type PremadeDecksDataFile = {
   defaultPlayerDeckId: string;
-  defaultOpponentDeckId: string;
+  defaultAiOpponentDeckId: string;
   premadeDecks: PremadeDeck[];
+  aiPremadeDecks: PremadeDeck[];
 };
 
 const cardsData = cardsDataRaw as CardsDataFile;
@@ -47,7 +48,7 @@ const starterCardIds = new Set(
 
 export const allCards = withFullArtVariants(baseCards, fullArtBaseCardIds);
 export const ownedStarterCardIds: ReadonlySet<string> = starterCardIds;
-export const cards = filterCardsById(allCards, ownedStarterCardIds);
+export const cards = allCards;
 
 function withFullArtVariants(sourceCards: Record<string, Card>, baseCardIds: readonly string[]): Record<string, Card> {
   const nextCards: Record<string, Card> = { ...sourceCards };
@@ -80,34 +81,36 @@ function toFullArtAssetPath(assetPath: string): string {
     : `${assetPath}${FULL_ART_SUFFIX}`;
 }
 
-function filterCardsById(sourceCards: Record<string, Card>, allowedCardIds: ReadonlySet<string>): Record<string, Card> {
-  return Object.fromEntries(
-    Object.entries(sourceCards).filter(([cardId]) => allowedCardIds.has(cardId)),
-  );
-}
-
 export const premadeDecks = premadeDecksData.premadeDecks;
+export const aiPremadeDecks = premadeDecksData.aiPremadeDecks;
 
 export const defaultPlayerDeckId = premadeDecksData.defaultPlayerDeckId;
-export const defaultOpponentDeckId = premadeDecksData.defaultOpponentDeckId;
+export const defaultAiOpponentDeckId = premadeDecksData.defaultAiOpponentDeckId;
 
-function getDeckListById(deckId: string): string[] {
-  return premadeDecks.find((deck) => deck.id === deckId)?.cardIds ?? [];
+function getDeckListById(deckId: string, decks: PremadeDeck[] = premadeDecks): string[] {
+  return decks.find((deck) => deck.id === deckId)?.cardIds ?? [];
 }
 
 export const matikanetannhauserDeckList = getDeckListById("matikanetannhauser");
-export const mihonoBourbonDeckList = getDeckListById("mihonoBourbon");
-export const agnesDigitalDeckList = getDeckListById("agnesDigital");
 export const riceShowerDeckList = getDeckListById("riceShower");
-export const manhattanCafeDeckList = getDeckListById("manhattanCafe");
+export const matikanetannhauserNiceNatureDeckList = getDeckListById("matikanetannhauserNiceNature", aiPremadeDecks);
+export const riceShowerHaruUraraDeckList = getDeckListById("riceShowerHaruUrara", aiPremadeDecks);
+export const mihonoBourbonNishinoFlowerDeckList = getDeckListById("mihonoBourbonNishinoFlower", aiPremadeDecks);
+export const agnesDigitalAgnesTachyonDeckList = getDeckListById("agnesDigitalAgnesTachyon", aiPremadeDecks);
+export const tamamoCrossNiceNatureDeckList = getDeckListById("tamamoCrossNiceNature", aiPremadeDecks);
+export const superCreekNishinoFlowerDeckList = getDeckListById("superCreekNishinoFlower", aiPremadeDecks);
+
+export const mihonoBourbonDeckList = mihonoBourbonNishinoFlowerDeckList;
+export const agnesDigitalDeckList = agnesDigitalAgnesTachyonDeckList;
+export const manhattanCafeDeckList = riceShowerHaruUraraDeckList;
 
 export const playerDeckList = getDeckListById(defaultPlayerDeckId).length > 0
   ? getDeckListById(defaultPlayerDeckId)
   : (mihonoBourbonDeckList.length > 0 ? mihonoBourbonDeckList : (premadeDecks[0]?.cardIds ?? []));
 
-export const opponentDeckList = getDeckListById(defaultOpponentDeckId).length > 0
-  ? getDeckListById(defaultOpponentDeckId)
-  : (riceShowerDeckList.length > 0 ? riceShowerDeckList : (premadeDecks[0]?.cardIds ?? []));
+export const opponentDeckList = getDeckListById(defaultAiOpponentDeckId, aiPremadeDecks).length > 0
+  ? getDeckListById(defaultAiOpponentDeckId, aiPremadeDecks)
+  : (aiPremadeDecks[0]?.cardIds ?? riceShowerDeckList);
 
 export const gameData: GameData = {
   cards,

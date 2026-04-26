@@ -89,7 +89,7 @@ export function canImmediateOpponentKo(state: GameState, sideId: SideId): boolea
   if (!hasEnoughEnergy(attacker, getPrimaryAttack(getUmamusumeCard(attacker)).cost)) return false;
   const ownInPlayCount = 1 + opponent.bench.length;
   const allInPlayCount = ownInPlayCount + 1 + side.bench.length;
-  const predicted = predictAttackDamage(attacker, active, opponent.activeAttackDamageBonus, ownInPlayCount, allInPlayCount);
+  const predicted = predictAttackDamage(attacker, active, opponent.activeAttackDamageBonus, ownInPlayCount, allInPlayCount, state.turnNumber);
   return predicted >= active.hp;
 }
 
@@ -99,6 +99,7 @@ export function predictAttackDamage(
   bonusDamage: number,
   ownInPlayCount: number,
   allInPlayCount: number,
+  turnNumber?: number,
 ): number {
   const attack = getPrimaryAttack(getUmamusumeCard(attacker));
   let damage = attack.damage + bonusDamage;
@@ -114,6 +115,8 @@ export function predictAttackDamage(
   const defenderCard = getUmamusumeCard(defender);
   const conditionalBonus = attackerCard.ability?.attackDamageBonusIfAttachedEnergy;
   if (conditionalBonus && attacker.energies[conditionalBonus.type] >= conditionalBonus.min) damage += conditionalBonus.amount;
+  const evolvedLastTurnBonus = attackerCard.ability?.attackDamageBonusIfEvolvedLastTurn ?? 0;
+  if (evolvedLastTurnBonus > 0 && turnNumber !== undefined && attacker.evolvedTurn === turnNumber - 1) damage += evolvedLastTurnBonus;
   if (attack.coinBonus) damage += Math.floor(attack.coinBonus / 2);
   if (defenderCard.weakness.type === attackerCard.type) damage += defenderCard.weakness.amount;
   return Math.max(0, damage);

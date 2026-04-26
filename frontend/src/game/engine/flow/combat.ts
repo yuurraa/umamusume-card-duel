@@ -5,6 +5,8 @@ import { actorName, actorPossessive, energyLabel, formatCardName, formatUmamusum
 import { log } from "../core/log";
 import { findMostDamagedUmamusume, findOwnUmamusumeByUid, getAllUmamusume } from "../core/umamusume";
 import { drawCards } from "./turn";
+import { shuffle } from "../core/random";
+import { evolveUmamusume } from "./evolution";
 
 type CombatDeps = {
   refreshContinuousEffects: (state: GameState) => void;
@@ -54,6 +56,10 @@ export function performAttack(
   const conditionalAttackBonus = attackerCard.ability?.attackDamageBonusIfAttachedEnergy;
   if (!nonDamagingAttack && conditionalAttackBonus && attacker.active.energies[conditionalAttackBonus.type] >= conditionalAttackBonus.min) {
     damage += conditionalAttackBonus.amount;
+  }
+  const evolvedLastTurnBonus = attackerCard.ability?.attackDamageBonusIfEvolvedLastTurn ?? 0;
+  if (!nonDamagingAttack && evolvedLastTurnBonus > 0 && attacker.active.evolvedTurn === state.turnNumber - 1) {
+    damage += evolvedLastTurnBonus;
   }
   if (attack.coinBonus || attack.drawOnHeads) {
     const heads = forcedCoinResult ? forcedCoinResult === "heads" : Math.random() >= 0.5;
@@ -121,6 +127,7 @@ export function performAttack(
     target.hp = Math.min(target.maxHp, target.hp + attack.heal);
     const healed = target.hp - before;
     if (healed > 0) log(state, `${attack.name} healed ${formatUmamusumeInstanceName(target)} for ${healed} HP.`);
+    if (attack.recoverSpecialConditions) recoverSpecialConditions(state, target, attack.name);
   }
   if (attack.benchDamage && attack.benchDamage > 0) {
     defender.bench.forEach((benchedUmamusume) => {
@@ -140,6 +147,12 @@ export function performAttack(
       attackingActive.energies[energyType] = Math.max(0, attackingActive.energies[energyType] - (amount || 0));
       if (amount) log(state, `${actorName(attacker)} discarded ${amount} ${energyLabel(energyType)}.`);
     });
+  }
+  if (attack.evolveFromDeck && attacker.active) {
+    evolveActiveFromDeck(state, attacker);
+  }
+  if (attack.shuffleSelfIntoDeck && attacker.active) {
+    shuffleActiveIntoDeckIfPaid(state, attacker, attack.shuffleSelfIntoDeck, deps);
   }
 
   resolveKnockout(state, attackerId, defenderId, deps, `${formatUmamusumeCardName(attackerCard)}'s ${attack.name}`);
@@ -162,6 +175,57 @@ export function performAttack(
       deps.refreshContinuousEffects(state);
     }
   }
+}
+
+function evolveActiveFromDeck(state: GameState, side: SideState): void {
+  const active = side.active;
+  if (!active) return;
+  const deckIndex = side.deck.findIndex((cardId) => {
+    const card = getCard(cardId);
+    return card.kind === "umamusume" && card.evolvesFrom === active.species && card.stage === active.stage + 1;
+  });
+  if (deckIndex < 0) return;
+  const [cardId] = side.deck.splice(deckIndex, 1);
+  if (!cardId) return;
+  const evolutionCard = getCard(cardId);
+  if (evolutionCard.kind !== "umamusume") return;
+  evolveUmamusume(state, side, active, evolutionCard);
+}
+
+function shuffleActiveIntoDeckIfPaid(
+  state: GameState,
+  side: SideState,
+  effect: NonNullable<ReturnType<typeof getPrimaryAttack>["shuffleSelfIntoDeck"]>,
+  deps: CombatDeps,
+): void {
+  const active = side.active;
+  if (!active) return;
+  if (effect.requiresBench && side.bench.length === 0) return;
+  const canPay = Object.entries(effect.discardEnergy).every(([type, amount]) => active.energies[type as EnergyType] >= (amount ?? 0));
+  if (!canPay) return;
+
+  Object.entries(effect.discardEnergy).forEach(([type, amount]) => {
+    const energyType = type as EnergyType;
+    active.energies[energyType] = Math.max(0, active.energies[energyType] - (amount ?? 0));
+    if (amount) log(state, `${actorName(side)} discarded ${amount} ${energyLabel(energyType)}.`);
+  });
+
+  const shuffledCardIds = [active.cardId, ...(active.toolCardId ? [active.toolCardId] : [])];
+  side.active = null;
+  side.deck = shuffle([...side.deck, ...shuffledCardIds]);
+
+  const promotedIndex = deps.choosePreferredActiveIndex(side);
+  const promoted = promotedIndex >= 0 ? side.bench.splice(promotedIndex, 1)[0] : side.bench.shift();
+  if (promoted) {
+    side.active = promoted;
+    log(state, `${actorName(side)} shuffled ${formatCardNameList(shuffledCardIds)} into the deck and promoted ${formatUmamusumeInstanceName(promoted)}.`);
+  }
+}
+
+function recoverSpecialConditions(state: GameState, umamusume: UmamusumeInstance, sourceName: string): void {
+  if (umamusume.specialConditions.length === 0) return;
+  umamusume.specialConditions = [];
+  log(state, `${sourceName} cleared all Special Conditions from ${formatUmamusumeInstanceName(umamusume)}.`);
 }
 
 export function knockOutUmamusume(

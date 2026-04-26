@@ -21,6 +21,7 @@ export function createUmamusume(cardId: string, turnNumber: number): UmamusumeIn
     hp: card.hp,
     maxHp: card.hp,
     energies: createEmptyEnergyRecord(),
+    specialConditions: [],
     enteredTurn: turnNumber,
     evolvedTurn: null,
     tookDamageLastTurn: false,

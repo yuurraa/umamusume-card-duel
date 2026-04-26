@@ -1,6 +1,6 @@
 import { type CSSProperties, type DragEvent, type PointerEvent, useId, useRef, useState } from "react";
 import { getCard, getPlayableAction } from "../../game/engine";
-import type { Card, GameState } from "../../../../shared/src/types";
+import type { Card, GameState, SideState } from "../../../../shared/src/types";
 import type { InspectTarget } from "../../inspect";
 import { applyDragPreview, writeDragPayload } from "../drag/dragData";
 import { CARD_ASPECT_RATIO, borders, colors, fontStacks, radius, shadows, transitions, uiTextColor, uiTextShadow } from "../../styles/shared";
@@ -16,6 +16,8 @@ type HandProps = {
   selectableHandIndexes?: Set<number> | undefined;
   onChooseHandCard?: ((handIndex: number) => void) | undefined;
   sleeveImage?: string | null | undefined;
+  side?: SideState | undefined;
+  canPlayCards?: boolean | undefined;
 };
 
 export function Hand({
@@ -28,14 +30,16 @@ export function Hand({
   selectableHandIndexes,
   onChooseHandCard,
   sleeveImage = null,
+  side,
+  canPlayCards,
 }: HandProps) {
-  const player = state.sides.player;
+  const player = side ?? state.sides.player;
   const handScrollerClassName = `hand-scroller-${useId().replace(/:/g, "")}`;
   const handScrollRef = useRef<HTMLDivElement | null>(null);
   const handPanRef = useRef<{ active: boolean; pointerId: number; startX: number; startScrollLeft: number } | null>(null);
   const [isHandPanning, setIsHandPanning] = useState(false);
   const isSetup = mode === "setup";
-  const playerTurn = isSetup || (!state.gameOver && state.currentSide === "player");
+  const playerTurn = canPlayCards ?? (isSetup || (!state.gameOver && state.currentSide === "player"));
   const hiddenSetupIndexes = isSetup ? new Set([setupActiveIndex, ...setupBenchIndexes].filter((index): index is number => index !== null)) : null;
   const topDiscardCardId = player.discard[player.discard.length - 1] ?? null;
   const topDiscardCard = topDiscardCardId ? getCard(topDiscardCardId) : null;

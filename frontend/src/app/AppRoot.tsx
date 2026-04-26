@@ -59,6 +59,7 @@ import type { PvpRole } from "../screens/PvpLobbyScreen";
 import { createPvpSession, getPvpAnswer, getPvpOffer, getPvpRtcConfig, submitPvpAnswer } from "../pvp/signalApi";
 import { getFirebaseAccountSnapshot, linkFirebaseAccountWithGoogle, signOutFirebaseAccount, type FirebaseAccountSnapshot } from "../utils/firebaseAuth";
 import { formatBattleText, getAccountPlayerName } from "../utils/playerNames";
+import type { GameState, SideId, SideState } from "../../../shared/src/types";
 
 const EMPTY_FIREBASE_ACCOUNT: FirebaseAccountSnapshot = {
   configured: false,
@@ -75,6 +76,7 @@ export function App() {
   const [screenFadeOverlayOpacity, setScreenFadeOverlayOpacity] = useState(0);
   const [equippedDeckId, setEquippedDeckId] = useState(() => readEquippedDeckId());
   const [matchMode, setMatchMode] = useState<MatchMode>("playerVsAi");
+  const [aiPerspective, setAiPerspective] = useState<SideId>("player");
   const [pvpRole, setPvpRole] = useState<PvpRole | null>(null);
   const [pvpStatusDetail, setPvpStatusDetail] = useState("Pick Host or Join to begin.");
   const [pvpLocalSignal, setPvpLocalSignal] = useState("");
@@ -103,6 +105,7 @@ export function App() {
   const [setupBenchIndexes, setSetupBenchIndexes] = useState<number[]>([]);
   const [menuOpen, setMenuOpen] = useState(false);
   const [opponentSetupRevealToken, setOpponentSetupRevealToken] = useState(0);
+  const [povSwitchAnimationToken, setPovSwitchAnimationToken] = useState(0);
   const [pvpTimerNowMs, setPvpTimerNowMs] = useState(() => Date.now());
   const pvpDeadlineTurnKeyRef = useRef<string | null>(null);
   const previousLogRef = useRef<string[]>([]);
@@ -131,13 +134,19 @@ export function App() {
   const isNetworkMatch = matchMode === "playerVsPlayer";
   const isPvpHost = isNetworkMatch && pvpRole === "host";
   const isPvpGuest = isNetworkMatch && pvpRole === "guest";
+  const displayPerspective: SideId = isAiVsAi ? aiPerspective : "player";
+  const displayGame = isNetworkMatch ? game : toPerspectiveGame(game, displayPerspective);
   const player = game.sides.player;
+  const displayPlayer = displayGame.sides.player;
   const localPlayerName = getAccountPlayerName(firebaseAccount);
   const opponentDisplayName = game.sides.opponent.title || "Opponent";
-  const formatMatchText = (text: string): string => formatBattleText(text, localPlayerName, opponentDisplayName);
+  const formatMatchText = (text: string): string => {
+    if (isNetworkMatch) return formatBattleText(text, localPlayerName, opponentDisplayName);
+    return displayPerspective === "opponent" ? swapBattlePerspectiveText(text) : text;
+  };
   const displayLog = game.log.map(formatMatchText);
   const hasLocalPendingChoice = game.pendingPlayerChoice?.sideId === "player";
-  const nextPlayerEnergy = player.energyZone[0] ?? null;
+  const nextPlayerEnergy = displayPlayer.energyZone[0] ?? null;
   const {
     activePendingSelection,
     playerSelectableUmamusumeUids,
@@ -152,14 +161,12 @@ export function App() {
     displayedPlayerSide,
     displayedOpponentSide,
     hiddenOpponentBenchCount,
-    showPlayerPlaymat,
-    showOpponentPlaymat,
     setupDragHandIndexByUid,
     abilityReadyUmamusumeUids,
     stadiumAbilityReady,
   } = useMatchDerivedState({
-    game,
-    player,
+    game: displayGame,
+    player: displayPlayer,
     isNetworkMatch,
     timerNowMs: pvpTimerNowMs,
     pendingSelection,
@@ -670,6 +677,8 @@ export function App() {
     setDiscardOpen,
     setMenuOpen,
     setOpponentCustomisation,
+    setAiPerspective,
+    setPovSwitchAnimationToken,
     setEndTurnWarningActions,
     submitPlayerIntent,
   });
@@ -872,12 +881,12 @@ export function App() {
     setAcknowledgedCoinLogMessage,
     toCoinFlipEvent,
   });
-  const canAttachInHeader = canAttachEnergy(game, player) && !isBusyWithChoice;
+  const canAttachInHeader = !isAiVsAi && canAttachEnergy(game, player) && !isBusyWithChoice;
   const canEndTurnInHeader = !isAiVsAi && !game.gameOver && game.currentSide === "player" && !isBusyWithChoice;
   const hasLocalSetupReady = game.phase === "setup" ? (game.setup?.readyBySide.player ?? false) : false;
   const canSetupReady = !isAiVsAi && !hasLocalSetupReady;
   const canSurrenderInPanels = !game.gameOver && !isTurnFlowBlocked;
-  const playerExtraEnergyCount = Math.max(0, player.energyZone.length - 1);
+  const playerExtraEnergyCount = Math.max(0, displayPlayer.energyZone.length - 1);
   const topBanner = getTopActionBanner(game);
   const displayTopBanner = topBanner
     ? {
@@ -891,8 +900,25 @@ export function App() {
     : Math.max(0, Math.ceil((game.turnDeadlineMs - pvpTimerNowMs) / 1000));
   const turnLabel = isNetworkMatch && game.phase === "play"
     ? `Turn ${game.turnNumber} • ${pvpSecondsRemaining}s`
-    : undefined;
+    : isAiVsAi && game.phase === "play"
+      ? `Turn ${game.turnNumber} • ${game.currentSide === displayPerspective ? "Your turn" : "Opponent's turn"}`
+      : undefined;
   const turnAlert = isNetworkMatch && game.phase === "play" && game.currentSide === "player";
+  const switchPov = isAiVsAi
+    ? () => {
+        setPovSwitchAnimationToken((current) => current + 1);
+        setAiPerspective((current) => (current === "player" ? "opponent" : "player"));
+      }
+    : undefined;
+  const displayPlayerSleeveImage = isAiVsAi && displayPerspective === "opponent" ? opponentSleeve.image : selectedSleeve.image;
+  const displayOpponentSleeveImage = isAiVsAi && displayPerspective === "opponent" ? selectedSleeve.image : opponentSleeve.image;
+  const isPlayPhase = game.phase === "play";
+  const showSelectedPlaymat = isPlayPhase
+    ? game.currentSide === "player"
+    : displayPerspective === "player";
+  const showOpponentPlaymat = isPlayPhase
+    ? game.currentSide === "opponent"
+    : displayPerspective === "opponent";
 
   const nonMatchScreen = renderNonMatchScreen({
     screen,
@@ -927,15 +953,16 @@ export function App() {
 
   return (
     <main style={appStyle(false, undefined, uiTextTone)}>
-      <div style={matchBackgroundLayerStyle(selectedPlaymat.image, showPlayerPlaymat ? 1 : 0)} />
+      <div style={matchBackgroundLayerStyle(selectedPlaymat.image, showSelectedPlaymat ? 1 : 0)} />
       <div style={matchBackgroundLayerStyle(opponentPlaymat.image, showOpponentPlaymat ? 1 : 0)} />
       <MatchBoardLayout
-        game={game}
+        game={displayGame}
         displayedPlayerSide={displayedPlayerSide}
         displayedOpponentSide={displayedOpponentSide}
         hiddenOpponent={hiddenOpponent}
         opponentBoardHidden={opponentBoardHidden}
         opponentSetupRevealToken={opponentSetupRevealToken}
+        povSwitchAnimationToken={povSwitchAnimationToken}
         hiddenOpponentBenchCount={hiddenOpponentBenchCount}
         abilityReadyUmamusumeUids={abilityReadyUmamusumeUids}
         playerSelectableUmamusumeUids={playerSelectableUmamusumeUids}
@@ -951,7 +978,7 @@ export function App() {
         onHandCardDropOnBenchSlot={playHandCardOnBenchSlot}
         onEnergyDropOnUmamusume={attachEnergyByDrop}
         onAbilityEnergyDropOnActive={moveAbilityEnergyByDrop}
-        opponentSleeveImage={opponentSleeve.image}
+        opponentSleeveImage={displayOpponentSleeveImage}
         stadiumAbilityReady={stadiumAbilityReady}
         onDropHandCardOnStadium={playHandCardOnStadiumSpot}
         onDropHandCardOnCenter={playHandCardOnCenter}
@@ -963,7 +990,9 @@ export function App() {
         onSurrender={handleSurrender}
         onSetupReady={handleSetupReady}
         canSetupReady={canSetupReady}
-        selectedSleeveImage={selectedSleeve.image}
+        onSwitchPov={switchPov}
+        selectedSleeveImage={displayPlayerSleeveImage}
+        canPlayHandCards={!isAiVsAi}
         canAttach={canAttachInHeader}
         nextPlayerEnergy={nextPlayerEnergy}
         playerExtraEnergyCount={playerExtraEnergyCount}
@@ -995,7 +1024,7 @@ export function App() {
         />
       )}
       <CardPreview
-        state={game}
+        state={displayGame}
         target={previewTarget}
         canUseAttack={cardPreviewActions.canUseAttack}
         canUseRetreat={cardPreviewActions.canUseRetreat}
@@ -1015,14 +1044,15 @@ export function App() {
       />
       {discardOpen && (
         <DiscardPileModal
-          cardIds={player.discard}
+          cardIds={displayPlayer.discard}
           onInspect={onDiscardInspect}
           onClose={onCloseDiscard}
         />
       )}
-      {pendingSelection?.kind === "deckForScout" && (
+      {(pendingSelection?.kind === "deckForScout" || pendingSelection?.kind === "deckForEvolutionSearch") && (
         <DeckChoiceModal
           cardIds={player.deck}
+          filter={pendingSelection.kind === "deckForEvolutionSearch" ? "evolutionUmamusume" : "umamusume"}
           onChoose={chooseScoutDeckCard}
           onClose={onDeckScoutClose}
         />
@@ -1038,9 +1068,9 @@ export function App() {
       )}
       {game.gameOver && (
         <GameOverModal
-          game={game}
-          playerName={localPlayerName}
-          opponentName={opponentDisplayName}
+          game={displayGame}
+          playerName={isNetworkMatch ? localPlayerName : "You"}
+          opponentName={isNetworkMatch ? opponentDisplayName : "Opponent"}
           latest={displayLog[0]}
           onPlayAgain={isNetworkMatch ? returnToPvpLobbyForRematch : onPlayAgain}
           onMainMenu={returnToMainMenu}
@@ -1055,4 +1085,88 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => {
     window.setTimeout(resolve, ms);
   });
+}
+
+function toPerspectiveGame(game: GameState, perspective: SideId): GameState {
+  if (perspective === "player") {
+    return {
+      ...game,
+      sides: {
+        player: toDisplaySide(game.sides.player, "player", "You"),
+        opponent: toDisplaySide(game.sides.opponent, "opponent", "Opponent"),
+      },
+    };
+  }
+
+  return {
+    ...game,
+    currentSide: swapSideId(game.currentSide),
+    firstPlayer: swapSideId(game.firstPlayer) as SideId,
+    winner: game.winner ? swapSideId(game.winner) as SideId : null,
+    pendingPlayerChoice: game.pendingPlayerChoice
+      ? { ...game.pendingPlayerChoice, sideId: swapSideId(game.pendingPlayerChoice.sideId) as SideId }
+      : null,
+    stadium: game.stadium ? { ...game.stadium, owner: swapSideId(game.stadium.owner) as SideId } : null,
+    setup: game.setup
+      ? {
+          ...game.setup,
+          readyBySide: {
+            player: game.setup.readyBySide.opponent,
+            opponent: game.setup.readyBySide.player,
+          },
+        }
+      : null,
+    turnsTakenBySide: {
+      player: game.turnsTakenBySide.opponent,
+      opponent: game.turnsTakenBySide.player,
+    },
+    sides: {
+      player: toDisplaySide(game.sides.opponent, "player", "You"),
+      opponent: toDisplaySide(game.sides.player, "opponent", "Opponent"),
+    },
+  };
+}
+
+function toDisplaySide(side: SideState, id: SideId, title: string): SideState {
+  return { ...side, id, title };
+}
+
+function swapSideId(sideId: SideId | "done"): SideId | "done" {
+  if (sideId === "player") return "opponent";
+  if (sideId === "opponent") return "player";
+  return sideId;
+}
+
+function swapBattlePerspectiveText(text: string): string {
+  const replacements: Array<[string, string]> = [
+    ["Opponent's", "§YOU_POS_CAP§"],
+    ["opponent's", "§YOU_POS_LOW§"],
+    ["Your", "§OPP_POS_CAP§"],
+    ["your", "§OPP_POS_LOW§"],
+    ["Opponent", "§YOU_CAP§"],
+    ["opponent", "§YOU_LOW§"],
+    ["You are", "§OPP_CAP§ is"],
+    ["you are", "§OPP_LOW§ is"],
+    ["You were", "§OPP_CAP§ was"],
+    ["you were", "§OPP_LOW§ was"],
+    ["You have", "§OPP_CAP§ has"],
+    ["you have", "§OPP_LOW§ has"],
+    ["You ", "§OPP_CAP§ "],
+    ["you ", "§OPP_LOW§ "],
+  ];
+
+  let formatted = text;
+  replacements.forEach(([search, replacement]) => {
+    formatted = formatted.split(search).join(replacement);
+  });
+
+  return formatted
+    .split("§YOU_POS_CAP§").join("Your")
+    .split("§YOU_POS_LOW§").join("your")
+    .split("§OPP_POS_CAP§").join("Opponent's")
+    .split("§OPP_POS_LOW§").join("opponent's")
+    .split("§YOU_CAP§").join("You")
+    .split("§YOU_LOW§").join("you")
+    .split("§OPP_CAP§").join("Opponent")
+    .split("§OPP_LOW§").join("opponent");
 }

@@ -1,5 +1,6 @@
 import {
   MAX_BENCH,
+  aiPremadeDecks,
   premadeDecks,
   playerDeckList,
   opponentDeckList,
@@ -128,9 +129,9 @@ function inferDeckStyle(deckList: string[], deckName?: string): AiDeckStyle {
   const named = normalizeDeckName(deckName);
   if (named.includes("rice shower") || named.includes("manhattan cafe")) return "blitz";
   if (named.includes("agnes digital")) return "scaleBench";
-  if (named.includes("matikanetannhauser") || named.includes("mihono bourbon")) return "stall";
+  if (named.includes("matikanetannhauser") || named.includes("mihono bourbon") || named.includes("super creek")) return "stall";
 
-  const bestMatch = premadeDecks
+  const bestMatch = [...premadeDecks, ...aiPremadeDecks]
     .map((deck) => ({
       deckId: deck.id,
       overlap: deck.cardIds.reduce((sum, cardId) => sum + (deckList.includes(cardId) ? 1 : 0), 0),
@@ -138,13 +139,13 @@ function inferDeckStyle(deckList: string[], deckName?: string): AiDeckStyle {
     .sort((left, right) => right.overlap - left.overlap)[0];
 
   switch (bestMatch?.deckId) {
-    case "riceShower":
-    case "manhattanCafe":
+    case "riceShowerHaruUrara":
       return "blitz";
-    case "agnesDigital":
+    case "agnesDigitalAgnesTachyon":
       return "scaleBench";
-    case "matikanetannhauser":
-    case "mihonoBourbon":
+    case "matikanetannhauserNiceNature":
+    case "mihonoBourbonNishinoFlower":
+    case "superCreekNishinoFlower":
       return "stall";
     default:
       return "balanced";
