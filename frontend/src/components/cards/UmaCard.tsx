@@ -18,6 +18,7 @@ type UmaCardProps = {
   isDimmed?: boolean;
   abilityReady?: boolean;
   sleeveImage?: string | null | undefined;
+  blurPrintedHpCorner?: boolean;
 };
 
 export function UmaCard({
@@ -29,6 +30,7 @@ export function UmaCard({
   isDimmed = false,
   abilityReady = false,
   sleeveImage = null,
+  blurPrintedHpCorner = false,
 }: UmaCardProps) {
   const [hovered, setHovered] = useState(false);
   const card = getUmamusumeCard(umamusume);
@@ -44,6 +46,7 @@ export function UmaCard({
         maxWidth: 420,
         aspectRatio: CARD_ASPECT_RATIO,
         containerType: "inline-size",
+        isolation: "isolate",
         padding: 0,
         border: 0,
         borderRadius: radius.md,
@@ -78,6 +81,7 @@ export function UmaCard({
             src={card.portrait}
             alt={card.name}
           />
+          {blurPrintedHpCorner && <div style={printedHpCornerBlurStyle} aria-hidden="true" />}
           <CardHpOverlay hp={umamusume.hp} maxHp={umamusume.maxHp} size="lg" />
           {abilityReady && <AbilityReadyBadge corner="topLeft" />}
           <AttachedToolBadge toolCardId={umamusume.toolCardId} onInspect={onToolInspect} />
@@ -243,12 +247,14 @@ function hpOverlayStyle(size: "sm" | "md" | "lg"): CSSProperties {
 function hpDiffuseBlurStyle(size: "sm" | "md" | "lg"): CSSProperties {
   const inset = size === "lg" ? "-24px -30px -28px -34px" : size === "md" ? "-16px -20px -19px -23px" : "-13px -17px -16px -19px";
   const mask = "radial-gradient(ellipse at 70% 48%, rgba(0, 0, 0, 0.82) 0%, rgba(0, 0, 0, 0.52) 28%, rgba(0, 0, 0, 0.16) 47%, rgba(0, 0, 0, 0.04) 58%, transparent 68%)";
+  const backdrop = size === "lg" ? "blur(10px) saturate(1.22)" : size === "md" ? "blur(8px) saturate(1.18)" : "blur(6px) saturate(1.14)";
   return {
     position: "absolute",
     inset,
     borderRadius: size === "lg" ? 14 : 10,
     background: "transparent",
-    backdropFilter: "blur(10px) saturate(50)",
+    backdropFilter: backdrop,
+    WebkitBackdropFilter: backdrop,
     WebkitMaskImage: mask,
     maskImage: mask,
   };
@@ -336,4 +342,19 @@ const umaCardImageStyle: CSSProperties = {
   borderRadius: radius.md,
   objectFit: "contain",
   display: "block",
+};
+
+const printedHpCornerBlurStyle: CSSProperties = {
+  position: "absolute",
+  top: "2.8%",
+  right: "4%",
+  width: "38%",
+  height: "25%",
+  zIndex: 2,
+  pointerEvents: "none",
+  borderTopRightRadius: radius.md,
+  background: "transparent",
+  backdropFilter: "blur(30px) saturate(1.06)",
+  WebkitMaskImage: "radial-gradient(ellipse at 88% 12%, rgba(0, 0, 0, 0.99) 0%, rgba(0, 0, 0, 0.95) 28%, rgba(0, 0, 0, 0.72) 48%, rgba(0, 0, 0, 0.44) 62%, rgba(0, 0, 0, 0.2) 74%, rgba(0, 0, 0, 0.08) 83%, transparent 91%)",
+  maskImage: "radial-gradient(ellipse at 88% 12%, rgba(0, 0, 0, 0.99) 0%, rgba(0, 0, 0, 0.95) 28%, rgba(0, 0, 0, 0.72) 48%, rgba(0, 0, 0, 0.44) 62%, rgba(0, 0, 0, 0.2) 74%, rgba(0, 0, 0, 0.08) 83%, transparent 91%)",
 };

@@ -172,6 +172,7 @@ export function SideBoard({
         umamusume={side.active}
         hidden={hidden}
         sleeveImage={sleeveImage}
+        blurPrintedHpCorner
         isSelectable={activeSelectable}
         isDimmed={dimUnselectableActive && isChoosingUmamusume && !activeSelectable}
         abilityReady={activeAbilityReady}
