@@ -35,6 +35,7 @@ const frontendDistDir = path.join(repoRoot, "frontend", "dist");
 const PVP_SESSION_TTL_MS = 15 * 60 * 1000;
 const PVP_SIGNAL_MAX_LENGTH = 64_000;
 const localDeckApiEnabled = process.env.ENABLE_LOCAL_DECK_API === "true";
+const cloudDevUnlocksEnabled = readCloudDevUnlocksEnabled();
 const pvpSessions = new Map<string, PvpSession>();
 const pvpIceServers = readPvpIceServersFromEnv();
 
@@ -737,22 +738,27 @@ async function getCloudDeckUserId(request: express.Request, response: express.Re
 async function ensureCloudSeedDecks(userId: string): Promise<void> {
   if (!isFirebaseConfigured()) return;
 
-  const allPremadeDecksById = new Map<string, { id: string; name: string; coverCardId: string; cardIds: string[] }>();
-  for (const deck of premadeDecks) allPremadeDecksById.set(deck.id, deck);
-  for (const deck of aiPremadeDecks) {
-    if (!allPremadeDecksById.has(deck.id)) allPremadeDecksById.set(deck.id, deck);
-  }
-
-  if (allPremadeDecksById.size === 0) return;
+  const seedDecksById = getCloudSeedDecksById();
+  if (seedDecksById.size === 0) return;
 
   const nowIso = new Date().toISOString();
   const batch = getFirebaseDb().batch();
   let hasWrites = false;
+  const snapshot = await cloudDecksCollection(userId).get();
 
-  for (const deck of allPremadeDecksById.values()) {
+  for (const doc of snapshot.docs) {
+    const existing = doc.data();
+    if (!isSeedDeckDoc(existing)) continue;
+    if (seedDecksById.has(doc.id)) continue;
+    batch.delete(doc.ref);
+    hasWrites = true;
+  }
+
+  for (const deck of seedDecksById.values()) {
+    const existing = snapshot.docs.find((doc) => doc.id === deck.id)?.data();
+    if (existing && !isSeedDeckDoc(existing)) continue;
+    if (existing && isMatchingSeedDeckDoc(existing, deck)) continue;
     const docRef = cloudDecksCollection(userId).doc(deck.id);
-    const snapshot = await docRef.get();
-    if (snapshot.exists) continue;
     batch.set(docRef, {
       id: deck.id,
       name: deck.name,
@@ -770,9 +776,38 @@ async function ensureCloudSeedDecks(userId: string): Promise<void> {
   await batch.commit();
 }
 
+function getCloudSeedDecksById(): Map<string, { id: string; name: string; coverCardId: string; cardIds: string[] }> {
+  const seedDecks = cloudDevUnlocksEnabled ? aiPremadeDecks : premadeDecks;
+  return new Map(seedDecks.map((deck) => [deck.id, deck]));
+}
+
 function isSeedDeckDoc(deck: CloudDeckDoc): boolean {
   return deck.seedKind === "premade";
 }
+
+function isMatchingSeedDeckDoc(deck: CloudDeckDoc, seed: { id: string; name: string; coverCardId: string; cardIds: string[] }): boolean {
+  return deck.id === seed.id
+    && deck.name === seed.name
+    && deck.coverCardId === seed.coverCardId
+    && deck.formatVersion === LOCAL_DECK_FORMAT_VERSION
+    && deck.cardIds.length === seed.cardIds.length
+    && deck.cardIds.every((cardId, index) => cardId === seed.cardIds[index]);
+}
+
+function readCloudDevUnlocksEnabled(): boolean {
+  return parseBooleanEnv(process.env.VITE_ENABLE_DEV_UNLOCKS)
+    ?? parseBooleanEnv(process.env.ENABLE_DEV_UNLOCKS)
+    ?? process.env.NODE_ENV !== "production";
+}
+
+function parseBooleanEnv(value: string | undefined): boolean | null {
+  if (!value) return null;
+  const normalized = value.trim().toLowerCase();
+  if (["1", "true", "yes", "on"].includes(normalized)) return true;
+  if (["0", "false", "no", "off"].includes(normalized)) return false;
+  return null;
+}
+
 
 function getFallbackCloudDeckUserId(): string {
   return process.env.FIREBASE_DEV_USER_ID?.trim() || "local-dev-user";
