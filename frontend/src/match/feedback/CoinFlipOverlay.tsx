@@ -52,13 +52,8 @@ export function CoinFlipOverlay({ result, message, onContinue }: {
     return () => window.clearInterval(intervalId);
   }, [isSettled]);
 
-  const handleContinue = () => {
-    if (!isSettled) return;
-    onContinueRef.current();
-  };
-
   return (
-    <div style={coinFlipBackdropStyle} onClick={handleContinue}>
+    <div style={coinFlipBackdropStyle}>
       <section style={coinFlipShellStyle}>
         <span style={coinFlipKickerStyle}>Coin Flip</span>
         <div style={coinSlotStyle}>

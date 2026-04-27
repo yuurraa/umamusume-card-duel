@@ -433,7 +433,7 @@ export function usePlayerAbility(
     active.hp = Math.max(0, active.hp - damage);
     active.tookDamageThisTurn = damage > 0;
     log(next, "Flip a coin and got 1x tails.");
-    log(next, `${actorName(side)} put 1 damage counter on ${actorLowerPossessive(side)} Active Umamusume.`);
+    log(next, `${actorName(side)} put 1 damage counter on your Active Umamusume.`);
     if (active.hp <= 0) {
       const scoringSideId: SideId = side.id === "player" ? "opponent" : "player";
       if (knockOutUmamusume(next, scoringSideId, side.id, active, choosePreferredActiveIndex, `${formatUmamusumeCardName(abilityCard)}'s ${ability.name}`)) {
