@@ -70,6 +70,23 @@ const EMPTY_FIREBASE_ACCOUNT: FirebaseAccountSnapshot = {
   isGoogleLinked: false,
 };
 
+const TURN_RELAY_UNAVAILABLE_TEXT = "TURN relay candidate was not available.";
+
+function isTurnRelayUnavailableError(error: unknown): error is Error {
+  return error instanceof Error && error.message.includes(TURN_RELAY_UNAVAILABLE_TEXT);
+}
+
+function hasStunUrl(server: RTCIceServer): boolean {
+  const urls = Array.isArray(server.urls) ? server.urls : [server.urls];
+  return urls.some((url) => url.startsWith("stun:"));
+}
+
+function toStunFallbackRtcConfig(config: RTCConfiguration | null): RTCConfiguration | null {
+  if (!config || config.iceTransportPolicy !== "relay") return null;
+  if (!config.iceServers?.some(hasStunUrl)) return null;
+  return { ...config, iceTransportPolicy: "all" };
+}
+
 export function App() {
   const [screen, setScreen] = useState<AppScreen>("mainMenu");
   const [pendingScreen, setPendingScreen] = useState<AppScreen | null>(null);
@@ -461,6 +478,27 @@ export function App() {
     return runtime;
   };
 
+  const runWithRtcFallback = async <T,>(operation: (runtime: PeerRuntime) => Promise<T>): Promise<{ runtime: PeerRuntime; result: T }> => {
+    let runtime = await ensurePeerRuntime();
+    try {
+      const result = await operation(runtime);
+      return { runtime, result };
+    } catch (error) {
+      if (!isTurnRelayUnavailableError(error)) throw error;
+      const fallbackConfig = toStunFallbackRtcConfig(pvpRtcConfigRef.current);
+      if (!fallbackConfig) throw error;
+      setPvpStatusDetail("TURN unavailable on this network. Retrying with STUN...");
+      pvpLocalCloseIntentRef.current = true;
+      pvpPeerRef.current?.close();
+      pvpPeerRef.current = null;
+      pvpLocalCloseIntentRef.current = false;
+      pvpRtcConfigRef.current = fallbackConfig;
+      runtime = await ensurePeerRuntime();
+      const result = await operation(runtime);
+      return { runtime, result };
+    }
+  };
+
   const setPvpRoleAndReset = (role: PvpRole) => {
     setPvpRole(role);
     setPvpStatusDetail(role === "host" ? "Searching for opponent..." : "Waiting for code...");
@@ -481,8 +519,7 @@ export function App() {
   const createOffer = async () => {
     try {
       setPvpStatusDetail("Loading network relay settings...");
-      const runtime = await ensurePeerRuntime();
-      const offer = await runtime.hostCreateOffer();
+      const { runtime, result: offer } = await runWithRtcFallback((activeRuntime) => activeRuntime.hostCreateOffer());
       const created = await createPvpSession(offer);
       const code = created.code.toUpperCase();
       const pollToken = ++pvpAnswerPollTokenRef.current;
@@ -515,9 +552,8 @@ export function App() {
       setPvpStatusDetail("Fetching game offer...");
       const { offer } = await getPvpOffer(code);
       setPvpStatusDetail("Loading network relay settings...");
-      const runtime = await ensurePeerRuntime();
       setPvpStatusDetail("Creating connection answer...");
-      const answer = await runtime.joinWithOffer(offer);
+      const { result: answer } = await runWithRtcFallback((activeRuntime) => activeRuntime.joinWithOffer(offer));
       setPvpStatusDetail("Sending answer to host...");
       await submitPvpAnswer(code, answer);
       setPvpStatusDetail("Answer sent. Connecting to host...");
