@@ -57,9 +57,9 @@ export function CardPreview({ state, target, canUseAttack, canUseRetreat, canUse
   return (
     <div style={previewBackdropStyle} onClick={onClose}>
       <NeutralButton style={closeButtonStyle} onClick={onClose}>Close</NeutralButton>
-      <div style={previewShellStyle} onClick={(event) => event.stopPropagation()}>
-        <img style={previewImageStyle} src={image} alt={card.name} />
-        <aside style={previewInfoStyle}>
+      <div style={previewShellStyle}>
+        <img style={previewImageStyle} src={image} alt={card.name} onClick={(event) => event.stopPropagation()} />
+        <aside style={previewInfoStyle} onClick={(event) => event.stopPropagation()}>
           <div>
             <div style={inspectKickerStyle}>{card.kind === "umamusume" ? card.label : card.label}</div>
             <h2 style={previewTitleStyle}>{card.name}</h2>

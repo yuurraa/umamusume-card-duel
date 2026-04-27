@@ -294,6 +294,7 @@ function hpTrackStyle(size: "sm" | "md" | "lg"): CSSProperties {
   return {
     width: size === "lg" ? "92%" : "88%",
     height: size === "lg" ? "clamp(7px, 2.35cqw, 10px)" : size === "md" ? "clamp(4px, 2.3cqw, 6px)" : "clamp(3px, 2.1cqw, 5px)",
+    marginTop: size === "sm" ? 2 : 0,
     overflow: "hidden",
     borderRadius: radius.pill,
     border: size === "lg" ? "2px solid rgba(15, 23, 42, 0.86)" : "1px solid rgba(15, 23, 42, 0.86)",
