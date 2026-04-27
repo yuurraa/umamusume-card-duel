@@ -37,6 +37,7 @@ function createSetupPreviewUmamusume(cardId: string, uid: number): UmamusumeInst
   return {
     uid,
     cardId,
+    evolutionCardIds: [],
     species: card.species,
     stage: card.stage,
     hp: card.hp,

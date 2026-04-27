@@ -87,6 +87,7 @@ function normalizeSideBoard(side: SideState): void {
   if (overflow.length > 0) {
     overflow.forEach((umamusume) => {
       side.discard.push(umamusume.cardId);
+      side.discard.push(...(umamusume.evolutionCardIds ?? []));
       if (umamusume.toolCardId) side.discard.push(umamusume.toolCardId);
     });
   }

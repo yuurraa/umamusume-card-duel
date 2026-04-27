@@ -11,11 +11,15 @@ type DeckChoiceOption = {
 export function DeckChoiceModal({
   cardIds,
   filter = "umamusume",
+  evolvesFrom,
+  stage,
   onChoose,
   onClose,
 }: {
   cardIds: string[];
   filter?: "umamusume" | "evolutionUmamusume";
+  evolvesFrom?: string | undefined;
+  stage?: number | undefined;
   onChoose: (deckIndex: number) => void;
   onClose: () => void;
 }) {
@@ -23,6 +27,8 @@ export function DeckChoiceModal({
     const card = getCard(cardId);
     if (card.kind !== "umamusume") return [];
     if (filter === "evolutionUmamusume" && card.stage <= 0) return [];
+    if (evolvesFrom !== undefined && card.evolvesFrom !== evolvesFrom) return [];
+    if (stage !== undefined && card.stage !== stage) return [];
     return [{ deckIndex, cardId }];
   });
   const deckScrollerClassName = `deck-scroller-${useId().replace(/:/g, "")}`;

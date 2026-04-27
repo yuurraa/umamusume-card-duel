@@ -81,6 +81,15 @@ export function useCardPreviewActions(args: UseCardPreviewActionsArgs) {
         return;
       }
     }
+    if (attack.evolveFromDeck) {
+      setPendingSelection({
+        kind: "deckForAttackEvolution",
+        evolvesFrom: player.active.species,
+        stage: player.active.stage + 1,
+      });
+      setPreviewTarget(null);
+      return;
+    }
     if (isNetworkMatch) {
       submitPlayerIntent({ type: "attack" });
     } else {

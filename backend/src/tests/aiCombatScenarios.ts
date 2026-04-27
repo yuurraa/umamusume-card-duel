@@ -16,6 +16,7 @@ const scenarios: Scenario[] = [
   { name: "hard retreats when immediate KO threat exists and attack line remains", run: scenarioThreatRetreat },
   { name: "hard does not retreat when attacking now is clearly better", run: scenarioNoUnneededRetreat },
   { name: "Tamamo Cross Stage 1 evolves from deck after attacking", run: scenarioTamamoAttackEvolvesFromDeck },
+  { name: "Fast As Lightning evolves into the selected deck card", run: scenarioPlayerTamamoAttackSelectsEvolution },
   { name: "Thunderbolt Step adds damage when evolved last turn", run: scenarioThunderboltStepDamage },
   { name: "White Lightning shuffles Tamamo Cross and attached cards into deck", run: scenarioWhiteLightningShuffle },
   { name: "Team Rigil discards opponent active Energy", run: scenarioTeamRigilDiscardEnergy },
@@ -163,6 +164,20 @@ function scenarioTamamoAttackEvolvesFromDeck() {
   assert.equal(next.sides.opponent.deck.length, 0, "evolution card should leave the deck");
 }
 
+function scenarioPlayerTamamoAttackSelectsEvolution() {
+  const state = makePlayerActionState();
+  const player = state.sides.player;
+  const opponent = state.sides.opponent;
+  player.active = withEnergy(createUma("tamamoCrossStage1"), { lightning: 1 });
+  player.deck = ["riceShowerBasic", "tamamoCrossStage2"];
+  opponent.active = withEnergy(createUma("riceShowerStage2"), { darkness: 2 });
+
+  const next = playerAttack(state, undefined, undefined, undefined, 1);
+  assert.equal(next.sides.player.active?.cardId, "tamamoCrossStage2", "Fast As Lightning should use the selected evolution from deck");
+  assert.deepEqual(next.sides.player.active?.evolutionCardIds, ["tamamoCrossStage1"], "the previous stage should stay under the evolved Umamusume");
+  assert.deepEqual(next.sides.player.deck, ["riceShowerBasic"], "only the selected evolution should leave the deck");
+}
+
 function scenarioThunderboltStepDamage() {
   const state = makeCombatState();
   const opponent = state.sides.opponent;
@@ -181,6 +196,7 @@ function scenarioWhiteLightningShuffle() {
   const player = state.sides.player;
   const opponent = state.sides.opponent;
   player.active = withEnergy(createUma("tamamoCrossStage2"), { lightning: 3 });
+  player.active.evolutionCardIds = ["tamamoCrossBasic", "tamamoCrossStage1"];
   player.active.toolCardId = "leftoverCarrot";
   const promoted = withEnergy(createUma("tamamoCrossBasic"), { lightning: 1 });
   player.bench = [promoted];
@@ -189,6 +205,8 @@ function scenarioWhiteLightningShuffle() {
   const next = playerAttack(state);
   assert.equal(next.sides.player.active?.uid, promoted.uid, "bench Umamusume should promote after White Lightning shuffles the active");
   assert.ok(next.sides.player.deck.includes("tamamoCrossStage2"), "Tamamo Cross Stage 2 should be shuffled into the deck");
+  assert.ok(next.sides.player.deck.includes("tamamoCrossStage1"), "Tamamo Cross Stage 1 under Tamamo should be shuffled into the deck");
+  assert.ok(next.sides.player.deck.includes("tamamoCrossBasic"), "Basic Tamamo Cross under Tamamo should be shuffled into the deck");
   assert.ok(next.sides.player.deck.includes("leftoverCarrot"), "attached Tool should be shuffled into the deck");
 }
 

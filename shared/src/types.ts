@@ -134,6 +134,7 @@ export type Card = UmamusumeCard | TrainerCard;
 export type UmamusumeInstance = {
   uid: number;
   cardId: string;
+  evolutionCardIds: string[];
   species: string;
   stage: number;
   hp: number;

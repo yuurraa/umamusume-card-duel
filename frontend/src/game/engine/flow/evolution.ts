@@ -25,6 +25,7 @@ export function isValidEvolutionTarget(state: GameState, side: SideState, umamus
 export function evolveUmamusume(state: GameState, side: SideState, umamusume: UmamusumeInstance, evolutionCard: UmamusumeCard): void {
   const damage = umamusume.maxHp - umamusume.hp;
   const previousName = formatUmamusumeInstanceName(umamusume);
+  umamusume.evolutionCardIds = [...(umamusume.evolutionCardIds ?? []), umamusume.cardId];
   umamusume.cardId = evolutionCard.id;
   umamusume.species = evolutionCard.species;
   umamusume.stage = evolutionCard.stage;

@@ -1049,10 +1049,12 @@ export function App() {
           onClose={onCloseDiscard}
         />
       )}
-      {(pendingSelection?.kind === "deckForScout" || pendingSelection?.kind === "deckForEvolutionSearch") && (
+      {(pendingSelection?.kind === "deckForScout" || pendingSelection?.kind === "deckForEvolutionSearch" || pendingSelection?.kind === "deckForAttackEvolution") && (
         <DeckChoiceModal
           cardIds={player.deck}
-          filter={pendingSelection.kind === "deckForEvolutionSearch" ? "evolutionUmamusume" : "umamusume"}
+          filter={pendingSelection.kind === "deckForEvolutionSearch" || pendingSelection.kind === "deckForAttackEvolution" ? "evolutionUmamusume" : "umamusume"}
+          evolvesFrom={pendingSelection.kind === "deckForAttackEvolution" ? pendingSelection.evolvesFrom : undefined}
+          stage={pendingSelection.kind === "deckForAttackEvolution" ? pendingSelection.stage : undefined}
           onChoose={chooseScoutDeckCard}
           onClose={onDeckScoutClose}
         />

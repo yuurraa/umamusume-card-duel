@@ -16,6 +16,7 @@ export function createUmamusume(cardId: string, turnNumber: number): UmamusumeIn
   return {
     uid: nextUmamusumeId++,
     cardId,
+    evolutionCardIds: [],
     species: card.species,
     stage: card.stage,
     hp: card.hp,

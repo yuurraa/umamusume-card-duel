@@ -20,6 +20,7 @@ export function performAttack(
   attackTargetUid?: number,
   healTargetUid?: number,
   forcedCoinResult?: "heads" | "tails",
+  evolutionDeckCardIndex?: number,
 ): void {
   const defenderId = attackerId === "player" ? "opponent" : "player";
   const pointsBeforeAttack = {
@@ -149,7 +150,7 @@ export function performAttack(
     });
   }
   if (attack.evolveFromDeck && attacker.active) {
-    evolveActiveFromDeck(state, attacker);
+    evolveActiveFromDeck(state, attacker, evolutionDeckCardIndex);
   }
   if (attack.shuffleSelfIntoDeck && attacker.active) {
     shuffleActiveIntoDeckIfPaid(state, attacker, attack.shuffleSelfIntoDeck, deps);
@@ -177,13 +178,17 @@ export function performAttack(
   }
 }
 
-function evolveActiveFromDeck(state: GameState, side: SideState): void {
+function evolveActiveFromDeck(state: GameState, side: SideState, evolutionDeckCardIndex?: number): void {
   const active = side.active;
   if (!active) return;
-  const deckIndex = side.deck.findIndex((cardId) => {
+  const isActiveEvolution = (cardId: string) => {
+    if (!cardId) return false;
     const card = getCard(cardId);
     return card.kind === "umamusume" && card.evolvesFrom === active.species && card.stage === active.stage + 1;
-  });
+  };
+  const deckIndex = evolutionDeckCardIndex !== undefined && isActiveEvolution(side.deck[evolutionDeckCardIndex] ?? "")
+    ? evolutionDeckCardIndex
+    : side.deck.findIndex(isActiveEvolution);
   if (deckIndex < 0) return;
   const [cardId] = side.deck.splice(deckIndex, 1);
   if (!cardId) return;
@@ -210,7 +215,7 @@ function shuffleActiveIntoDeckIfPaid(
     if (amount) log(state, `${actorName(side)} discarded ${amount} ${energyLabel(energyType)}.`);
   });
 
-  const shuffledCardIds = [active.cardId, ...(active.toolCardId ? [active.toolCardId] : [])];
+  const shuffledCardIds = [...(active.evolutionCardIds ?? []), active.cardId, ...(active.toolCardId ? [active.toolCardId] : [])];
   side.active = null;
   side.deck = shuffle([...side.deck, ...shuffledCardIds]);
 
@@ -247,6 +252,7 @@ export function knockOutUmamusume(
   if (benchIndex >= 0) defender.bench.splice(benchIndex, 1);
   defender.bench = defender.bench.filter((umamusume) => umamusume.uid !== knockedOut.uid);
   defender.discard.push(knockedOut.cardId);
+  defender.discard.push(...(knockedOut.evolutionCardIds ?? []));
   if (knockedOut.toolCardId) defender.discard.push(knockedOut.toolCardId);
   attacker.points += 1;
   const knockedOwner = knockedSideId === "player" ? "Your" : "Opponent's";

@@ -169,6 +169,7 @@ export function aiResolveCombatDecision(
     selected.decision.attackTargetUid,
     selected.decision.healTargetUid,
     forcedAttackCoinResult,
+    undefined,
   );
   return { resolved: true, usedAttack: true };
 }

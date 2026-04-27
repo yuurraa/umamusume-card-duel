@@ -252,7 +252,16 @@ export function useMatchActions(args: UseMatchActionsArgs) {
 
   const chooseScoutDeckCard = (deckCardIndex: number) => {
     if (isTurnFlowBlocked) return;
-    if (!pendingSelection || (pendingSelection.kind !== "deckForScout" && pendingSelection.kind !== "deckForEvolutionSearch")) return;
+    if (!pendingSelection || (pendingSelection.kind !== "deckForScout" && pendingSelection.kind !== "deckForEvolutionSearch" && pendingSelection.kind !== "deckForAttackEvolution")) return;
+    if (pendingSelection.kind === "deckForAttackEvolution") {
+      submitPlayerIntent({
+        type: "attack",
+        evolutionDeckCardIndex: deckCardIndex,
+      });
+      setPendingSelection(null);
+      setPreviewTarget(null);
+      return;
+    }
     if (pendingSelection.kind === "deckForEvolutionSearch") {
       submitPlayerIntent({
         type: "playHandCard",

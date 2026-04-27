@@ -201,10 +201,10 @@ export function attachPlayerEnergy(state: GameState, umamusumeUid?: number): Gam
   return next;
 }
 
-export function playerAttack(state: GameState, attackTargetUid?: number, healTargetUid?: number, forcedCoinResult?: "heads" | "tails"): GameState {
+export function playerAttack(state: GameState, attackTargetUid?: number, healTargetUid?: number, forcedCoinResult?: "heads" | "tails", evolutionDeckCardIndex?: number): GameState {
   const next = cloneGame(state);
   if (!canAttack(next, next.sides.player)) return next;
-  performAttack(next, "player", { refreshContinuousEffects, choosePreferredActiveIndex }, attackTargetUid, healTargetUid, forcedCoinResult);
+  performAttack(next, "player", { refreshContinuousEffects, choosePreferredActiveIndex }, attackTargetUid, healTargetUid, forcedCoinResult, evolutionDeckCardIndex);
   if (next.pendingPlayerChoice) return next;
   if (!next.gameOver) advanceToNextTurn(next);
   return next;
