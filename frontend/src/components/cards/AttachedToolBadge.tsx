@@ -55,11 +55,11 @@ function toolBadgeStyle(size: NonNullable<AttachedToolBadgeProps["size"]>, varia
 
   return {
     position: overlay ? "absolute" : "relative",
-    right: overlay ? (size === "md" ? "-2%" : "10%") : undefined,
-    top: overlay ? (size === "md" ? "8.8%" : "9%") : undefined,
+    right: overlay ? (size === "md" ? "-2%" : "11%") : undefined,
+    top: overlay ? (size === "md" ? "14.8%" : "18%") : undefined,
     zIndex: 3,
     width: overlay ? (size === "md" ? "18.5%" : "22%") : size === "md" ? 74 : 34,
-    aspectRatio: overlay ? "78 / 46.5" : undefined,
+    aspectRatio: overlay ? "77 / 46.5" : undefined,
     height: overlay ? undefined : size === "md" ? 45 : 21,
     overflow: "hidden",
     display: "inline-block",

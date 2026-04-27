@@ -1,5 +1,5 @@
 import { type CSSProperties, type DragEvent, useEffect, useRef, useState } from "react";
-import { AttachedEnergyPips, FaceDownCard } from "../cards/UmaCard";
+import { AttachedEnergyPips, CardHpOverlay, FaceDownCard } from "../cards/UmaCard";
 import { AbilityReadyBadge } from "../cards/AbilityReadyBadge";
 import { AttachedToolBadge } from "../cards/AttachedToolBadge";
 import { getAttachedEnergy } from "../cards/attachedEnergy";
@@ -8,8 +8,7 @@ import { getCard, getUmamusumeCard } from "../../game/engine";
 import { MAX_BENCH } from "../../../../shared/src/gameData";
 import type { EnergyType, UmamusumeInstance, SideState } from "../../../../shared/src/types";
 import type { InspectTarget } from "../../inspect";
-import { CARD_ASPECT_RATIO, borders, colors, filters, radius, shadows, transitions, uiTextColor, uiTextShadow } from "../../styles/shared";
-import { typeAccentColors } from "../../utils/color";
+import { CARD_ASPECT_RATIO, borders, colors, radius, shadows, transitions, uiTextColor, uiTextShadow } from "../../styles/shared";
 
 type BenchProps = {
   side: SideState;
@@ -40,10 +39,9 @@ type BenchProps = {
 
 const slotStyle: CSSProperties = {
   width: "var(--board-bench-width)",
-  height: "var(--board-bench-slot-height)",
+  height: "var(--board-bench-card-height)",
   display: "grid",
-  gridTemplateRows: "var(--board-bench-card-height) var(--board-bench-health-height)",
-  gap: "var(--board-bench-inner-gap)",
+  gridTemplateRows: "var(--board-bench-card-height)",
   overflow: "visible",
 };
 
@@ -173,9 +171,6 @@ export function Bench({
                   <FaceDownCard sleeveImage={sleeveImage} />
                 </div>
               </div>
-              <div style={benchHealthShellStyle}>
-                Hidden
-              </div>
             </div>
           );
         }
@@ -243,9 +238,6 @@ export function Bench({
         }
 
         const card = getUmamusumeCard(umamusume);
-        const hpPercent = Math.max(0, Math.round((umamusume.hp / umamusume.maxHp) * 100));
-        const fillColor = typeAccentColors[card.type];
-
         return (
           <BenchSlot
             key={`bench-umamusume-${umamusume.uid}-${animateSetupReveal ? setupRevealToken : 0}`}
@@ -259,8 +251,6 @@ export function Bench({
             onSetupPromoteToActive={onSetupPromoteToActive}
             onHandCardDropOnUmamusume={onHandCardDropOnUmamusume}
             onEnergyDropOnUmamusume={onEnergyDropOnUmamusume}
-            hpPercent={hpPercent}
-            fillColor={fillColor}
             abilityReady={Boolean(abilityReadyUmamusumeUids?.has(umamusume.uid))}
             hoverBorderColor={hoverBorderColor}
             hoverBackground={hoverBackground}
@@ -281,7 +271,7 @@ export function Bench({
   );
 }
 
-function BenchSlot({ card, umamusume, side, hidden, setupMode, activeSetupHandIndex, setupDragHandIndex, onSetupPromoteToActive, onHandCardDropOnUmamusume, onEnergyDropOnUmamusume, hpPercent, fillColor, abilityReady, hoverBorderColor, hoverBackground, hoverRingColor, hoverGlowColor, isSelectable, isDimmed, abilityEnergyTypes, sleeveImage, revealOrder, shiftOffset, onInspect, onUmamusumeSelect }: { card: ReturnType<typeof getUmamusumeCard>; umamusume: UmamusumeInstance; side: SideState; hidden: boolean; setupMode: boolean; activeSetupHandIndex: number | undefined; setupDragHandIndex: number | undefined; onSetupPromoteToActive?: ((handIndex: number) => void) | undefined; onHandCardDropOnUmamusume?: ((handIndex: number, umamusumeUid: number) => void) | undefined; onEnergyDropOnUmamusume?: ((umamusumeUid: number) => void) | undefined; hpPercent: number; fillColor: string; abilityReady: boolean; hoverBorderColor: string; hoverBackground: string; hoverRingColor: string; hoverGlowColor: string; isSelectable: boolean; isDimmed: boolean; abilityEnergyTypes?: Set<EnergyType> | undefined; sleeveImage?: string | null | undefined; revealOrder?: number | undefined; shiftOffset?: number | undefined; onInspect: (target: InspectTarget) => void; onUmamusumeSelect?: ((umamusume: UmamusumeInstance) => void) | undefined }) {
+function BenchSlot({ card, umamusume, side, hidden, setupMode, activeSetupHandIndex, setupDragHandIndex, onSetupPromoteToActive, onHandCardDropOnUmamusume, onEnergyDropOnUmamusume, abilityReady, hoverBorderColor, hoverBackground, hoverRingColor, hoverGlowColor, isSelectable, isDimmed, abilityEnergyTypes, sleeveImage, revealOrder, shiftOffset, onInspect, onUmamusumeSelect }: { card: ReturnType<typeof getUmamusumeCard>; umamusume: UmamusumeInstance; side: SideState; hidden: boolean; setupMode: boolean; activeSetupHandIndex: number | undefined; setupDragHandIndex: number | undefined; onSetupPromoteToActive?: ((handIndex: number) => void) | undefined; onHandCardDropOnUmamusume?: ((handIndex: number, umamusumeUid: number) => void) | undefined; onEnergyDropOnUmamusume?: ((umamusumeUid: number) => void) | undefined; abilityReady: boolean; hoverBorderColor: string; hoverBackground: string; hoverRingColor: string; hoverGlowColor: string; isSelectable: boolean; isDimmed: boolean; abilityEnergyTypes?: Set<EnergyType> | undefined; sleeveImage?: string | null | undefined; revealOrder?: number | undefined; shiftOffset?: number | undefined; onInspect: (target: InspectTarget) => void; onUmamusumeSelect?: ((umamusume: UmamusumeInstance) => void) | undefined }) {
   const [hovered, setHovered] = useState(false);
   const [dropHovered, setDropHovered] = useState(false);
   const activeHover = hovered && !isDimmed;
@@ -300,6 +290,7 @@ function BenchSlot({ card, umamusume, side, hidden, setupMode, activeSetupHandIn
           position: "relative",
           height: "var(--board-bench-card-height)",
           width: "100%",
+          containerType: "inline-size",
           padding: 0,
           border: dropHovered ? `2px solid ${hoverBorderColor}` : 0,
           borderRadius: radius.md,
@@ -398,6 +389,7 @@ function BenchSlot({ card, umamusume, side, hidden, setupMode, activeSetupHandIn
               alt={card.name}
               draggable={false}
             />
+            <CardHpOverlay hp={umamusume.hp} maxHp={umamusume.maxHp} size="sm" />
             {abilityReady && <AbilityReadyBadge corner="topLeft" size="xs" nudgeX={14} />}
             <AttachedToolBadge
               toolCardId={umamusume.toolCardId}
@@ -411,18 +403,6 @@ function BenchSlot({ card, umamusume, side, hidden, setupMode, activeSetupHandIn
           </>
         )}
       </button>
-      {hidden ? (
-        <div style={{ ...benchHealthShellStyle, animation: revealOrder !== undefined ? `hp-bar-appear 220ms ease-out ${80 + revealOrder * 120}ms both` : undefined }}>
-          Hidden
-        </div>
-      ) : (
-          <div style={{ ...benchHealthPanelStyle, animation: revealOrder !== undefined ? `hp-bar-appear 220ms ease-out ${80 + revealOrder * 120}ms both` : undefined }}>
-            <div style={{ height: "clamp(6px, 0.365vw, 7px)", fontSize: "clamp(7px, 0.469vw, 9px)", lineHeight: "clamp(6px, 0.365vw, 7px)", fontWeight: 900 }}>{umamusume.hp}/{umamusume.maxHp}</div>
-            <div style={{ marginTop: "clamp(2px, 0.156vw, 3px)", height: "clamp(4px, 0.26vw, 5px)", overflow: "hidden", borderRadius: radius.pill, background: colors.glassMedium }}>
-              <div style={{ width: `${hpPercent}%`, height: "100%", borderRadius: radius.pill, background: fillColor, transition: `width ${transitions.slow}` }} />
-            </div>
-          </div>
-      )}
     </div>
   );
 }
@@ -446,30 +426,4 @@ const benchCardImageStyle: CSSProperties = {
   borderRadius: radius.md,
   objectFit: "contain",
   display: "block",
-};
-
-const benchHealthShellStyle: CSSProperties = {
-  height: "var(--board-bench-health-height)",
-  borderRadius: radius.md,
-  background: colors.glassMedium,
-  padding: "clamp(3px, 0.208vw, 4px)",
-  boxShadow: shadows.sm,
-  display: "grid",
-  placeItems: "center",
-  color: uiTextColor,
-  textShadow: uiTextShadow,
-  fontSize: "clamp(7px, 0.469vw, 9px)",
-  fontWeight: 900,
-  backdropFilter: filters.glassBlurSoft,
-};
-
-const benchHealthPanelStyle: CSSProperties = {
-  height: "var(--board-bench-health-height)",
-  borderRadius: radius.md,
-  background: colors.glassMedium,
-  color: uiTextColor,
-  textShadow: uiTextShadow,
-  padding: "clamp(3px, 0.208vw, 4px)",
-  boxShadow: shadows.sm,
-  backdropFilter: filters.glassBlurSoft,
 };

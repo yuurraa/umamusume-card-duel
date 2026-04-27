@@ -75,9 +75,7 @@ export function SideBoard({
   const isPlayer = sideId === "player";
   const activeType = hidden ? null : side.active ? getUmamusumeCard(side.active).type : null;
   const tone = getTypeTone(activeType);
-  const hpColor = tone.accent;
   const activeCard = side.active ? getUmamusumeCard(side.active) : null;
-  const hpPercent = side.active ? Math.max(0, Math.round((side.active.hp / side.active.maxHp) * 100)) : 0;
   const activeSelectable = Boolean(side.active && selectableUmamusumeUids?.has(side.active.uid));
   const isChoosingUmamusume = Boolean(selectableUmamusumeUids);
   const activeAbilityReady = Boolean(side.active && abilityReadyUmamusumeUids?.has(side.active.uid));
@@ -111,9 +109,9 @@ export function SideBoard({
   };
 
   const baseHealth = hidden
-    ? <HiddenHealthBar />
+    ? null
     : side.active
-      ? <HealthBar key={setupMode ? "health-setup-active" : `health-${side.active.uid}`} hp={side.active.hp} maxHp={side.active.maxHp} percent={hpPercent} color={hpColor} />
+      ? null
       : <EmptyHealthBar />;
   const health = baseHealth;
   const baseActive = side.active ? (
@@ -269,41 +267,19 @@ export function SideBoard({
       <div style={layoutStyle(isPlayer)}>
         {isPlayer ? (
           <>
-            <div style={{ gridColumn: 1, gridRow: "1 / span 2" }}>{bench}</div>
+            <div style={{ gridColumn: 1, gridRow: "1 / span 2", paddingTop: "var(--board-bench-top-offset)" }}>{bench}</div>
             <div style={{ gridColumn: 2, gridRow: 1 }}>{health}</div>
-            <div style={{ gridColumn: 2, gridRow: 2 }}>{active}</div>
+            <div style={{ gridColumn: 2, gridRow: "1 / span 2", alignSelf: "center" }}>{active}</div>
           </>
         ) : (
           <>
             <div style={{ gridColumn: 1, gridRow: 1 }}>{health}</div>
-            <div style={{ gridColumn: 1, gridRow: 2 }}>{active}</div>
-            <div style={{ gridColumn: 2, gridRow: "1 / span 2" }}>{bench}</div>
+            <div style={{ gridColumn: 1, gridRow: "1 / span 2", alignSelf: "center" }}>{active}</div>
+            <div style={{ gridColumn: 2, gridRow: "1 / span 2", paddingTop: "var(--board-bench-top-offset)" }}>{bench}</div>
           </>
         )}
       </div>
     </section>
-  );
-}
-
-function HealthBar({ hp, maxHp, percent, color }: { hp: number; maxHp: number; percent: number; color: string }) {
-  return (
-    <div style={{ boxSizing: "border-box", height: "var(--board-health-height)", borderRadius: radius.md, background: colors.glassMedium, border: borders.glass, color: uiTextColor, textShadow: uiTextShadow, padding: "clamp(6px, 0.417vw, 8px)", boxShadow: "0 12px 30px rgba(17, 24, 39, 0.12)", backdropFilter: filters.glassBlur, animation: "hp-bar-appear 220ms ease-out both" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "clamp(10px, 0.625vw, 12px)", lineHeight: "12px", fontWeight: 900 }}>
-        <span>{hp}/{maxHp}</span>
-        <span>{percent}%</span>
-      </div>
-      <div style={{ height: "clamp(8px, 0.521vw, 10px)", marginTop: "clamp(5px, 0.365vw, 7px)", overflow: "hidden", borderRadius: radius.pill, background: colors.glassMedium }}>
-        <div style={{ height: "100%", width: `${percent}%`, borderRadius: radius.pill, background: color, transition: `width ${transitions.slow}` }} />
-      </div>
-    </div>
-  );
-}
-
-function HiddenHealthBar() {
-  return (
-    <div style={{ boxSizing: "border-box", height: "var(--board-health-height)", borderRadius: radius.md, background: colors.glassMedium, border: borders.glass, padding: "clamp(6px, 0.417vw, 8px)", boxShadow: "0 12px 30px rgba(17, 24, 39, 0.12)", display: "grid", placeItems: "center", color: uiTextColor, textShadow: uiTextShadow, fontSize: "clamp(10px, 0.625vw, 12px)", fontWeight: 900, backdropFilter: filters.glassBlur }}>
-      Hidden
-    </div>
   );
 }
 
@@ -430,20 +406,19 @@ const emptyActiveSpotStyle: CSSProperties = {
 };
 
 const boardMetricVars = {
-  "--board-active-width": "clamp(336px, 21.875vw, 420px)",
-  "--board-active-height": "clamp(469px, 30.521vw, 586px)",
-  "--board-bench-width": "clamp(131px, 8.542vw, 164px)",
-  "--board-bench-card-height": "clamp(126px, 8.229vw, 158px)",
-  "--board-bench-health-height": "clamp(18px, 1.146vw, 22px)",
-  "--board-bench-inner-gap": "clamp(6px, 0.417vw, 8px)",
-  "--board-bench-slot-height": "clamp(150px, 9.792vw, 188px)",
+  "--board-active-width": "clamp(372px, 23.021vw, 464px)",
+  "--board-active-height": "clamp(494px, 32.031vw, 617px)",
+  "--board-bench-width": "clamp(142px, 9.271vw, 178px)",
+  "--board-bench-card-height": "clamp(159px, 8.906vw, 202px)",
+  "--board-bench-slot-height": "clamp(159px, 8.906vw, 202px)",
   "--board-bench-gap": "clamp(10px, 0.625vw, 12px)",
+  "--board-bench-top-offset": "max(0px, calc((var(--board-health-height) + var(--board-row-gap) + var(--board-active-height) - (var(--board-bench-slot-height) * 3 + var(--board-bench-gap) * 2)) / 2))",
   "--board-column-gap": "clamp(22px, 1.458vw, 28px)",
   "--board-row-gap": "clamp(22px, 1.458vw, 28px)",
   "--board-health-height": "clamp(38px, 2.5vw, 48px)",
-  "--board-pad-top": "clamp(59px, 3.854vw, 74px)",
+  "--board-pad-top": "clamp(45px, 3.854vw, 2px)",
   "--board-pad-x": "clamp(19px, 1.25vw, 24px)",
-  "--board-pad-bottom": "clamp(19px, 1.25vw, 24px)",
+  "--board-pad-bottom": "clamp(1px, 1.25vw, 2px)",
 } as Record<string, string>;
 
 const SETUP_REVEAL_KEYFRAMES = `

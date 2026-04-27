@@ -43,6 +43,7 @@ export function UmaCard({
         width: "100%",
         maxWidth: 420,
         aspectRatio: CARD_ASPECT_RATIO,
+        containerType: "inline-size",
         padding: 0,
         border: 0,
         borderRadius: radius.md,
@@ -77,12 +78,29 @@ export function UmaCard({
             src={card.portrait}
             alt={card.name}
           />
+          <CardHpOverlay hp={umamusume.hp} maxHp={umamusume.maxHp} size="lg" />
           {abilityReady && <AbilityReadyBadge corner="topLeft" />}
           <AttachedToolBadge toolCardId={umamusume.toolCardId} onInspect={onToolInspect} />
           <AttachedEnergyPips energies={getAttachedEnergy(umamusume)} size="lg" />
         </>
       )}
     </button>
+  );
+}
+
+export function CardHpOverlay({ hp, maxHp, size = "md" }: { hp: number; maxHp: number; size?: "sm" | "md" | "lg" }) {
+  const percent = maxHp > 0 ? Math.max(0, Math.min(100, Math.round((hp / maxHp) * 100))) : 0;
+  const fillColor = percent <= 25 ? "#f59e0b" : percent <= 50 ? "#facc15" : "#29e6bd";
+  return (
+    <div style={hpOverlayStyle(size)} aria-label={`${hp} of ${maxHp} HP`}>
+      <div style={hpDiffuseBlurStyle(size)} />
+      <div style={hpContentStyle(size)}>
+        <div style={hpNumberStyle(size)}>{hp}</div>
+        <div style={hpTrackStyle(size)}>
+          <div style={{ ...hpFillStyle, width: `${percent}%`, background: fillColor }} />
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -208,6 +226,82 @@ const ENERGY_APPEAR_KEYFRAMES = `
   100% { opacity: 1; transform: translateY(0) scale(1); filter: saturate(1); }
 }
 `;
+
+function hpOverlayStyle(size: "sm" | "md" | "lg"): CSSProperties {
+  return {
+    position: "absolute",
+    top: size === "lg" ? "2%" : size === "md" ? "1.1%" : "1.8%",
+    right: size === "lg" ? "3%" : size === "md" ? "2.5%" : "14.5%",
+    zIndex: 3,
+    width: "fit-content",
+    minWidth: size === "lg" ? "74px" : size === "md" ? "39px" : "32px",
+    gap: size === "lg" ? 2 : 1,
+    pointerEvents: "none",
+  };
+}
+
+function hpDiffuseBlurStyle(size: "sm" | "md" | "lg"): CSSProperties {
+  const inset = size === "lg" ? "-24px -30px -28px -34px" : size === "md" ? "-16px -20px -19px -23px" : "-13px -17px -16px -19px";
+  const mask = "radial-gradient(ellipse at 70% 48%, rgba(0, 0, 0, 0.82) 0%, rgba(0, 0, 0, 0.52) 28%, rgba(0, 0, 0, 0.16) 47%, rgba(0, 0, 0, 0.04) 58%, transparent 68%)";
+  return {
+    position: "absolute",
+    inset,
+    borderRadius: size === "lg" ? 14 : 10,
+    background: "transparent",
+    backdropFilter: "blur(10px) saturate(50)",
+    WebkitMaskImage: mask,
+    maskImage: mask,
+  };
+}
+
+function hpContentStyle(size: "sm" | "md" | "lg"): CSSProperties {
+  return {
+    position: "relative",
+    zIndex: 1,
+    display: "grid",
+    justifyItems: "end",
+    gap: size === "sm" ? 2 : 5,
+  };
+}
+
+function hpNumberStyle(size: "sm" | "md" | "lg"): CSSProperties {
+  return {
+    color: colors.white,
+    fontSize: size === "lg" ? "clamp(34px, 13.2cqw, 52px)" : size === "md" ? "clamp(16px, 14.2cqw, 25px)" : "clamp(13px, 13.6cqw, 20px)",
+    lineHeight: 0.86,
+    fontWeight: 950,
+    letterSpacing: 0,
+    filter: "drop-shadow(0 3px 4px rgba(15, 23, 42, 0.4))",
+    textShadow: [
+      "0 0 2px rgba(15, 23, 42, 0.96)",
+      "1.5px 1.5px 0 rgba(31, 41, 55, 0.9)",
+      "-1.5px 1.5px 0 rgba(31, 41, 55, 0.9)",
+      "1.5px -1.5px 0 rgba(31, 41, 55, 0.9)",
+      "-1.5px -1.5px 0 rgba(31, 41, 55, 0.9)",
+      "0 0 6px rgba(255, 255, 255, 0.42)",
+      "0 7px 12px rgba(17, 24, 39, 0.4)",
+    ].join(", "),
+  };
+}
+
+function hpTrackStyle(size: "sm" | "md" | "lg"): CSSProperties {
+  return {
+    width: size === "lg" ? "92%" : "88%",
+    height: size === "lg" ? "clamp(7px, 2.35cqw, 10px)" : size === "md" ? "clamp(4px, 2.3cqw, 6px)" : "clamp(3px, 2.1cqw, 5px)",
+    overflow: "hidden",
+    borderRadius: radius.pill,
+    border: size === "lg" ? "2px solid rgba(15, 23, 42, 0.86)" : "1px solid rgba(15, 23, 42, 0.86)",
+    background: "rgba(80, 88, 99, 0.88)",
+    boxShadow: "0 2px 5px rgba(17, 24, 39, 0.38), inset 0 1px 1px rgba(255, 255, 255, 0.22), 0 0 0 1px rgba(15, 23, 42, 0.38)",
+  };
+}
+
+const hpFillStyle: CSSProperties = {
+  height: "100%",
+  borderRadius: radius.pill,
+  transition: `width ${transitions.slow}, background ${transitions.slow}`,
+  boxShadow: "inset 0 1px 1px rgba(255, 255, 255, 0.42)",
+};
 
 function hiddenCardStyle(fontSize: number): CSSProperties {
   return {
