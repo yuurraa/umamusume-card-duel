@@ -811,7 +811,11 @@ export const cardGridStyle: CSSProperties = {
   alignItems: "start",
 };
 
-export function cardTileStyle(hovered: boolean, disabled: boolean): CSSProperties {
+export function cardTileStyle(hovered: boolean, disabled: boolean, unowned = false): CSSProperties {
+  const disabledFilter = unowned
+    ? "grayscale(0.18) saturate(0.82) brightness(0.94)"
+    : "grayscale(0.5)";
+  const disabledOpacity = unowned ? 0.74 : 0.52;
   return {
     display: "block",
     position: "relative",
@@ -821,9 +825,9 @@ export function cardTileStyle(hovered: boolean, disabled: boolean): CSSPropertie
     background: "transparent",
     padding: 0,
     cursor: disabled ? "not-allowed" : "pointer",
-    opacity: disabled ? 0.38 : 1,
+    opacity: disabled ? disabledOpacity : 1,
     filter: disabled
-      ? "grayscale(0.5)"
+      ? disabledFilter
       : hovered
         ? "drop-shadow(0 18px 26px rgba(17, 24, 39, 0.24))"
         : "drop-shadow(0 10px 18px rgba(17, 24, 39, 0.14))",

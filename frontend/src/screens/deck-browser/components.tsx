@@ -3,7 +3,7 @@ import { CARD_RARITY_SHORT_LABELS, getCardRarity } from "../../../../shared/src/
 import { ownedStarterCardIds } from "../../../../shared/src/gameData";
 import type { Card, EnergyType } from "../../../../shared/src/types";
 import { energyLabel, getCard } from "../../game/engine";
-import { devUnlocksEnabled } from "../../config/devUnlocks";
+import { devUnlocksEnabled, isDevForcedUnowned } from "../../config/devUnlocks";
 import { formatCardName } from "../../game/engine/core/labels";
 import { getDeckCoverCard, getDeckEnergyTypes } from "../../utils/deck";
 import { readCloudCardCollection } from "../../utils/cardCollectionApi";
@@ -635,6 +635,7 @@ export function DeckCardSelectorModal({
   const activeFilterCount = categoryFiltersSelected.size + energyFiltersSelected.size + stageFiltersSelected.size + artFiltersSelected.size + rarityFiltersSelected.size;
 
   const getOwnedCount = (cardId: string): number => {
+    if (isDevForcedUnowned(cardId)) return 0;
     const value = ownedCardCounts?.[cardId];
     if (typeof value === "number") return value;
     if (devUnlocksEnabled) return 2;
@@ -982,7 +983,7 @@ function CardTile({
       type="button"
       disabled={disabled}
       style={{
-        ...cardTileStyle(hovered, disabled),
+        ...cardTileStyle(hovered, disabled, unowned),
         ...(previewActive ? { position: "relative", zIndex: 10 } : {}),
       }}
       onClick={onInspect}
@@ -1015,8 +1016,8 @@ function CardTile({
 function selectorCardImageStyle(owned: boolean): React.CSSProperties {
   return {
     ...cardImageStyle,
-    filter: owned ? "none" : "grayscale(1) saturate(0.24) brightness(0.72)",
-    opacity: owned ? 1 : 0.58,
+    filter: owned ? "none" : "grayscale(0.55) saturate(0.45) brightness(0.92)",
+    opacity: owned ? 1 : 0.86,
   };
 }
 

@@ -6,7 +6,7 @@ import { EnergyIcon } from "../components/cards/EnergyIcon";
 import { NeutralButton } from "../components/buttons/NeutralButton";
 import { energyLabel } from "../game/engine";
 import { formatCardName } from "../game/engine/core/labels";
-import { devUnlocksEnabled } from "../config/devUnlocks";
+import { devUnlocksEnabled, isDevForcedUnowned } from "../config/devUnlocks";
 import { CARD_ASPECT_RATIO, borders, colors, glassPanelStyle, radius, transitions, uiTextColor, uiTextShadow } from "../styles/shared";
 import { readCloudCardCollection } from "../utils/cardCollectionApi";
 import { DEFAULT_CARD_SORT, sortCardsForCollection, type CardSortKey, type CardSortOption } from "../utils/cardSorting";
@@ -115,6 +115,7 @@ export function CardBrowserScreen({ onBack }: { onBack: () => void }) {
   const activeFilterCount = categoryFiltersSelected.size + energyFiltersSelected.size + stageFiltersSelected.size + artFiltersSelected.size + ownershipFiltersSelected.size + rarityFiltersSelected.size;
 
   const getOwnedCount = (cardId: string): number => {
+    if (isDevForcedUnowned(cardId)) return 0;
     const value = ownedCardCounts?.[cardId];
     if (typeof value === "number") return value;
     if (devUnlocksEnabled) return 2;
