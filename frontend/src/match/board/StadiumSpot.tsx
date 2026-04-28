@@ -3,6 +3,7 @@ import type { GameState } from "../../../../shared/src/types";
 import type { InspectTarget } from "../../inspect";
 import { getCard } from "../../game/engine";
 import { AbilityReadyBadge } from "../../components/cards/AbilityReadyBadge";
+import { HoloCardImage } from "../../components/cards/HoloCardImage";
 import { hasTextDragPayload, readDragPayload } from "../../components/drag/dragData";
 import { colors, radius, transitions, uiTextColor, uiTextShadow } from "../../styles/shared";
 
@@ -62,14 +63,15 @@ export function StadiumSpot({ state, abilityReady = false, onDropHandCard, onIns
       aria-label={stadiumName}
     >
       <style>{STADIUM_REVEAL_KEYFRAMES}</style>
-    {stadiumImage
+    {stadiumImage && stadium
         ? (
           <>
-            <img
+            <HoloCardImage
               key={`stadium-${opponentStadiumRevealToken}-${stadiumImage}`}
-              style={stadiumImageStyle(hovered, Boolean(opponentStadiumRevealToken > 0))}
+              card={stadium}
               src={stadiumImage}
               alt={stadiumName}
+              imageStyle={stadiumImageStyle(hovered, Boolean(opponentStadiumRevealToken > 0))}
               draggable={false}
             />
             {abilityReady && <AbilityReadyBadge corner="topLeft" size="xs" nudgeX={0} />}

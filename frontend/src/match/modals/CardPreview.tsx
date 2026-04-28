@@ -4,12 +4,13 @@ import type { InspectTarget } from "../../inspect";
 import { energyLabel, getAllUmamusume, getCard, getDisplayedRetreatCost, getUmamusumeCard } from "../../game/engine";
 import { UMAMUSUME_TYPE_TO_ENERGY } from "../../game/engine/core/constants";
 import { abilityRuby, alphaColor, energyAccentColors, getPreviewTone } from "../../utils/color";
-import { borders, colors, neutralButtonStyle, overlayBackdropStyle, overlayButtonStyle, overlaySurfaceStyle, previewKickerStyle, radius, shadows, transitions } from "../../styles/shared";
+import { CARD_INSPECT_IMAGE_RADIUS, borders, colors, neutralButtonStyle, overlayBackdropStyle, overlayButtonStyle, overlaySurfaceStyle, previewKickerStyle, radius, shadows, transitions } from "../../styles/shared";
 import { NeutralButton } from "../../components/buttons/NeutralButton";
 import { PreviewAccentButton } from "../../components/buttons/PreviewAccentButton";
 import { EnergyIcon } from "../../components/cards/EnergyIcon";
 import { AbilityReadyBadge } from "../../components/cards/AbilityReadyBadge";
 import { AttachedToolBadge } from "../../components/cards/AttachedToolBadge";
+import { HoloCardImage } from "../../components/cards/HoloCardImage";
 
 export function CardPreview({ state, target, canUseAttack, canUseRetreat, canUseAbility, onAttack, onRetreat, onAbility, onInspect, onClose }: {
   state: GameState;
@@ -58,7 +59,14 @@ export function CardPreview({ state, target, canUseAttack, canUseRetreat, canUse
     <div style={previewBackdropStyle} onClick={onClose}>
       <NeutralButton style={closeButtonStyle} onClick={onClose}>Close</NeutralButton>
       <div style={previewShellStyle}>
-        <img style={previewImageStyle} src={image} alt={card.name} onClick={(event) => event.stopPropagation()} />
+        <HoloCardImage
+          card={card}
+          src={image}
+          alt={card.name}
+          imageStyle={previewImageStyle}
+          radiusOverride={CARD_INSPECT_IMAGE_RADIUS}
+          onClick={(event) => event.stopPropagation()}
+        />
         <aside style={previewInfoStyle} onClick={(event) => event.stopPropagation()}>
           <div>
             <div style={inspectKickerStyle}>{card.kind === "umamusume" ? card.label : card.label}</div>

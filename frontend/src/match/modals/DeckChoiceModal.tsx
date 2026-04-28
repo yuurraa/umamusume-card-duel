@@ -1,6 +1,7 @@
 import { useId, useRef, useState, type CSSProperties, type PointerEvent } from "react";
 import { getCard } from "../../game/engine";
 import { NeutralButton } from "../../components/buttons/NeutralButton";
+import { HoloCardImage } from "../../components/cards/HoloCardImage";
 import { borders, colors, overlayBackdropStyle, overlayButtonStyle, overlaySurfaceStyle, previewKickerStyle, radius, transitions } from "../../styles/shared";
 
 type DeckChoiceOption = {
@@ -124,7 +125,7 @@ function DeckChoiceCardButton({ option, onChoose }: { option: DeckChoiceOption; 
       onFocus={() => setHovered(true)}
       onBlur={() => setHovered(false)}
     >
-      <img style={deckCardImageStyle} src={image} alt="" draggable={false} />
+      <HoloCardImage card={card} src={image} alt="" imageStyle={deckCardImageStyle} draggable={false} />
     </button>
   );
 }

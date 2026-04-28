@@ -2,6 +2,7 @@ import { useId, useRef, useState, type CSSProperties, type PointerEvent } from "
 import type { Card } from "../../../../shared/src/types";
 import { getCard } from "../../game/engine";
 import { NeutralButton } from "../../components/buttons/NeutralButton";
+import { HoloCardImage } from "../../components/cards/HoloCardImage";
 import { borders, colors, overlayBackdropStyle, overlayButtonStyle, overlaySurfaceStyle, previewKickerStyle, radius, transitions } from "../../styles/shared";
 
 export function DiscardPileModal({
@@ -83,6 +84,7 @@ export function DiscardPileModal({
               return (
                 <DiscardCardButton
                   key={`${card.id}-${index}`}
+                  card={card}
                   image={image}
                   name={card.name}
                   onClick={() => onInspect(card)}
@@ -96,7 +98,7 @@ export function DiscardPileModal({
   );
 }
 
-function DiscardCardButton({ image, name, onClick }: { image: string; name: string; onClick: () => void }) {
+function DiscardCardButton({ card, image, name, onClick }: { card: Card; image: string; name: string; onClick: () => void }) {
   const [hovered, setHovered] = useState(false);
   return (
     <button
@@ -109,7 +111,7 @@ function DiscardCardButton({ image, name, onClick }: { image: string; name: stri
       onFocus={() => setHovered(true)}
       onBlur={() => setHovered(false)}
     >
-      <img style={discardCardImageStyle} src={image} alt="" draggable={false} />
+      <HoloCardImage card={card} src={image} alt="" imageStyle={discardCardImageStyle} draggable={false} />
     </button>
   );
 }

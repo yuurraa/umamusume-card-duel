@@ -2,6 +2,7 @@ import { type CSSProperties, type DragEvent, type PointerEvent, useId, useRef, u
 import { getCard, getPlayableAction } from "../../game/engine";
 import type { Card, GameState, SideState } from "../../../../shared/src/types";
 import type { InspectTarget } from "../../inspect";
+import { HoloCardImage } from "../cards/HoloCardImage";
 import { applyDragPreview, writeDragPayload } from "../drag/dragData";
 import { CARD_ASPECT_RATIO, borders, colors, fontStacks, radius, shadows, transitions, uiTextColor, uiTextShadow } from "../../styles/shared";
 
@@ -141,6 +142,7 @@ export function Hand({
         count={player.discard.length}
         title={`${player.discard.length} ${player.discard.length === 1 ? "card" : "cards"} discarded`}
         cardImage={topDiscardCard ? (topDiscardCard.kind === "umamusume" ? topDiscardCard.portrait : topDiscardCard.image) : undefined}
+        card={topDiscardCard ?? undefined}
         onClick={onOpenDiscard}
       />
     </div>
@@ -212,7 +214,7 @@ function HandCard({
         draggable={canDrag}
         onDragStart={handleDragStart}
       >
-        <img style={handImageStyle} src={image} alt="" draggable={false} />
+        <HoloCardImage card={card} src={image} alt="" imageStyle={handImageStyle} draggable={false} />
       </button>
     </div>
   );
@@ -223,6 +225,7 @@ function PileSlot({
   count,
   title,
   cardImage,
+  card,
   sleeveImage,
   onClick,
 }: {
@@ -230,6 +233,7 @@ function PileSlot({
   count: number;
   title: string;
   cardImage?: string | undefined;
+  card?: Card | undefined;
   sleeveImage?: string | null | undefined;
   onClick?: (() => void) | undefined;
 }) {
@@ -238,7 +242,9 @@ function PileSlot({
   const isEmptyDiscard = label === "Discard" && count === 0;
   const content = (
     <>
-      {cardImage && count > 0 ? (
+      {cardImage && count > 0 && card ? (
+        <HoloCardImage card={card} src={cardImage} alt="" imageStyle={pileCardImageStyle} draggable={false} />
+      ) : cardImage && count > 0 ? (
         <img style={pileCardImageStyle} src={cardImage} alt="" draggable={false} />
       ) : sleeveImage ? (
         <span style={pileImageClipStyle}>

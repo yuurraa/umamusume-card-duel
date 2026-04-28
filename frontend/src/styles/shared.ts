@@ -4,6 +4,7 @@ import { alphaColor } from "../utils/color";
 export type NeutralButtonTone = "default" | "danger";
 
 export const CARD_ASPECT_RATIO = "745 / 1040";
+export const CARD_INSPECT_IMAGE_RADIUS = 20;
 export const APP_BACKGROUND_FALLBACK = "#101820";
 
 export const radius = {

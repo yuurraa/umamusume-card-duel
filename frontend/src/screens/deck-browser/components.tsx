@@ -9,7 +9,9 @@ import { getDeckCoverCard, getDeckEnergyTypes } from "../../utils/deck";
 import { readCloudCardCollection } from "../../utils/cardCollectionApi";
 import { NeutralButton } from "../../components/buttons/NeutralButton";
 import { EnergyIcon } from "../../components/cards/EnergyIcon";
+import { HoloCardImage } from "../../components/cards/HoloCardImage";
 import { ActionNotice } from "../../match/feedback/ActionNotice";
+import { CARD_INSPECT_IMAGE_RADIUS, radius } from "../../styles/shared";
 import { DEFAULT_CARD_SORT, sortCardsForCollection, type CardSortKey, type CardSortOption } from "../../utils/cardSorting";
 import {
   ArtFilter,
@@ -222,6 +224,7 @@ export function DeckListModal({
   onInspectCard: (cardId: string) => void;
 }) {
   const [hoverPreviewImage, setHoverPreviewImage] = useState<string | null>(null);
+  const [hoverPreviewCard, setHoverPreviewCard] = useState<Card | null>(null);
   const [hoverPreviewKey, setHoverPreviewKey] = useState<string | null>(null);
   const [hoverPreviewPosition, setHoverPreviewPosition] = useState<{ left: number; top: number } | null>(null);
   const hoverPreviewTimeoutRef = useRef<number | null>(null);
@@ -242,12 +245,13 @@ export function DeckListModal({
     }
   };
 
-  const scheduleHoverPreview = (key: string, image: string, anchorEl: HTMLButtonElement) => {
+  const scheduleHoverPreview = (key: string, card: Card, image: string, anchorEl: HTMLButtonElement) => {
     clearHoverPreviewTimer();
     hoverPreviewTimeoutRef.current = window.setTimeout(() => {
       const rect = anchorEl.getBoundingClientRect();
       const { left, top } = getHoverPreviewPosition(rect);
       setHoverPreviewImage(image);
+      setHoverPreviewCard(card);
       setHoverPreviewKey(key);
       setHoverPreviewPosition({ left, top });
       hoverPreviewTimeoutRef.current = null;
@@ -257,6 +261,7 @@ export function DeckListModal({
   const hideHoverPreview = () => {
     clearHoverPreviewTimer();
     setHoverPreviewImage(null);
+    setHoverPreviewCard(null);
     setHoverPreviewKey(null);
   };
 
@@ -311,11 +316,12 @@ export function DeckListModal({
                 return (
                   <DeckListCardTile
                     key={`${cardId}-${rowIndex}-${colIndex}`}
+                    card={card}
                     image={image}
                     name={card.name}
                     onInspect={() => {}}
                     clickable={false}
-                    onHoverStart={(anchorEl) => scheduleHoverPreview(`${cardId}-${rowIndex}-${colIndex}`, image, anchorEl)}
+                    onHoverStart={(anchorEl) => scheduleHoverPreview(`${cardId}-${rowIndex}-${colIndex}`, card, image, anchorEl)}
                     onHoverEnd={hideHoverPreview}
                     previewActive={hoverPreviewKey === `${cardId}-${rowIndex}-${colIndex}`}
                   />
@@ -333,13 +339,8 @@ export function DeckListModal({
           )}
           aria-hidden="true"
         >
-          {hoverPreviewImage && (
-            <img
-              style={deckSelectorHoverPreviewImageStyle}
-              src={hoverPreviewImage}
-              alt=""
-              draggable={false}
-            />
+          {hoverPreviewImage && hoverPreviewCard && (
+            <HoloCardImage card={hoverPreviewCard} src={hoverPreviewImage} alt="" imageStyle={deckSelectorHoverPreviewImageStyle} draggable={false} radiusOverride={CARD_INSPECT_IMAGE_RADIUS} />
           )}
         </aside>
       </section>
@@ -434,6 +435,7 @@ export function CreateDeckModal({
   onValidate: () => void;
 }) {
   const [hoverPreviewImage, setHoverPreviewImage] = useState<string | null>(null);
+  const [hoverPreviewCard, setHoverPreviewCard] = useState<Card | null>(null);
   const [hoverPreviewKey, setHoverPreviewKey] = useState<string | null>(null);
   const [hoverPreviewPosition, setHoverPreviewPosition] = useState<{ left: number; top: number } | null>(null);
   const hoverPreviewTimeoutRef = useRef<number | null>(null);
@@ -446,12 +448,13 @@ export function CreateDeckModal({
     }
   };
 
-  const scheduleHoverPreview = (key: string, image: string, anchorEl: HTMLButtonElement) => {
+  const scheduleHoverPreview = (key: string, card: Card, image: string, anchorEl: HTMLButtonElement) => {
     clearHoverPreviewTimer();
     hoverPreviewTimeoutRef.current = window.setTimeout(() => {
       const rect = anchorEl.getBoundingClientRect();
       const { left, top } = getHoverPreviewPosition(rect);
       setHoverPreviewImage(image);
+      setHoverPreviewCard(card);
       setHoverPreviewKey(key);
       setHoverPreviewPosition({ left, top });
       hoverPreviewTimeoutRef.current = null;
@@ -461,6 +464,7 @@ export function CreateDeckModal({
   const hideHoverPreview = () => {
     clearHoverPreviewTimer();
     setHoverPreviewImage(null);
+    setHoverPreviewCard(null);
     setHoverPreviewKey(null);
   };
 
@@ -545,6 +549,7 @@ export function CreateDeckModal({
                 return (
                   <DeckListCardTile
                     key={`create-card-${slotIndex}-${cardId}`}
+                    card={card}
                     image={image}
                     name={card.name}
                     selected={selectingCoverCard && selectedCoverCardId === cardId}
@@ -560,7 +565,7 @@ export function CreateDeckModal({
                       }
                       onPickSlot(slotIndex);
                     }}
-                    onHoverStart={(anchorEl) => scheduleHoverPreview(`create-${slotIndex}-${cardId}`, image, anchorEl)}
+                    onHoverStart={(anchorEl) => scheduleHoverPreview(`create-${slotIndex}-${cardId}`, card, image, anchorEl)}
                     onHoverEnd={hideHoverPreview}
                     previewActive={hoverPreviewKey === `create-${slotIndex}-${cardId}`}
                   />
@@ -592,13 +597,8 @@ export function CreateDeckModal({
           )}
           aria-hidden="true"
         >
-          {hoverPreviewImage && (
-            <img
-              style={deckSelectorHoverPreviewImageStyle}
-              src={hoverPreviewImage}
-              alt=""
-              draggable={false}
-            />
+          {hoverPreviewImage && hoverPreviewCard && (
+            <HoloCardImage card={hoverPreviewCard} src={hoverPreviewImage} alt="" imageStyle={deckSelectorHoverPreviewImageStyle} draggable={false} radiusOverride={CARD_INSPECT_IMAGE_RADIUS} />
           )}
         </aside>
       </section>
@@ -932,11 +932,13 @@ export function DeckCardSelectorModal({
           aria-hidden="true"
         >
           {hoverPreviewCard && (
-            <img
-              style={deckSelectorHoverPreviewImageStyle}
+            <HoloCardImage
+              card={hoverPreviewCard}
               src={getCardImage(hoverPreviewCard)}
               alt=""
+              imageStyle={deckSelectorHoverPreviewImageStyle}
               draggable={false}
+              radiusOverride={CARD_INSPECT_IMAGE_RADIUS}
             />
           )}
         </aside>
@@ -975,6 +977,8 @@ function CardTile({
   const [hovered, setHovered] = useState(false);
   const image = getCardImage(card);
   const name = formatCardName(card);
+  const rarity = getCardRarity(card);
+  const hasHolo = rarity === "rare" || rarity === "doubleRare";
   const owned = ownedCount > 0;
   const ownershipLabel = owned ? `${ownedCount}x Owned` : "Unowned";
 
@@ -1007,7 +1011,13 @@ function CardTile({
       title={unowned ? `You do not own ${name}` : disabled ? `Max 2 copies per deck (${name})` : undefined}
     >
       <img style={selectorCardImageStyle(owned)} src={image} alt="" draggable={false} />
-      <span style={rarityBadgeStyle(getCardRarity(card))}>{CARD_RARITY_SHORT_LABELS[getCardRarity(card)]}</span>
+      {hasHolo && (
+        <>
+          <span style={selectorHoloSparkleOverlayStyle(rarity)} aria-hidden="true" />
+          <span style={selectorHoloSheenOverlayStyle(rarity)} aria-hidden="true" />
+        </>
+      )}
+      <span style={rarityBadgeStyle(rarity)}>{CARD_RARITY_SHORT_LABELS[rarity]}</span>
       <span style={selectorOwnershipBadgeStyle(owned)}>{ownershipLabel}</span>
     </button>
   );
@@ -1018,6 +1028,43 @@ function selectorCardImageStyle(owned: boolean): React.CSSProperties {
     ...cardImageStyle,
     filter: owned ? "none" : "grayscale(0.55) saturate(0.45) brightness(0.92)",
     opacity: owned ? 1 : 0.86,
+  };
+}
+
+function selectorHoloSparkleOverlayStyle(rarity: ReturnType<typeof getCardRarity>): React.CSSProperties {
+  const isUltraRare = rarity === "doubleRare";
+
+  return {
+    position: "absolute",
+    inset: 0,
+    borderRadius: radius.md,
+    pointerEvents: "none",
+    background: isUltraRare
+      ? "radial-gradient(circle at 16% 18%, rgba(255, 255, 255, 0.72) 0 0.8px, rgba(255, 231, 122, 0.24) 1.4px, transparent 3px), radial-gradient(circle at 74% 24%, rgba(142, 235, 255, 0.58) 0 0.9px, rgba(255, 115, 210, 0.2) 1.5px, transparent 3.2px), radial-gradient(circle at 38% 72%, rgba(255, 255, 255, 0.62) 0 0.8px, rgba(112, 255, 199, 0.2) 1.4px, transparent 3px), radial-gradient(circle at 86% 82%, rgba(255, 166, 229, 0.54) 0 0.8px, transparent 3px), radial-gradient(circle at 28% 48%, rgba(255, 255, 180, 0.5) 0 0.7px, transparent 2.8px), radial-gradient(circle at 62% 58%, rgba(139, 255, 226, 0.42) 0 0.7px, transparent 2.8px), radial-gradient(circle at 48% 30%, rgba(255, 150, 235, 0.44) 0 0.7px, transparent 2.8px)"
+      : "radial-gradient(circle at 18% 22%, rgba(255, 255, 255, 0.52) 0 0.8px, rgba(202, 232, 247, 0.18) 1.4px, transparent 3px), radial-gradient(circle at 72% 66%, rgba(255, 255, 255, 0.42) 0 0.8px, rgba(202, 232, 247, 0.14) 1.4px, transparent 3px), radial-gradient(circle at 42% 38%, rgba(255, 255, 255, 0.36) 0 0.7px, transparent 2.8px)",
+    backgroundRepeat: "no-repeat",
+    mixBlendMode: "screen",
+    animation: isUltraRare ? "card-holo-sparkle-pulse 4.8s ease-in-out infinite" : "card-holo-sparkle-pulse 6s ease-in-out infinite",
+  };
+}
+
+function selectorHoloSheenOverlayStyle(rarity: ReturnType<typeof getCardRarity>): React.CSSProperties {
+  const isUltraRare = rarity === "doubleRare";
+
+  return {
+    position: "absolute",
+    top: "-70%",
+    bottom: "-70%",
+    left: "-82%",
+    width: "170%",
+    pointerEvents: "none",
+    borderRadius: "44%",
+    background: isUltraRare
+      ? "linear-gradient(90deg, black 0%, black 18%, hsl(314, 45%, 28%) 34%, hsl(52, 72%, 72%) 50%, hsl(188, 58%, 66%) 62%, hsl(270, 48%, 36%) 76%, black 92%, black 100%)"
+      : "linear-gradient(90deg, black 0%, black 24%, hsl(210, 14%, 26%) 40%, hsl(198, 70%, 78%) 54%, hsl(245, 34%, 68%) 68%, black 86%, black 100%)",
+    mixBlendMode: "color-dodge",
+    opacity: isUltraRare ? 0.38 : 0.24,
+    animation: isUltraRare ? "card-holo-shimmer-contained 6s linear infinite" : "card-holo-shimmer-contained 8s linear infinite",
   };
 }
 
@@ -1048,6 +1095,7 @@ function chunkDeckRows(cardIds: Array<string | null>, perRow: number): (string |
 }
 
 function DeckListCardTile({
+  card,
   image,
   name,
   onInspect,
@@ -1057,6 +1105,7 @@ function DeckListCardTile({
   onHoverEnd,
   previewActive = false,
 }: {
+  card: Card;
   image: string;
   name: string;
   onInspect: () => void;
@@ -1097,7 +1146,7 @@ function DeckListCardTile({
         onHoverEnd?.();
       }}
     >
-      <img style={deckCardImageStyle} src={image} alt="" draggable={false} />
+      <HoloCardImage card={card} src={image} alt="" imageStyle={deckCardImageStyle} draggable={false} />
     </button>
   );
 }
@@ -1108,7 +1157,7 @@ export function DeckCardInspectModal({ card, onClose }: { card: ReturnType<typeo
   return (
     <div style={deckInspectBackdropStyle} onClick={onClose}>
       <section style={deckInspectSurfaceStyle} onClick={(event) => event.stopPropagation()}>
-        <img style={deckInspectImageStyle} src={image} alt="" draggable={false} />
+        <HoloCardImage card={card} src={image} alt="" imageStyle={deckInspectImageStyle} draggable={false} radiusOverride={CARD_INSPECT_IMAGE_RADIUS} />
       </section>
     </div>
   );
@@ -1126,7 +1175,7 @@ export function DeckSummaryCard({ deck, label, compact = false, framed = true, s
           <span style={deckCoverAuroraSleeveMarkStyle}>D</span>
         </span>
       ) : (
-        <img style={deckCoverImageStyle(compact)} src={coverImage} alt="" draggable={false} />
+        <HoloCardImage card={coverCard} src={coverImage} alt="" imageStyle={deckCoverImageStyle(compact)} draggable={false} />
       )}
       <div style={deckSummaryTextStyle}>
         <div style={deckSummaryLabelStyle}>{label}</div>

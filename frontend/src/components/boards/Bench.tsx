@@ -2,6 +2,7 @@ import { type CSSProperties, type DragEvent, useEffect, useRef, useState } from 
 import { AttachedEnergyPips, CardHpOverlay, FaceDownCard } from "../cards/UmaCard";
 import { AbilityReadyBadge } from "../cards/AbilityReadyBadge";
 import { AttachedToolBadge } from "../cards/AttachedToolBadge";
+import { HoloCardImage } from "../cards/HoloCardImage";
 import { getAttachedEnergy } from "../cards/attachedEnergy";
 import { applyDragPreview, hasTextDragPayload, readDragPayload, writeDragPayload } from "../drag/dragData";
 import { getCard, getUmamusumeCard } from "../../game/engine";
@@ -383,11 +384,14 @@ function BenchSlot({ card, umamusume, side, hidden, setupMode, activeSetupHandIn
           </div>
         ) : (
           <>
-            <img
-              style={benchCardImageStyle}
+            <HoloCardImage
+              card={card}
               src={card.portrait}
               alt={card.name}
+              imageStyle={benchCardImageStyle}
               draggable={false}
+              shineVariant="compact"
+              wrapperStyle={benchHoloImageWrapStyle}
             />
             <CardHpOverlay hp={umamusume.hp} maxHp={umamusume.maxHp} size="sm" />
             {abilityReady && <AbilityReadyBadge corner="topLeft" size="xs" nudgeX={14} />}
@@ -426,4 +430,11 @@ const benchCardImageStyle: CSSProperties = {
   borderRadius: radius.md,
   objectFit: "contain",
   display: "block",
+};
+
+const benchHoloImageWrapStyle: CSSProperties = {
+  width: "auto",
+  height: "100%",
+  aspectRatio: CARD_ASPECT_RATIO,
+  margin: "0 auto",
 };

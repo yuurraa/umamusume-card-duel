@@ -3,11 +3,12 @@ import { CARD_RARITY_LABELS, CARD_RARITY_SHORT_LABELS, getCardRarity, isFullArtC
 import { allCards, ownedStarterCardIds } from "../../../shared/src/gameData";
 import type { Card, CardRarity, EnergyType, TrainerType, UmamusumeType } from "../../../shared/src/types";
 import { EnergyIcon } from "../components/cards/EnergyIcon";
+import { HoloCardImage } from "../components/cards/HoloCardImage";
 import { NeutralButton } from "../components/buttons/NeutralButton";
 import { energyLabel } from "../game/engine";
 import { formatCardName } from "../game/engine/core/labels";
 import { devUnlocksEnabled, isDevForcedUnowned } from "../config/devUnlocks";
-import { CARD_ASPECT_RATIO, borders, colors, glassPanelStyle, radius, transitions, uiTextColor, uiTextShadow } from "../styles/shared";
+import { CARD_ASPECT_RATIO, CARD_INSPECT_IMAGE_RADIUS, borders, colors, glassPanelStyle, radius, transitions, uiTextColor, uiTextShadow } from "../styles/shared";
 import { readCloudCardCollection } from "../utils/cardCollectionApi";
 import { DEFAULT_CARD_SORT, sortCardsForCollection, type CardSortKey, type CardSortOption } from "../utils/cardSorting";
 
@@ -415,7 +416,7 @@ export function CardBrowserScreen({ onBack }: { onBack: () => void }) {
         aria-hidden="true"
       >
         {hoverPreviewCard && (
-          <img style={hoverPreviewImageStyle} src={getCardImage(hoverPreviewCard)} alt="" draggable={false} />
+          <HoloCardImage card={hoverPreviewCard} src={getCardImage(hoverPreviewCard)} alt="" imageStyle={hoverPreviewImageStyle} draggable={false} radiusOverride={CARD_INSPECT_IMAGE_RADIUS} />
         )}
       </aside>
 
@@ -446,6 +447,8 @@ function CardTile({
 }) {
   const [hovered, setHovered] = useState(false);
   const image = getCardImage(card);
+  const rarity = getCardRarity(card);
+  const hasHolo = rarity === "rare" || rarity === "doubleRare";
   const owned = ownedCount > 0;
   const ownershipLabel = owned ? `${ownedCount}x Owned` : "Unowned";
 
@@ -476,7 +479,13 @@ function CardTile({
       aria-label={formatCardName(card)}
     >
       <img style={cardImageStyle(owned)} src={image} alt="" draggable={false} />
-      <span style={rarityBadgeStyle(getCardRarity(card))}>{CARD_RARITY_SHORT_LABELS[getCardRarity(card)]}</span>
+      {hasHolo && (
+        <>
+          <span style={holoSparkleOverlayStyle(rarity)} aria-hidden="true" />
+          <span style={holoSheenOverlayStyle(rarity)} aria-hidden="true" />
+        </>
+      )}
+      <span style={rarityBadgeStyle(rarity)}>{CARD_RARITY_SHORT_LABELS[rarity]}</span>
       <span style={ownershipBadgeStyle(owned)}>{ownershipLabel}</span>
     </button>
   );
@@ -845,6 +854,7 @@ function cardTileStyle(hovered: boolean): CSSProperties {
   return {
     display: "block",
     position: "relative",
+    overflow: "hidden",
     minWidth: 0,
     border: 0,
     borderRadius: radius.md,
@@ -969,6 +979,43 @@ const hoverPreviewImageStyle: CSSProperties = {
   display: "block",
   filter: "drop-shadow(0 24px 64px rgba(17, 24, 39, 0.34))",
 };
+
+function holoSparkleOverlayStyle(rarity: ReturnType<typeof getCardRarity>): CSSProperties {
+  const isUltraRare = rarity === "doubleRare";
+
+  return {
+    position: "absolute",
+    inset: 0,
+    borderRadius: radius.md,
+    pointerEvents: "none",
+    background: isUltraRare
+      ? "radial-gradient(circle at 16% 18%, rgba(255, 255, 255, 0.72) 0 0.8px, rgba(255, 231, 122, 0.24) 1.4px, transparent 3px), radial-gradient(circle at 74% 24%, rgba(142, 235, 255, 0.58) 0 0.9px, rgba(255, 115, 210, 0.2) 1.5px, transparent 3.2px), radial-gradient(circle at 38% 72%, rgba(255, 255, 255, 0.62) 0 0.8px, rgba(112, 255, 199, 0.2) 1.4px, transparent 3px), radial-gradient(circle at 86% 82%, rgba(255, 166, 229, 0.54) 0 0.8px, transparent 3px), radial-gradient(circle at 28% 48%, rgba(255, 255, 180, 0.5) 0 0.7px, transparent 2.8px), radial-gradient(circle at 62% 58%, rgba(139, 255, 226, 0.42) 0 0.7px, transparent 2.8px), radial-gradient(circle at 48% 30%, rgba(255, 150, 235, 0.44) 0 0.7px, transparent 2.8px)"
+      : "radial-gradient(circle at 18% 22%, rgba(255, 255, 255, 0.52) 0 0.8px, rgba(202, 232, 247, 0.18) 1.4px, transparent 3px), radial-gradient(circle at 72% 66%, rgba(255, 255, 255, 0.42) 0 0.8px, rgba(202, 232, 247, 0.14) 1.4px, transparent 3px), radial-gradient(circle at 42% 38%, rgba(255, 255, 255, 0.36) 0 0.7px, transparent 2.8px)",
+    backgroundRepeat: "no-repeat",
+    mixBlendMode: "screen",
+    animation: isUltraRare ? "card-holo-sparkle-pulse 4.8s ease-in-out infinite" : "card-holo-sparkle-pulse 6s ease-in-out infinite",
+  };
+}
+
+function holoSheenOverlayStyle(rarity: ReturnType<typeof getCardRarity>): CSSProperties {
+  const isUltraRare = rarity === "doubleRare";
+
+  return {
+    position: "absolute",
+    top: "-70%",
+    bottom: "-70%",
+    left: "-82%",
+    width: "170%",
+    pointerEvents: "none",
+    borderRadius: "44%",
+    background: isUltraRare
+      ? "linear-gradient(90deg, black 0%, black 18%, hsl(314, 45%, 28%) 34%, hsl(52, 72%, 72%) 50%, hsl(188, 58%, 66%) 62%, hsl(270, 48%, 36%) 76%, black 92%, black 100%)"
+      : "linear-gradient(90deg, black 0%, black 24%, hsl(210, 14%, 26%) 40%, hsl(198, 70%, 78%) 54%, hsl(245, 34%, 68%) 68%, black 86%, black 100%)",
+    mixBlendMode: "color-dodge",
+    opacity: isUltraRare ? 0.38 : 0.24,
+    animation: isUltraRare ? "card-holo-shimmer-contained 6s linear infinite" : "card-holo-shimmer-contained 8s linear infinite",
+  };
+}
 
 const emptyStateStyle: CSSProperties = {
   padding: 18,

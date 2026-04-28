@@ -2,11 +2,12 @@ import { type CSSProperties, useEffect, useRef, useState } from "react";
 import { EnergyIcon } from "./EnergyIcon";
 import { AbilityReadyBadge } from "./AbilityReadyBadge";
 import { AttachedToolBadge } from "./AttachedToolBadge";
+import { HoloCardImage } from "./HoloCardImage";
 import { getAttachedEnergy } from "../cards/attachedEnergy";
 import { applyDragPreview, writeDragPayload } from "../drag/dragData";
 import { getUmamusumeCard } from "../../game/engine";
 import type { EnergyType, UmamusumeInstance } from "../../../../shared/src/types";
-import { CARD_ASPECT_RATIO, borders, colors, radius, transitions } from "../../styles/shared";
+import { CARD_ASPECT_RATIO, CARD_INSPECT_IMAGE_RADIUS, borders, colors, radius, transitions } from "../../styles/shared";
 import { alphaColor, typeAccentColors } from "../../utils/color";
 
 type UmaCardProps = {
@@ -76,11 +77,7 @@ export function UmaCard({
         <FaceDownCard sleeveImage={sleeveImage} fontSize={18} />
       ) : (
         <>
-          <img
-            style={umaCardImageStyle}
-            src={card.portrait}
-            alt={card.name}
-          />
+          <HoloCardImage card={card} src={card.portrait} alt={card.name} imageStyle={umaCardImageStyle} radiusOverride={CARD_INSPECT_IMAGE_RADIUS} />
           {blurPrintedHpCorner && <div style={printedHpCornerBlurStyle} aria-hidden="true" />}
           <CardHpOverlay hp={umamusume.hp} maxHp={umamusume.maxHp} size="lg" />
           {abilityReady && <AbilityReadyBadge corner="topLeft" />}

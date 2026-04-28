@@ -17,3 +17,40 @@ body {
   overflow-x: hidden;
   overflow-y: hidden;
 }
+
+@keyframes card-holo-sheen {
+  0% {
+    transform: translateX(-130%) rotate(9deg);
+  }
+  100% {
+    transform: translateX(130%) rotate(9deg);
+  }
+}
+
+@keyframes card-holo-sparkle-pulse {
+  0% {
+    opacity: 0.18;
+    filter: brightness(0.9);
+  }
+  35% {
+    opacity: 0.78;
+    filter: brightness(1.28);
+  }
+  62% {
+    opacity: 0.32;
+    filter: brightness(1);
+  }
+  100% {
+    opacity: 0.18;
+    filter: brightness(0.9);
+  }
+}
+
+@keyframes card-holo-shimmer-contained {
+  0% {
+    transform: translate3d(-72%, -64%, 0) rotate(18deg);
+  }
+  100% {
+    transform: translate3d(108%, 74%, 0) rotate(18deg);
+  }
+}
