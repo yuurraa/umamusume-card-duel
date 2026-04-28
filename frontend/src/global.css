@@ -54,3 +54,352 @@ body {
     transform: translate3d(108%, 74%, 0) rotate(18deg);
   }
 }
+
+.pokemon-card-foil {
+  --card-aspect: 0.718;
+  --card-radius: 4.55% / 3.5%;
+  --card-opacity: 0;
+  --grain: url("/pokemon-foils/grain.webp");
+  --glitter: url("/pokemon-foils/glitter.png");
+  --foil: url("/pokemon-foils/illusion.png");
+  --mask: none;
+  --imgsize: cover;
+  --red: #f80e35;
+  --yellow: #eedf10;
+  --green: #21e985;
+  --blue: #0dbde9;
+  --violet: #c929f1;
+  --sunpillar-1: hsl(2, 100%, 73%);
+  --sunpillar-2: hsl(53, 100%, 69%);
+  --sunpillar-3: hsl(93, 100%, 69%);
+  --sunpillar-4: hsl(176, 100%, 76%);
+  --sunpillar-5: hsl(228, 100%, 74%);
+  --sunpillar-6: hsl(283, 100%, 73%);
+  --sunpillar-clr-1: var(--sunpillar-1);
+  --sunpillar-clr-2: var(--sunpillar-2);
+  --sunpillar-clr-3: var(--sunpillar-3);
+  --sunpillar-clr-4: var(--sunpillar-4);
+  --sunpillar-clr-5: var(--sunpillar-5);
+  --sunpillar-clr-6: var(--sunpillar-6);
+  --clip: inset(9.85% 8% 52.85% 8%);
+  --clip-stage: polygon(91.5% 9.85%, 57% 9.85%, 54% 12%, 17% 12%, 16% 14%, 12% 16%, 8% 16%, 8% 47.15%, 92% 47.15%);
+  --clip-trainer: inset(14.5% 8.5% 48.2% 8.5%);
+  --clip-borders: inset(2.8% 4% round 2.55% / 1.5%);
+  --clip-invert: polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%, 0 47.15%, 91.5% 47.15%, 91.5% 9.85%, 8% 9.85%, 8% 47.15%, 0 50%);
+  isolation: isolate;
+}
+
+.pokemon-card-foil__front,
+.pokemon-card-foil__shine,
+.pokemon-card-foil__glare,
+.pokemon-card-foil__shine::before,
+.pokemon-card-foil__shine::after,
+.pokemon-card-foil__glare::after {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-area: 1 / 1;
+  width: 100%;
+  aspect-ratio: var(--card-aspect);
+  border-radius: inherit;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.pokemon-card-foil__front {
+  position: relative;
+  z-index: 1;
+  opacity: 1;
+}
+
+.pokemon-card-foil__front img {
+  width: 100%;
+  height: auto;
+}
+
+.pokemon-card-foil__shine {
+  z-index: 3;
+  transform: translateZ(1px);
+  background: transparent;
+  background-size: cover;
+  background-position: center;
+  filter: brightness(0.85) contrast(2.75) saturate(0.65);
+  mix-blend-mode: color-dodge;
+  opacity: var(--card-opacity);
+  will-change: opacity, background-image, background-size, background-position, background-blend-mode, filter;
+  transition: opacity 0.3s ease, background-position 0.12s ease, filter 0.18s ease;
+}
+
+.pokemon-card-foil__shine::before,
+.pokemon-card-foil__shine::after {
+  --sunpillar-clr-1: var(--sunpillar-5);
+  --sunpillar-clr-2: var(--sunpillar-6);
+  --sunpillar-clr-3: var(--sunpillar-1);
+  --sunpillar-clr-4: var(--sunpillar-2);
+  --sunpillar-clr-5: var(--sunpillar-3);
+  --sunpillar-clr-6: var(--sunpillar-4);
+  transform: translateZ(1px);
+  border-radius: inherit;
+}
+
+.pokemon-card-foil__shine::after {
+  --sunpillar-clr-1: var(--sunpillar-6);
+  --sunpillar-clr-2: var(--sunpillar-1);
+  --sunpillar-clr-3: var(--sunpillar-2);
+  --sunpillar-clr-4: var(--sunpillar-3);
+  --sunpillar-clr-5: var(--sunpillar-4);
+  --sunpillar-clr-6: var(--sunpillar-5);
+  transform: translateZ(1.2px);
+}
+
+.pokemon-card-foil__glare {
+  z-index: 4;
+  transform: translateZ(1.41px);
+  background-image: radial-gradient(
+    farthest-corner circle at var(--pointer-x) var(--pointer-y),
+    hsla(0, 0%, 100%, 0.8) 10%,
+    hsla(0, 0%, 100%, 0.65) 20%,
+    hsla(0, 0%, 0%, 0.5) 90%
+  );
+  opacity: var(--card-opacity);
+  mix-blend-mode: overlay;
+  will-change: opacity, background-image, background-size, background-position, background-blend-mode, filter;
+  transition: opacity 0.3s ease, background-position 0.12s ease, filter 0.18s ease;
+}
+
+.pokemon-card-foil[data-rarity="rare holo"]:not([data-trainer-gallery="true"]) .pokemon-card-foil__shine,
+.pokemon-card-foil[data-rarity="rare holo"]:not([data-trainer-gallery="true"]) .pokemon-card-foil__glare::after,
+.pokemon-card-foil[data-rarity$="reverse holo"] .pokemon-card-foil__shine,
+.pokemon-card-foil[data-rarity$="reverse holo"] .pokemon-card-foil__glare::after {
+  clip-path: var(--clip);
+}
+
+.pokemon-card-foil[data-rarity="common"] .pokemon-card-foil__shine {
+  opacity: calc(var(--common-card-opacity) * 0.5);
+  background-image:
+    linear-gradient(115deg, transparent 12%, rgba(255, 255, 255, 0.48) 22%, transparent 34%, rgba(255, 255, 255, 0.24) 52%, transparent 72%),
+    radial-gradient(farthest-corner circle at var(--pointer-x) var(--pointer-y), rgba(255, 255, 255, 0.34) 0%, transparent 48%);
+  background-size: 220% 220%, cover;
+  background-position: var(--background-x) var(--background-y), center;
+  filter: brightness(1) contrast(1.08);
+  mix-blend-mode: soft-light;
+}
+
+.pokemon-card-foil[data-rarity="common"] .pokemon-card-foil__glare {
+  opacity: var(--common-card-opacity);
+  background-image: radial-gradient(
+    farthest-corner circle at var(--pointer-x) var(--pointer-y),
+    hsla(0, 0%, 100%, 0.7) 6%,
+    hsla(0, 0%, 100%, 0.28) 30%,
+    hsla(0, 0%, 0%, 0.34) 100%
+  );
+  filter: brightness(0.98) contrast(1.12);
+  mix-blend-mode: overlay;
+}
+
+.pokemon-card-foil[data-rarity="uncommon"] .pokemon-card-foil__shine {
+  opacity: calc(var(--uncommon-card-opacity) * 0.72);
+  clip-path: var(--clip-borders);
+  background-image:
+    linear-gradient(115deg, transparent 7%, rgba(255, 255, 255, 0.72) 18%, transparent 30%, rgba(175, 225, 255, 0.5) 48%, transparent 68%),
+    repeating-linear-gradient(-22deg, rgba(185, 104, 213, 0.28) 5%, rgba(218, 82, 78, 0.24) 10%, rgba(210, 178, 45, 0.24) 15%, rgba(103, 194, 79, 0.24) 20%, rgba(79, 177, 185, 0.24) 25%, rgba(122, 151, 255, 0.28) 30%, rgba(185, 104, 213, 0.28) 35%),
+    radial-gradient(farthest-corner circle at var(--pointer-x) var(--pointer-y), rgba(255, 255, 255, 0.56) 0%, transparent 46%);
+  background-size: 220% 220%, 260% 360%, cover;
+  background-position: var(--background-x) var(--background-y), center;
+  filter: brightness(1.03) contrast(1.16) saturate(1.2);
+  mix-blend-mode: screen;
+}
+
+.pokemon-card-foil[data-rarity="uncommon"] .pokemon-card-foil__glare {
+  opacity: var(--uncommon-card-opacity);
+  background-image: radial-gradient(
+    farthest-corner circle at var(--pointer-x) var(--pointer-y),
+    hsla(0, 0%, 100%, 0.74) 8%,
+    hsla(194, 45%, 78%, 0.42) 36%,
+    hsla(0, 0%, 0%, 0.4) 100%
+  );
+  filter: brightness(1) contrast(1.18);
+  mix-blend-mode: overlay;
+}
+
+.pokemon-card-foil[data-rarity="rare holo"][data-subtypes^="stage"]:not([data-trainer-gallery="true"]) .pokemon-card-foil__shine,
+.pokemon-card-foil[data-rarity="rare holo"][data-subtypes^="stage"]:not([data-trainer-gallery="true"]) .pokemon-card-foil__glare::after,
+.pokemon-card-foil[data-rarity$="reverse holo"][data-subtypes^="stage"] .pokemon-card-foil__shine,
+.pokemon-card-foil[data-rarity$="reverse holo"][data-subtypes^="stage"] .pokemon-card-foil__glare::after {
+  clip-path: var(--clip-stage);
+}
+
+.pokemon-card-foil[data-rarity="rare holo"][data-supertype="trainer"]:not([data-trainer-gallery="true"]) .pokemon-card-foil__shine,
+.pokemon-card-foil[data-rarity="rare holo"][data-supertype="trainer"]:not([data-trainer-gallery="true"]) .pokemon-card-foil__glare::after,
+.pokemon-card-foil[data-rarity$="reverse holo"][data-supertype="trainer"] .pokemon-card-foil__shine,
+.pokemon-card-foil[data-rarity$="reverse holo"][data-supertype="trainer"] .pokemon-card-foil__glare::after {
+  clip-path: var(--clip-trainer);
+}
+
+/* Ported from pokemon-cards-css regular-holo.css */
+.pokemon-card-foil[data-rarity="rare holo"]:not([data-trainer-gallery="true"]) .pokemon-card-foil__shine {
+  --scanlines-space: 1px;
+  --scanlines-light: #585858;
+  --scanlines-dark: black;
+  --bars: 3%;
+  --bar-color: hsla(0, 0%, 66%, 1);
+  --bar-bg: hsla(0, 0%, 0%, 1);
+  background-image:
+    repeating-linear-gradient(110deg, var(--violet), var(--blue), var(--green), var(--yellow), var(--red), var(--violet), var(--blue), var(--green), var(--yellow), var(--red), var(--violet), var(--blue), var(--green), var(--yellow), var(--red)),
+    repeating-linear-gradient(90deg, var(--scanlines-dark) calc(var(--scanlines-space) * 0), var(--scanlines-dark) calc(var(--scanlines-space) * 2), var(--scanlines-light) calc(var(--scanlines-space) * 2), var(--scanlines-light) calc(var(--scanlines-space) * 4));
+  background-position:
+    calc(((50% - var(--background-x)) * 2.6) + 50%) calc(((50% - var(--background-y)) * 3.5) + 50%),
+    center center;
+  background-size: 400% 400%, cover;
+  background-blend-mode: overlay;
+  filter: brightness(1.02) contrast(1.04) saturate(1.18);
+  mix-blend-mode: color-dodge;
+  opacity: var(--rare-holo-opacity);
+}
+
+.pokemon-card-foil[data-rarity="rare holo"]:not([data-trainer-gallery="true"]) .pokemon-card-foil__shine::before {
+  content: "";
+  background-image:
+    repeating-linear-gradient(90deg, var(--bar-bg) calc(var(--bars) * 2), var(--bar-color) calc(var(--bars) * 3), var(--bar-bg) calc(var(--bars) * 3.5), var(--bar-color) calc(var(--bars) * 4), var(--bar-bg) calc(var(--bars) * 5), var(--bar-bg) calc(var(--bars) * 14)),
+    repeating-linear-gradient(90deg, var(--bar-bg) calc(var(--bars) * 2), var(--bar-color) calc(var(--bars) * 3), var(--bar-bg) calc(var(--bars) * 3.5), var(--bar-color) calc(var(--bars) * 4), var(--bar-bg) calc(var(--bars) * 5), var(--bar-bg) calc(var(--bars) * 10));
+  background-position:
+    calc((((50% - var(--background-x)) * 1.65) + 50%) + (var(--background-y) * 0.5)) var(--background-x),
+    calc((((50% - var(--background-x)) * -0.9) + 50%) - (var(--background-y) * 0.75)) var(--background-y);
+  background-size: 200% 200%, 200% 200%;
+  background-blend-mode: screen;
+  filter: brightness(1.02) contrast(1);
+  mix-blend-mode: soft-light;
+  opacity: 0.62;
+}
+
+.pokemon-card-foil[data-rarity="rare holo"]:not([data-trainer-gallery="true"]) .pokemon-card-foil__shine::after {
+  content: "";
+  background-image: radial-gradient(farthest-corner circle at var(--pointer-x) var(--pointer-y), hsla(0, 0%, 90%, 0.8) 0%, hsla(0, 0%, 78%, 0.1) 25%, hsl(0, 0%, 0%) 90%);
+  background-position: center center;
+  background-size: cover;
+  mix-blend-mode: soft-light;
+  filter: brightness(0.68) contrast(2);
+}
+
+.pokemon-card-foil[data-rarity="rare holo"]:not([data-trainer-gallery="true"]) .pokemon-card-foil__glare {
+  opacity: calc(var(--rare-holo-opacity) * 0.95);
+  filter: brightness(0.84) contrast(1.25);
+  mix-blend-mode: overlay;
+}
+
+.pokemon-card-foil[data-rarity="rare holo"]:not([data-trainer-gallery="true"]) .pokemon-card-foil__glare::after {
+  content: "";
+  background-image: radial-gradient(farthest-corner circle at var(--pointer-x) var(--pointer-y), hsl(180, 100%, 95%) 5%, hsla(0, 0%, 39%, 0.25) 55%, hsla(0, 0%, 0%, 0.36) 110%);
+  mix-blend-mode: overlay;
+  filter: brightness(0.72) contrast(1.8);
+}
+
+/* Ported from pokemon-cards-css reverse-holo.css */
+.pokemon-card-foil[data-rarity$="reverse holo"] .pokemon-card-foil__shine {
+  --foil-brightness: 0.55;
+  background-image:
+    radial-gradient(circle at var(--pointer-x) var(--pointer-y), #fff 5%, #000 50%, #fff 80%),
+    linear-gradient(-45deg, #000 15%, #fff, #000 85%),
+    var(--foil);
+  background-blend-mode: soft-light, difference;
+  background-size: 120% 120%, 200% 200%, cover;
+  background-position: center center, calc(100% * var(--pointer-from-left)) calc(100% * var(--pointer-from-top)), center center;
+  filter: brightness(var(--foil-brightness)) contrast(1.5) saturate(1);
+  mix-blend-mode: color-dodge;
+  opacity: calc((1.5 * var(--card-opacity)) - var(--pointer-from-center));
+}
+
+.pokemon-card-foil[data-rarity$="reverse holo"] .pokemon-card-foil__glare {
+  opacity: var(--card-opacity);
+  background-image: radial-gradient(farthest-corner circle at var(--pointer-x) var(--pointer-y), hsla(0, 0%, 100%, 0.8) 10%, hsla(0, 0%, 100%, 0.5) 20%, hsla(0, 0%, 0%, 0.75) 90%);
+  filter: brightness(0.7) contrast(1.5);
+}
+
+.pokemon-card-foil[data-rarity$="reverse holo"] .pokemon-card-foil__glare::after {
+  content: "";
+  opacity: var(--card-opacity);
+  background-image: radial-gradient(farthest-corner circle at var(--pointer-x) var(--pointer-y), hsl(0, 0%, 100%) 10%, hsla(0, 0%, 100%, 0.5) 20%, hsla(0, 0%, 0%, 0.5) 120%);
+  filter: brightness(1) contrast(1.5);
+}
+
+/* Ported from pokemon-cards-css trainer-gallery-holo.css */
+.pokemon-card-foil[data-trainer-gallery="true"] .pokemon-card-foil__shine {
+  --space: 5%;
+  --angle: -22deg;
+  --imgsize: 300% 400%;
+  clip-path: var(--clip-borders);
+  background-image: repeating-linear-gradient(var(--angle), hsla(283, 44%, 60%, 0.54) calc(var(--space) * 1), hsla(2, 64%, 61%, 0.54) calc(var(--space) * 2), hsla(53, 58%, 57%, 0.54) calc(var(--space) * 3), hsla(93, 48%, 56%, 0.54) calc(var(--space) * 4), hsla(176, 34%, 54%, 0.54) calc(var(--space) * 5), hsla(228, 78%, 76%, 0.54) calc(var(--space) * 6), hsla(283, 44%, 61%, 0.54) calc(var(--space) * 7));
+  background-blend-mode: color-dodge;
+  background-size: var(--imgsize);
+  background-position: 0% var(--background-y), var(--background-x) var(--background-y);
+  filter: brightness(calc((var(--pointer-from-center) * 0.18) + 0.42)) contrast(1.75) saturate(0.82);
+  opacity: calc(var(--card-opacity) * 0.78);
+}
+
+.pokemon-card-foil[data-trainer-gallery="true"] .pokemon-card-foil__shine::after {
+  content: "";
+  background-image: radial-gradient(farthest-corner ellipse at calc((var(--pointer-x) * 0.5) + 25%) calc((var(--pointer-y) * 0.5) + 25%), hsla(0, 0%, 100%, 0.42) 5%, hsla(300, 100%, 11%, 0.18) 42%, hsla(0, 0%, 22%, 0) 120%);
+  background-position: center center;
+  background-size: 400% 500%;
+  filter: brightness(calc((var(--pointer-from-center) * 0.12) + 0.42)) contrast(0.75) saturate(1);
+  mix-blend-mode: screen;
+  opacity: 0.65;
+}
+
+.pokemon-card-foil[data-trainer-gallery="true"] .pokemon-card-foil__shine::before {
+  content: none;
+  display: none;
+}
+
+.pokemon-card-foil[data-trainer-gallery="true"] .pokemon-card-foil__glare {
+  opacity: calc(var(--card-opacity) * 0.62);
+  background-image: radial-gradient(farthest-corner circle at var(--pointer-x) var(--pointer-y), hsla(0, 0%, 100%, 0.46) 8%, hsla(190, 55%, 78%, 0.24) 32%, hsla(275, 45%, 58%, 0.18) 58%, hsla(180, 11%, 35%, 0.42) 100%);
+  mix-blend-mode: soft-light;
+}
+
+.pokemon-card-foil[data-trainer-gallery="true"] .pokemon-card-foil__glare::before,
+.pokemon-card-foil[data-trainer-gallery="true"] .pokemon-card-foil__glare::after {
+  content: none;
+  display: none;
+}
+
+/* Ported from pokemon-cards-css v-full-art.css and trainer-full-art.css */
+.pokemon-card-foil[data-rarity="rare ultra"][data-subtypes*="supporter"] .pokemon-card-foil__shine,
+.pokemon-card-foil[data-rarity="rare ultra"][data-subtypes*="supporter"] .pokemon-card-foil__shine::after {
+  --space: 5%;
+  --angle: 133deg;
+  --imgsize: cover;
+  background-image:
+    var(--foil),
+    repeating-linear-gradient(0deg, var(--sunpillar-clr-1) calc(var(--space) * 1), var(--sunpillar-clr-2) calc(var(--space) * 2), var(--sunpillar-clr-3) calc(var(--space) * 3), var(--sunpillar-clr-4) calc(var(--space) * 4), var(--sunpillar-clr-5) calc(var(--space) * 5), var(--sunpillar-clr-6) calc(var(--space) * 6), var(--sunpillar-clr-1) calc(var(--space) * 7)),
+    repeating-linear-gradient(var(--angle), #0e152e 0%, hsl(180, 10%, 60%) 3.8%, hsl(180, 29%, 66%) 4.5%, hsl(180, 10%, 60%) 5.2%, #0e152e 10%, #0e152e 12%),
+    radial-gradient(farthest-corner circle at var(--pointer-x) var(--pointer-y), hsla(0, 0%, 0%, 0.1) 12%, hsla(0, 0%, 0%, 0.15) 20%, hsla(0, 0%, 0%, 0.25) 120%);
+  background-position: center center, 0% var(--background-y), calc(var(--background-x) + (var(--background-y) * 0.2)) var(--background-y), var(--background-x) var(--background-y);
+  background-blend-mode: soft-light, hue, soft-light;
+  background-size: var(--imgsize), 200% 700%, 300% 100%, 200% 100%;
+  filter: brightness(calc((var(--pointer-from-center) * 0.03) + 0.72)) contrast(1.28) saturate(1.05);
+  opacity: var(--trainer-holo-opacity);
+}
+
+.pokemon-card-foil[data-rarity="rare ultra"][data-subtypes*="supporter"] .pokemon-card-foil__shine::after {
+  content: "";
+  background-position: center center, 0% var(--background-y), calc((var(--background-x) + (var(--background-y) * 0.2)) * -1) calc(var(--background-y) * -1), var(--background-x) var(--background-y);
+  background-size: var(--imgsize), 200% 400%, 195% 100%, 200% 100%;
+  filter: brightness(calc((var(--pointer-from-center) * 0.18) + 0.72)) contrast(1.18) saturate(0.75);
+  mix-blend-mode: soft-light;
+}
+
+.pokemon-card-foil[data-rarity="rare ultra"][data-subtypes*="supporter"] .pokemon-card-foil__shine::before {
+  content: "";
+  background-image: radial-gradient(farthest-corner circle at var(--pointer-x) var(--pointer-y), hsl(0, 0%, 100%) 0%, hsla(0, 0%, 0%, 0) 80%);
+  mix-blend-mode: screen;
+  opacity: 0.18;
+}
+
+.pokemon-card-foil[data-rarity="rare ultra"][data-subtypes*="supporter"] .pokemon-card-foil__glare {
+  opacity: calc(var(--trainer-holo-opacity) * 0.68);
+  mix-blend-mode: soft-light;
+  filter: brightness(1.06) contrast(1.08) saturate(0.95);
+  background-size: 170% 170%;
+  background-image: radial-gradient(farthest-corner circle at var(--pointer-x) var(--pointer-y), hsla(0, 0%, 100%, 0.72) 5%, hsla(200, 5%, 45%, 0.42) 58%, hsla(320, 40%, 10%, 0.4) 150%);
+}

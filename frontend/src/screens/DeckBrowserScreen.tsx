@@ -77,6 +77,7 @@ export function DeckBrowserScreen({
   const [createName, setCreateName] = useState("New Deck");
   const [createCardIds, setCreateCardIds] = useState<Array<string | null>>(() => Array.from({ length: DECK_CARD_COUNT }, () => null));
   const [pickerSlotIndex, setPickerSlotIndex] = useState<number | null>(null);
+  const [pickerInspectActive, setPickerInspectActive] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [isSavingCreateDeck, setIsSavingCreateDeck] = useState(false);
   const [editingDeckId, setEditingDeckId] = useState<string | null>(null);
@@ -256,6 +257,9 @@ export function DeckBrowserScreen({
         && !isCreateOpen
         && !openedDeckRef
       ) return;
+      if (pickerInspectActive) {
+        return;
+      }
       event.preventDefault();
       event.stopPropagation();
       event.stopImmediatePropagation();
@@ -296,7 +300,13 @@ export function DeckBrowserScreen({
 
     window.addEventListener("keydown", onDeckEscape, { capture: true });
     return () => window.removeEventListener("keydown", onDeckEscape, { capture: true });
-  }, [deleteDeckRef, openedDeckRef, inspectedDeckCardId, isCreateOpen, jsonModalMode, pickerSlotIndex, requestCloseCreateEditor, showClearAllConfirm, showImportOverwriteConfirm, showUnsavedChangesConfirm]);
+  }, [deleteDeckRef, openedDeckRef, inspectedDeckCardId, isCreateOpen, jsonModalMode, pickerInspectActive, pickerSlotIndex, requestCloseCreateEditor, showClearAllConfirm, showImportOverwriteConfirm, showUnsavedChangesConfirm]);
+
+  useEffect(() => {
+    if (pickerSlotIndex === null) {
+      setPickerInspectActive(false);
+    }
+  }, [pickerSlotIndex]);
 
   useEffect(() => {
     if (!isCreateOpen) {
@@ -634,7 +644,11 @@ Created decks are saved to cloud storage for this test profile. Export still giv
         <DeckCardSelectorModal
           slotIndex={pickerSlotIndex}
           currentCardIds={createCardIds}
-          onClose={() => setPickerSlotIndex(null)}
+          onClose={() => {
+            setPickerInspectActive(false);
+            setPickerSlotIndex(null);
+          }}
+          onInspectActiveChange={setPickerInspectActive}
           onSelectCard={(cardId) => {
             setCreateCardIds((current) => {
               const next = [...current];
@@ -642,6 +656,7 @@ Created decks are saved to cloud storage for this test profile. Export still giv
               return next;
             });
             setCreateError(null);
+            setPickerInspectActive(false);
             setPickerSlotIndex(null);
           }}
         />

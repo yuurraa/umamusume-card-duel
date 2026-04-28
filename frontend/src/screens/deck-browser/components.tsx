@@ -79,6 +79,8 @@ import {
   deckNameInputStyle,
   deckSelectorCardTrayStyle,
   deckSelectorHoverDimStyle,
+  deckSelectorInspectActionBarStyle,
+  deckSelectorInspectActionButtonStyle,
   deckSelectorFilterPanelStyle,
   deckSelectorHoverPreviewImageStyle,
   deckSelectorHoverPreviewStyle,
@@ -120,10 +122,14 @@ const HOVER_PREVIEW_VIEWPORT_WIDTH_PADDING = 36;
 const HOVER_PREVIEW_GAP = 12;
 const HOVER_PREVIEW_VIEWPORT_PAD = 10;
 const HOVER_PREVIEW_HEIGHT_PER_WIDTH = 1040 / 745;
+const HOVER_PREVIEW_ACTION_HEIGHT = 56;
 
-function getHoverPreviewPosition(rect: DOMRect): { left: number; top: number } {
-  const popupWidth = Math.min(HOVER_PREVIEW_MAX_WIDTH, Math.max(120, window.innerWidth - HOVER_PREVIEW_VIEWPORT_WIDTH_PADDING));
-  const popupHeight = popupWidth * HOVER_PREVIEW_HEIGHT_PER_WIDTH;
+function getHoverPreviewPosition(rect: DOMRect, extraHeight = 0): { left: number; top: number; width: number } {
+  const viewportWidth = Math.max(120, window.innerWidth - HOVER_PREVIEW_VIEWPORT_WIDTH_PADDING);
+  const viewportHeight = Math.max(120, window.innerHeight - (HOVER_PREVIEW_VIEWPORT_PAD * 2) - extraHeight);
+  const heightConstrainedWidth = viewportHeight / HOVER_PREVIEW_HEIGHT_PER_WIDTH;
+  const popupWidth = Math.min(HOVER_PREVIEW_MAX_WIDTH, viewportWidth, Math.max(120, heightConstrainedWidth));
+  const popupHeight = (popupWidth * HOVER_PREVIEW_HEIGHT_PER_WIDTH) + extraHeight;
   const rightCandidate = rect.right + HOVER_PREVIEW_GAP;
   const leftCandidate = rect.left - HOVER_PREVIEW_GAP - popupWidth;
   const prefersRight = rightCandidate + popupWidth + HOVER_PREVIEW_VIEWPORT_PAD <= window.innerWidth;
@@ -137,7 +143,7 @@ function getHoverPreviewPosition(rect: DOMRect): { left: number; top: number } {
   const top = minCenterY <= maxCenterY
     ? Math.max(minCenterY, Math.min(maxCenterY, preferredCenterY))
     : window.innerHeight / 2;
-  return { left, top };
+  return { left, top, width: popupWidth };
 }
 
 export function DeckBrowserTile({ deck, equipped, onOpen, label, isDraft = false }: { deck: DeckEntity; equipped: boolean; onOpen: () => void; label?: string; isDraft?: boolean }) {
@@ -226,7 +232,7 @@ export function DeckListModal({
   const [hoverPreviewImage, setHoverPreviewImage] = useState<string | null>(null);
   const [hoverPreviewCard, setHoverPreviewCard] = useState<Card | null>(null);
   const [hoverPreviewKey, setHoverPreviewKey] = useState<string | null>(null);
-  const [hoverPreviewPosition, setHoverPreviewPosition] = useState<{ left: number; top: number } | null>(null);
+  const [hoverPreviewPosition, setHoverPreviewPosition] = useState<{ left: number; top: number; width: number } | null>(null);
   const hoverPreviewTimeoutRef = useRef<number | null>(null);
   const shownCardIds = displayCardIds ?? deck.cardIds;
   const resolvedCountText = cardCountText ?? `${deck.cardIds.length} cards`;
@@ -249,11 +255,11 @@ export function DeckListModal({
     clearHoverPreviewTimer();
     hoverPreviewTimeoutRef.current = window.setTimeout(() => {
       const rect = anchorEl.getBoundingClientRect();
-      const { left, top } = getHoverPreviewPosition(rect);
+      const { left, top, width } = getHoverPreviewPosition(rect);
       setHoverPreviewImage(image);
       setHoverPreviewCard(card);
       setHoverPreviewKey(key);
-      setHoverPreviewPosition({ left, top });
+      setHoverPreviewPosition({ left, top, width });
       hoverPreviewTimeoutRef.current = null;
     }, 500);
   };
@@ -336,6 +342,7 @@ export function DeckListModal({
             hoverPreviewPosition?.left ?? 0,
             hoverPreviewPosition?.top ?? 0,
             hoverPreviewActive,
+            hoverPreviewPosition?.width,
           )}
           aria-hidden="true"
         >
@@ -437,7 +444,7 @@ export function CreateDeckModal({
   const [hoverPreviewImage, setHoverPreviewImage] = useState<string | null>(null);
   const [hoverPreviewCard, setHoverPreviewCard] = useState<Card | null>(null);
   const [hoverPreviewKey, setHoverPreviewKey] = useState<string | null>(null);
-  const [hoverPreviewPosition, setHoverPreviewPosition] = useState<{ left: number; top: number } | null>(null);
+  const [hoverPreviewPosition, setHoverPreviewPosition] = useState<{ left: number; top: number; width: number } | null>(null);
   const hoverPreviewTimeoutRef = useRef<number | null>(null);
   const filledCount = cardIds.filter((cardId) => Boolean(cardId)).length;
 
@@ -452,11 +459,11 @@ export function CreateDeckModal({
     clearHoverPreviewTimer();
     hoverPreviewTimeoutRef.current = window.setTimeout(() => {
       const rect = anchorEl.getBoundingClientRect();
-      const { left, top } = getHoverPreviewPosition(rect);
+      const { left, top, width } = getHoverPreviewPosition(rect);
       setHoverPreviewImage(image);
       setHoverPreviewCard(card);
       setHoverPreviewKey(key);
-      setHoverPreviewPosition({ left, top });
+      setHoverPreviewPosition({ left, top, width });
       hoverPreviewTimeoutRef.current = null;
     }, 500);
   };
@@ -594,6 +601,7 @@ export function CreateDeckModal({
             hoverPreviewPosition?.left ?? 0,
             hoverPreviewPosition?.top ?? 0,
             hoverPreviewActive,
+            hoverPreviewPosition?.width,
           )}
           aria-hidden="true"
         >
@@ -611,20 +619,18 @@ export function DeckCardSelectorModal({
   currentCardIds,
   onClose,
   onSelectCard,
+  onInspectActiveChange,
 }: {
   slotIndex: number;
   currentCardIds: Array<string | null>;
   onClose: () => void;
   onSelectCard: (cardId: string) => void;
+  onInspectActiveChange?: (active: boolean) => void;
 }) {
   const [ownedCardCounts, setOwnedCardCounts] = useState<Record<string, number> | null>(null);
   const [query, setQuery] = useState("");
-  const [hoverPreviewCard, setHoverPreviewCard] = useState<Card | null>(null);
-  const [hoverPreviewCardId, setHoverPreviewCardId] = useState<string | null>(null);
-  const [hoverPreviewPosition, setHoverPreviewPosition] = useState<{ left: number; top: number } | null>(null);
-  const [hoverPreviewVisible, setHoverPreviewVisible] = useState(false);
-  const hoverPreviewTimeoutRef = useRef<number | null>(null);
-  const hoverPreviewHideTimeoutRef = useRef<number | null>(null);
+  const [inspectCard, setInspectCard] = useState<Card | null>(null);
+  const [inspectPosition, setInspectPosition] = useState<{ left: number; top: number; width: number } | null>(null);
   const [categoryFiltersSelected, setCategoryFiltersSelected] = useState<Set<CategoryFilter>>(() => new Set());
   const [energyFiltersSelected, setEnergyFiltersSelected] = useState<Set<EnergyType>>(() => new Set());
   const [stageFiltersSelected, setStageFiltersSelected] = useState<Set<StageFilter>>(() => new Set());
@@ -690,55 +696,52 @@ export function DeckCardSelectorModal({
     setRarityFiltersSelected(new Set());
   };
 
-  const clearHoverPreviewTimer = () => {
-    if (hoverPreviewTimeoutRef.current !== null) {
-      window.clearTimeout(hoverPreviewTimeoutRef.current);
-      hoverPreviewTimeoutRef.current = null;
-    }
+  const inspectCardFromTile = (card: Card, anchorEl: HTMLButtonElement) => {
+    const rect = anchorEl.getBoundingClientRect();
+    const { left, top, width } = getHoverPreviewPosition(rect, HOVER_PREVIEW_ACTION_HEIGHT);
+    setInspectCard(card);
+    setInspectPosition({ left, top, width });
   };
 
-  const clearHoverPreviewHideTimer = () => {
-    if (hoverPreviewHideTimeoutRef.current !== null) {
-      window.clearTimeout(hoverPreviewHideTimeoutRef.current);
-      hoverPreviewHideTimeoutRef.current = null;
-    }
+  const closeInspectCard = () => {
+    setInspectCard(null);
+    setInspectPosition(null);
   };
 
-  const scheduleHoverPreview = (card: Card, anchorEl: HTMLButtonElement) => {
-    clearHoverPreviewTimer();
-    clearHoverPreviewHideTimer();
-    hoverPreviewTimeoutRef.current = window.setTimeout(() => {
-      const rect = anchorEl.getBoundingClientRect();
-      const { left, top } = getHoverPreviewPosition(rect);
-      setHoverPreviewCard(card);
-      setHoverPreviewCardId(card.id);
-      setHoverPreviewPosition({ left, top });
-      setHoverPreviewVisible(true);
-      hoverPreviewTimeoutRef.current = null;
-    }, 500);
-  };
+  const inspectActive = Boolean(inspectCard && inspectPosition);
+  const inspectedCopyKey = inspectCard ? toDeckCountKey(inspectCard.id) : null;
+  const inspectedCopyCount = inspectedCopyKey ? cardCounts.get(inspectedCopyKey) ?? 0 : 0;
+  const inspectedOwnedCount = inspectCard ? getOwnedCount(inspectCard.id) : 0;
+  const inspectedCanEquip = Boolean(inspectCard && inspectedOwnedCount > 0 && inspectedCopyCount < 2);
 
-  const hideHoverPreview = () => {
-    clearHoverPreviewTimer();
-    setHoverPreviewVisible(false);
-    setHoverPreviewCardId(null);
-    clearHoverPreviewHideTimer();
-    hoverPreviewHideTimeoutRef.current = window.setTimeout(() => {
-      setHoverPreviewCard(null);
-      setHoverPreviewPosition(null);
-      hoverPreviewHideTimeoutRef.current = null;
-    }, 160);
-  };
+  useEffect(() => {
+    onInspectActiveChange?.(inspectActive);
+    return () => onInspectActiveChange?.(false);
+  }, [inspectActive, onInspectActiveChange]);
 
-  useEffect(() => () => {
-    clearHoverPreviewTimer();
-    clearHoverPreviewHideTimer();
-  }, []);
-
-  const hoverPreviewActive = hoverPreviewVisible && Boolean(hoverPreviewCard && hoverPreviewPosition);
+  useEffect(() => {
+    if (!inspectActive) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      event.stopPropagation();
+      closeInspectCard();
+    };
+    window.addEventListener("keydown", onKeyDown, { capture: true });
+    return () => window.removeEventListener("keydown", onKeyDown, { capture: true });
+  }, [inspectActive]);
 
   return (
-    <div style={deckModalBackdropStyle} onClick={onClose}>
+    <div
+      style={deckModalBackdropStyle}
+      onClick={() => {
+        if (inspectActive) {
+          closeInspectCard();
+          return;
+        }
+        onClose();
+      }}
+    >
       <section style={deckSelectorModalStyle} onClick={(event) => event.stopPropagation()}>
         <header style={deckModalHeaderStyle}>
           <div>
@@ -903,17 +906,8 @@ export function DeckCardSelectorModal({
                     ownedCount={ownedCount}
                     unowned={!isOwned}
                     disabled={isDisabled}
-                    onInspect={() => {
-                      if (isDisabled) return;
-                      hideHoverPreview();
-                      onSelectCard(card.id);
-                    }}
-                    onHoverStart={(anchorEl) => {
-                      if (isDisabled) return;
-                      scheduleHoverPreview(card, anchorEl);
-                    }}
-                    onHoverEnd={hideHoverPreview}
-                    previewActive={hoverPreviewCardId === card.id}
+                    onInspect={(anchorEl) => inspectCardFromTile(card, anchorEl)}
+                    previewActive={inspectCard?.id === card.id}
                   />
                 );
               })}
@@ -922,24 +916,42 @@ export function DeckCardSelectorModal({
             <div style={emptyStateStyle}>No cards match those filters.</div>
           )}
         </section>
-        <div style={deckSelectorHoverDimStyle(hoverPreviewActive)} aria-hidden="true" />
+        <div style={deckSelectorHoverDimStyle(inspectActive)} onClick={closeInspectCard} aria-hidden="true" />
         <aside
           style={deckSelectorHoverPreviewStyle(
-            hoverPreviewPosition?.left ?? 0,
-            hoverPreviewPosition?.top ?? 0,
-            hoverPreviewActive,
+            inspectPosition?.left ?? 0,
+            inspectPosition?.top ?? 0,
+            inspectActive,
+            inspectPosition?.width,
           )}
-          aria-hidden="true"
+          aria-hidden={!inspectActive}
         >
-          {hoverPreviewCard && (
-            <HoloCardImage
-              card={hoverPreviewCard}
-              src={getCardImage(hoverPreviewCard)}
-              alt=""
-              imageStyle={deckSelectorHoverPreviewImageStyle}
-              draggable={false}
-              radiusOverride={CARD_INSPECT_IMAGE_RADIUS}
-            />
+          {inspectCard && (
+            <>
+              <HoloCardImage
+                card={inspectCard}
+                src={getCardImage(inspectCard)}
+                alt=""
+                imageStyle={deckSelectorHoverPreviewImageStyle}
+                draggable={false}
+                radiusOverride={CARD_INSPECT_IMAGE_RADIUS}
+              />
+              <div style={deckSelectorInspectActionBarStyle}>
+                <NeutralButton
+                  style={deckSelectorInspectActionButtonStyle}
+                  disabled={!inspectedCanEquip}
+                  onClick={() => {
+                    if (!inspectedCanEquip || !inspectCard) return;
+                    onSelectCard(inspectCard.id);
+                  }}
+                >
+                  Equip
+                </NeutralButton>
+                <NeutralButton style={deckSelectorInspectActionButtonStyle} onClick={closeInspectCard}>
+                  Back
+                </NeutralButton>
+              </div>
+            </>
           )}
         </aside>
       </section>
@@ -961,62 +973,47 @@ function CardTile({
   unowned = false,
   disabled = false,
   onInspect,
-  onHoverStart,
-  onHoverEnd,
   previewActive = false,
 }: {
   card: Card;
   ownedCount: number;
   unowned?: boolean;
   disabled?: boolean;
-  onInspect: () => void;
-  onHoverStart?: (anchorEl: HTMLButtonElement) => void;
-  onHoverEnd?: () => void;
+  onInspect: (anchorEl: HTMLButtonElement) => void;
   previewActive?: boolean;
 }) {
   const [hovered, setHovered] = useState(false);
   const image = getCardImage(card);
   const name = formatCardName(card);
   const rarity = getCardRarity(card);
-  const hasHolo = rarity === "rare" || rarity === "doubleRare";
   const owned = ownedCount > 0;
   const ownershipLabel = owned ? `${ownedCount}x Owned` : "Unowned";
 
   return (
     <button
       type="button"
-      disabled={disabled}
+      aria-disabled={disabled}
       style={{
         ...cardTileStyle(hovered, disabled, unowned),
         ...(previewActive ? { position: "relative", zIndex: 10 } : {}),
       }}
-      onClick={onInspect}
-      onMouseEnter={(event) => {
+      onClick={(event) => onInspect(event.currentTarget)}
+      onMouseEnter={() => {
         setHovered(true);
-        onHoverStart?.(event.currentTarget);
       }}
       onMouseLeave={() => {
         setHovered(false);
-        onHoverEnd?.();
       }}
-      onFocus={(event) => {
+      onFocus={() => {
         setHovered(true);
-        onHoverStart?.(event.currentTarget);
       }}
       onBlur={() => {
         setHovered(false);
-        onHoverEnd?.();
       }}
-      aria-label={`Use ${name}`}
+      aria-label={`Inspect ${name}`}
       title={unowned ? `You do not own ${name}` : disabled ? `Max 2 copies per deck (${name})` : undefined}
     >
-      <img style={selectorCardImageStyle(owned)} src={image} alt="" draggable={false} />
-      {hasHolo && (
-        <>
-          <span style={selectorHoloSparkleOverlayStyle(rarity)} aria-hidden="true" />
-          <span style={selectorHoloSheenOverlayStyle(rarity)} aria-hidden="true" />
-        </>
-      )}
+      <HoloCardImage card={card} src={image} alt="" imageStyle={selectorCardImageStyle(owned)} draggable={false} />
       <span style={rarityBadgeStyle(rarity)}>{CARD_RARITY_SHORT_LABELS[rarity]}</span>
       <span style={selectorOwnershipBadgeStyle(owned)}>{ownershipLabel}</span>
     </button>
@@ -1028,43 +1025,6 @@ function selectorCardImageStyle(owned: boolean): React.CSSProperties {
     ...cardImageStyle,
     filter: owned ? "none" : "grayscale(0.55) saturate(0.45) brightness(0.92)",
     opacity: owned ? 1 : 0.86,
-  };
-}
-
-function selectorHoloSparkleOverlayStyle(rarity: ReturnType<typeof getCardRarity>): React.CSSProperties {
-  const isUltraRare = rarity === "doubleRare";
-
-  return {
-    position: "absolute",
-    inset: 0,
-    borderRadius: radius.md,
-    pointerEvents: "none",
-    background: isUltraRare
-      ? "radial-gradient(circle at 16% 18%, rgba(255, 255, 255, 0.72) 0 0.8px, rgba(255, 231, 122, 0.24) 1.4px, transparent 3px), radial-gradient(circle at 74% 24%, rgba(142, 235, 255, 0.58) 0 0.9px, rgba(255, 115, 210, 0.2) 1.5px, transparent 3.2px), radial-gradient(circle at 38% 72%, rgba(255, 255, 255, 0.62) 0 0.8px, rgba(112, 255, 199, 0.2) 1.4px, transparent 3px), radial-gradient(circle at 86% 82%, rgba(255, 166, 229, 0.54) 0 0.8px, transparent 3px), radial-gradient(circle at 28% 48%, rgba(255, 255, 180, 0.5) 0 0.7px, transparent 2.8px), radial-gradient(circle at 62% 58%, rgba(139, 255, 226, 0.42) 0 0.7px, transparent 2.8px), radial-gradient(circle at 48% 30%, rgba(255, 150, 235, 0.44) 0 0.7px, transparent 2.8px)"
-      : "radial-gradient(circle at 18% 22%, rgba(255, 255, 255, 0.52) 0 0.8px, rgba(202, 232, 247, 0.18) 1.4px, transparent 3px), radial-gradient(circle at 72% 66%, rgba(255, 255, 255, 0.42) 0 0.8px, rgba(202, 232, 247, 0.14) 1.4px, transparent 3px), radial-gradient(circle at 42% 38%, rgba(255, 255, 255, 0.36) 0 0.7px, transparent 2.8px)",
-    backgroundRepeat: "no-repeat",
-    mixBlendMode: "screen",
-    animation: isUltraRare ? "card-holo-sparkle-pulse 4.8s ease-in-out infinite" : "card-holo-sparkle-pulse 6s ease-in-out infinite",
-  };
-}
-
-function selectorHoloSheenOverlayStyle(rarity: ReturnType<typeof getCardRarity>): React.CSSProperties {
-  const isUltraRare = rarity === "doubleRare";
-
-  return {
-    position: "absolute",
-    top: "-70%",
-    bottom: "-70%",
-    left: "-82%",
-    width: "170%",
-    pointerEvents: "none",
-    borderRadius: "44%",
-    background: isUltraRare
-      ? "linear-gradient(90deg, black 0%, black 18%, hsl(314, 45%, 28%) 34%, hsl(52, 72%, 72%) 50%, hsl(188, 58%, 66%) 62%, hsl(270, 48%, 36%) 76%, black 92%, black 100%)"
-      : "linear-gradient(90deg, black 0%, black 24%, hsl(210, 14%, 26%) 40%, hsl(198, 70%, 78%) 54%, hsl(245, 34%, 68%) 68%, black 86%, black 100%)",
-    mixBlendMode: "color-dodge",
-    opacity: isUltraRare ? 0.38 : 0.24,
-    animation: isUltraRare ? "card-holo-shimmer-contained 6s linear infinite" : "card-holo-shimmer-contained 8s linear infinite",
   };
 }
 

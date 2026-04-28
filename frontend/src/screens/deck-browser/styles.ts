@@ -599,7 +599,7 @@ export function deckSelectorHoverDimStyle(active: boolean): CSSProperties {
     position: "absolute",
     inset: 0,
     zIndex: 40,
-    pointerEvents: "none",
+    pointerEvents: active ? "auto" : "none",
     borderRadius: radius.md,
     background: "rgba(17, 24, 39, 0.34)",
     opacity: active ? 1 : 0,
@@ -825,7 +825,7 @@ export function cardTileStyle(hovered: boolean, disabled: boolean, unowned = fal
     borderRadius: radius.md,
     background: "transparent",
     padding: 0,
-    cursor: disabled ? "not-allowed" : "pointer",
+    cursor: "pointer",
     opacity: disabled ? disabledOpacity : 1,
     filter: disabled
       ? disabledFilter
@@ -888,14 +888,14 @@ export function rarityBadgeStyle(rarity: "common" | "uncommon" | "rare" | "doubl
   };
 }
 
-export function deckSelectorHoverPreviewStyle(left: number, top: number, active: boolean): CSSProperties {
+export function deckSelectorHoverPreviewStyle(left: number, top: number, active: boolean, width = 440): CSSProperties {
   return {
     position: "fixed",
     left,
     top,
     transform: "translateY(-50%)",
-    width: "min(440px, calc(100vw - 36px))",
-    pointerEvents: "none",
+    width,
+    pointerEvents: active ? "auto" : "none",
     zIndex: 50,
     borderRadius: 0,
     background: "transparent",
@@ -912,6 +912,19 @@ export const deckSelectorHoverPreviewImageStyle: CSSProperties = {
   borderRadius: radius.md,
   display: "block",
   filter: "drop-shadow(0 24px 64px rgba(17, 24, 39, 0.34))",
+};
+
+export const deckSelectorInspectActionBarStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "center",
+  gap: 10,
+  marginTop: 10,
+};
+
+export const deckSelectorInspectActionButtonStyle: CSSProperties = {
+  ...overlayButtonStyle,
+  minWidth: 96,
+  height: 42,
 };
 
 export const emptyStateStyle: CSSProperties = {

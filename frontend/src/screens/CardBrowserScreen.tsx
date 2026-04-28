@@ -77,10 +77,14 @@ const HOVER_PREVIEW_VIEWPORT_WIDTH_PADDING = 36;
 const HOVER_PREVIEW_GAP = 12;
 const HOVER_PREVIEW_VIEWPORT_PAD = 10;
 const HOVER_PREVIEW_HEIGHT_PER_WIDTH = 1040 / 745;
+const HOVER_PREVIEW_ACTION_HEIGHT = 56;
 
-function getHoverPreviewPosition(rect: DOMRect): { left: number; top: number } {
-  const popupWidth = Math.min(HOVER_PREVIEW_MAX_WIDTH, Math.max(120, window.innerWidth - HOVER_PREVIEW_VIEWPORT_WIDTH_PADDING));
-  const popupHeight = popupWidth * HOVER_PREVIEW_HEIGHT_PER_WIDTH;
+function getHoverPreviewPosition(rect: DOMRect, extraHeight = 0): { left: number; top: number; width: number } {
+  const viewportWidth = Math.max(120, window.innerWidth - HOVER_PREVIEW_VIEWPORT_WIDTH_PADDING);
+  const viewportHeight = Math.max(120, window.innerHeight - (HOVER_PREVIEW_VIEWPORT_PAD * 2) - extraHeight);
+  const heightConstrainedWidth = viewportHeight / HOVER_PREVIEW_HEIGHT_PER_WIDTH;
+  const popupWidth = Math.min(HOVER_PREVIEW_MAX_WIDTH, viewportWidth, Math.max(120, heightConstrainedWidth));
+  const popupHeight = (popupWidth * HOVER_PREVIEW_HEIGHT_PER_WIDTH) + extraHeight;
   const rightCandidate = rect.right + HOVER_PREVIEW_GAP;
   const leftCandidate = rect.left - HOVER_PREVIEW_GAP - popupWidth;
   const prefersRight = rightCandidate + popupWidth + HOVER_PREVIEW_VIEWPORT_PAD <= window.innerWidth;
@@ -94,7 +98,7 @@ function getHoverPreviewPosition(rect: DOMRect): { left: number; top: number } {
   const top = minCenterY <= maxCenterY
     ? Math.max(minCenterY, Math.min(maxCenterY, preferredCenterY))
     : window.innerHeight / 2;
-  return { left, top };
+  return { left, top, width: popupWidth };
 }
 
 export function CardBrowserScreen({ onBack }: { onBack: () => void }) {
@@ -108,10 +112,8 @@ export function CardBrowserScreen({ onBack }: { onBack: () => void }) {
   const [rarityFiltersSelected, setRarityFiltersSelected] = useState<Set<RarityFilter>>(() => new Set());
   const [sortOption, setSortOption] = useState<CardSortOption>(DEFAULT_CARD_SORT);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [hoverPreviewCard, setHoverPreviewCard] = useState<Card | null>(null);
-  const [hoverPreviewCardId, setHoverPreviewCardId] = useState<string | null>(null);
-  const [hoverPreviewPosition, setHoverPreviewPosition] = useState<{ left: number; top: number } | null>(null);
-  const hoverPreviewTimeoutRef = useRef<number | null>(null);
+  const [inspectCard, setInspectCard] = useState<Card | null>(null);
+  const [inspectPosition, setInspectPosition] = useState<{ left: number; top: number; width: number } | null>(null);
   const filterMenuWrapRef = useRef<HTMLDivElement | null>(null);
   const activeFilterCount = categoryFiltersSelected.size + energyFiltersSelected.size + stageFiltersSelected.size + artFiltersSelected.size + ownershipFiltersSelected.size + rarityFiltersSelected.size;
 
@@ -170,38 +172,28 @@ export function CardBrowserScreen({ onBack }: { onBack: () => void }) {
     setRarityFiltersSelected(new Set());
   };
 
-  const clearHoverPreviewTimer = () => {
-    if (hoverPreviewTimeoutRef.current !== null) {
-      window.clearTimeout(hoverPreviewTimeoutRef.current);
-      hoverPreviewTimeoutRef.current = null;
-    }
+  const inspectCardFromTile = (card: Card, anchorEl: HTMLButtonElement) => {
+    const rect = anchorEl.getBoundingClientRect();
+    const { left, top, width } = getHoverPreviewPosition(rect, HOVER_PREVIEW_ACTION_HEIGHT);
+    setInspectCard(card);
+    setInspectPosition({ left, top, width });
   };
 
-  const scheduleHoverPreview = (card: Card, anchorEl: HTMLButtonElement) => {
-    clearHoverPreviewTimer();
-    hoverPreviewTimeoutRef.current = window.setTimeout(() => {
-      const rect = anchorEl.getBoundingClientRect();
-      const { left, top } = getHoverPreviewPosition(rect);
-      setHoverPreviewCard(card);
-      setHoverPreviewCardId(card.id);
-      setHoverPreviewPosition({ left, top });
-      hoverPreviewTimeoutRef.current = null;
-    }, 500);
+  const closeInspectCard = () => {
+    setInspectCard(null);
+    setInspectPosition(null);
   };
 
-  const hideHoverPreview = () => {
-    clearHoverPreviewTimer();
-    setHoverPreviewCard(null);
-    setHoverPreviewCardId(null);
-  };
-
-  useEffect(() => () => clearHoverPreviewTimer(), []);
-
-  const hoverPreviewActive = Boolean(hoverPreviewCard && hoverPreviewPosition);
+  const inspectActive = Boolean(inspectCard && inspectPosition);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
+      if (inspectActive) {
+        event.preventDefault();
+        closeInspectCard();
+        return;
+      }
       if (filtersOpen) {
         event.preventDefault();
         setFiltersOpen(false);
@@ -213,7 +205,7 @@ export function CardBrowserScreen({ onBack }: { onBack: () => void }) {
 
     window.addEventListener("keydown", onKeyDown, { capture: true });
     return () => window.removeEventListener("keydown", onKeyDown, { capture: true });
-  }, [filtersOpen, onBack]);
+  }, [filtersOpen, inspectActive, onBack]);
 
   useEffect(() => {
     const onPointerDown = (event: PointerEvent) => {
@@ -396,9 +388,8 @@ export function CardBrowserScreen({ onBack }: { onBack: () => void }) {
                 key={card.id}
                 card={card}
                 ownedCount={getOwnedCount(card.id)}
-                onHoverStart={(anchorEl) => scheduleHoverPreview(card, anchorEl)}
-                onHoverEnd={hideHoverPreview}
-                previewActive={hoverPreviewCardId === card.id}
+                onInspect={(anchorEl) => inspectCardFromTile(card, anchorEl)}
+                previewActive={inspectCard?.id === card.id}
               />
             ))}
           </div>
@@ -406,17 +397,23 @@ export function CardBrowserScreen({ onBack }: { onBack: () => void }) {
           <div style={emptyStateStyle}>No cards match those filters.</div>
         )}
       </section>
-      <div style={hoverDimStyle(hoverPreviewActive)} aria-hidden="true" />
+      <div style={hoverDimStyle(inspectActive)} onClick={closeInspectCard} aria-hidden="true" />
       <aside
         style={hoverPreviewStyle(
-          hoverPreviewPosition?.left ?? 0,
-          hoverPreviewPosition?.top ?? 0,
-          hoverPreviewActive,
+          inspectPosition?.left ?? 0,
+          inspectPosition?.top ?? 0,
+          inspectActive,
+          inspectPosition?.width,
         )}
-        aria-hidden="true"
+        aria-hidden={!inspectActive}
       >
-        {hoverPreviewCard && (
-          <HoloCardImage card={hoverPreviewCard} src={getCardImage(hoverPreviewCard)} alt="" imageStyle={hoverPreviewImageStyle} draggable={false} radiusOverride={CARD_INSPECT_IMAGE_RADIUS} />
+        {inspectCard && (
+          <>
+            <HoloCardImage card={inspectCard} src={getCardImage(inspectCard)} alt="" imageStyle={hoverPreviewImageStyle} draggable={false} radiusOverride={CARD_INSPECT_IMAGE_RADIUS} />
+            <div style={inspectActionBarStyle}>
+              <NeutralButton style={inspectActionButtonStyle} onClick={closeInspectCard}>Back</NeutralButton>
+            </div>
+          </>
         )}
       </aside>
 
@@ -435,20 +432,17 @@ function FilterChip({ active, children, onClick }: { active: boolean; children: 
 function CardTile({
   card,
   ownedCount,
-  onHoverStart,
-  onHoverEnd,
+  onInspect,
   previewActive = false,
 }: {
   card: Card;
   ownedCount: number;
-  onHoverStart?: (anchorEl: HTMLButtonElement) => void;
-  onHoverEnd?: () => void;
+  onInspect: (anchorEl: HTMLButtonElement) => void;
   previewActive?: boolean;
 }) {
   const [hovered, setHovered] = useState(false);
   const image = getCardImage(card);
   const rarity = getCardRarity(card);
-  const hasHolo = rarity === "rare" || rarity === "doubleRare";
   const owned = ownedCount > 0;
   const ownershipLabel = owned ? `${ownedCount}x Owned` : "Unowned";
 
@@ -457,34 +451,24 @@ function CardTile({
       type="button"
       style={{
         ...cardTileStyle(hovered),
-        cursor: "default",
         ...(previewActive ? { position: "relative", zIndex: 10 } : {}),
       }}
+      onClick={(event) => onInspect(event.currentTarget)}
       onMouseEnter={(event) => {
         setHovered(true);
-        onHoverStart?.(event.currentTarget);
       }}
       onMouseLeave={() => {
         setHovered(false);
-        onHoverEnd?.();
       }}
-      onFocus={(event) => {
+      onFocus={() => {
         setHovered(true);
-        onHoverStart?.(event.currentTarget);
       }}
       onBlur={() => {
         setHovered(false);
-        onHoverEnd?.();
       }}
-      aria-label={formatCardName(card)}
+      aria-label={`Inspect ${formatCardName(card)}`}
     >
-      <img style={cardImageStyle(owned)} src={image} alt="" draggable={false} />
-      {hasHolo && (
-        <>
-          <span style={holoSparkleOverlayStyle(rarity)} aria-hidden="true" />
-          <span style={holoSheenOverlayStyle(rarity)} aria-hidden="true" />
-        </>
-      )}
+      <HoloCardImage card={card} src={image} alt="" imageStyle={cardImageStyle(owned)} draggable={false} />
       <span style={rarityBadgeStyle(rarity)}>{CARD_RARITY_SHORT_LABELS[rarity]}</span>
       <span style={ownershipBadgeStyle(owned)}>{ownershipLabel}</span>
     </button>
@@ -947,21 +931,21 @@ function hoverDimStyle(active: boolean): CSSProperties {
     position: "fixed",
     inset: 0,
     zIndex: 40,
-    pointerEvents: "none",
+    pointerEvents: active ? "auto" : "none",
     background: "rgba(17, 24, 39, 0.34)",
     opacity: active ? 1 : 0,
     transition: `opacity ${transitions.base}`,
   };
 }
 
-function hoverPreviewStyle(left: number, top: number, active: boolean): CSSProperties {
+function hoverPreviewStyle(left: number, top: number, active: boolean, width = HOVER_PREVIEW_MAX_WIDTH): CSSProperties {
   return {
     position: "fixed",
     left,
     top,
     transform: "translateY(-50%)",
-    width: "min(440px, calc(100vw - 36px))",
-    pointerEvents: "none",
+    width,
+    pointerEvents: active ? "auto" : "none",
     zIndex: 50,
     borderRadius: 0,
     background: "transparent",
@@ -980,42 +964,17 @@ const hoverPreviewImageStyle: CSSProperties = {
   filter: "drop-shadow(0 24px 64px rgba(17, 24, 39, 0.34))",
 };
 
-function holoSparkleOverlayStyle(rarity: ReturnType<typeof getCardRarity>): CSSProperties {
-  const isUltraRare = rarity === "doubleRare";
+const inspectActionBarStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "center",
+  gap: 10,
+  marginTop: 10,
+};
 
-  return {
-    position: "absolute",
-    inset: 0,
-    borderRadius: radius.md,
-    pointerEvents: "none",
-    background: isUltraRare
-      ? "radial-gradient(circle at 16% 18%, rgba(255, 255, 255, 0.72) 0 0.8px, rgba(255, 231, 122, 0.24) 1.4px, transparent 3px), radial-gradient(circle at 74% 24%, rgba(142, 235, 255, 0.58) 0 0.9px, rgba(255, 115, 210, 0.2) 1.5px, transparent 3.2px), radial-gradient(circle at 38% 72%, rgba(255, 255, 255, 0.62) 0 0.8px, rgba(112, 255, 199, 0.2) 1.4px, transparent 3px), radial-gradient(circle at 86% 82%, rgba(255, 166, 229, 0.54) 0 0.8px, transparent 3px), radial-gradient(circle at 28% 48%, rgba(255, 255, 180, 0.5) 0 0.7px, transparent 2.8px), radial-gradient(circle at 62% 58%, rgba(139, 255, 226, 0.42) 0 0.7px, transparent 2.8px), radial-gradient(circle at 48% 30%, rgba(255, 150, 235, 0.44) 0 0.7px, transparent 2.8px)"
-      : "radial-gradient(circle at 18% 22%, rgba(255, 255, 255, 0.52) 0 0.8px, rgba(202, 232, 247, 0.18) 1.4px, transparent 3px), radial-gradient(circle at 72% 66%, rgba(255, 255, 255, 0.42) 0 0.8px, rgba(202, 232, 247, 0.14) 1.4px, transparent 3px), radial-gradient(circle at 42% 38%, rgba(255, 255, 255, 0.36) 0 0.7px, transparent 2.8px)",
-    backgroundRepeat: "no-repeat",
-    mixBlendMode: "screen",
-    animation: isUltraRare ? "card-holo-sparkle-pulse 4.8s ease-in-out infinite" : "card-holo-sparkle-pulse 6s ease-in-out infinite",
-  };
-}
-
-function holoSheenOverlayStyle(rarity: ReturnType<typeof getCardRarity>): CSSProperties {
-  const isUltraRare = rarity === "doubleRare";
-
-  return {
-    position: "absolute",
-    top: "-70%",
-    bottom: "-70%",
-    left: "-82%",
-    width: "170%",
-    pointerEvents: "none",
-    borderRadius: "44%",
-    background: isUltraRare
-      ? "linear-gradient(90deg, black 0%, black 18%, hsl(314, 45%, 28%) 34%, hsl(52, 72%, 72%) 50%, hsl(188, 58%, 66%) 62%, hsl(270, 48%, 36%) 76%, black 92%, black 100%)"
-      : "linear-gradient(90deg, black 0%, black 24%, hsl(210, 14%, 26%) 40%, hsl(198, 70%, 78%) 54%, hsl(245, 34%, 68%) 68%, black 86%, black 100%)",
-    mixBlendMode: "color-dodge",
-    opacity: isUltraRare ? 0.38 : 0.24,
-    animation: isUltraRare ? "card-holo-shimmer-contained 6s linear infinite" : "card-holo-shimmer-contained 8s linear infinite",
-  };
-}
+const inspectActionButtonStyle: CSSProperties = {
+  minWidth: 96,
+  height: 42,
+};
 
 const emptyStateStyle: CSSProperties = {
   padding: 18,
