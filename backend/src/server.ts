@@ -34,6 +34,8 @@ const cloudFallbackDir = path.join(repoRoot, "local-data", "cloud-fallback");
 const frontendDistDir = path.join(repoRoot, "frontend", "dist");
 const PVP_SESSION_TTL_MS = 15 * 60 * 1000;
 const PVP_SIGNAL_MAX_LENGTH = 64_000;
+const PVP_CANDIDATE_MAX_COUNT = 256;
+const PVP_CANDIDATE_MAX_LENGTH = 1024;
 const localDeckApiEnabled = process.env.ENABLE_LOCAL_DECK_API === "true";
 const cloudDevUnlocksEnabled = readCloudDevUnlocksEnabled();
 const pvpSessions = new Map<string, PvpSession>();
@@ -80,7 +82,7 @@ app.post("/api/pvp/sessions", (request, response) => {
   const code = createPvpCode();
   const now = Date.now();
   const expiresAt = new Date(now + PVP_SESSION_TTL_MS).toISOString();
-  pvpSessions.set(code, { code, offer, answer: null, createdAt: now, expiresAt });
+  pvpSessions.set(code, { code, offer, answer: null, createdAt: now, expiresAt, hostCandidates: [], guestCandidates: [] });
   response.status(201).json({ code, expiresAt });
 });
 
@@ -130,6 +132,46 @@ app.get("/api/pvp/sessions/:code/answer", (request, response) => {
     return;
   }
   response.json({ answer: session.answer, expiresAt: session.expiresAt });
+});
+
+app.post("/api/pvp/sessions/:code/candidates", (request, response) => {
+  pruneExpiredPvpSessions();
+  const session = readPvpSession(request.params.code);
+  if (!session) {
+    response.status(404).json({ error: "Session not found or expired." });
+    return;
+  }
+  const role = typeof request.body?.role === "string" ? request.body.role.trim().toLowerCase() : "";
+  if (role !== "host" && role !== "guest") {
+    response.status(400).json({ error: "Role must be host or guest." });
+    return;
+  }
+  const incoming = Array.isArray(request.body?.candidates) ? request.body.candidates : [];
+  const valid = incoming.filter(isValidIceCandidatePayload);
+  const target = role === "host" ? session.hostCandidates : session.guestCandidates;
+  const remaining = Math.max(0, PVP_CANDIDATE_MAX_COUNT - target.length);
+  const accepted = remaining > 0 ? valid.slice(0, remaining) : [];
+  if (accepted.length > 0) target.push(...accepted);
+  response.json({ ok: true, accepted: accepted.length, expiresAt: session.expiresAt });
+});
+
+app.get("/api/pvp/sessions/:code/candidates", (request, response) => {
+  pruneExpiredPvpSessions();
+  const session = readPvpSession(request.params.code);
+  if (!session) {
+    response.status(404).json({ error: "Session not found or expired." });
+    return;
+  }
+  const role = typeof request.query?.role === "string" ? request.query.role.trim().toLowerCase() : "";
+  if (role !== "host" && role !== "guest") {
+    response.status(400).json({ error: "Role must be host or guest." });
+    return;
+  }
+  const rawSince = typeof request.query?.since === "string" ? Number(request.query.since) : 0;
+  const since = Number.isFinite(rawSince) && rawSince > 0 ? Math.floor(rawSince) : 0;
+  const source = role === "host" ? session.guestCandidates : session.hostCandidates;
+  const candidates = source.slice(Math.min(since, source.length));
+  response.json({ candidates, nextSince: source.length, expiresAt: session.expiresAt });
 });
 
 app.get("/api/game-data", (_request, response) => {
@@ -937,6 +979,8 @@ type PvpSession = {
   answer: string | null;
   createdAt: number;
   expiresAt: string;
+  hostCandidates: IceCandidatePayload[];
+  guestCandidates: IceCandidatePayload[];
 };
 
 type PublicIceServer = {
@@ -945,6 +989,13 @@ type PublicIceServer = {
   credential?: string;
 };
 type PublicIceTransportPolicy = "all" | "relay";
+
+type IceCandidatePayload = {
+  candidate: string;
+  sdpMid?: string | null;
+  sdpMLineIndex?: number | null;
+  usernameFragment?: string | null;
+};
 
 type CloudDeckDraft = {
   id: string;
@@ -1039,4 +1090,14 @@ function pruneExpiredPvpSessions(): void {
     if (session.createdAt + PVP_SESSION_TTL_MS > now) continue;
     pvpSessions.delete(code);
   }
+}
+
+function isValidIceCandidatePayload(value: unknown): value is IceCandidatePayload {
+  if (!value || typeof value !== "object") return false;
+  const record = value as Record<string, unknown>;
+  if (typeof record.candidate !== "string" || record.candidate.length === 0 || record.candidate.length > PVP_CANDIDATE_MAX_LENGTH) return false;
+  if (record.sdpMid !== undefined && record.sdpMid !== null && typeof record.sdpMid !== "string") return false;
+  if (record.sdpMLineIndex !== undefined && record.sdpMLineIndex !== null && typeof record.sdpMLineIndex !== "number") return false;
+  if (record.usernameFragment !== undefined && record.usernameFragment !== null && typeof record.usernameFragment !== "string") return false;
+  return true;
 }

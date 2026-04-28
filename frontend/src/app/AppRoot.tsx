@@ -56,7 +56,15 @@ import { createGuestSyncState, mirrorGameState, mirrorGameStateForGuest, redactO
 import { DEFAULT_ICE_SERVERS, PeerRuntime } from "../pvp/peer";
 import type { PvpWireMessage } from "../pvp/protocol";
 import type { PvpRole } from "../screens/PvpLobbyScreen";
-import { createPvpSession, getPvpAnswer, getPvpOffer, getPvpRtcConfig, submitPvpAnswer } from "../pvp/signalApi";
+import {
+  createPvpSession,
+  getPvpAnswer,
+  getPvpCandidates,
+  getPvpOffer,
+  getPvpRtcConfig,
+  submitPvpAnswer,
+  submitPvpCandidates,
+} from "../pvp/signalApi";
 import { getFirebaseAccountSnapshot, linkFirebaseAccountWithGoogle, signOutFirebaseAccount, type FirebaseAccountSnapshot } from "../utils/firebaseAuth";
 import { formatBattleText, getAccountPlayerName } from "../utils/playerNames";
 import type { GameState, SideId, SideState } from "../../../shared/src/types";
@@ -134,6 +142,10 @@ export function App() {
   const pvpAnswerPollTokenRef = useRef(0);
   const pvpHelloAckRef = useRef(false);
   const pvpLocalCloseIntentRef = useRef(false);
+  const pvpCandidatePollTokenRef = useRef(0);
+  const pvpCandidateQueueRef = useRef<RTCIceCandidateInit[]>([]);
+  const pvpCandidateFlushTimeoutRef = useRef<number | null>(null);
+  const pvpActiveCodeRef = useRef<string | null>(null);
   const pvpRoleRef = useRef<PvpRole | null>(null);
   const matchModeRef = useRef<MatchMode>("playerVsAi");
   const screenRef = useRef<AppScreen>("mainMenu");
@@ -439,6 +451,71 @@ export function App() {
     return rtcConfig;
   };
 
+  const resetCandidateSync = () => {
+    pvpCandidatePollTokenRef.current += 1;
+    pvpCandidateQueueRef.current = [];
+    pvpActiveCodeRef.current = null;
+    if (pvpCandidateFlushTimeoutRef.current !== null) {
+      window.clearTimeout(pvpCandidateFlushTimeoutRef.current);
+      pvpCandidateFlushTimeoutRef.current = null;
+    }
+  };
+
+  const flushLocalCandidates = async () => {
+    const code = pvpActiveCodeRef.current;
+    const role = pvpRoleRef.current;
+    if (!code || !role) return;
+    const batch = pvpCandidateQueueRef.current.splice(0);
+    if (batch.length === 0) return;
+    try {
+      await submitPvpCandidates(code, role, batch);
+    } catch {
+      pvpCandidateQueueRef.current = batch.concat(pvpCandidateQueueRef.current);
+      if (pvpCandidateFlushTimeoutRef.current === null) {
+        pvpCandidateFlushTimeoutRef.current = window.setTimeout(() => {
+          pvpCandidateFlushTimeoutRef.current = null;
+          void flushLocalCandidates();
+        }, 800);
+      }
+    }
+  };
+
+  const scheduleCandidateFlush = () => {
+    if (pvpCandidateFlushTimeoutRef.current !== null) return;
+    pvpCandidateFlushTimeoutRef.current = window.setTimeout(() => {
+      pvpCandidateFlushTimeoutRef.current = null;
+      void flushLocalCandidates();
+    }, 200);
+  };
+
+  const enqueueLocalCandidate = (candidate: RTCIceCandidateInit) => {
+    pvpCandidateQueueRef.current.push(candidate);
+    if (pvpActiveCodeRef.current) scheduleCandidateFlush();
+  };
+
+  const startCandidatePolling = (code: string, role: PvpRole, runtime: PeerRuntime) => {
+    const token = ++pvpCandidatePollTokenRef.current;
+    void (async () => {
+      let since = 0;
+      while (pvpCandidatePollTokenRef.current === token && pvpPeerRef.current === runtime) {
+        try {
+          const result = await getPvpCandidates(code, role, since);
+          since = result.nextSince;
+          for (const candidate of result.candidates) {
+            await runtime.addRemoteCandidate(candidate);
+          }
+        } catch {
+          // Ignore transient candidate polling failures.
+        }
+        if (runtime.isConnected()) {
+          await delay(800);
+          if (runtime.isConnected()) return;
+        }
+        await delay(400);
+      }
+    })();
+  };
+
   const ensurePeerRuntime = async () => {
     if (pvpPeerRef.current) return pvpPeerRef.current;
     const rtcConfig = await loadPvpRtcConfig();
@@ -462,6 +539,7 @@ export function App() {
         }
         if (status === "closed") {
           setPvpLocalSignal("");
+          resetCandidateSync();
         }
         if (status === "closed" && !pvpLocalCloseIntentRef.current) {
           const activeScreen = screenRef.current;
@@ -473,6 +551,7 @@ export function App() {
         }
       },
       onMessage: handlePvpMessage,
+      onLocalCandidate: enqueueLocalCandidate,
     });
     pvpPeerRef.current = runtime;
     return runtime;
@@ -509,6 +588,7 @@ export function App() {
     remoteDeckRef.current = null;
     remoteNameRef.current = "Opponent";
     pvpAnswerPollTokenRef.current += 1;
+    resetCandidateSync();
     pvpLocalCloseIntentRef.current = true;
     pvpPeerRef.current?.close();
     pvpPeerRef.current = null;
@@ -519,11 +599,18 @@ export function App() {
   const createOffer = async () => {
     try {
       setPvpStatusDetail("Loading network relay settings...");
-      const { runtime, result: offer } = await runWithRtcFallback((activeRuntime) => activeRuntime.hostCreateOffer());
+      const { runtime, result: offer } = await runWithRtcFallback((activeRuntime) => {
+        const rtcConfig = pvpRtcConfigRef.current;
+        if (rtcConfig?.iceTransportPolicy === "relay") return activeRuntime.hostCreateOffer();
+        return activeRuntime.hostCreateOffer({ trickle: true });
+      });
       const created = await createPvpSession(offer);
       const code = created.code.toUpperCase();
       const pollToken = ++pvpAnswerPollTokenRef.current;
       setPvpLocalSignal(code);
+      pvpActiveCodeRef.current = code;
+      scheduleCandidateFlush();
+      startCandidatePolling(code, "host", runtime);
       try {
         await navigator.clipboard.writeText(code);
       } catch {
@@ -533,6 +620,7 @@ export function App() {
       void waitForHostAnswer(code, runtime, pollToken);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to create offer.";
+      resetCandidateSync();
       setPvpStatusDetail(message);
     }
   };
@@ -549,16 +637,24 @@ export function App() {
         setPvpStatusDetail("Code is invalid.");
         return;
       }
+      pvpActiveCodeRef.current = code;
       setPvpStatusDetail("Fetching game offer...");
       const { offer } = await getPvpOffer(code);
       setPvpStatusDetail("Loading network relay settings...");
       setPvpStatusDetail("Creating connection answer...");
-      const { result: answer } = await runWithRtcFallback((activeRuntime) => activeRuntime.joinWithOffer(offer));
+      const { runtime, result: answer } = await runWithRtcFallback((activeRuntime) => {
+        const rtcConfig = pvpRtcConfigRef.current;
+        if (rtcConfig?.iceTransportPolicy === "relay") return activeRuntime.joinWithOffer(offer);
+        return activeRuntime.joinWithOffer(offer, { trickle: true });
+      });
       setPvpStatusDetail("Sending answer to host...");
       await submitPvpAnswer(code, answer);
+      scheduleCandidateFlush();
+      startCandidatePolling(code, "guest", runtime);
       setPvpStatusDetail("Answer sent. Connecting to host...");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to join with offer.";
+      resetCandidateSync();
       setPvpStatusDetail(message);
     }
   };
@@ -583,6 +679,7 @@ export function App() {
     remoteDeckRef.current = null;
     remoteNameRef.current = "Opponent";
     pvpAnswerPollTokenRef.current += 1;
+    resetCandidateSync();
     pvpLocalCloseIntentRef.current = true;
     pvpPeerRef.current?.close();
     pvpPeerRef.current = null;
@@ -659,6 +756,7 @@ export function App() {
       pvpLocalCloseIntentRef.current = true;
       pvpPeerRef.current?.close();
       pvpPeerRef.current = null;
+      resetCandidateSync();
     };
   }, []);
 

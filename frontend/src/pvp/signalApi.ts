@@ -3,6 +3,8 @@ type OfferResponse = { offer: string; expiresAt: string };
 type AnswerResponse = { answer: string; expiresAt: string };
 type PendingAnswerResponse = { pending: true; expiresAt: string };
 type IceServersResponse = { iceServers: RTCIceServer[]; iceTransportPolicy?: RTCIceTransportPolicy };
+type SubmitCandidatesResponse = { ok: true; accepted: number; expiresAt: string };
+type CandidatesResponse = { candidates: RTCIceCandidateInit[]; nextSince: number; expiresAt: string };
 type ErrorResponse = { error?: string };
 
 export async function createPvpSession(offer: string, baseUrl = ""): Promise<CreateSessionResponse> {
@@ -29,6 +31,33 @@ export async function submitPvpAnswer(code: string, answer: string, baseUrl = ""
   });
   if (!response.ok) throw await parseError(response);
   return (await response.json()) as AnswerResponse;
+}
+
+export async function submitPvpCandidates(
+  code: string,
+  role: "host" | "guest",
+  candidates: RTCIceCandidateInit[],
+  baseUrl = "",
+): Promise<SubmitCandidatesResponse> {
+  const response = await fetch(`${baseUrl}/api/pvp/sessions/${encodeURIComponent(code)}/candidates`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ role, candidates }),
+  });
+  if (!response.ok) throw await parseError(response);
+  return (await response.json()) as SubmitCandidatesResponse;
+}
+
+export async function getPvpCandidates(
+  code: string,
+  role: "host" | "guest",
+  since = 0,
+  baseUrl = "",
+): Promise<CandidatesResponse> {
+  const params = new URLSearchParams({ role, since: String(Math.max(0, since)) });
+  const response = await fetch(`${baseUrl}/api/pvp/sessions/${encodeURIComponent(code)}/candidates?${params.toString()}`);
+  if (!response.ok) throw await parseError(response);
+  return (await response.json()) as CandidatesResponse;
 }
 
 export async function getPvpAnswer(code: string, baseUrl = ""): Promise<string | null> {
