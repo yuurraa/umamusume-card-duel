@@ -208,7 +208,7 @@ export function DeckListModal({
   onDelete,
   canDelete,
   canImport,
-  onInspectCard,
+  onInspectActiveChange,
 }: {
   deck: DeckEntity;
   equipped: boolean;
@@ -227,15 +227,13 @@ export function DeckListModal({
   onDelete: () => void;
   canDelete: boolean;
   canImport: boolean;
-  onInspectCard: (cardId: string) => void;
+  onInspectActiveChange?: (active: boolean) => void;
 }) {
-  const [hoverPreviewImage, setHoverPreviewImage] = useState<string | null>(null);
-  const [hoverPreviewCard, setHoverPreviewCard] = useState<Card | null>(null);
-  const [hoverPreviewKey, setHoverPreviewKey] = useState<string | null>(null);
-  const [hoverPreviewPosition, setHoverPreviewPosition] = useState<{ left: number; top: number; width: number } | null>(null);
-  const hoverPreviewTimeoutRef = useRef<number | null>(null);
   const shownCardIds = displayCardIds ?? deck.cardIds;
   const resolvedCountText = cardCountText ?? `${deck.cardIds.length} cards`;
+  const [inspectCard, setInspectCard] = useState<Card | null>(null);
+  const [inspectPosition, setInspectPosition] = useState<{ left: number; top: number; width: number } | null>(null);
+  const inspectActive = Boolean(inspectCard && inspectPosition);
   const rows: (string | null)[][] = shownCardIds.length === 20
     ? [
       shownCardIds.slice(0, 7),
@@ -244,39 +242,47 @@ export function DeckListModal({
     ]
     : chunkDeckRows(shownCardIds, 7);
 
-  const clearHoverPreviewTimer = () => {
-    if (hoverPreviewTimeoutRef.current !== null) {
-      window.clearTimeout(hoverPreviewTimeoutRef.current);
-      hoverPreviewTimeoutRef.current = null;
-    }
+  const inspectCardFromTile = (card: Card, anchorEl: HTMLButtonElement) => {
+    const rect = anchorEl.getBoundingClientRect();
+    const { left, top, width } = getHoverPreviewPosition(rect, HOVER_PREVIEW_ACTION_HEIGHT);
+    setInspectCard(card);
+    setInspectPosition({ left, top, width });
   };
 
-  const scheduleHoverPreview = (key: string, card: Card, image: string, anchorEl: HTMLButtonElement) => {
-    clearHoverPreviewTimer();
-    hoverPreviewTimeoutRef.current = window.setTimeout(() => {
-      const rect = anchorEl.getBoundingClientRect();
-      const { left, top, width } = getHoverPreviewPosition(rect);
-      setHoverPreviewImage(image);
-      setHoverPreviewCard(card);
-      setHoverPreviewKey(key);
-      setHoverPreviewPosition({ left, top, width });
-      hoverPreviewTimeoutRef.current = null;
-    }, 500);
+  const closeInspectCard = () => {
+    setInspectCard(null);
+    setInspectPosition(null);
   };
 
-  const hideHoverPreview = () => {
-    clearHoverPreviewTimer();
-    setHoverPreviewImage(null);
-    setHoverPreviewCard(null);
-    setHoverPreviewKey(null);
-  };
+  useEffect(() => {
+    onInspectActiveChange?.(inspectActive);
+    return () => onInspectActiveChange?.(false);
+  }, [inspectActive, onInspectActiveChange]);
 
-  useEffect(() => () => clearHoverPreviewTimer(), []);
-
-  const hoverPreviewActive = Boolean(hoverPreviewImage && hoverPreviewPosition);
+  useEffect(() => {
+    if (!inspectActive) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      closeInspectCard();
+    };
+    window.addEventListener("keydown", onKeyDown, { capture: true });
+    return () => window.removeEventListener("keydown", onKeyDown, { capture: true });
+  }, [inspectActive]);
 
   return (
-    <div style={deckModalBackdropStyle} onClick={onClose}>
+    <div
+      style={deckModalBackdropStyle}
+      onClick={() => {
+        if (inspectActive) {
+          closeInspectCard();
+          return;
+        }
+        onClose();
+      }}
+    >
       <section style={{ ...deckModalStyle, position: "relative" }} onClick={(event) => event.stopPropagation()}>
         <header style={deckModalHeaderStyle}>
           <div>
@@ -318,36 +324,47 @@ export function DeckListModal({
                   return <DeckListEmptySlot key={`empty-${rowIndex}-${colIndex}`} />;
                 }
                 const card = getCard(cardId);
-                const image = card.kind === "umamusume" ? card.portrait : card.image;
+                const image = getCardImage(card);
                 return (
                   <DeckListCardTile
                     key={`${cardId}-${rowIndex}-${colIndex}`}
                     card={card}
                     image={image}
                     name={card.name}
-                    onInspect={() => {}}
-                    clickable={false}
-                    onHoverStart={(anchorEl) => scheduleHoverPreview(`${cardId}-${rowIndex}-${colIndex}`, card, image, anchorEl)}
-                    onHoverEnd={hideHoverPreview}
-                    previewActive={hoverPreviewKey === `${cardId}-${rowIndex}-${colIndex}`}
+                    onInspect={(anchorEl) => inspectCardFromTile(card, anchorEl)}
+                    previewActive={inspectCard?.id === card.id}
                   />
                 );
               })}
             </div>
           ))}
         </div>
-        <div style={deckModalHoverDimStyle(hoverPreviewActive)} aria-hidden="true" />
+        <div style={deckSelectorHoverDimStyle(inspectActive)} onClick={closeInspectCard} aria-hidden="true" />
         <aside
           style={deckSelectorHoverPreviewStyle(
-            hoverPreviewPosition?.left ?? 0,
-            hoverPreviewPosition?.top ?? 0,
-            hoverPreviewActive,
-            hoverPreviewPosition?.width,
+            inspectPosition?.left ?? 0,
+            inspectPosition?.top ?? 0,
+            inspectActive,
+            inspectPosition?.width,
           )}
-          aria-hidden="true"
+          aria-hidden={!inspectActive}
         >
-          {hoverPreviewImage && hoverPreviewCard && (
-            <HoloCardImage card={hoverPreviewCard} src={hoverPreviewImage} alt="" imageStyle={deckSelectorHoverPreviewImageStyle} draggable={false} radiusOverride={CARD_INSPECT_IMAGE_RADIUS} />
+          {inspectCard && (
+            <>
+              <HoloCardImage
+                card={inspectCard}
+                src={getCardImage(inspectCard)}
+                alt=""
+                imageStyle={deckSelectorHoverPreviewImageStyle}
+                draggable={false}
+                radiusOverride={CARD_INSPECT_IMAGE_RADIUS}
+              />
+              <div style={deckSelectorInspectActionBarStyle}>
+                <NeutralButton style={deckSelectorInspectActionButtonStyle} onClick={closeInspectCard}>
+                  Back
+                </NeutralButton>
+              </div>
+            </>
           )}
         </aside>
       </section>
@@ -1068,7 +1085,7 @@ function DeckListCardTile({
   card: Card;
   image: string;
   name: string;
-  onInspect: () => void;
+  onInspect: (anchorEl: HTMLButtonElement) => void;
   selected?: boolean;
   clickable?: boolean;
   onHoverStart?: (anchorEl: HTMLButtonElement) => void;
@@ -1088,7 +1105,7 @@ function DeckListCardTile({
         ...(previewActive ? { position: "relative", zIndex: 8 } : {}),
       }}
       aria-label={`Inspect ${name}`}
-      onClick={clickable ? onInspect : undefined}
+      onClick={clickable ? (event) => onInspect(event.currentTarget) : undefined}
       onMouseEnter={(event) => {
         setHovered(true);
         onHoverStart?.(event.currentTarget);

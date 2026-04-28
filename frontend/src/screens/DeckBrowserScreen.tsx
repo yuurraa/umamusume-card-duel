@@ -11,7 +11,6 @@ import {
   DeckImportOverwriteConfirmModal,
   DeckUnsavedChangesModal,
   DeckBrowserTile,
-  DeckCardInspectModal,
   DeckCardSelectorModal,
   DeckDeleteConfirmModal,
   DeckJsonModal,
@@ -70,7 +69,7 @@ export function DeckBrowserScreen({
 }) {
   const customDecksEnabled = true;
   const [openedDeckRef, setOpenedDeckRef] = useState<{ id: string; source: "premade" | "local" | "draft" } | null>(null);
-  const [inspectedDeckCardId, setInspectedDeckCardId] = useState<string | null>(null);
+  const [deckListInspectActive, setDeckListInspectActive] = useState(false);
   const [localDecks, setLocalDecks] = useState<LocalDeck[]>([]);
   const [localDeckError, setLocalDeckError] = useState<string | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -121,7 +120,6 @@ export function DeckBrowserScreen({
   const deleteDeck = deleteDeckRef
     ? allDecks.find((deck) => deck.id === deleteDeckRef.id && deck.source === deleteDeckRef.source) ?? null
     : null;
-  const inspectedDeckCard = inspectedDeckCardId ? getCard(inspectedDeckCardId) : null;
   const openedDeckHasDraft = Boolean(
     openedDeck
     && (openedDeck.source === "draft" || (openedDeck.source === "local" && editDraftByDeckId[openedDeck.id])),
@@ -247,7 +245,7 @@ export function DeckBrowserScreen({
     const onDeckEscape = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       if (
-        !inspectedDeckCardId
+        !deckListInspectActive
         && pickerSlotIndex === null
         && !jsonModalMode
         && !deleteDeckRef
@@ -258,6 +256,9 @@ export function DeckBrowserScreen({
         && !openedDeckRef
       ) return;
       if (pickerInspectActive) {
+        return;
+      }
+      if (deckListInspectActive) {
         return;
       }
       event.preventDefault();
@@ -283,10 +284,6 @@ export function DeckBrowserScreen({
         setDeleteDeckRef(null);
         return;
       }
-      if (inspectedDeckCardId) {
-        setInspectedDeckCardId(null);
-        return;
-      }
       if (pickerSlotIndex !== null) {
         setPickerSlotIndex(null);
         return;
@@ -300,7 +297,7 @@ export function DeckBrowserScreen({
 
     window.addEventListener("keydown", onDeckEscape, { capture: true });
     return () => window.removeEventListener("keydown", onDeckEscape, { capture: true });
-  }, [deleteDeckRef, openedDeckRef, inspectedDeckCardId, isCreateOpen, jsonModalMode, pickerInspectActive, pickerSlotIndex, requestCloseCreateEditor, showClearAllConfirm, showImportOverwriteConfirm, showUnsavedChangesConfirm]);
+  }, [deckListInspectActive, deleteDeckRef, openedDeckRef, isCreateOpen, jsonModalMode, pickerInspectActive, pickerSlotIndex, requestCloseCreateEditor, showClearAllConfirm, showImportOverwriteConfirm, showUnsavedChangesConfirm]);
 
   useEffect(() => {
     if (pickerSlotIndex === null) {
@@ -428,7 +425,6 @@ Created decks are saved to cloud storage for this test profile. Export still giv
             : {})}
           deckLabel={openedDeck.source === "premade" ? "Premade Deck" : openedDeckHasDraft ? "Draft Deck" : "Created Deck"}
           onClose={() => {
-            setInspectedDeckCardId(null);
             setOpenedDeckRef(null);
           }}
           onExport={() => {
@@ -473,7 +469,6 @@ Created decks are saved to cloud storage for this test profile. Export still giv
           onEquip={() => {
             if (openedDeckHasDraft) return;
             onEquipDeck(openedDeck.id);
-            setInspectedDeckCardId(null);
             setOpenedDeckRef(null);
           }}
           onDelete={() => {
@@ -482,7 +477,7 @@ Created decks are saved to cloud storage for this test profile. Export still giv
           }}
           canDelete={customDecksEnabled && openedDeck.source !== "premade"}
           canImport={customDecksEnabled && openedDeck.source === "local"}
-          onInspectCard={setInspectedDeckCardId}
+          onInspectActiveChange={setDeckListInspectActive}
         />
       )}
       {customDecksEnabled && isCreateOpen && (
@@ -659,12 +654,6 @@ Created decks are saved to cloud storage for this test profile. Export still giv
             setPickerInspectActive(false);
             setPickerSlotIndex(null);
           }}
-        />
-      )}
-      {inspectedDeckCard && (
-        <DeckCardInspectModal
-          card={inspectedDeckCard}
-          onClose={() => setInspectedDeckCardId(null)}
         />
       )}
       {jsonModalMode && (jsonModalDeck || isCreateImportTarget) && (
