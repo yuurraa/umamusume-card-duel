@@ -668,7 +668,7 @@ export function DeckCardSelectorModal({
       if (!normalizedQuery) return true;
       return getSearchText(card).includes(normalizedQuery);
     });
-    return sortCardsForCollection(filtered, sortOption, () => true);
+    return sortCardsForCollection(filtered, sortOption, (card) => getOwnedCount(card.id) > 0);
   }, [artFiltersSelected, categoryFiltersSelected, energyFiltersSelected, query, rarityFiltersSelected, sortOption, stageFiltersSelected]);
 
   const cardCounts = useMemo(() => {
@@ -893,12 +893,14 @@ export function DeckCardSelectorModal({
                 const copyKey = toDeckCountKey(card.id);
                 const copyCount = cardCounts.get(copyKey) ?? 0;
                 const ownedCount = getOwnedCount(card.id);
-                const isDisabled = copyCount >= 2;
+                const isOwned = ownedCount > 0;
+                const isDisabled = copyCount >= 2 || !isOwned;
                 return (
                   <CardTile
                     key={card.id}
                     card={card}
                     ownedCount={ownedCount}
+                    unowned={!isOwned}
                     disabled={isDisabled}
                     onInspect={() => {
                       if (isDisabled) return;
@@ -953,6 +955,7 @@ function FilterChip({ active, children, onClick }: { active: boolean; children: 
 function CardTile({
   card,
   ownedCount,
+  unowned = false,
   disabled = false,
   onInspect,
   onHoverStart,
@@ -961,6 +964,7 @@ function CardTile({
 }: {
   card: Card;
   ownedCount: number;
+  unowned?: boolean;
   disabled?: boolean;
   onInspect: () => void;
   onHoverStart?: (anchorEl: HTMLButtonElement) => void;
@@ -999,13 +1003,21 @@ function CardTile({
         onHoverEnd?.();
       }}
       aria-label={`Use ${name}`}
-      title={disabled ? `Max 2 copies per deck (${name})` : undefined}
+      title={unowned ? `You do not own ${name}` : disabled ? `Max 2 copies per deck (${name})` : undefined}
     >
-      <img style={cardImageStyle} src={image} alt="" draggable={false} />
+      <img style={selectorCardImageStyle(owned)} src={image} alt="" draggable={false} />
       <span style={rarityBadgeStyle(getCardRarity(card))}>{CARD_RARITY_SHORT_LABELS[getCardRarity(card)]}</span>
       <span style={selectorOwnershipBadgeStyle(owned)}>{ownershipLabel}</span>
     </button>
   );
+}
+
+function selectorCardImageStyle(owned: boolean): React.CSSProperties {
+  return {
+    ...cardImageStyle,
+    filter: owned ? "none" : "grayscale(1) saturate(0.24) brightness(0.72)",
+    opacity: owned ? 1 : 0.58,
+  };
 }
 
 function selectorOwnershipBadgeStyle(owned: boolean): React.CSSProperties {

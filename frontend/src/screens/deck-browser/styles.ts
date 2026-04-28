@@ -254,6 +254,7 @@ export const deckModalBackdropStyle: CSSProperties = {
 
 export const deckModalStyle: CSSProperties = {
   ...overlaySurfaceStyle,
+  isolation: "isolate",
   width: "min(1320px, calc(100vw - 48px))",
   maxHeight: "calc(100dvh - 48px)",
   display: "grid",
@@ -352,6 +353,8 @@ export const deckNameInputStyle: CSSProperties = {
 };
 
 export const deckCardGridStyle: CSSProperties = {
+  position: "relative",
+  zIndex: 0,
   minHeight: 0,
   overflowX: "hidden",
   overflowY: "auto",
@@ -582,6 +585,7 @@ export const deckSelectorFilterPanelStyle: CSSProperties = {
 export const deckSelectorCardTrayStyle: CSSProperties = {
   ...glassPanelStyle,
   position: "relative",
+  zIndex: 0,
   backdropFilter: "none",
   minHeight: 0,
   overflowX: "hidden",
@@ -594,7 +598,7 @@ export function deckSelectorHoverDimStyle(active: boolean): CSSProperties {
   return {
     position: "absolute",
     inset: 0,
-    zIndex: 6,
+    zIndex: 40,
     pointerEvents: "none",
     borderRadius: radius.md,
     background: "rgba(17, 24, 39, 0.34)",
@@ -607,7 +611,7 @@ export function deckModalHoverDimStyle(active: boolean): CSSProperties {
   return {
     position: "absolute",
     inset: 0,
-    zIndex: 6,
+    zIndex: 40,
     pointerEvents: "none",
     borderRadius: radius.lg,
     background: "rgba(17, 24, 39, 0.34)",
@@ -887,7 +891,7 @@ export function deckSelectorHoverPreviewStyle(left: number, top: number, active:
     transform: "translateY(-50%)",
     width: "min(440px, calc(100vw - 36px))",
     pointerEvents: "none",
-    zIndex: 9,
+    zIndex: 50,
     borderRadius: 0,
     background: "transparent",
     padding: 0,

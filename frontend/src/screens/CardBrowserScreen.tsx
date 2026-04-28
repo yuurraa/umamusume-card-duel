@@ -577,6 +577,7 @@ function toEnergyType(type: UmamusumeType): EnergyType {
 }
 
 const cardBrowserShellStyle: CSSProperties = {
+  isolation: "isolate",
   maxWidth: 1320,
   margin: "0 auto",
   display: "grid",
@@ -823,6 +824,7 @@ function energyFilterButtonStyle(active: boolean): CSSProperties {
 const cardTrayStyle: CSSProperties = {
   ...glassPanelStyle,
   position: "relative",
+  zIndex: 0,
   backdropFilter: "none",
   minHeight: 0,
   overflowX: "hidden",
@@ -933,7 +935,7 @@ function hoverDimStyle(active: boolean): CSSProperties {
   return {
     position: "fixed",
     inset: 0,
-    zIndex: 6,
+    zIndex: 40,
     pointerEvents: "none",
     background: "rgba(17, 24, 39, 0.34)",
     opacity: active ? 1 : 0,
@@ -949,7 +951,7 @@ function hoverPreviewStyle(left: number, top: number, active: boolean): CSSPrope
     transform: "translateY(-50%)",
     width: "min(440px, calc(100vw - 36px))",
     pointerEvents: "none",
-    zIndex: 9,
+    zIndex: 50,
     borderRadius: 0,
     background: "transparent",
     padding: 0,
