@@ -274,24 +274,24 @@ body {
 
 .pokemon-card-foil[data-rarity="rare holo"]:not([data-trainer-gallery="true"]) .pokemon-card-foil__shine::after {
   content: "";
-  background-image: radial-gradient(farthest-corner circle at var(--pointer-x) var(--pointer-y), hsla(0, 0%, 90%, 0.38) 0%, hsla(0, 0%, 78%, 0.08) 25%, hsl(0, 0%, 0%) 90%);
+  background-image: radial-gradient(farthest-corner circle at var(--pointer-x) var(--pointer-y), hsla(0, 0%, 96%, 0.56) 0%, hsla(0, 0%, 82%, 0.16) 28%, hsl(0, 0%, 0%) 92%);
   background-position: center center;
   background-size: cover;
   mix-blend-mode: luminosity;
-  filter: brightness(0.45) contrast(2.6);
+  filter: brightness(0.6) contrast(2.8);
 }
 
 .pokemon-card-foil[data-rarity="rare holo"]:not([data-trainer-gallery="true"]) .pokemon-card-foil__glare {
-  opacity: calc(var(--card-opacity) * 0.5);
-  filter: brightness(0.62) contrast(1.22);
+  opacity: calc(var(--card-opacity) * 0.72);
+  filter: brightness(0.78) contrast(1.3);
   mix-blend-mode: overlay;
 }
 
 .pokemon-card-foil[data-rarity="rare holo"]:not([data-trainer-gallery="true"]) .pokemon-card-foil__glare::after {
   content: "";
-  background-image: radial-gradient(farthest-corner circle at var(--pointer-x) var(--pointer-y), hsla(180, 100%, 95%, 0.42) 5%, hsla(0, 0%, 39%, 0.2) 55%, hsla(0, 0%, 0%, 0.32) 110%);
+  background-image: radial-gradient(farthest-corner circle at var(--pointer-x) var(--pointer-y), hsla(180, 100%, 96%, 0.62) 5%, hsla(190, 35%, 64%, 0.28) 45%, hsla(0, 0%, 0%, 0.34) 110%);
   mix-blend-mode: overlay;
-  filter: brightness(0.44) contrast(2.1);
+  filter: brightness(0.58) contrast(2.25);
 }
 
 /* Ported from pokemon-cards-css reverse-holo.css */
@@ -398,47 +398,30 @@ body {
 
 .pokemon-card-foil[data-rarity="rare ultra"][data-subtypes*="supporter"] .pokemon-card-foil__shine::before {
   content: "";
-  background-image: radial-gradient(farthest-corner circle at var(--pointer-x) var(--pointer-y), hsla(0, 0%, 100%, 0.38) 0%, hsla(0, 0%, 0%, 0) 76%);
+  background-image: radial-gradient(farthest-corner circle at var(--pointer-x) var(--pointer-y), hsla(0, 0%, 100%, 0.14) 0%, hsla(0, 0%, 100%, 0.04) 30%, hsla(0, 0%, 0%, 0) 72%);
   mix-blend-mode: screen;
-  opacity: 0.34;
+  opacity: 0.24;
 }
 
 .pokemon-card-foil[data-rarity="rare ultra"][data-subtypes*="supporter"] .pokemon-card-foil__glare {
-  opacity: calc(var(--card-opacity) * 0.46);
-  mix-blend-mode: multiply;
-  filter: brightness(1.08) contrast(1.2) saturate(0.95);
+  opacity: calc(var(--card-opacity) * 0.38);
+  mix-blend-mode: hard-light;
+  filter: brightness(0.96) contrast(1.14) saturate(1);
   background-size: 170% 170%;
   background-position: center center;
-  background-image: radial-gradient(farthest-corner circle at var(--pointer-x) var(--pointer-y), hsla(0, 0%, 75%, 0.4) 5%, hsl(200, 5%, 35%) 60%, hsl(320, 40%, 10%) 150%);
+  background-image: radial-gradient(farthest-corner circle at var(--pointer-x) var(--pointer-y), hsla(0, 0%, 68%, 0.56) 5%, hsla(200, 5%, 35%, 0.62) 60%, hsla(320, 40%, 10%, 0.64) 150%);
 }
 
 .pokemon-card-foil[data-rarity="rare ultra"][data-subtypes*="supporter"] .pokemon-card-foil__shine,
 .pokemon-card-foil[data-rarity="rare ultra"][data-subtypes*="supporter"] .pokemon-card-foil__shine::after {
   --mask: none;
   --foil: url("/pokemon-foils/trainerbg.png");
-  --imgsize: 20%;
+  --imgsize: 24%;
+  opacity: var(--card-opacity);
   background-blend-mode: color-burn, hue, hard-light;
   filter: brightness(calc((var(--pointer-from-center) * 0.05) + 0.6)) contrast(1.5) saturate(1.2);
 }
 
-.pokemon-card-foil.pokemon-card-foil--inspect .pokemon-card-foil__glare {
-  opacity: calc(var(--card-opacity) * 0.22);
-  background-image: radial-gradient(
-    farthest-corner circle at var(--pointer-x) var(--pointer-y),
-    hsla(0, 0%, 100%, 0.34) 8%,
-    hsla(0, 0%, 100%, 0.12) 28%,
-    hsla(0, 0%, 0%, 0.24) 100%
-  );
-  filter: brightness(0.42) contrast(1);
-}
-
-.pokemon-card-foil.pokemon-card-foil--inspect .pokemon-card-foil__glare::after {
-  opacity: calc(var(--card-opacity) * 0.16);
-  background-image: radial-gradient(
-    farthest-corner circle at var(--pointer-x) var(--pointer-y),
-    hsla(0, 0%, 100%, 0.26) 8%,
-    hsla(0, 0%, 100%, 0.08) 30%,
-    hsla(0, 0%, 0%, 0.18) 100%
-  );
-  filter: brightness(0.38) contrast(0.95);
+.pokemon-card-foil[data-rarity="rare ultra"][data-subtypes*="supporter"] .pokemon-card-foil__shine::after {
+  filter: brightness(calc((var(--pointer-from-center) * 0.4) + 0.85)) contrast(2) saturate(0.5);
 }

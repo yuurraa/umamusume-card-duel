@@ -1040,7 +1040,14 @@ function CardTile({
       aria-label={`Inspect ${name}`}
       title={unowned ? `You do not own ${name}` : disabled ? `Max 2 copies per deck (${name})` : undefined}
     >
-      <HoloCardImage card={card} src={image} alt="" imageStyle={selectorCardImageStyle(owned)} draggable={false} />
+      <HoloCardImage
+        card={card}
+        src={image}
+        alt=""
+        imageStyle={selectorCardImageStyle(owned)}
+        draggable={false}
+        disableHoverAnimation={unowned || disabled}
+      />
       <span style={rarityBadgeStyle(rarity)}>{CARD_RARITY_SHORT_LABELS[rarity]}</span>
       <span style={selectorOwnershipBadgeStyle(owned)}>{ownershipLabel}</span>
     </button>

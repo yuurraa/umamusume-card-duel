@@ -14,6 +14,7 @@ type HoloCardImageProps = {
   printVariant?: CardPrintVariant;
   wrapperStyle?: CSSProperties;
   onClick?: (event: MouseEvent<HTMLImageElement>) => void;
+  disableHoverAnimation?: boolean;
 };
 
 type PokemonFoilEffect = "common" | "uncommon" | "reverseHolo" | "rareHolo" | "trainerHolo" | "trainerGallery";
@@ -50,6 +51,7 @@ export function HoloCardImage({
   printVariant = "standard",
   wrapperStyle,
   onClick,
+  disableHoverAnimation = false,
 }: HoloCardImageProps) {
   const [pointer, setPointer] = useState<FoilPointer>(defaultPointer);
   const [active, setActive] = useState(false);
@@ -59,9 +61,11 @@ export function HoloCardImage({
   const borderRadius = radiusOverride ?? imageStyle.borderRadius ?? 8;
   const compact = shineVariant === "compact";
   const inspectMotion = motionVariant === "inspect";
-  const pokemonVars = getPokemonFoilVars(pointer, active, compact, inspectMotion);
+  const isInteractive = !disableHoverAnimation;
+  const isEffectActive = isInteractive && active;
+  const pokemonVars = getPokemonFoilVars(pointer, isEffectActive, compact, inspectMotion);
   const pokemonData = getPokemonFoilData(card, foilEffect);
-  const motionStyle = inspectMotion ? getInspectMotionStyle(pointer, active, compact) : undefined;
+  const motionStyle = inspectMotion ? getInspectMotionStyle(pointer, isEffectActive, compact) : undefined;
 
   return (
     <span
@@ -71,17 +75,26 @@ export function HoloCardImage({
       data-supertype={pokemonData.supertype}
       data-subtypes={pokemonData.subtypes}
       data-trainer-gallery={pokemonData.trainerGallery}
-      onPointerEnter={() => setActive(true)}
+      onPointerEnter={() => {
+        if (!isInteractive) return;
+        setActive(true);
+      }}
       onPointerMove={(event) => {
+        if (!isInteractive) return;
         setActive(true);
         setPointer(getPointerState(event));
       }}
       onPointerLeave={() => {
+        if (!isInteractive) return;
         setActive(false);
         setPointer(defaultPointer);
       }}
-      onFocus={() => setActive(true)}
+      onFocus={() => {
+        if (!isInteractive) return;
+        setActive(true);
+      }}
       onBlur={() => {
+        if (!isInteractive) return;
         setActive(false);
         setPointer(defaultPointer);
       }}
@@ -218,7 +231,7 @@ function getPokemonFoilData(card: Card, foilEffect: PokemonFoilEffect | null): {
 }
 
 function getPokemonFoilVars(pointer: FoilPointer, active: boolean, compact: boolean, inspectMotion: boolean): CSSProperties {
-  const inspectScale = inspectMotion ? 0.62 : 1;
+  const inspectScale = inspectMotion ? 1 : 1;
 
   return {
     "--pointer-x": `${pointer.x}%`,

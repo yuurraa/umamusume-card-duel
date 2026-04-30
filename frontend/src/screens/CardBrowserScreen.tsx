@@ -453,22 +453,25 @@ function CardTile({
   const rarity = getCardRarity(card);
   const owned = ownedCount > 0;
   const ownershipLabel = owned ? `${ownedCount}x Owned` : "Unowned";
+  const animate = owned;
 
   return (
     <button
       type="button"
       style={{
-        ...cardTileStyle(hovered),
+        ...cardTileStyle(hovered, animate),
         ...(previewActive ? { position: "relative", zIndex: 10 } : {}),
       }}
       onClick={(event) => onInspect(event.currentTarget)}
       onMouseEnter={(event) => {
+        if (!animate) return;
         setHovered(true);
       }}
       onMouseLeave={() => {
         setHovered(false);
       }}
       onFocus={() => {
+        if (!animate) return;
         setHovered(true);
       }}
       onBlur={() => {
@@ -476,7 +479,7 @@ function CardTile({
       }}
       aria-label={`Inspect ${formatCardName(card)}`}
     >
-      <HoloCardImage card={card} src={image} alt="" imageStyle={cardImageStyle(owned)} draggable={false} />
+      <HoloCardImage card={card} src={image} alt="" imageStyle={cardImageStyle(owned)} draggable={false} disableHoverAnimation={!owned} />
       <span style={rarityBadgeStyle(rarity)}>{CARD_RARITY_SHORT_LABELS[rarity]}</span>
       <span style={ownershipBadgeStyle(owned)}>{ownershipLabel}</span>
     </button>
@@ -842,7 +845,7 @@ const cardGridStyle: CSSProperties = {
   alignItems: "start",
 };
 
-function cardTileStyle(hovered: boolean): CSSProperties {
+function cardTileStyle(hovered: boolean, animate: boolean): CSSProperties {
   return {
     display: "block",
     position: "relative",
@@ -853,8 +856,8 @@ function cardTileStyle(hovered: boolean): CSSProperties {
     background: "transparent",
     padding: 0,
     cursor: "pointer",
-    filter: hovered ? "drop-shadow(0 18px 26px rgba(17, 24, 39, 0.24))" : "drop-shadow(0 10px 18px rgba(17, 24, 39, 0.14))",
-    transform: hovered ? "translateY(-6px) rotate(0.6deg) scale(1.018)" : "translateY(0) rotate(0deg) scale(1)",
+    filter: animate && hovered ? "drop-shadow(0 18px 26px rgba(17, 24, 39, 0.24))" : "drop-shadow(0 10px 18px rgba(17, 24, 39, 0.14))",
+    transform: animate && hovered ? "translateY(-6px) rotate(0.6deg) scale(1.018)" : "translateY(0) rotate(0deg) scale(1)",
     transition: `transform ${transitions.slow}, filter ${transitions.slow}`,
   };
 }

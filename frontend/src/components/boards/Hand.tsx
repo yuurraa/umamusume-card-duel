@@ -172,6 +172,7 @@ function HandCard({
 }) {
   const [hovered, setHovered] = useState(false);
   const activeHover = hovered && (canDrag || isSelectable);
+  const disableHoverAnimation = !canDrag && !isSelectable;
 
   const handleDragStart = (event: DragEvent<HTMLButtonElement>) => {
     if (!canDrag) return;
@@ -214,7 +215,14 @@ function HandCard({
         draggable={canDrag}
         onDragStart={handleDragStart}
       >
-        <HoloCardImage card={card} src={image} alt="" imageStyle={handImageStyle} draggable={false} />
+        <HoloCardImage
+          card={card}
+          src={image}
+          alt=""
+          imageStyle={handImageStyle}
+          draggable={false}
+          disableHoverAnimation={disableHoverAnimation}
+        />
       </button>
     </div>
   );
