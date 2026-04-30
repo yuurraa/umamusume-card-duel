@@ -3,6 +3,7 @@ import type { Card, CardPrintVariant, CardRarity } from "./types";
 export const CARD_RARITY_LABELS: Record<CardRarity, string> = {
   common: "Common",
   uncommon: "Uncommon",
+  uncommonPlus: "Uncommon+",
   rare: "Rare",
   doubleRare: "Ultra Rare",
 };
@@ -10,6 +11,7 @@ export const CARD_RARITY_LABELS: Record<CardRarity, string> = {
 export const CARD_RARITY_SHORT_LABELS: Record<CardRarity, string> = {
   common: "C",
   uncommon: "UC",
+  uncommonPlus: "UC+",
   rare: "R",
   doubleRare: "UR",
 };
@@ -20,6 +22,7 @@ export const CARD_PRINT_VARIANT_LABELS: Record<CardPrintVariant, string> = {
 };
 
 export function getCardRarity(card: Card): CardRarity {
+  if (isUncommonPlusCard(card)) return "uncommonPlus";
   if (isFullArtCard(card)) return "doubleRare";
   if (card.kind === "umamusume") {
     if (card.stage >= 2) return "rare";
@@ -37,4 +40,14 @@ export function getCardDropRarity(card: Card, variant: CardPrintVariant = "stand
 
 export function isFullArtCard(card: Card): boolean {
   return card.id.endsWith("FullArt");
+}
+
+export function isUncommonPlusCard(card: Card): boolean {
+  return card.id.endsWith("UncommonPlus");
+}
+
+export function toBaseCardId(cardId: string): string {
+  if (cardId.endsWith("UncommonPlus")) return cardId.slice(0, -"UncommonPlus".length);
+  if (cardId.endsWith("FullArt")) return cardId.slice(0, -"FullArt".length);
+  return cardId;
 }

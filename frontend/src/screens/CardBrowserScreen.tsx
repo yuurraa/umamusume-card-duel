@@ -58,6 +58,7 @@ const ownershipFilters: Array<{ id: OwnershipFilter; label: string }> = [
 const rarityFilters: Array<{ id: RarityFilter; label: string }> = [
   { id: "common", label: CARD_RARITY_LABELS.common },
   { id: "uncommon", label: CARD_RARITY_LABELS.uncommon },
+  { id: "uncommonPlus", label: CARD_RARITY_LABELS.uncommonPlus },
   { id: "rare", label: CARD_RARITY_LABELS.rare },
   { id: "doubleRare", label: CARD_RARITY_LABELS.doubleRare },
 ];
@@ -905,6 +906,11 @@ function rarityBadgeStyle(rarity: ReturnType<typeof getCardRarity>): CSSProperti
       border: "1px solid rgba(52, 211, 153, 0.72)",
       background: "rgba(6, 95, 70, 0.86)",
       color: colors.white,
+    },
+    uncommonPlus: {
+      border: "1px solid rgba(103, 232, 249, 0.82)",
+      background: "rgba(15, 118, 110, 0.9)",
+      color: "#ecfeff",
     },
     rare: {
       border: "1px solid rgba(96, 165, 250, 0.78)",

@@ -46,7 +46,7 @@ const starterCardIds = new Set(
   premadeDecksData.premadeDecks.flatMap((deck) => [deck.coverCardId, ...deck.cardIds]),
 );
 
-export const allCards = withFullArtVariants(baseCards, fullArtBaseCardIds);
+export const allCards = withUncommonPlusVariants(withFullArtVariants(baseCards, fullArtBaseCardIds));
 export const ownedStarterCardIds: ReadonlySet<string> = starterCardIds;
 export const cards = allCards;
 
@@ -79,6 +79,27 @@ function toFullArtAssetPath(assetPath: string): string {
   return assetPath.endsWith(".png")
     ? assetPath.slice(0, -4) + `${FULL_ART_SUFFIX}.png`
     : `${assetPath}${FULL_ART_SUFFIX}`;
+}
+
+function withUncommonPlusVariants(sourceCards: Record<string, Card>): Record<string, Card> {
+  const nextCards: Record<string, Card> = { ...sourceCards };
+
+  Object.values(sourceCards).forEach((baseCard) => {
+    if (!isUncommonPlusBaseCard(baseCard)) return;
+    const uncommonPlusCardId = `${baseCard.id}UncommonPlus`;
+    nextCards[uncommonPlusCardId] = {
+      ...baseCard,
+      id: uncommonPlusCardId,
+    };
+  });
+
+  return nextCards;
+}
+
+function isUncommonPlusBaseCard(card: Card): boolean {
+  if (card.id.endsWith("FullArt") || card.id.endsWith("UncommonPlus")) return false;
+  if (card.kind === "umamusume") return card.stage === 1;
+  return card.trainerType === "tool";
 }
 
 export const premadeDecks = premadeDecksData.premadeDecks;

@@ -1,5 +1,5 @@
 import { useState, type CSSProperties, type MouseEvent, type PointerEvent } from "react";
-import { getCardRarity, isFullArtCard } from "../../../../shared/src/cardRarity";
+import { getCardRarity, isFullArtCard, isUncommonPlusCard } from "../../../../shared/src/cardRarity";
 import type { Card, CardPrintVariant, CardRarity } from "../../../../shared/src/types";
 
 type HoloCardImageProps = {
@@ -17,7 +17,7 @@ type HoloCardImageProps = {
   disableHoverAnimation?: boolean;
 };
 
-type PokemonFoilEffect = "common" | "uncommon" | "reverseHolo" | "rareHolo" | "trainerHolo" | "trainerGallery";
+type PokemonFoilEffect = "common" | "uncommon" | "uncommonPlus" | "reverseHolo" | "rareHolo" | "trainerHolo" | "trainerGallery";
 
 type FoilPointer = {
   x: number;
@@ -75,6 +75,7 @@ export function HoloCardImage({
       data-supertype={pokemonData.supertype}
       data-subtypes={pokemonData.subtypes}
       data-trainer-gallery={pokemonData.trainerGallery}
+      data-card-type={card.kind === "umamusume" ? card.type.toLowerCase() : undefined}
       onPointerEnter={() => {
         if (!isInteractive) return;
         setActive(true);
@@ -162,6 +163,7 @@ function roundMotion(value: number): number {
 }
 
 function getFoilEffect(card: Card, rarity: CardRarity, printVariant: CardPrintVariant): PokemonFoilEffect | null {
+  if (isUncommonPlusCard(card)) return "uncommonPlus";
   if (isFullArtCard(card)) {
     return card.kind === "trainer" && card.trainerType === "supporter" ? "trainerHolo" : "trainerGallery";
   }
@@ -200,6 +202,14 @@ function getPokemonFoilData(card: Card, foilEffect: PokemonFoilEffect | null): {
       rarity: "rare holo",
       supertype: card.kind === "trainer" ? "trainer" : "pokémon",
       subtypes: card.kind === "umamusume" && card.stage > 0 ? `stage${card.stage}` : card.kind === "trainer" ? card.trainerType : "basic",
+      trainerGallery: "false",
+    };
+  }
+  if (foilEffect === "uncommonPlus") {
+    return {
+      rarity: "uncommon plus",
+      supertype: card.kind === "trainer" ? "trainer" : "pokémon",
+      subtypes: card.kind === "trainer" ? card.trainerType : card.kind === "umamusume" && card.stage > 0 ? `stage${card.stage}` : "basic",
       trainerGallery: "false",
     };
   }

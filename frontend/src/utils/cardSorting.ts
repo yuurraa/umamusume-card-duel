@@ -54,6 +54,7 @@ function getRarityTierRank(card: Card): number {
   const rarity = getCardRarity(card);
   if (rarity === "common") return 10;
   if (rarity === "uncommon") return 20;
+  if (rarity === "uncommonPlus") return 25;
   if (rarity === "rare") return 30;
   return 40;
 }

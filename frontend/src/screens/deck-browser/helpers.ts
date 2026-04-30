@@ -1,4 +1,4 @@
-import { CARD_RARITY_LABELS, getCardRarity } from "../../../../shared/src/cardRarity";
+import { CARD_RARITY_LABELS, getCardRarity, toBaseCardId } from "../../../../shared/src/cardRarity";
 import { cards } from "../../../../shared/src/gameData";
 import type { Card, CardRarity, EnergyType, TrainerType, UmamusumeType } from "../../../../shared/src/types";
 import type { LocalDeck } from "../../../../shared/src/localDecks";
@@ -57,6 +57,7 @@ export const artFilters: Array<{ id: ArtFilter; label: string }> = [
 export const rarityFilters: Array<{ id: RarityFilter; label: string }> = [
   { id: "common", label: CARD_RARITY_LABELS.common },
   { id: "uncommon", label: CARD_RARITY_LABELS.uncommon },
+  { id: "uncommonPlus", label: CARD_RARITY_LABELS.uncommonPlus },
   { id: "rare", label: CARD_RARITY_LABELS.rare },
   { id: "doubleRare", label: CARD_RARITY_LABELS.doubleRare },
 ];
@@ -260,7 +261,7 @@ function toEnergyType(type: UmamusumeType): EnergyType {
 }
 
 export function toDeckCountKey(cardId: string): string {
-  return cardId.endsWith("FullArt") ? cardId.slice(0, -"FullArt".length) : cardId;
+  return toBaseCardId(cardId);
 }
 
 export function getDuplicateOverflowCardName(cardIds: string[]): string | null {

@@ -1,3 +1,4 @@
+import { toBaseCardId } from "./cardRarity";
 import type { Card } from "./types";
 
 export const LOCAL_DECK_FORMAT_VERSION = 1;
@@ -86,7 +87,7 @@ export function validateLocalDeck(
 }
 
 function toDeckCountKey(cardId: string): string {
-  const normalized = cardId.endsWith("FullArt") ? cardId.slice(0, -"FullArt".length) : cardId;
+  const normalized = toBaseCardId(cardId);
   return COUNT_KEY_ALIASES[normalized] ?? normalized;
 }
 

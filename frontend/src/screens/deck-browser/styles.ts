@@ -845,7 +845,7 @@ export const cardImageStyle: CSSProperties = {
   borderRadius: radius.md,
 };
 
-export function rarityBadgeStyle(rarity: "common" | "uncommon" | "rare" | "doubleRare"): CSSProperties {
+export function rarityBadgeStyle(rarity: "common" | "uncommon" | "uncommonPlus" | "rare" | "doubleRare"): CSSProperties {
   const palette: Record<typeof rarity, { border: string; background: string; color: string }> = {
     common: {
       border: "1px solid rgba(255, 255, 255, 0.64)",
@@ -856,6 +856,11 @@ export function rarityBadgeStyle(rarity: "common" | "uncommon" | "rare" | "doubl
       border: "1px solid rgba(52, 211, 153, 0.72)",
       background: "rgba(6, 95, 70, 0.86)",
       color: colors.white,
+    },
+    uncommonPlus: {
+      border: "1px solid rgba(103, 232, 249, 0.82)",
+      background: "rgba(15, 118, 110, 0.9)",
+      color: "#ecfeff",
     },
     rare: {
       border: "1px solid rgba(96, 165, 250, 0.78)",
