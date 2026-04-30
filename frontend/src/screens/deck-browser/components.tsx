@@ -358,6 +358,7 @@ export function DeckListModal({
                 imageStyle={deckSelectorHoverPreviewImageStyle}
                 draggable={false}
                 radiusOverride={CARD_INSPECT_IMAGE_RADIUS}
+                motionVariant="inspect"
               />
               <div style={deckSelectorInspectActionBarStyle}>
                 <NeutralButton style={deckSelectorInspectActionButtonStyle} onClick={closeInspectCard}>
@@ -623,7 +624,15 @@ export function CreateDeckModal({
           aria-hidden="true"
         >
           {hoverPreviewImage && hoverPreviewCard && (
-            <HoloCardImage card={hoverPreviewCard} src={hoverPreviewImage} alt="" imageStyle={deckSelectorHoverPreviewImageStyle} draggable={false} radiusOverride={CARD_INSPECT_IMAGE_RADIUS} />
+            <HoloCardImage
+              card={hoverPreviewCard}
+              src={hoverPreviewImage}
+              alt=""
+              imageStyle={deckSelectorHoverPreviewImageStyle}
+              draggable={false}
+              radiusOverride={CARD_INSPECT_IMAGE_RADIUS}
+              motionVariant="inspect"
+            />
           )}
         </aside>
       </section>
@@ -952,6 +961,7 @@ export function DeckCardSelectorModal({
                 imageStyle={deckSelectorHoverPreviewImageStyle}
                 draggable={false}
                 radiusOverride={CARD_INSPECT_IMAGE_RADIUS}
+                motionVariant="inspect"
               />
               <div style={deckSelectorInspectActionBarStyle}>
                 <NeutralButton
@@ -1134,7 +1144,15 @@ export function DeckCardInspectModal({ card, onClose }: { card: ReturnType<typeo
   return (
     <div style={deckInspectBackdropStyle} onClick={onClose}>
       <section style={deckInspectSurfaceStyle} onClick={(event) => event.stopPropagation()}>
-        <HoloCardImage card={card} src={image} alt="" imageStyle={deckInspectImageStyle} draggable={false} radiusOverride={CARD_INSPECT_IMAGE_RADIUS} />
+        <HoloCardImage
+          card={card}
+          src={image}
+          alt=""
+          imageStyle={deckInspectImageStyle}
+          draggable={false}
+          radiusOverride={CARD_INSPECT_IMAGE_RADIUS}
+          motionVariant="inspect"
+        />
       </section>
     </div>
   );

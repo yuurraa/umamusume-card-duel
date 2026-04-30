@@ -65,6 +65,7 @@ export function CardPreview({ state, target, canUseAttack, canUseRetreat, canUse
           alt={card.name}
           imageStyle={previewImageStyle}
           radiusOverride={CARD_INSPECT_IMAGE_RADIUS}
+          motionVariant="inspect"
           onClick={(event) => event.stopPropagation()}
         />
         <aside style={previewInfoStyle} onClick={(event) => event.stopPropagation()}>

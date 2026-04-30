@@ -409,7 +409,15 @@ export function CardBrowserScreen({ onBack }: { onBack: () => void }) {
       >
         {inspectCard && (
           <>
-            <HoloCardImage card={inspectCard} src={getCardImage(inspectCard)} alt="" imageStyle={hoverPreviewImageStyle} draggable={false} radiusOverride={CARD_INSPECT_IMAGE_RADIUS} />
+            <HoloCardImage
+              card={inspectCard}
+              src={getCardImage(inspectCard)}
+              alt=""
+              imageStyle={hoverPreviewImageStyle}
+              draggable={false}
+              radiusOverride={CARD_INSPECT_IMAGE_RADIUS}
+              motionVariant="inspect"
+            />
             <div style={inspectActionBarStyle}>
               <NeutralButton style={inspectActionButtonStyle} onClick={closeInspectCard}>Back</NeutralButton>
             </div>

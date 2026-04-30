@@ -10,6 +10,7 @@ type HoloCardImageProps = {
   draggable?: boolean;
   radiusOverride?: number;
   shineVariant?: "default" | "compact";
+  motionVariant?: "none" | "inspect";
   printVariant?: CardPrintVariant;
   wrapperStyle?: CSSProperties;
   onClick?: (event: MouseEvent<HTMLImageElement>) => void;
@@ -45,6 +46,7 @@ export function HoloCardImage({
   draggable = false,
   radiusOverride,
   shineVariant = "default",
+  motionVariant = "none",
   printVariant = "standard",
   wrapperStyle,
   onClick,
@@ -56,12 +58,14 @@ export function HoloCardImage({
   const shadow = imageStyle.boxShadow;
   const borderRadius = radiusOverride ?? imageStyle.borderRadius ?? 8;
   const compact = shineVariant === "compact";
-  const pokemonVars = getPokemonFoilVars(pointer, active, compact);
+  const inspectMotion = motionVariant === "inspect";
+  const pokemonVars = getPokemonFoilVars(pointer, active, compact, inspectMotion);
   const pokemonData = getPokemonFoilData(card, foilEffect);
+  const motionStyle = inspectMotion ? getInspectMotionStyle(pointer, active, compact) : undefined;
 
   return (
     <span
-      className={`pokemon-card-foil${foilEffect ? " pokemon-card-foil--active-effect" : ""}${compact ? " pokemon-card-foil--compact" : ""}`}
+      className={`pokemon-card-foil${foilEffect ? " pokemon-card-foil--active-effect" : ""}${compact ? " pokemon-card-foil--compact" : ""}${inspectMotion ? " pokemon-card-foil--inspect" : ""}`}
       data-foil-effect={foilEffect ?? "none"}
       data-rarity={pokemonData.rarity}
       data-supertype={pokemonData.supertype}
@@ -95,6 +99,7 @@ export function HoloCardImage({
         borderRadius,
         boxShadow: typeof shadow === "string" ? shadow : undefined,
         overflow: "hidden",
+        ...(motionStyle ?? {}),
         ...wrapperStyle,
       }}
     >
@@ -120,6 +125,27 @@ export function HoloCardImage({
       )}
     </span>
   );
+}
+
+function getInspectMotionStyle(pointer: FoilPointer, active: boolean, compact: boolean): CSSProperties {
+  const centerX = pointer.x - 50;
+  const centerY = pointer.y - 50;
+  const rotateX = active ? roundMotion(-centerY / 3.5) : 0;
+  const rotateY = active ? roundMotion(centerX / 3.5) : 0;
+  const translateX = active ? roundMotion(centerX / 4) : 0;
+  const translateY = active ? roundMotion(centerY / 4) : 0;
+  const scale = active ? (compact ? 1.01 : 1.03) : 1;
+
+  return {
+    transform: `perspective(900px) translate3d(${translateX}px, ${translateY}px, 0) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale(${scale})`,
+    transformStyle: "preserve-3d",
+    willChange: "transform",
+    transition: `transform ${active ? "120ms" : "220ms"} ease`,
+  };
+}
+
+function roundMotion(value: number): number {
+  return Math.round(value * 100) / 100;
 }
 
 function getFoilEffect(card: Card, rarity: CardRarity, printVariant: CardPrintVariant): PokemonFoilEffect | null {
@@ -191,7 +217,9 @@ function getPokemonFoilData(card: Card, foilEffect: PokemonFoilEffect | null): {
   return { rarity: "common", supertype: card.kind === "trainer" ? "trainer" : "pokémon", subtypes: "", trainerGallery: "false" };
 }
 
-function getPokemonFoilVars(pointer: FoilPointer, active: boolean, compact: boolean): CSSProperties {
+function getPokemonFoilVars(pointer: FoilPointer, active: boolean, compact: boolean, inspectMotion: boolean): CSSProperties {
+  const inspectScale = inspectMotion ? 0.62 : 1;
+
   return {
     "--pointer-x": `${pointer.x}%`,
     "--pointer-y": `${pointer.y}%`,
@@ -200,11 +228,11 @@ function getPokemonFoilVars(pointer: FoilPointer, active: boolean, compact: bool
     "--pointer-from-left": pointer.fromLeft,
     "--background-x": `${pointer.backgroundX}%`,
     "--background-y": `${pointer.backgroundY}%`,
-    "--card-opacity": active ? (compact ? 0.62 : 1) : 0,
-    "--common-card-opacity": active ? (compact ? 0.34 : 0.48) : 0,
-    "--uncommon-card-opacity": active ? (compact ? 0.38 : 0.52) : 0,
-    "--rare-holo-opacity": active ? (compact ? 0.3 : 0.46) : 0,
-    "--trainer-holo-opacity": active ? (compact ? 0.28 : 0.42) : 0,
+    "--card-opacity": active ? (compact ? 0.62 : 1) * inspectScale : 0,
+    "--common-card-opacity": active ? (compact ? 0.34 : 0.48) * inspectScale : 0,
+    "--uncommon-card-opacity": active ? (compact ? 0.38 : 0.52) * inspectScale : 0,
+    "--rare-holo-opacity": active ? (compact ? 0.3 : 0.46) * inspectScale : 0,
+    "--trainer-holo-opacity": active ? (compact ? 0.28 : 0.42) * inspectScale : 0,
   } as CSSProperties;
 }
 
