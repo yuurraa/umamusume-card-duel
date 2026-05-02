@@ -8,7 +8,7 @@ import {
 } from "../game/engine";
 import type { InspectTarget } from "../inspect";
 import type { AppScreen, MatchMode, PendingSelection } from "../types/ui";
-import { getDeckById, readEquippedDeckId, pickRandomOpponentDeck } from "../utils/deck";
+import { getDeckById, getDeckEnergyTypes, readEquippedDeckId, pickRandomOpponentDeck } from "../utils/deck";
 import { CardPreview } from "../match/modals/CardPreview";
 import { DiscardPileModal } from "../match/modals/DiscardPileModal";
 import { DeckChoiceModal } from "../match/modals/DeckChoiceModal";
@@ -67,7 +67,7 @@ import {
 } from "../pvp/signalApi";
 import { getFirebaseAccountSnapshot, linkFirebaseAccountWithGoogle, signOutFirebaseAccount, type FirebaseAccountSnapshot } from "../utils/firebaseAuth";
 import { formatBattleText, getAccountPlayerName } from "../utils/playerNames";
-import type { GameState, SideId, SideState } from "../../../shared/src/types";
+import type { EnergyType, GameState, SideId, SideState } from "../../../shared/src/types";
 
 const EMPTY_FIREBASE_ACCOUNT: FirebaseAccountSnapshot = {
   configured: false,
@@ -114,7 +114,7 @@ export function App() {
   const [game, setGame] = useState(() => {
     const playerDeck = getDeckById(readEquippedDeckId());
     const opponent = pickRandomOpponentDeck();
-    return createGame(playerDeck.cardIds, opponent.cardIds, opponent.name);
+    return createGame(playerDeck.cardIds, opponent.cardIds, opponent.name, "hard", false, "Guest", getDeckEnergyTypes(playerDeck), getDeckEnergyTypes(opponent));
   });
   const [previewTarget, setPreviewTarget] = useState<InspectTarget | null>(null);
   const [pendingSelection, setPendingSelection] = useState<PendingSelection | null>(null);
@@ -151,7 +151,9 @@ export function App() {
   const screenRef = useRef<AppScreen>("mainMenu");
   const gameRef = useRef(game);
   const equippedDeckCardIdsRef = useRef<string[]>([]);
+  const equippedDeckEnergyTypesRef = useRef<EnergyType[]>([]);
   const remoteDeckRef = useRef<string[] | null>(null);
+  const remoteEnergyTypesRef = useRef<EnergyType[] | null>(null);
   const remoteNameRef = useRef<string>("Opponent");
   const equippedDeck = getDeckById(equippedDeckId);
   const selectedPlaymat = getSelectedPlaymat(customisation);
@@ -263,7 +265,8 @@ export function App() {
 
   useEffect(() => {
     equippedDeckCardIdsRef.current = equippedDeck.cardIds;
-  }, [equippedDeck.cardIds]);
+    equippedDeckEnergyTypesRef.current = getDeckEnergyTypes(equippedDeck);
+  }, [equippedDeck]);
 
   const resetTransientMatchUi = () => {
     previousLogRef.current = [];
@@ -315,6 +318,7 @@ export function App() {
       if (!isHostNow) return;
       pvpPeerRef.current?.send({ type: "helloAck" });
       remoteDeckRef.current = message.deckCardIds;
+      remoteEnergyTypesRef.current = message.energyTypes ?? null;
       remoteNameRef.current = message.playerName || "Opponent";
       if (currentScreen === "match") {
         syncToGuest(gameRef.current);
@@ -322,7 +326,16 @@ export function App() {
       }
       if (currentScreen !== "pvpLobby") return;
       resetTransientMatchUi();
-      const starting = createGame(equippedDeckCardIdsRef.current, message.deckCardIds, remoteNameRef.current, "hard", true, localPlayerName);
+      const starting = createGame(
+        equippedDeckCardIdsRef.current,
+        message.deckCardIds,
+        remoteNameRef.current,
+        "hard",
+        true,
+        localPlayerName,
+        equippedDeckEnergyTypesRef.current,
+        message.energyTypes,
+      );
       gameRef.current = starting;
       setGame(starting);
       setMatchMode("playerVsPlayer");
@@ -586,6 +599,7 @@ export function App() {
     setPvpConnected(false);
     pvpHelloAckRef.current = false;
     remoteDeckRef.current = null;
+    remoteEnergyTypesRef.current = null;
     remoteNameRef.current = "Opponent";
     pvpAnswerPollTokenRef.current += 1;
     resetCandidateSync();
@@ -677,6 +691,7 @@ export function App() {
     setPvpConnected(false);
     pvpHelloAckRef.current = false;
     remoteDeckRef.current = null;
+    remoteEnergyTypesRef.current = null;
     remoteNameRef.current = "Opponent";
     pvpAnswerPollTokenRef.current += 1;
     resetCandidateSync();
@@ -718,7 +733,7 @@ export function App() {
       if (pvpHelloAckRef.current) return;
       const runtime = pvpPeerRef.current;
       if (!runtime || !runtime.isConnected()) return;
-      runtime.send({ type: "hello", playerName: localPlayerName, deckCardIds: equippedDeck.cardIds });
+      runtime.send({ type: "hello", playerName: localPlayerName, deckCardIds: equippedDeck.cardIds, energyTypes: getDeckEnergyTypes(equippedDeck) });
     };
     sendHello();
     const intervalId = window.setInterval(() => {
@@ -790,6 +805,7 @@ export function App() {
     pendingScreen,
     matchMode,
     equippedDeckCardIds: equippedDeck.cardIds,
+    equippedDeckEnergyTypes: getDeckEnergyTypes(equippedDeck),
     playerName: localPlayerName,
     hasPendingPlayerChoice: hasLocalPendingChoice,
     isTurnFlowBlocked,

@@ -3,7 +3,7 @@ import { cards } from "../../../../shared/src/gameData";
 import type { Card, CardRarity, EnergyType, TrainerType, UmamusumeType } from "../../../../shared/src/types";
 import type { LocalDeck } from "../../../../shared/src/localDecks";
 import type { PremadeDeck } from "../../types/ui";
-import { LOCAL_DECK_CACHE_STORAGE_KEY } from "../../utils/deck";
+import { inferDeckEnergyTypes, LOCAL_DECK_CACHE_STORAGE_KEY, normalizeDeckEnergyTypes } from "../../utils/deck";
 import { getCard } from "../../game/engine";
 import { formatCardName } from "../../game/engine/core/labels";
 
@@ -15,7 +15,7 @@ export const deckRows: number[][] = [
   [14, 15, 16, 17, 18, 19],
 ];
 export type DeckEntity = PremadeDeck | LocalDeck;
-export type DeckJsonPayload = { name: string; cardIds: string[]; coverCardId: string };
+export type DeckJsonPayload = { name: string; cardIds: string[]; coverCardId: string; energyTypes: EnergyType[] };
 
 export type CategoryFilter = "umamusume" | "trainer" | "item" | "tool" | "stadium";
 export type StageFilter = 0 | 1 | 2;
@@ -42,6 +42,8 @@ export const energyTypes: EnergyType[] = [
   "colorless",
   "dragon",
 ];
+
+export const generatedEnergyTypes: EnergyType[] = energyTypes.filter((type) => type !== "colorless");
 
 export const stageFilters: Array<{ id: StageFilter; label: string }> = [
   { id: 0, label: "Basic" },
@@ -75,12 +77,13 @@ export function writeLocalDeckCache(localDecks: LocalDeck[]): void {
     name: deck.name,
     coverCardId: deck.coverCardId,
     cardIds: deck.cardIds,
+    energyTypes: normalizeDeckEnergyTypes(deck.energyTypes),
   }));
   window.localStorage.setItem(LOCAL_DECK_CACHE_STORAGE_KEY, JSON.stringify(cache));
 }
 
 export function buildDeckJson(deck: DeckEntity): string {
-  return `${JSON.stringify({ name: deck.name, cardIds: deck.cardIds, coverCardId: deck.coverCardId }, null, 2)}\n`;
+  return `${JSON.stringify({ name: deck.name, cardIds: deck.cardIds, coverCardId: deck.coverCardId, energyTypes: getDeckSelectedEnergyTypes(deck) }, null, 2)}\n`;
 }
 
 export function parseDeckJson(text: string): { ok: true; payload: DeckJsonPayload } | { ok: false; error: string } {
@@ -128,7 +131,25 @@ export function parseDeckJson(text: string): { ok: true; payload: DeckJsonPayloa
   const coverCard = cards[resolvedCoverCardId];
   if (!coverCard) return { ok: false, error: `Unknown card id: ${resolvedCoverCardId}` };
 
-  return { ok: true, payload: { name, cardIds, coverCardId: resolvedCoverCardId } };
+  const energyTypes = parseDeckEnergyTypes(candidate.energyTypes, cardIds);
+  if (!energyTypes.ok) return { ok: false, error: energyTypes.error };
+
+  return { ok: true, payload: { name, cardIds, coverCardId: resolvedCoverCardId, energyTypes: energyTypes.value } };
+}
+
+export function getDeckSelectedEnergyTypes(deck: DeckEntity): EnergyType[] {
+  const selected = normalizeDeckEnergyTypes(deck.energyTypes);
+  return selected.length > 0 ? selected : inferDeckEnergyTypes(deck.cardIds);
+}
+
+function parseDeckEnergyTypes(value: unknown, cardIds: string[]): { ok: true; value: EnergyType[] } | { ok: false; error: string } {
+  if (value === undefined) return { ok: true, value: inferDeckEnergyTypes(cardIds) };
+  if (!Array.isArray(value)) return { ok: false, error: "energyTypes must be an array of Energy type ids." };
+  if (value.some((energyType) => typeof energyType !== "string")) return { ok: false, error: "energyTypes must contain only Energy type ids." };
+  const normalized = normalizeDeckEnergyTypes(value as EnergyType[]);
+  if (normalized.length !== value.length) return { ok: false, error: "energyTypes contains an unknown or duplicate Energy type." };
+  if (normalized.length < 1 || normalized.length > 3) return { ok: false, error: "Deck must select 1 to 3 Energy types." };
+  return { ok: true, value: normalized };
 }
 
 export function toEditableDeckSlots(cardIds: string[]): Array<string | null> {

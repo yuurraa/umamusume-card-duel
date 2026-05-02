@@ -74,12 +74,14 @@ export function createGame(
   _aiDifficulty: AiDifficulty = "hard",
   opponentIsHuman = false,
   playerName = "Guest",
+  playerEnergyTypes?: EnergyType[],
+  opponentEnergyTypes?: EnergyType[],
 ): GameState {
   resetUmamusumeIdCounter();
   const firstPlayer = Math.random() >= 0.5 ? "player" : "opponent";
   const coinFlipResult = firstPlayer === "player" ? "heads" : "tails";
-  const playerOpening = buildOpeningSide("player", playerName, playerDeck, false);
-  const opponentOpening = buildOpeningSide("opponent", opponentName, opponentDeck, !opponentIsHuman);
+  const playerOpening = buildOpeningSide("player", playerName, playerDeck, false, playerEnergyTypes);
+  const opponentOpening = buildOpeningSide("opponent", opponentName, opponentDeck, !opponentIsHuman, opponentEnergyTypes);
 
   const state: GameState = {
     phase: "setup",

@@ -81,13 +81,27 @@ export function getDeckCoverCard(deck: PremadeDeck) {
 }
 
 export function getDeckEnergyTypes(deck: PremadeDeck): EnergyType[] {
+  const selectedTypes = normalizeDeckEnergyTypes(deck.energyTypes);
+  if (selectedTypes.length > 0) return selectedTypes;
+  return inferDeckEnergyTypes(deck.cardIds);
+}
+
+export function inferDeckEnergyTypes(cardIds: string[]): EnergyType[] {
   const types = new Set<EnergyType>();
-  const displayOrder: EnergyType[] = ["grass", "fire", "water", "lightning", "psychic", "fighting", "darkness", "steel", "colorless", "dragon"];
-  deck.cardIds.forEach((cardId) => {
+  const displayOrder: EnergyType[] = ["grass", "fire", "water", "lightning", "psychic", "fighting", "darkness", "steel", "dragon"];
+  cardIds.forEach((cardId) => {
     const card = getCard(cardId);
     if (card.kind === "umamusume") types.add(DECK_TYPE_TO_ENERGY[card.type]);
   });
-  return displayOrder.filter((type) => types.has(type));
+  const inferredTypes = displayOrder.filter((type) => types.has(type)).slice(0, 3);
+  return inferredTypes.length > 0 ? inferredTypes : ["psychic"];
+}
+
+export function normalizeDeckEnergyTypes(energyTypes: readonly EnergyType[] | undefined): EnergyType[] {
+  if (!energyTypes) return [];
+  const displayOrder: EnergyType[] = ["grass", "fire", "water", "lightning", "psychic", "fighting", "darkness", "steel", "dragon"];
+  const selected = new Set(energyTypes);
+  return displayOrder.filter((type) => selected.has(type)).slice(0, 3);
 }
 
 function readCachedLocalDecks(): PremadeDeck[] {
@@ -95,7 +109,7 @@ function readCachedLocalDecks(): PremadeDeck[] {
   const raw = window.localStorage.getItem(LOCAL_DECK_CACHE_STORAGE_KEY);
   if (!raw) return [];
   try {
-    const parsed = JSON.parse(raw) as Array<{ id: string; name: string; coverCardId: string; cardIds: string[] }>;
+    const parsed = JSON.parse(raw) as Array<{ id: string; name: string; coverCardId: string; cardIds: string[]; energyTypes?: EnergyType[] }>;
     return parsed.filter((deck) => Boolean(deck.id) && Boolean(deck.name) && Boolean(deck.coverCardId) && Array.isArray(deck.cardIds));
   } catch {
     return [];

@@ -1,9 +1,9 @@
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
-import type { GameState, SideId } from "../../../../shared/src/types";
+import type { EnergyType, GameState, SideId } from "../../../../shared/src/types";
 import { createGame } from "../../game/engine";
 import type { InspectTarget } from "../../inspect";
 import type { AppScreen, MatchMode, PendingSelection } from "../../types/ui";
-import { pickRandomOpponentDeck } from "../../utils/deck";
+import { getDeckEnergyTypes, pickRandomOpponentDeck } from "../../utils/deck";
 import { getRandomCustomisationSettings, type CustomisationSettings } from "../../utils/customisation";
 import type { PendingCoinAttack } from "./useMatchActions";
 import type { PlayerIntent } from "../../pvp/playerIntent";
@@ -13,6 +13,7 @@ export type UseAppNavigationArgs = {
   pendingScreen: AppScreen | null;
   matchMode: MatchMode;
   equippedDeckCardIds: string[];
+  equippedDeckEnergyTypes: EnergyType[];
   playerName: string;
   hasPendingPlayerChoice: boolean;
   isTurnFlowBlocked: boolean;
@@ -45,6 +46,7 @@ export function useAppNavigation({
   pendingScreen,
   matchMode,
   equippedDeckCardIds,
+  equippedDeckEnergyTypes,
   playerName,
   hasPendingPlayerChoice,
   isTurnFlowBlocked,
@@ -99,6 +101,8 @@ export function useAppNavigation({
       "hard",
       false,
       playerAiDeck?.name ?? playerName,
+      playerAiDeck ? getDeckEnergyTypes(playerAiDeck) : equippedDeckEnergyTypes,
+      getDeckEnergyTypes(opponent),
     ));
   };
 

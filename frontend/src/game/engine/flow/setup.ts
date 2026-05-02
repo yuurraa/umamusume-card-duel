@@ -33,9 +33,9 @@ export function createUmamusume(cardId: string, turnNumber: number): UmamusumeIn
   };
 }
 
-export function buildOpeningSide(id: SideId, title: string, deckList: string[], autoSetupActive: boolean): SideState {
+export function buildOpeningSide(id: SideId, title: string, deckList: string[], autoSetupActive: boolean, selectedEnergyTypes?: EnergyType[]): SideState {
   const { deck, hand } = drawOpeningHand(deckList);
-  const side = makeSide(id, title, deck, getDeckEnergyPool(deckList));
+  const side = makeSide(id, title, deck, getDeckEnergyPool(deckList, selectedEnergyTypes));
   side.hand = hand;
 
   if (autoSetupActive) {
@@ -63,7 +63,10 @@ function createEmptyEnergyRecord(): Record<EnergyType, number> {
   }, {} as Record<EnergyType, number>);
 }
 
-function getDeckEnergyPool(deckList: string[]): EnergyType[] {
+function getDeckEnergyPool(deckList: string[], selectedEnergyTypes?: EnergyType[]): EnergyType[] {
+  const selectedPool = normalizeSelectedEnergyTypes(selectedEnergyTypes);
+  if (selectedPool.length > 0) return selectedPool;
+
   const pool = new Set<EnergyType>();
   deckList.forEach((cardId) => {
     const card = cards[cardId];
@@ -71,6 +74,12 @@ function getDeckEnergyPool(deckList: string[]): EnergyType[] {
     pool.add(UMAMUSUME_TYPE_TO_ENERGY[card.type]);
   });
   return pool.size > 0 ? [...pool] : ["psychic"];
+}
+
+function normalizeSelectedEnergyTypes(selectedEnergyTypes?: EnergyType[]): EnergyType[] {
+  if (!selectedEnergyTypes) return [];
+  const selected = new Set(selectedEnergyTypes);
+  return ALL_ENERGY_TYPES.filter((type) => type !== "colorless" && selected.has(type)).slice(0, 3);
 }
 
 function drawOpeningHand(deckList: string[]): { deck: string[]; hand: string[] } {

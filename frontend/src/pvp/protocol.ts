@@ -1,4 +1,4 @@
-import type { GameState } from "../../../shared/src/types";
+import type { EnergyType, GameState } from "../../../shared/src/types";
 import type { PlayerIntent } from "./playerIntent";
 
 const COMPRESSED_MESSAGE_PREFIX = "UCDM1.";
@@ -6,7 +6,7 @@ const COMPRESSION_THRESHOLD_BYTES = 1024;
 const MAX_WIRE_MESSAGE_CHARS = 512_000;
 
 export type PvpWireMessage =
-  | { type: "hello"; playerName: string; deckCardIds: string[] }
+  | { type: "hello"; playerName: string; deckCardIds: string[]; energyTypes?: EnergyType[] }
   | { type: "helloAck" }
   | { type: "sync"; state: GameState }
   | { type: "intent"; intent: PlayerIntent };

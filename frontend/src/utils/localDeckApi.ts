@@ -1,4 +1,5 @@
 import type { LocalDeck, LocalDeckInput } from "../../../shared/src/localDecks";
+import type { EnergyType } from "../../../shared/src/types";
 import { getFirebaseAuthToken } from "./firebaseAuth";
 
 type DeckListResponse = { decks: LocalDeck[] };
@@ -7,6 +8,7 @@ export type CloudDeckDraft = {
   name: string;
   cardIds: Array<string | null>;
   selectedCoverCardId: string | null;
+  energyTypes: EnergyType[];
 };
 type CloudDeckDraftsResponse = {
   createDrafts: LocalDeck[];

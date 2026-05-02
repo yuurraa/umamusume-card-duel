@@ -441,6 +441,12 @@ function validateLocalDeckInput(input: LocalDeckInput | undefined): string | nul
   if (!Array.isArray(input.cardIds)) return "Deck cardIds must be an array.";
   if (input.cardIds.some((cardId) => typeof cardId !== "string" || cardId.length === 0)) return "Deck cardIds must contain card id strings.";
   if (input.coverCardId !== undefined && (typeof input.coverCardId !== "string" || input.coverCardId.length === 0)) return "Deck coverCardId must be a non-empty string.";
+  if (input.energyTypes !== undefined) {
+    if (!Array.isArray(input.energyTypes)) return "Deck energyTypes must be an array.";
+    if (input.energyTypes.length < 1 || input.energyTypes.length > 3) return "Deck must select 1 to 3 Energy types.";
+    if (new Set(input.energyTypes).size !== input.energyTypes.length) return "Deck Energy types must be unique.";
+    if (input.energyTypes.some((energyType) => !VALID_GENERATED_ENERGY_TYPES.has(energyType))) return "Deck energyTypes contains an Energy type that cannot be generated.";
+  }
   return null;
 }
 
@@ -586,6 +592,7 @@ async function readCloudDeckDrafts(userId: string): Promise<Required<CloudDeckDr
         name: draft.name,
         cardIds: draft.cardIds,
         selectedCoverCardId: draft.selectedCoverCardId,
+        energyTypes: draft.energyTypes ?? ["psychic"],
       };
     }
     if (draft.kind === "edit" && draft.sourceDeckId && isValidEditDeckDraft(draft)) {
@@ -593,6 +600,7 @@ async function readCloudDeckDrafts(userId: string): Promise<Required<CloudDeckDr
         name: draft.name,
         cardIds: draft.cardIds,
         selectedCoverCardId: draft.selectedCoverCardId,
+        energyTypes: draft.energyTypes ?? ["psychic"],
       };
     }
   }
@@ -621,6 +629,7 @@ async function writeCloudDeckDrafts(userId: string, drafts: Required<CloudDeckDr
       name: editDraft.name,
       cardIds: editDraft.cardIds,
       selectedCoverCardId: editDraft.selectedCoverCardId,
+      energyTypes: editDraft.energyTypes ?? ["psychic"],
       updatedAt: deck.updatedAt || nowIso,
     } satisfies CloudDeckDraft);
   }
@@ -635,6 +644,7 @@ async function writeCloudDeckDrafts(userId: string, drafts: Required<CloudDeckDr
       name: editDraft.name,
       cardIds: editDraft.cardIds,
       selectedCoverCardId: editDraft.selectedCoverCardId,
+      energyTypes: editDraft.energyTypes ?? ["psychic"],
       updatedAt: nowIso,
     } satisfies CloudDeckDraft);
   }
@@ -717,6 +727,7 @@ function isValidCreateDeckDraft(deck: unknown): deck is LocalDeck {
   if (typeof candidate.name !== "string" || candidate.name.length === 0) return false;
   if (typeof candidate.coverCardId !== "string" || candidate.coverCardId.length === 0) return false;
   if (!Array.isArray(candidate.cardIds) || candidate.cardIds.some((cardId) => typeof cardId !== "string")) return false;
+  if (candidate.energyTypes !== undefined && !isValidEnergyTypeArray(candidate.energyTypes)) return false;
   return typeof candidate.createdAt === "string" && typeof candidate.updatedAt === "string";
 }
 
@@ -735,8 +746,26 @@ function isValidEditDeckDraft(draft: unknown): draft is DeckEditorDraftPayload {
   if (typeof candidate.name !== "string") return false;
   if (!Array.isArray(candidate.cardIds) || candidate.cardIds.length !== DECK_CARD_COUNT) return false;
   if (candidate.cardIds.some((cardId) => cardId !== null && typeof cardId !== "string")) return false;
-  return candidate.selectedCoverCardId === null || typeof candidate.selectedCoverCardId === "string";
+  if (!(candidate.selectedCoverCardId === null || typeof candidate.selectedCoverCardId === "string")) return false;
+  return candidate.energyTypes === undefined || isValidEnergyTypeArray(candidate.energyTypes);
 }
+
+function isValidEnergyTypeArray(value: unknown): boolean {
+  if (!Array.isArray(value) || value.length < 1 || value.length > 3) return false;
+  return value.every((energyType) => typeof energyType === "string" && VALID_GENERATED_ENERGY_TYPES.has(energyType)) && new Set(value).size === value.length;
+}
+
+const VALID_GENERATED_ENERGY_TYPES = new Set([
+  "grass",
+  "fire",
+  "water",
+  "lightning",
+  "psychic",
+  "fighting",
+  "darkness",
+  "steel",
+  "dragon",
+]);
 
 function isRecord(input: unknown): input is Record<string, unknown> {
   return typeof input === "object" && input !== null && !Array.isArray(input);
@@ -1005,6 +1034,7 @@ type CloudDeckDraft = {
   name: string;
   cardIds: Array<string | null>;
   selectedCoverCardId: string | null;
+  energyTypes?: string[];
   updatedAt: string;
 };
 
@@ -1027,6 +1057,7 @@ type DeckEditorDraftPayload = {
   name: string;
   cardIds: Array<string | null>;
   selectedCoverCardId: string | null;
+  energyTypes?: string[];
 };
 
 function readPvpIceServersFromEnv(): PublicIceServer[] {

@@ -37,6 +37,7 @@ import {
   toggleSetValue,
   SELECTED_TICK,
   DECK_CARD_COUNT,
+  generatedEnergyTypes,
 } from "./helpers";
 import {
   cardGridStyle,
@@ -435,6 +436,7 @@ export function CreateDeckModal({
   onDeleteDeck,
   onPickSlot,
   onValidate,
+  onCoverInspectActiveChange,
 }: {
   title: string;
   name: string;
@@ -458,11 +460,14 @@ export function CreateDeckModal({
   onDeleteDeck: () => void;
   onPickSlot: (slotIndex: number) => void;
   onValidate: () => void;
+  onCoverInspectActiveChange?: (active: boolean) => void;
 }) {
   const [hoverPreviewImage, setHoverPreviewImage] = useState<string | null>(null);
   const [hoverPreviewCard, setHoverPreviewCard] = useState<Card | null>(null);
   const [hoverPreviewKey, setHoverPreviewKey] = useState<string | null>(null);
   const [hoverPreviewPosition, setHoverPreviewPosition] = useState<{ left: number; top: number; width: number } | null>(null);
+  const [coverInspectCard, setCoverInspectCard] = useState<Card | null>(null);
+  const [coverInspectPosition, setCoverInspectPosition] = useState<{ left: number; top: number; width: number } | null>(null);
   const hoverPreviewTimeoutRef = useRef<number | null>(null);
   const filledCount = cardIds.filter((cardId) => Boolean(cardId)).length;
 
@@ -493,12 +498,52 @@ export function CreateDeckModal({
     setHoverPreviewKey(null);
   };
 
+  const inspectCoverCardFromTile = (card: Card, anchorEl: HTMLButtonElement) => {
+    hideHoverPreview();
+    const rect = anchorEl.getBoundingClientRect();
+    const { left, top, width } = getHoverPreviewPosition(rect, HOVER_PREVIEW_ACTION_HEIGHT);
+    setCoverInspectCard(card);
+    setCoverInspectPosition({ left, top, width });
+  };
+
+  const closeCoverInspectCard = () => {
+    setCoverInspectCard(null);
+    setCoverInspectPosition(null);
+  };
+
   useEffect(() => () => clearHoverPreviewTimer(), []);
 
   const hoverPreviewActive = Boolean(hoverPreviewImage && hoverPreviewPosition);
+  const coverInspectActive = selectingCoverCard && Boolean(coverInspectCard && coverInspectPosition);
+
+  useEffect(() => {
+    onCoverInspectActiveChange?.(coverInspectActive);
+    return () => onCoverInspectActiveChange?.(false);
+  }, [coverInspectActive, onCoverInspectActiveChange]);
+
+  useEffect(() => {
+    if (!coverInspectActive) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      event.stopPropagation();
+      closeCoverInspectCard();
+    };
+    window.addEventListener("keydown", onKeyDown, { capture: true });
+    return () => window.removeEventListener("keydown", onKeyDown, { capture: true });
+  }, [coverInspectActive]);
 
   return (
-    <div style={deckModalBackdropStyle} onClick={onClose}>
+    <div
+      style={deckModalBackdropStyle}
+      onClick={() => {
+        if (coverInspectActive) {
+          closeCoverInspectCard();
+          return;
+        }
+        onClose();
+      }}
+    >
       <section style={createDeckModalStyle} onClick={(event) => event.stopPropagation()}>
         {error && (
           <ActionNotice
@@ -578,20 +623,20 @@ export function CreateDeckModal({
                     image={image}
                     name={card.name}
                     selected={selectingCoverCard && selectedCoverCardId === cardId}
-                    onInspect={() => {
-                      hideHoverPreview();
+                    onInspect={(anchorEl) => {
                       if (selectingCoverCard) {
-                        onSelectCoverCard(cardId);
+                        inspectCoverCardFromTile(card, anchorEl);
                         return;
                       }
+                      hideHoverPreview();
                       if (canRemoveCards) {
                         onEditFilledSlot(slotIndex);
                         return;
                       }
                       onPickSlot(slotIndex);
                     }}
-                    onHoverStart={(anchorEl) => scheduleHoverPreview(`create-${slotIndex}-${cardId}`, card, image, anchorEl)}
-                    onHoverEnd={hideHoverPreview}
+                    onHoverStart={selectingCoverCard ? undefined : (anchorEl) => scheduleHoverPreview(`create-${slotIndex}-${cardId}`, card, image, anchorEl)}
+                    onHoverEnd={selectingCoverCard ? undefined : hideHoverPreview}
                     previewActive={hoverPreviewKey === `create-${slotIndex}-${cardId}`}
                   />
                 );
@@ -635,6 +680,131 @@ export function CreateDeckModal({
             />
           )}
         </aside>
+        <div style={deckSelectorHoverDimStyle(coverInspectActive)} onClick={closeCoverInspectCard} aria-hidden="true" />
+        <aside
+          style={deckSelectorHoverPreviewStyle(
+            coverInspectPosition?.left ?? 0,
+            coverInspectPosition?.top ?? 0,
+            coverInspectActive,
+            coverInspectPosition?.width,
+          )}
+          aria-hidden={!coverInspectActive}
+        >
+          {coverInspectCard && (
+            <>
+              <HoloCardImage
+                card={coverInspectCard}
+                src={getCardImage(coverInspectCard)}
+                alt=""
+                imageStyle={deckSelectorHoverPreviewImageStyle}
+                draggable={false}
+                radiusOverride={CARD_INSPECT_IMAGE_RADIUS}
+                motionVariant="inspect"
+              />
+              <div style={deckSelectorInspectActionBarStyle}>
+                <NeutralButton
+                  style={deckSelectorInspectActionButtonStyle}
+                  onClick={() => {
+                    onSelectCoverCard(coverInspectCard.id);
+                    closeCoverInspectCard();
+                  }}
+                >
+                  Equip
+                </NeutralButton>
+                <NeutralButton style={deckSelectorInspectActionButtonStyle} onClick={closeCoverInspectCard}>
+                  Back
+                </NeutralButton>
+              </div>
+            </>
+          )}
+        </aside>
+      </section>
+    </div>
+  );
+}
+
+export function DeckEnergySelectionModal({
+  selectedEnergyTypes,
+  error,
+  onToggleEnergyType,
+  onClearError,
+  onClose,
+  onConfirm,
+}: {
+  selectedEnergyTypes: EnergyType[];
+  error: string | null;
+  onToggleEnergyType: (energyType: EnergyType) => void;
+  onClearError: () => void;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div style={deckModalBackdropStyle} onClick={onClose}>
+      <section
+        style={{
+          ...deckModalStyle,
+          width: "fit-content",
+          maxWidth: "calc(100vw - 48px)",
+          gridTemplateRows: "auto auto",
+          padding: 18,
+        }}
+        onClick={(event) => event.stopPropagation()}
+      >
+        {error && (
+          <ActionNotice
+            notice={error}
+            tone="danger"
+            placement="bottom"
+            interactive
+            emphasize
+            onClose={onClearError}
+          />
+        )}
+        <header style={deckModalHeaderStyle}>
+          <div style={{ display: "grid", gap: 8 }}>
+            <div style={deckModalMetaStyle}>
+              <span style={deckModalKickerStyle}>Energy</span>
+              <span style={deckMetaSeparatorStyle} aria-hidden="true">·</span>
+              <span style={deckModalInlineCountStyle}>{selectedEnergyTypes.length}/3 selected</span>
+            </div>
+            <h2 style={{ ...deckModalTitleStyle, minHeight: 0 }}>Choose Energy Types</h2>
+          </div>
+          <div style={deckModalHeaderActionsStyle}>
+            <NeutralButton style={closeDeckModalButtonStyle} onClick={onClose}>Back</NeutralButton>
+            <NeutralButton style={deckModalActionButtonStyle} onClick={onConfirm}>
+              Continue
+            </NeutralButton>
+          </div>
+        </header>
+        <div style={{ display: "grid", gap: 18, marginTop: 6 }}>
+          <div style={{ ...energyFilterGridStyle, display: "flex", justifyContent: "flex-start", gap: 16, gridTemplateColumns: "none" }}>
+            {generatedEnergyTypes.map((energyType) => {
+              const active = selectedEnergyTypes.includes(energyType);
+              const disabled = !active && selectedEnergyTypes.length >= 3;
+              return (
+                <button
+                  key={`deck-energy-modal-${energyType}`}
+                  type="button"
+                  style={{
+                    ...energyFilterButtonStyle(active),
+                    width: 48,
+                    height: 48,
+                    border: active ? "1px solid rgba(0, 0, 0, 0.7)" : "1px solid rgba(255, 255, 255, 0.82)",
+                    opacity: disabled && !active ? 0.45 : 1,
+                    cursor: disabled ? "not-allowed" : "pointer",
+                  }}
+                  disabled={disabled}
+                  onClick={() => onToggleEnergyType(energyType)}
+                  title={energyLabel(energyType)}
+                  aria-label={energyLabel(energyType)}
+                  aria-pressed={active}
+                >
+                  <EnergyIcon type={energyType} size="md" />
+                </button>
+              );
+            })}
+          </div>
+        </div>
       </section>
     </div>
   );
@@ -1105,8 +1275,8 @@ function DeckListCardTile({
   onInspect: (anchorEl: HTMLButtonElement) => void;
   selected?: boolean;
   clickable?: boolean;
-  onHoverStart?: (anchorEl: HTMLButtonElement) => void;
-  onHoverEnd?: () => void;
+  onHoverStart?: ((anchorEl: HTMLButtonElement) => void) | undefined;
+  onHoverEnd?: (() => void) | undefined;
   previewActive?: boolean;
 }) {
   const [hovered, setHovered] = useState(false);

@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { createDeckIdFromName, LOCAL_DECK_FORMAT_VERSION, type LocalDeck } from "../../../shared/src/localDecks";
+import type { EnergyType } from "../../../shared/src/types";
 import { getCard } from "../game/engine";
 import { NeutralButton } from "../components/buttons/NeutralButton";
 import type { PremadeDeck } from "../types/ui";
+import { normalizeDeckEnergyTypes } from "../utils/deck";
 import { deleteLocalDeck, importLocalDeck, listCloudDeckDrafts, listLocalDecks, saveCloudDeckDrafts, saveLocalDeck } from "../utils/localDeckApi";
 import {
   DeckClearAllConfirmModal,
@@ -13,6 +15,7 @@ import {
   DeckBrowserTile,
   DeckCardSelectorModal,
   DeckDeleteConfirmModal,
+  DeckEnergySelectionModal,
   DeckJsonModal,
   DeckListModal,
   DeckSummaryCard,
@@ -22,6 +25,7 @@ import {
   type DeckEntity,
   buildDeckJson,
   getDuplicateOverflowCardName,
+  getDeckSelectedEnergyTypes,
   parseDeckJson,
   sortDeckCardIds,
   toEditableDeckSlots,
@@ -48,12 +52,14 @@ type DeckEditorDraft = {
   name: string;
   cardIds: Array<string | null>;
   selectedCoverCardId: string | null;
+  energyTypes: EnergyType[];
 };
 
 type DeckEditorSnapshot = {
   name: string;
   cardIds: Array<string | null>;
   selectedCoverCardId: string | null;
+  energyTypes: EnergyType[];
 };
 
 export function DeckBrowserScreen({
@@ -70,6 +76,7 @@ export function DeckBrowserScreen({
   const customDecksEnabled = true;
   const [openedDeckRef, setOpenedDeckRef] = useState<{ id: string; source: "premade" | "local" | "draft" } | null>(null);
   const [deckListInspectActive, setDeckListInspectActive] = useState(false);
+  const [coverInspectActive, setCoverInspectActive] = useState(false);
   const [localDecks, setLocalDecks] = useState<LocalDeck[]>([]);
   const [localDeckError, setLocalDeckError] = useState<string | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -98,8 +105,17 @@ export function DeckBrowserScreen({
     name: string;
     cardIds: string[];
     deckId: string | null;
+    energyTypes: EnergyType[];
   } | null>(null);
+  const [pendingEnergySelectionDeck, setPendingEnergySelectionDeck] = useState<{
+    name: string;
+    cardIds: string[];
+    deckId: string | null;
+    initialCoverCardId: string;
+  } | null>(null);
+  const [energySelectionError, setEnergySelectionError] = useState<string | null>(null);
   const [selectedCoverCardId, setSelectedCoverCardId] = useState<string | null>(null);
+  const [selectedEnergyTypes, setSelectedEnergyTypes] = useState<EnergyType[]>(["psychic"]);
   const [editorBaseline, setEditorBaseline] = useState<DeckEditorSnapshot | null>(null);
 
   const allDecks = useMemo(
@@ -159,10 +175,11 @@ export function DeckBrowserScreen({
   };
 
   const hasUnsavedEditorChanges = (): boolean => {
-    if (pendingValidatedDeck) return true;
+    if (pendingValidatedDeck || pendingEnergySelectionDeck) return true;
     if (!editorBaseline) return false;
     if (editorBaseline.name !== createName) return true;
     if (editorBaseline.selectedCoverCardId !== selectedCoverCardId) return true;
+    if (!sameEnergyTypes(editorBaseline.energyTypes, selectedEnergyTypes)) return true;
     if (editorBaseline.cardIds.length !== createCardIds.length) return true;
     for (let index = 0; index < editorBaseline.cardIds.length; index += 1) {
       if (editorBaseline.cardIds[index] !== createCardIds[index]) return true;
@@ -194,7 +211,10 @@ export function DeckBrowserScreen({
     setEditingDeckId(null);
     setEditingCreateDraftId(null);
     setPendingValidatedDeck(null);
+    setPendingEnergySelectionDeck(null);
+    setEnergySelectionError(null);
     setSelectedCoverCardId(null);
+    setSelectedEnergyTypes(["psychic"]);
     setShowImportOverwriteConfirm(false);
     setShowClearAllConfirm(false);
     setShowUnsavedChangesConfirm(null);
@@ -227,7 +247,7 @@ export function DeckBrowserScreen({
         setLocalDecks(nextDecks);
         writeLocalDeckCache(nextDecks);
         setCreateDraftDecks(nextDrafts.createDrafts);
-        setEditDraftByDeckId(nextDrafts.editDrafts);
+        setEditDraftByDeckId(normalizeEditDraftEnergyTypes(nextDrafts.editDrafts));
         setCloudDraftsLoaded(true);
         setLocalDeckError(null);
       })
@@ -252,9 +272,13 @@ export function DeckBrowserScreen({
         && !showImportOverwriteConfirm
         && !showClearAllConfirm
         && !showUnsavedChangesConfirm
+        && !pendingEnergySelectionDeck
         && !isCreateOpen
         && !openedDeckRef
       ) return;
+      if (coverInspectActive) {
+        return;
+      }
       if (pickerInspectActive) {
         return;
       }
@@ -288,6 +312,11 @@ export function DeckBrowserScreen({
         setPickerSlotIndex(null);
         return;
       }
+      if (pendingEnergySelectionDeck) {
+        setEnergySelectionError(null);
+        setPendingEnergySelectionDeck(null);
+        return;
+      }
       if (isCreateOpen) {
         requestCloseCreateEditor();
         return;
@@ -297,7 +326,7 @@ export function DeckBrowserScreen({
 
     window.addEventListener("keydown", onDeckEscape, { capture: true });
     return () => window.removeEventListener("keydown", onDeckEscape, { capture: true });
-  }, [deckListInspectActive, deleteDeckRef, openedDeckRef, isCreateOpen, jsonModalMode, pickerInspectActive, pickerSlotIndex, requestCloseCreateEditor, showClearAllConfirm, showImportOverwriteConfirm, showUnsavedChangesConfirm]);
+  }, [coverInspectActive, deckListInspectActive, deleteDeckRef, openedDeckRef, isCreateOpen, jsonModalMode, pendingEnergySelectionDeck, pickerInspectActive, pickerSlotIndex, requestCloseCreateEditor, showClearAllConfirm, showImportOverwriteConfirm, showUnsavedChangesConfirm]);
 
   useEffect(() => {
     if (pickerSlotIndex === null) {
@@ -311,7 +340,10 @@ export function DeckBrowserScreen({
       setEditingDeckId(null);
       setEditingCreateDraftId(null);
       setPendingValidatedDeck(null);
+      setPendingEnergySelectionDeck(null);
+      setEnergySelectionError(null);
       setSelectedCoverCardId(null);
+      setSelectedEnergyTypes(["psychic"]);
       setShowImportOverwriteConfirm(false);
       setShowClearAllConfirm(false);
       setShowUnsavedChangesConfirm(null);
@@ -340,6 +372,8 @@ export function DeckBrowserScreen({
     setJsonModalError(null);
     setJsonModalText("");
     setPendingValidatedDeck(null);
+    setPendingEnergySelectionDeck(null);
+    setEnergySelectionError(null);
     setShowImportOverwriteConfirm(false);
     setShowClearAllConfirm(false);
     setShowUnsavedChangesConfirm(null);
@@ -394,7 +428,10 @@ Created decks are saved to cloud storage for this test profile. Export still giv
               setEditingDeckId(null);
               setEditingCreateDraftId(null);
               setPendingValidatedDeck(null);
+              setPendingEnergySelectionDeck(null);
+              setEnergySelectionError(null);
               setSelectedCoverCardId(null);
+              setSelectedEnergyTypes(["psychic"]);
               setShowImportOverwriteConfirm(false);
               setShowClearAllConfirm(false);
               setShowUnsavedChangesConfirm(null);
@@ -402,6 +439,7 @@ Created decks are saved to cloud storage for this test profile. Export still giv
                 name: "New Deck",
                 cardIds: blankCardIds,
                 selectedCoverCardId: null,
+                energyTypes: ["psychic"],
               });
               setIsCreateOpen(true);
           }}
@@ -447,6 +485,7 @@ Created decks are saved to cloud storage for this test profile. Export still giv
             const draftName = draft?.name ?? openedDeck.name;
             const draftCardIds = draft?.cardIds ?? toEditableDeckSlots(openedDeck.cardIds);
             const draftCover = draft?.selectedCoverCardId ?? openedDeck.coverCardId;
+            const draftEnergyTypes = draft?.energyTypes ?? getDeckSelectedEnergyTypes(openedDeck);
             setCreateName(draftName);
             setCreateCardIds([...draftCardIds]);
             setCreateError(null);
@@ -454,7 +493,10 @@ Created decks are saved to cloud storage for this test profile. Export still giv
             setEditingDeckId(openedDeck.source === "local" ? openedDeck.id : null);
             setEditingCreateDraftId(openedDeck.source === "draft" ? openedDeck.id : null);
             setPendingValidatedDeck(null);
+            setPendingEnergySelectionDeck(null);
+            setEnergySelectionError(null);
             setSelectedCoverCardId(draftCover);
+            setSelectedEnergyTypes(draftEnergyTypes);
             setShowImportOverwriteConfirm(false);
             setShowClearAllConfirm(false);
             setShowUnsavedChangesConfirm(null);
@@ -462,6 +504,7 @@ Created decks are saved to cloud storage for this test profile. Export still giv
               name: draftName,
               cardIds: [...draftCardIds],
               selectedCoverCardId: draftCover,
+              energyTypes: draftEnergyTypes,
             });
             setOpenedDeckRef(null);
             setIsCreateOpen(true);
@@ -499,6 +542,8 @@ Created decks are saved to cloud storage for this test profile. Export still giv
             setCreateName(nextName);
             setCreateError(null);
             setPendingValidatedDeck(null);
+            setPendingEnergySelectionDeck(null);
+            setEnergySelectionError(null);
           }}
           onEditFilledSlot={(slotIndex) => {
             setCreateCardIds((current) => {
@@ -508,6 +553,8 @@ Created decks are saved to cloud storage for this test profile. Export still giv
             });
             setCreateError(null);
             setPendingValidatedDeck(null);
+            setPendingEnergySelectionDeck(null);
+            setEnergySelectionError(null);
             setPickerSlotIndex(slotIndex);
           }}
           onSelectCoverCard={(cardId) => {
@@ -533,12 +580,15 @@ Created decks are saved to cloud storage for this test profile. Export still giv
           }}
           onPickSlot={(slotIndex) => {
             setPendingValidatedDeck(null);
+            setPendingEnergySelectionDeck(null);
+            setEnergySelectionError(null);
             setPickerSlotIndex(slotIndex);
           }}
           onValidate={async () => {
             if (isSavingCreateDeck) return;
             if (pendingValidatedDeck) {
-              const deckNameError = validateDeckNameAvailability(pendingValidatedDeck.name, pendingValidatedDeck.deckId);
+              const currentEditorDeckId = pendingValidatedDeck.deckId ?? editingCreateDraftId;
+              const deckNameError = validateDeckNameAvailability(pendingValidatedDeck.name, currentEditorDeckId);
               if (deckNameError) {
                 setCreateError(deckNameError);
                 return;
@@ -556,6 +606,7 @@ Created decks are saved to cloud storage for this test profile. Export still giv
                   name: pendingValidatedDeck.name,
                   cardIds: sortedCardIds,
                   coverCardId,
+                  energyTypes: pendingValidatedDeck.energyTypes,
                 };
                 const deck = pendingValidatedDeck.deckId
                   ? await saveLocalDeck(pendingValidatedDeck.deckId, payload)
@@ -596,6 +647,10 @@ Created decks are saved to cloud storage for this test profile. Export still giv
               setCreateError("Deck name is required.");
               return;
             }
+            if (selectedEnergyTypes.length < 1 || selectedEnergyTypes.length > 3) {
+              setCreateError("Select 1 to 3 Energy types.");
+              return;
+            }
             const deckNameError = validateDeckNameAvailability(createName, editingDeckId ?? editingCreateDraftId);
             if (deckNameError) {
               setCreateError(deckNameError);
@@ -623,15 +678,50 @@ Created decks are saved to cloud storage for this test profile. Export still giv
                 setCreateError("Deck must contain at least 1 card.");
                 return;
               }
-              setPendingValidatedDeck({
+              setPendingEnergySelectionDeck({
                 name: createName.trim(),
                 cardIds: resolvedCardIds,
                 deckId: editingDeckId ?? null,
+                initialCoverCardId,
               });
-              setSelectedCoverCardId(initialCoverCardId);
             } catch (error) {
               setCreateError(error instanceof Error ? error.message : "Failed to save deck.");
             }
+          }}
+          onCoverInspectActiveChange={setCoverInspectActive}
+        />
+      )}
+      {customDecksEnabled && pendingEnergySelectionDeck && (
+        <DeckEnergySelectionModal
+          selectedEnergyTypes={selectedEnergyTypes}
+          error={energySelectionError}
+          onToggleEnergyType={(energyType) => {
+            setSelectedEnergyTypes((current) => {
+              if (current.includes(energyType)) return current.filter((type) => type !== energyType);
+              if (current.length >= 3) return current;
+              return [...current, energyType];
+            });
+            setEnergySelectionError(null);
+          }}
+          onClearError={() => setEnergySelectionError(null)}
+          onClose={() => {
+            setEnergySelectionError(null);
+            setPendingEnergySelectionDeck(null);
+          }}
+          onConfirm={() => {
+            if (selectedEnergyTypes.length < 1 || selectedEnergyTypes.length > 3) {
+              setEnergySelectionError("Select at least 1 Energy type.");
+              return;
+            }
+            setPendingValidatedDeck({
+              name: pendingEnergySelectionDeck.name,
+              cardIds: pendingEnergySelectionDeck.cardIds,
+              deckId: pendingEnergySelectionDeck.deckId,
+              energyTypes: selectedEnergyTypes,
+            });
+            setSelectedCoverCardId(pendingEnergySelectionDeck.initialCoverCardId);
+            setEnergySelectionError(null);
+            setPendingEnergySelectionDeck(null);
           }}
         />
       )}
@@ -705,11 +795,15 @@ Created decks are saved to cloud storage for this test profile. Export still giv
             setPickerSlotIndex(null);
             setEditingDeckId(isCreateImportTarget ? null : jsonModalDeck!.id);
             setPendingValidatedDeck(null);
+            setPendingEnergySelectionDeck(null);
+            setEnergySelectionError(null);
             setSelectedCoverCardId(parsed.payload.coverCardId);
+            setSelectedEnergyTypes(parsed.payload.energyTypes);
             setEditorBaseline({
               name: parsed.payload.name,
               cardIds: toEditableDeckSlots(parsed.payload.cardIds),
               selectedCoverCardId: parsed.payload.coverCardId,
+              energyTypes: parsed.payload.energyTypes,
             });
             setIsCreateOpen(true);
             setOpenedDeckRef(null);
@@ -734,7 +828,9 @@ Created decks are saved to cloud storage for this test profile. Export still giv
             const cleared = Array.from({ length: DECK_CARD_COUNT }, () => null as string | null);
             setCreateCardIds(cleared);
             setPendingValidatedDeck(null);
+            setPendingEnergySelectionDeck(null);
             setSelectedCoverCardId(null);
+            setSelectedEnergyTypes(["psychic"]);
             setCreateError(null);
             setPickerSlotIndex(null);
             setShowClearAllConfirm(false);
@@ -750,6 +846,7 @@ Created decks are saved to cloud storage for this test profile. Export still giv
               name: createName,
               cardIds: [...createCardIds],
               selectedCoverCardId,
+              energyTypes: selectedEnergyTypes,
             };
             const deckNameError = validateDeckNameAvailability(createName, editingDeckId ?? editingCreateDraftId);
             if (deckNameError) {
@@ -771,6 +868,7 @@ Created decks are saved to cloud storage for this test profile. Export still giv
                     name: draft.name,
                     coverCardId: resolveDraftCoverCardId(draft),
                     cardIds: draft.cardIds.filter((cardId): cardId is string => Boolean(cardId)),
+                    energyTypes: draft.energyTypes,
                     updatedAt: new Date().toISOString(),
                   };
                 });
@@ -785,6 +883,7 @@ Created decks are saved to cloud storage for this test profile. Export still giv
                   name: draft.name,
                   coverCardId: resolveDraftCoverCardId(draft),
                   cardIds: draft.cardIds.filter((cardId): cardId is string => Boolean(cardId)),
+                  energyTypes: draft.energyTypes,
                   formatVersion: LOCAL_DECK_FORMAT_VERSION,
                   createdAt: nowIso,
                   updatedAt: nowIso,
@@ -841,7 +940,10 @@ Created decks are saved to cloud storage for this test profile. Export still giv
               if (editingCreateDraftId === deleteDeck.id) {
                 setEditingCreateDraftId(null);
                 setPendingValidatedDeck(null);
+                setPendingEnergySelectionDeck(null);
+                setEnergySelectionError(null);
                 setSelectedCoverCardId(null);
+                setSelectedEnergyTypes(["psychic"]);
                 setShowImportOverwriteConfirm(false);
                 setShowClearAllConfirm(false);
                 setIsCreateOpen(false);
@@ -861,7 +963,10 @@ Created decks are saved to cloud storage for this test profile. Export still giv
               if (editingDeckId === deleteDeck.id) {
                 setEditingDeckId(null);
                 setPendingValidatedDeck(null);
+                setPendingEnergySelectionDeck(null);
+                setEnergySelectionError(null);
                 setSelectedCoverCardId(null);
+                setSelectedEnergyTypes(["psychic"]);
                 setShowImportOverwriteConfirm(false);
                 setShowClearAllConfirm(false);
                 setIsCreateOpen(false);
@@ -891,6 +996,7 @@ function readCreateDraftDecks(): LocalDeck[] {
       if (typeof deck.name !== "string" || deck.name.length === 0) return false;
       if (typeof deck.coverCardId !== "string" || deck.coverCardId.length === 0) return false;
       if (!Array.isArray(deck.cardIds) || deck.cardIds.some((cardId) => typeof cardId !== "string")) return false;
+      if (deck.energyTypes !== undefined && !Array.isArray(deck.energyTypes)) return false;
       if (typeof deck.createdAt !== "string" || typeof deck.updatedAt !== "string") return false;
       return true;
     });
@@ -922,10 +1028,15 @@ function readEditDeckDrafts(): Record<string, DeckEditorDraft> {
       if (!Array.isArray(value.cardIds) || value.cardIds.length !== DECK_CARD_COUNT) continue;
       if (value.cardIds.some((cardId) => cardId !== null && typeof cardId !== "string")) continue;
       if (value.selectedCoverCardId !== null && typeof value.selectedCoverCardId !== "string") continue;
+      if (value.energyTypes !== undefined && !Array.isArray(value.energyTypes)) continue;
+      const energyTypes = normalizeDeckEnergyTypes(
+        value.energyTypes?.filter((energyType): energyType is EnergyType => typeof energyType === "string"),
+      );
       next[deckId] = {
         name: value.name,
         cardIds: [...value.cardIds],
         selectedCoverCardId: value.selectedCoverCardId,
+        energyTypes: energyTypes.length > 0 ? energyTypes : ["psychic"],
       };
     }
     return next;
@@ -951,6 +1062,18 @@ function resolveDraftCoverCardId(draft: DeckEditorDraft): string {
   return draft.selectedCoverCardId
     ?? draft.cardIds.find((cardId): cardId is string => Boolean(cardId))
     ?? "matikanetannhauserStage2";
+}
+
+function sameEnergyTypes(left: EnergyType[], right: EnergyType[]): boolean {
+  if (left.length !== right.length) return false;
+  return left.every((type, index) => type === right[index]);
+}
+
+function normalizeEditDraftEnergyTypes(drafts: Record<string, DeckEditorDraft>): Record<string, DeckEditorDraft> {
+  return Object.fromEntries(Object.entries(drafts).map(([deckId, draft]) => {
+    const energyTypes = normalizeDeckEnergyTypes(draft.energyTypes);
+    return [deckId, { ...draft, energyTypes: energyTypes.length > 0 ? energyTypes : ["psychic"] }];
+  }));
 }
 
 function buildCreateDraftDeckId(

@@ -1,5 +1,5 @@
 import { toBaseCardId } from "./cardRarity";
-import type { Card } from "./types";
+import type { Card, EnergyType } from "./types";
 
 export const LOCAL_DECK_FORMAT_VERSION = 1;
 export const DECK_CARD_COUNT = 20;
@@ -9,6 +9,7 @@ export type LocalDeck = {
   name: string;
   coverCardId: string;
   cardIds: string[];
+  energyTypes?: EnergyType[];
   formatVersion: typeof LOCAL_DECK_FORMAT_VERSION;
   createdAt: string;
   updatedAt: string;
@@ -18,6 +19,7 @@ export type LocalDeckInput = {
   name: string;
   coverCardId?: string;
   cardIds: string[];
+  energyTypes?: EnergyType[];
 };
 
 export function normalizeDeckId(rawId: string): string {
@@ -44,11 +46,14 @@ export function buildLocalDeck(
     ? input.coverCardId
     : (input.cardIds[0] ?? "");
 
+  const energyTypes = input.energyTypes ? normalizeEnergyTypes(input.energyTypes) : previous?.energyTypes;
+
   return {
     id: deckId,
     name: input.name.trim(),
     coverCardId: resolvedCoverCardId,
     cardIds: [...input.cardIds],
+    ...(energyTypes ? { energyTypes } : {}),
     formatVersion: LOCAL_DECK_FORMAT_VERSION,
     createdAt: previous?.createdAt ?? nowIso,
     updatedAt: nowIso,
@@ -62,6 +67,10 @@ export function validateLocalDeck(
   if (!deck.id || normalizeDeckId(deck.id).length === 0) return { ok: false, reason: "Deck id is invalid." };
   if (!deck.name || deck.name.trim().length === 0) return { ok: false, reason: "Deck name is required." };
   if (!Array.isArray(deck.cardIds)) return { ok: false, reason: "Deck cardIds must be an array." };
+  if (deck.energyTypes !== undefined) {
+    const energyValidity = validateEnergyTypes(deck.energyTypes);
+    if (!energyValidity.ok) return energyValidity;
+  }
   if (deck.cardIds.length !== DECK_CARD_COUNT) return { ok: false, reason: `Deck must contain exactly ${DECK_CARD_COUNT} cards.` };
   const coverCard = resolveDeckCard(deck.coverCardId, allCards);
   if (!coverCard) return { ok: false, reason: `Unknown deck cover card id: ${deck.coverCardId}` };
@@ -85,6 +94,36 @@ export function validateLocalDeck(
 
   return { ok: true };
 }
+
+function normalizeEnergyTypes(energyTypes: EnergyType[]): EnergyType[] {
+  return [...new Set(energyTypes)].filter((type) => VALID_ENERGY_TYPES.has(type));
+}
+
+function validateEnergyTypes(energyTypes: unknown): { ok: true } | { ok: false; reason: string } {
+  if (!Array.isArray(energyTypes)) return { ok: false, reason: "Deck energyTypes must be an array." };
+  if (energyTypes.length < 1 || energyTypes.length > 3) return { ok: false, reason: "Deck must select 1 to 3 Energy types." };
+  const seen = new Set<EnergyType>();
+  for (const energyType of energyTypes) {
+    if (typeof energyType !== "string" || !VALID_ENERGY_TYPES.has(energyType as EnergyType)) {
+      return { ok: false, reason: `Unknown deck Energy type: ${String(energyType)}` };
+    }
+    if (seen.has(energyType as EnergyType)) return { ok: false, reason: "Deck Energy types must be unique." };
+    seen.add(energyType as EnergyType);
+  }
+  return { ok: true };
+}
+
+const VALID_ENERGY_TYPES = new Set<EnergyType>([
+  "grass",
+  "fire",
+  "water",
+  "lightning",
+  "psychic",
+  "fighting",
+  "darkness",
+  "steel",
+  "dragon",
+]);
 
 function toDeckCountKey(cardId: string): string {
   const normalized = toBaseCardId(cardId);

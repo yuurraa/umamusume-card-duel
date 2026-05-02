@@ -16,6 +16,7 @@ export type PremadeDeck = {
   name: string;
   coverCardId: string;
   cardIds: string[];
+  energyTypes?: EnergyType[];
 };
 
 export type Attack = {
