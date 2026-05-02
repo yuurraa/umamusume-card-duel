@@ -31,7 +31,7 @@
       "type": "Psychic",
       "stage": 0,
       "hp": 60,
-      "portrait": "/assets/umamusume/matikanetannhauser-basic.png",
+      "portrait": "/assets/cards/umamusume/matikanetannhauser/basic.png",
       "weakness": {
         "type": "Darkness",
         "amount": 20
@@ -59,7 +59,7 @@
       "stage": 1,
       "evolvesFrom": "Matikanetannhauser",
       "hp": 90,
-      "portrait": "/assets/umamusume/matikanetannhauser-stage1.png",
+      "portrait": "/assets/cards/umamusume/matikanetannhauser/stage1.png",
       "weakness": {
         "type": "Darkness",
         "amount": 20
@@ -89,7 +89,7 @@
       "stage": 2,
       "evolvesFrom": "Matikanetannhauser",
       "hp": 120,
-      "portrait": "/assets/umamusume/matikanetannhauser-stage2.png",
+      "portrait": "/assets/cards/umamusume/matikanetannhauser/stage2.png",
       "weakness": {
         "type": "Darkness",
         "amount": 20
@@ -123,7 +123,7 @@
       "type": "Grass",
       "stage": 0,
       "hp": 70,
-      "portrait": "/assets/umamusume/nice-nature-basic.png",
+      "portrait": "/assets/cards/umamusume/nice-nature/basic.png",
       "weakness": {
         "type": "Fire",
         "amount": 20
@@ -156,7 +156,7 @@
       "type": "Grass",
       "stage": 0,
       "hp": 70,
-      "portrait": "/assets/umamusume/nishino-flower-basic.png",
+      "portrait": "/assets/cards/umamusume/nishino-flower/basic.png",
       "weakness": {
         "type": "Fire",
         "amount": 20
@@ -185,7 +185,7 @@
       "type": "Steel",
       "stage": 0,
       "hp": 50,
-      "portrait": "/assets/umamusume/mihono-bourbon-basic.png",
+      "portrait": "/assets/cards/umamusume/mihono-bourbon/basic.png",
       "weakness": {
         "type": "Fighting",
         "amount": 20
@@ -218,7 +218,7 @@
       "stage": 1,
       "evolvesFrom": "Mihono Bourbon",
       "hp": 90,
-      "portrait": "/assets/umamusume/mihono-bourbon-stage1.png",
+      "portrait": "/assets/cards/umamusume/mihono-bourbon/stage1.png",
       "weakness": {
         "type": "Fighting",
         "amount": 20
@@ -253,7 +253,7 @@
       "stage": 2,
       "evolvesFrom": "Mihono Bourbon",
       "hp": 130,
-      "portrait": "/assets/umamusume/mihono-bourbon-stage2.png",
+      "portrait": "/assets/cards/umamusume/mihono-bourbon/stage2.png",
       "weakness": {
         "type": "Fighting",
         "amount": 20
@@ -287,7 +287,7 @@
       "type": "Psychic",
       "stage": 0,
       "hp": 90,
-      "portrait": "/assets/umamusume/haru-urara-basic.png",
+      "portrait": "/assets/cards/umamusume/haru-urara/basic.png",
       "weakness": {
         "type": "Darkness",
         "amount": 20
@@ -329,7 +329,7 @@
       "type": "Fire",
       "stage": 0,
       "hp": 60,
-      "portrait": "/assets/umamusume/agnes-digital-basic.png",
+      "portrait": "/assets/cards/umamusume/agnes-digital/basic.png",
       "weakness": {
         "type": "Water",
         "amount": 20
@@ -361,7 +361,7 @@
       "stage": 1,
       "evolvesFrom": "Agnes Digital",
       "hp": 100,
-      "portrait": "/assets/umamusume/agnes-digital-stage1.png",
+      "portrait": "/assets/cards/umamusume/agnes-digital/stage1.png",
       "weakness": {
         "type": "Water",
         "amount": 20
@@ -401,7 +401,7 @@
       "type": "Fire",
       "stage": 0,
       "hp": 50,
-      "portrait": "/assets/umamusume/agnes-tachyon-basic.png",
+      "portrait": "/assets/cards/umamusume/agnes-tachyon/basic.png",
       "weakness": {
         "type": "Water",
         "amount": 20
@@ -430,7 +430,7 @@
       "stage": 1,
       "evolvesFrom": "Agnes Tachyon",
       "hp": 80,
-      "portrait": "/assets/umamusume/agnes-tachyon-stage1.png",
+      "portrait": "/assets/cards/umamusume/agnes-tachyon/stage1.png",
       "weakness": {
         "type": "Water",
         "amount": 20
@@ -466,7 +466,7 @@
       "type": "Darkness",
       "stage": 0,
       "hp": 50,
-      "portrait": "/assets/umamusume/rice-shower-basic.png",
+      "portrait": "/assets/cards/umamusume/rice-shower/basic.png",
       "weakness": {
         "type": "Steel",
         "amount": 20
@@ -494,7 +494,7 @@
       "stage": 1,
       "evolvesFrom": "Rice Shower",
       "hp": 80,
-      "portrait": "/assets/umamusume/rice-shower-stage1.png",
+      "portrait": "/assets/cards/umamusume/rice-shower/stage1.png",
       "weakness": {
         "type": "Steel",
         "amount": 20
@@ -523,7 +523,7 @@
       "stage": 2,
       "evolvesFrom": "Rice Shower",
       "hp": 140,
-      "portrait": "/assets/umamusume/rice-shower-stage2.png",
+      "portrait": "/assets/cards/umamusume/rice-shower/stage2.png",
       "weakness": {
         "type": "Steel",
         "amount": 20
@@ -553,7 +553,7 @@
       "type": "Darkness",
       "stage": 0,
       "hp": 60,
-      "portrait": "/assets/umamusume/manhattan-cafe-basic.png",
+      "portrait": "/assets/cards/umamusume/manhattan-cafe/basic.png",
       "weakness": {
         "type": "Steel",
         "amount": 20
@@ -582,7 +582,7 @@
       "stage": 1,
       "evolvesFrom": "Manhattan Cafe",
       "hp": 80,
-      "portrait": "/assets/umamusume/manhattan-cafe-stage1.png",
+      "portrait": "/assets/cards/umamusume/manhattan-cafe/stage1.png",
       "weakness": {
         "type": "Steel",
         "amount": 20
@@ -632,7 +632,7 @@
       "type": "Lightning",
       "stage": 0,
       "hp": 50,
-      "portrait": "/assets/umamusume/tamamo-cross-basic.png",
+      "portrait": "/assets/cards/umamusume/tamamo-cross/basic.png",
       "weakness": {
         "type": "Steel",
         "amount": 20
@@ -660,7 +660,7 @@
       "stage": 1,
       "evolvesFrom": "Tamamo Cross",
       "hp": 70,
-      "portrait": "/assets/umamusume/tamamo-cross-stage1.png",
+      "portrait": "/assets/cards/umamusume/tamamo-cross/stage1.png",
       "weakness": {
         "type": "Steel",
         "amount": 20
@@ -689,7 +689,7 @@
       "stage": 2,
       "evolvesFrom": "Tamamo Cross",
       "hp": 100,
-      "portrait": "/assets/umamusume/tamamo-cross-stage2.png",
+      "portrait": "/assets/cards/umamusume/tamamo-cross/stage2.png",
       "weakness": {
         "type": "Steel",
         "amount": 20
@@ -728,7 +728,7 @@
       "type": "Water",
       "stage": 0,
       "hp": 70,
-      "portrait": "/assets/umamusume/super-creek-basic.png",
+      "portrait": "/assets/cards/umamusume/super-creek/basic.png",
       "weakness": {
         "type": "Lightning",
         "amount": 20
@@ -756,7 +756,7 @@
       "stage": 1,
       "evolvesFrom": "Super Creek",
       "hp": 120,
-      "portrait": "/assets/umamusume/super-creek-stage1.png",
+      "portrait": "/assets/cards/umamusume/super-creek/stage1.png",
       "weakness": {
         "type": "Lightning",
         "amount": 20
