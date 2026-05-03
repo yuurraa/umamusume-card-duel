@@ -19,8 +19,10 @@ export type PendingCoinAttack = {
   eventId: number;
   attackerId: "player" | "opponent";
   result: "heads" | "tails";
+  results?: Array<"heads" | "tails"> | undefined;
   attackTargetUid?: number;
   healTargetUid?: number;
+  attackIndex?: number;
 };
 
 type UseMatchActionsArgs = {
@@ -39,7 +41,7 @@ type UseMatchActionsArgs = {
   setPendingCoinAttack: Dispatch<SetStateAction<PendingCoinAttack | null>>;
   setActiveCoinFlip: Dispatch<SetStateAction<CoinFlipEvent | null>>;
   applyPlayerGameUpdate: (update: (state: GameState) => GameState, noticeSource?: ActionNoticeSource) => void;
-  getPendingAttackCoinFlip: (state: GameState, attackerId: "player" | "opponent", id: number) => CoinFlipEvent | null;
+  getPendingAttackCoinFlip: (state: GameState, attackerId: "player" | "opponent", id: number, attackIndex?: number) => CoinFlipEvent | null;
   submitPlayerIntent: (intent: PlayerIntent) => void;
   isNetworkMatch: boolean;
 };
@@ -308,6 +310,7 @@ export function useMatchActions(args: UseMatchActionsArgs) {
             eventId: coinAttack.id,
             attackerId: "player",
             result: coinAttack.result,
+            results: coinAttack.results,
             healTargetUid: umamusume.uid,
           });
           setActiveCoinFlip(coinAttack);

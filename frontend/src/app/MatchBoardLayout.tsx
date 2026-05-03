@@ -44,6 +44,7 @@ type MatchBoardLayoutProps = {
   onSurrender: () => void;
   onSetupReady: () => void;
   canSetupReady: boolean;
+  canSetupInteract: boolean;
   onSwitchPov?: (() => void) | undefined;
   selectedSleeveImage: string | null;
   canPlayHandCards: boolean;
@@ -96,6 +97,7 @@ export function MatchBoardLayout(props: MatchBoardLayoutProps) {
     onSurrender,
     onSetupReady,
     canSetupReady,
+    canSetupInteract,
     onSwitchPov,
     selectedSleeveImage,
     canPlayHandCards,
@@ -129,6 +131,7 @@ export function MatchBoardLayout(props: MatchBoardLayoutProps) {
               onSetupDropActive={onSetupDropActive}
               onSetupDropBench={onSetupDropBench}
               onSetupPromoteToActive={onSetupPromoteToActive}
+              setupInteractionsEnabled={canSetupInteract}
               onHandCardDropOnActive={onHandCardDropOnUmamusume}
               onHandCardDropOnBenchSlot={onHandCardDropOnBenchSlot}
               onHandCardDropOnUmamusume={onHandCardDropOnUmamusume}
@@ -177,6 +180,7 @@ export function MatchBoardLayout(props: MatchBoardLayoutProps) {
             onSetActive={onSetupDropActive}
             onReady={onSetupReady}
             canReady={canSetupReady}
+            canInteract={canSetupInteract}
             onSwitchPov={onSwitchPov}
             onInspect={onInspect}
             sleeveImage={selectedSleeveImage}

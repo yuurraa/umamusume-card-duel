@@ -29,7 +29,7 @@ type UseCardPreviewActionsArgs = {
   setPendingCoinAttack: Dispatch<SetStateAction<PendingCoinAttack | null>>;
   setActiveCoinFlip: Dispatch<SetStateAction<CoinFlipEvent | null>>;
   applyPlayerGameUpdate: (update: (state: GameState) => GameState, noticeSource?: ActionNoticeSource) => void;
-  getPendingAttackCoinFlip: (state: GameState, attackerId: "player" | "opponent", id: number) => CoinFlipEvent | null;
+  getPendingAttackCoinFlip: (state: GameState, attackerId: "player" | "opponent", id: number, attackIndex?: number) => CoinFlipEvent | null;
   submitPlayerIntent: (intent: PlayerIntent) => void;
   isNetworkMatch: boolean;
 };
@@ -64,10 +64,11 @@ export function useCardPreviewActions(args: UseCardPreviewActionsArgs) {
     )),
   );
 
-  const onAttack = () => {
+  const onAttack = (attackIndex = 0) => {
     if (isTurnFlowBlocked) return;
     if (!player.active) return;
-    const attack = getPrimaryAttack(getUmamusumeCard(player.active));
+    const activeCard = getUmamusumeCard(player.active);
+    const attack = activeCard.attacks[attackIndex] ?? getPrimaryAttack(activeCard);
     if (attack.targetOpponent === "any") {
       setPendingSelection({ kind: "attackDamageTarget" });
       setPreviewTarget(null);
@@ -93,17 +94,17 @@ export function useCardPreviewActions(args: UseCardPreviewActionsArgs) {
     if (isNetworkMatch) {
       submitPlayerIntent({ type: "attack" });
     } else {
-      const coinAttack = getPendingAttackCoinFlip(game, "player", coinFlipIdRef.current++);
+      const coinAttack = getPendingAttackCoinFlip(game, "player", coinFlipIdRef.current++, attackIndex);
       if (coinAttack) {
-        setPendingCoinAttack({ eventId: coinAttack.id, attackerId: "player", result: coinAttack.result });
+        setPendingCoinAttack({ eventId: coinAttack.id, attackerId: "player", result: coinAttack.result, results: coinAttack.results, attackIndex });
         setActiveCoinFlip(coinAttack);
         setPreviewTarget(null);
         return;
       }
       if (attack.draw) {
-        applyPlayerGameUpdate(playerAttack, { kind: "genericGain" });
+        applyPlayerGameUpdate((current) => playerAttack(current, undefined, undefined, undefined, undefined, attackIndex), { kind: "genericGain" });
       } else {
-        setGame((current) => playerAttack(current));
+        setGame((current) => playerAttack(current, undefined, undefined, undefined, undefined, attackIndex));
       }
     }
     setPreviewTarget(null);

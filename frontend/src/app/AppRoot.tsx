@@ -775,6 +775,11 @@ export function App() {
     };
   }, []);
 
+  const isSetupCountdownActive = game.phase === "setup"
+    && Boolean(game.setup?.readyBySide.player)
+    && Boolean(game.setup?.readyBySide.opponent)
+    && game.setup?.countdownSecondsRemaining !== null;
+
   const {
     applySetupActive,
     promoteSetupBenchToActive,
@@ -783,7 +788,7 @@ export function App() {
     playerHand: player.hand,
     setupActiveIndex,
     setupBenchIndexes,
-    isTurnFlowBlocked,
+    isTurnFlowBlocked: isTurnFlowBlocked || isSetupCountdownActive,
     setSetupActiveIndex,
     setSetupBenchIndexes,
   });
@@ -1034,7 +1039,7 @@ export function App() {
   const canAttachInHeader = !isAiVsAi && canAttachEnergy(game, player) && !isBusyWithChoice;
   const canEndTurnInHeader = !isAiVsAi && !game.gameOver && game.currentSide === "player" && !isBusyWithChoice;
   const hasLocalSetupReady = game.phase === "setup" ? (game.setup?.readyBySide.player ?? false) : false;
-  const canSetupReady = !isAiVsAi && !hasLocalSetupReady;
+  const canSetupReady = !isAiVsAi && !hasLocalSetupReady && !isSetupCountdownActive;
   const canSurrenderInPanels = !game.gameOver && !isTurnFlowBlocked;
   const playerExtraEnergyCount = Math.max(0, displayPlayer.energyZone.length - 1);
   const topBanner = getTopActionBanner(game);
@@ -1140,6 +1145,7 @@ export function App() {
         onSurrender={handleSurrender}
         onSetupReady={handleSetupReady}
         canSetupReady={canSetupReady}
+        canSetupInteract={!isSetupCountdownActive}
         onSwitchPov={switchPov}
         selectedSleeveImage={displayPlayerSleeveImage}
         canPlayHandCards={!isAiVsAi}
@@ -1160,6 +1166,7 @@ export function App() {
         <CoinFlipOverlay
           key={activeCoinFlip.id}
           result={activeCoinFlip.result}
+          results={activeCoinFlip.results}
           message={formatMatchText(activeCoinFlip.message)}
           onContinue={handleCoinFlipContinue}
         />

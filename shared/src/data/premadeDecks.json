@@ -6,6 +6,9 @@
       "id": "matikanetannhauser",
       "name": "Matikanetannhauser",
       "coverCardId": "matikanetannhauserStage2",
+      "energyTypes": [
+        "psychic"
+      ],
       "cardIds": [
         "matikanetannhauserBasic",
         "matikanetannhauserBasic",
@@ -33,6 +36,9 @@
       "id": "riceShower",
       "name": "Rice Shower",
       "coverCardId": "riceShowerStage2",
+      "energyTypes": [
+        "darkness"
+      ],
       "cardIds": [
         "riceShowerBasic",
         "riceShowerBasic",
@@ -55,6 +61,36 @@
         "nakayamaTurf",
         "nakayamaTurf"
       ]
+    },
+    {
+      "id": "oguriCap",
+      "name": "Oguri Cap",
+      "coverCardId": "oguriCapStage1",
+      "energyTypes": [
+        "grass"
+      ],
+      "cardIds": [
+        "oguriCapBasic",
+        "oguriCapBasic",
+        "oguriCapStage1",
+        "oguriCapStage1",
+        "niceNatureBasic",
+        "niceNatureBasic",
+        "3starMakeDebutScout",
+        "3starMakeDebutScout",
+        "carrotHamburgerSteak",
+        "carrotHamburgerSteak",
+        "carrotJelly",
+        "carrotJelly",
+        "traineeScoutTicket",
+        "traineeScoutTicket",
+        "leftoverCarrot",
+        "leftoverCarrot",
+        "trainingHelmet",
+        "trainingHelmet",
+        "tazunaHayakawa",
+        "tazunaHayakawa"
+      ]
     }
   ],
   "aiPremadeDecks": [
@@ -62,17 +98,21 @@
       "id": "matikanetannhauser",
       "name": "Matikanetannhauser",
       "coverCardId": "matikanetannhauserStage2FullArt",
+      "energyTypes": [
+        "psychic"
+      ],
       "cardIds": [
+        "matikanefukukitaruBasic",
+        "matikanefukukitaruStage1FullArt",
         "matikanetannhauserBasic",
         "matikanetannhauserBasic",
         "matikanetannhauserStage1",
         "matikanetannhauserStage2",
         "matikanetannhauserStage2FullArt",
         "niceNatureBasicFullArt",
-        "niceNatureBasic",
         "3starMakeDebutScout",
-        "carrotHamburgerSteak",
         "carrotJelly",
+        "carrotHamburgerSteak",
         "rainbowUncapCrystal",
         "traineeScoutTicket",
         "boxingGloves",
@@ -81,7 +121,6 @@
         "teamCanopus",
         "teamCanopusFullArt",
         "teamSpicaFullArt",
-        "hanshinRacetrack",
         "nakayamaTurf"
       ]
     },
@@ -89,6 +128,9 @@
       "id": "riceShower",
       "name": "Rice Shower",
       "coverCardId": "riceShowerStage2FullArt",
+      "energyTypes": [
+        "darkness"
+      ],
       "cardIds": [
         "haruUraraBasic",
         "haruUraraBasicFullArt",
@@ -116,6 +158,10 @@
       "id": "mihonoBourbon",
       "name": "Mihono Bourbon",
       "coverCardId": "mihonoBourbonStage2FullArt",
+      "energyTypes": [
+        "steel",
+        "grass"
+      ],
       "cardIds": [
         "mihonoBourbonBasic",
         "mihonoBourbonBasic",
@@ -143,6 +189,9 @@
       "id": "agnesDigital",
       "name": "Agnes Digital",
       "coverCardId": "agnesDigitalStage1FullArt",
+      "energyTypes": [
+        "fire"
+      ],
       "cardIds": [
         "agnesDigitalBasic",
         "agnesDigitalBasic",
@@ -170,6 +219,9 @@
       "id": "manhattanCafe",
       "name": "Manhattan Cafe",
       "coverCardId": "manhattanCafeStage1FullArt",
+      "energyTypes": [
+        "darkness"
+      ],
       "cardIds": [
         "haruUraraBasic",
         "haruUraraBasicFullArt",
@@ -197,6 +249,10 @@
       "id": "superCreek",
       "name": "Super Creek",
       "coverCardId": "superCreekStage1FullArt",
+      "energyTypes": [
+        "grass",
+        "water"
+      ],
       "cardIds": [
         "nishinoFlowerBasic",
         "nishinoFlowerBasicFullArt",
@@ -224,6 +280,9 @@
       "id": "tamamoCross",
       "name": "Tamamo Cross",
       "coverCardId": "tamamoCrossStage2FullArt",
+      "energyTypes": [
+        "lightning"
+      ],
       "cardIds": [
         "niceNatureBasicFullArt",
         "tamamoCrossBasic",
@@ -245,6 +304,36 @@
         "yayoiAkikawa",
         "trainingHelmet",
         "nakayamaTurf"
+      ]
+    },
+    {
+      "id": "oguriCap",
+      "name": "Oguri Cap",
+      "coverCardId": "oguriCapStage1FullArt",
+      "energyTypes": [
+        "grass"
+      ],
+      "cardIds": [
+        "niceNatureBasic",
+        "niceNatureBasicFullArt",
+        "oguriCapBasic",
+        "oguriCapBasic",
+        "oguriCapStage1",
+        "oguriCapStage1FullArt",
+        "3starMakeDebutScout",
+        "carrotHamburgerSteak",
+        "rainbowUncapCrystal",
+        "traineeScoutTicket",
+        "traineeScoutTicket",
+        "leftoverCarrot",
+        "trainingHelmet",
+        "boxingGloves",
+        "tazunaHayakawa",
+        "tazunaHayakawaFullArt",
+        "teamCanopus",
+        "teamSpicaFullArt",
+        "nakayamaTurf",
+        "tracenAcademy"
       ]
     }
   ]

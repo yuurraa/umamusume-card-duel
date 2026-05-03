@@ -5,6 +5,7 @@ import { canAttack, getAllUmamusume, getCard, getPrimaryAttack, getUmamusumeCard
 export type CoinFlipEvent = {
   id: number;
   result: "heads" | "tails";
+  results?: Array<"heads" | "tails"> | undefined;
   message: string;
 };
 
@@ -139,7 +140,7 @@ export function getActionNoticeTone(notice: string): "default" | "danger" | "inf
   return "default";
 }
 
-export function getPendingAttackCoinFlip(state: GameState, attackerId: SideId, id: number): CoinFlipEvent | null {
+export function getPendingAttackCoinFlip(state: GameState, attackerId: SideId, id: number, attackIndex = 0): CoinFlipEvent | null {
   if (state.phase !== "play") return null;
   if (attackerId === "opponent" && (state.currentSide !== "opponent" || state.opponentTurnStep !== "attack")) return null;
   if (attackerId === "player" && state.currentSide !== "player") return null;
@@ -147,17 +148,36 @@ export function getPendingAttackCoinFlip(state: GameState, attackerId: SideId, i
   const attacker = state.sides[attackerId];
   if (!attacker.active) return null;
   if (!canAttack(state, attacker)) return null;
-  const attack = getPrimaryAttack(getUmamusumeCard(attacker.active));
-  if (!attack.coinBonus && !attack.drawOnHeads) return null;
+  const attackerCard = getUmamusumeCard(attacker.active);
+  const attack = attackerCard.attacks[attackIndex] ?? getPrimaryAttack(attackerCard);
+  if (!attack.coinBonus && !attack.drawOnHeads && !attack.knockOutActiveIfAllCoinHeads) return null;
 
-  const result = Math.random() >= 0.5 ? "heads" : "tails";
+  const results = Array.from(
+    { length: attack.knockOutActiveIfAllCoinHeads ?? 1 },
+    (_, index) => index < (attacker.guaranteedCoinFlipHeads ?? 0) ? "heads" : Math.random() >= 0.5 ? "heads" : "tails",
+  );
+  const result = results[0] ?? "heads";
   const actor = attackerId === "player" ? "You" : "Opponent";
-  return { id, result, message: `${actor} flipped a coin and got 1x ${result}.` };
+  return {
+    id,
+    result,
+    results,
+    message: results.length === 1
+      ? `${actor} flipped a coin and got 1x ${result}.`
+      : `${actor} flipped ${results.length} coins and got ${results.filter((entry) => entry === "heads").length}x heads, ${results.filter((entry) => entry === "tails").length}x tails.`,
+  };
 }
 
 export function toCoinFlipEvent(entry: string, id: number): CoinFlipEvent | null {
   const lowered = entry.toLowerCase();
-  if (!lowered.includes("coin flip was") && !lowered.includes("flipped a coin and got") && !lowered.includes("flip a coin and got")) return null;
+  if (!lowered.includes("coin flip was") && !lowered.includes("flipped a coin and got") && !lowered.includes("flip a coin and got") && !lowered.includes("coins and got")) return null;
+  const multiMatch = entry.match(/(?:flip|flipped)\s+(\d+)\s+coins?\s+and\s+got\s+(\d+)x\s+heads,\s+(\d+)x\s+tails/i);
+  if (multiMatch) {
+    const heads = Number(multiMatch[2] ?? 0);
+    const tails = Number(multiMatch[3] ?? 0);
+    const results = [...Array(heads).fill("heads"), ...Array(tails).fill("tails")] as Array<"heads" | "tails">;
+    return { id, result: results[0] ?? "heads", results, message: entry };
+  }
   const resultMatch = entry.match(/\b(heads|tails)\b/i);
   if (!resultMatch) return null;
   const result = resultMatch[1]?.toLowerCase() === "tails" ? "tails" : "heads";

@@ -110,5 +110,6 @@ function makeSide(id: SideId, title: string, deck: string[], energyPool: EnergyT
     usedRetreatThisTurn: false,
     usedStadiumThisTurn: false,
     usedAbilityNamesThisTurn: [],
+    guaranteedCoinFlipHeads: 0,
   };
 }

@@ -1,5 +1,5 @@
 import { MAX_POINTS } from "../../../../../shared/src/gameData";
-import type { EnergyType, GameState, SideId, SideState, UmamusumeInstance } from "../../../../../shared/src/types";
+import type { CoinFlipResult, EnergyType, GameState, SideId, SideState, UmamusumeInstance } from "../../../../../shared/src/types";
 import { getCard, getPrimaryAttack, getUmamusumeCard } from "../core/catalog";
 import { actorName, actorPossessive, energyLabel, formatCardName, formatUmamusumeCardName, formatUmamusumeInstanceName, pluralize } from "../core/labels";
 import { log } from "../core/log";
@@ -19,8 +19,9 @@ export function performAttack(
   deps: CombatDeps,
   attackTargetUid?: number,
   healTargetUid?: number,
-  forcedCoinResult?: "heads" | "tails",
+  forcedCoinResult?: CoinFlipResult | CoinFlipResult[],
   evolutionDeckCardIndex?: number,
+  attackIndex = 0,
 ): void {
   const defenderId = attackerId === "player" ? "opponent" : "player";
   const pointsBeforeAttack = {
@@ -31,7 +32,7 @@ export function performAttack(
   const defender = state.sides[defenderId];
   if (!attacker.active || !defender.active) return;
   const attackerCard = getUmamusumeCard(attacker.active);
-  const attack = getPrimaryAttack(attackerCard);
+  const attack = attackerCard.attacks[attackIndex] ?? getPrimaryAttack(attackerCard);
   const attackTarget = attack.targetOpponent === "any"
     ? (attackTargetUid !== undefined ? getAllUmamusume(defender).find((umamusume) => umamusume.uid === attackTargetUid) : undefined) ?? defender.active
     : defender.active;
@@ -40,6 +41,7 @@ export function performAttack(
   const defenderCard = getUmamusumeCard(attackTarget);
   let damage = attack.damage + (nonDamagingAttack ? 0 : attacker.activeAttackDamageBonus);
   let coinFlipHeads: boolean | null = null;
+  const forcedCoinResults = Array.isArray(forcedCoinResult) ? [...forcedCoinResult] : forcedCoinResult ? [forcedCoinResult] : [];
 
   if (attack.bonusIfTookDamageLastTurn && attacker.active.tookDamageLastTurn) {
     damage += attack.bonusIfTookDamageLastTurn;
@@ -54,6 +56,9 @@ export function performAttack(
       : getAllUmamusume(attacker).length;
     damage += inPlayCount * attack.damagePerUmamusumeInPlay.amount;
   }
+  if (attack.attackDamageBonusIfToolAttached && attacker.active.toolCardId) {
+    damage += attack.attackDamageBonusIfToolAttached;
+  }
   const conditionalAttackBonus = attackerCard.ability?.attackDamageBonusIfAttachedEnergy;
   if (!nonDamagingAttack && conditionalAttackBonus && attacker.active.energies[conditionalAttackBonus.type] >= conditionalAttackBonus.min) {
     damage += conditionalAttackBonus.amount;
@@ -63,7 +68,7 @@ export function performAttack(
     damage += evolvedLastTurnBonus;
   }
   if (attack.coinBonus || attack.drawOnHeads) {
-    const heads = forcedCoinResult ? forcedCoinResult === "heads" : Math.random() >= 0.5;
+    const heads = flipCoin(attacker, forcedCoinResults) === "heads";
     coinFlipHeads = heads;
     if (heads && attack.coinBonus) damage += attack.coinBonus;
   }
@@ -78,6 +83,18 @@ export function performAttack(
   }
   if (coinFlipHeads !== null) {
     log(state, `Flip a coin and got 1x ${coinFlipHeads ? "heads" : "tails"}.`);
+  }
+  if (attack.guaranteeNextCoinFlipHeads) {
+    attacker.guaranteedCoinFlipHeads = (attacker.guaranteedCoinFlipHeads ?? 0) + attack.guaranteeNextCoinFlipHeads;
+    log(state, `${actorPossessive(attacker)} next coin flip is guaranteed to be heads.`);
+  }
+  if (attack.knockOutActiveIfAllCoinHeads) {
+    const results = Array.from({ length: attack.knockOutActiveIfAllCoinHeads }, () => flipCoin(attacker, forcedCoinResults));
+    log(state, formatCoinFlipResultLog(results));
+    if (results.every((result) => result === "heads")) {
+      attackTarget.hp = 0;
+      log(state, `${attack.name} knocked out ${actorPossessive(defender)} Active Umamusume.`);
+    }
   }
   attackTarget.hp = Math.max(0, attackTarget.hp - damage);
   if (damage > 0) attackTarget.tookDamageThisTurn = true;
@@ -341,7 +358,24 @@ function isNonDamagingAttack(attack: ReturnType<typeof getPrimaryAttack>): boole
     && !attack.coinBonus
     && !attack.bonusIfTookDamageLastTurn
     && !attack.damagePerAttachedEnergy
-    && !attack.damagePerUmamusumeInPlay;
+    && !attack.damagePerUmamusumeInPlay
+    && !attack.attackDamageBonusIfToolAttached;
+}
+
+function flipCoin(side: SideState, forcedCoinResults: CoinFlipResult[]): CoinFlipResult {
+  if ((side.guaranteedCoinFlipHeads ?? 0) > 0) {
+    side.guaranteedCoinFlipHeads -= 1;
+    if (forcedCoinResults.length > 0) forcedCoinResults.shift();
+    return "heads";
+  }
+  return forcedCoinResults.shift() ?? (Math.random() >= 0.5 ? "heads" : "tails");
+}
+
+function formatCoinFlipResultLog(results: CoinFlipResult[]): string {
+  const heads = results.filter((result) => result === "heads").length;
+  const tails = results.length - heads;
+  if (results.length === 1) return `Flip a coin and got 1x ${results[0]}.`;
+  return `Flip ${results.length} coins and got ${heads}x heads, ${tails}x tails.`;
 }
 
 function shouldPreserveAttackerWinOnSimultaneousKo(

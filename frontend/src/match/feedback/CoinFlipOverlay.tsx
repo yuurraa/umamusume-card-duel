@@ -1,16 +1,21 @@
 import { type CSSProperties, useEffect, useRef, useState } from "react";
 import { overlayBackdropStyle } from "../../styles/shared";
 
-export function CoinFlipOverlay({ result, message, onContinue }: {
+export function CoinFlipOverlay({ result, results, message, onContinue }: {
   result: "heads" | "tails";
+  results?: Array<"heads" | "tails"> | undefined;
   message: string;
   onContinue: () => void;
 }) {
+  const flipResults = results && results.length > 0 ? results : [result];
+  const [activeIndex, setActiveIndex] = useState(0);
   const [angle, setAngle] = useState(0);
   const [isSettled, setIsSettled] = useState(false);
   const [countdown, setCountdown] = useState(5);
   const onContinueRef = useRef(onContinue);
-  const finalAngle = 2160 + (result === "heads" ? 0 : 180);
+  const activeResult = flipResults[activeIndex] ?? result;
+  const finalAngle = 2160 + (activeResult === "heads" ? 0 : 180);
+  const hasMoreFlips = activeIndex < flipResults.length - 1;
 
   useEffect(() => {
     onContinueRef.current = onContinue;
@@ -19,6 +24,7 @@ export function CoinFlipOverlay({ result, message, onContinue }: {
   useEffect(() => {
     let frame = 0;
     const totalFrames = 22;
+    setAngle(0);
     setIsSettled(false);
     setCountdown(5);
     const intervalId = window.setInterval(() => {
@@ -33,10 +39,16 @@ export function CoinFlipOverlay({ result, message, onContinue }: {
     }, 32);
 
     return () => window.clearInterval(intervalId);
-  }, [finalAngle]);
+  }, [finalAngle, activeIndex]);
 
   useEffect(() => {
     if (!isSettled) return undefined;
+    if (hasMoreFlips) {
+      const timeoutId = window.setTimeout(() => {
+        setActiveIndex((current) => Math.min(current + 1, flipResults.length - 1));
+      }, 720);
+      return () => window.clearTimeout(timeoutId);
+    }
     setCountdown(3);
     const intervalId = window.setInterval(() => {
       setCountdown((current) => {
@@ -50,14 +62,14 @@ export function CoinFlipOverlay({ result, message, onContinue }: {
     }, 1000);
 
     return () => window.clearInterval(intervalId);
-  }, [isSettled]);
+  }, [isSettled, hasMoreFlips, flipResults.length]);
 
   return (
     <div style={coinFlipBackdropStyle}>
       <section style={coinFlipShellStyle}>
-        <span style={coinFlipKickerStyle}>Coin Flip</span>
+        <span style={coinFlipKickerStyle}>{flipResults.length > 1 ? `Coin Flip ${activeIndex + 1} / ${flipResults.length}` : "Coin Flip"}</span>
         <div style={coinSlotStyle}>
-          <div aria-hidden="true" style={coinStyle(angle, result)}>
+          <div aria-hidden="true" style={coinStyle(angle, activeResult)}>
             <div style={coinFaceStyle("heads")}>
               <span style={coinFaceMarkStyle}>H</span>
               <span style={coinFaceLabelStyle}>Heads</span>
@@ -69,9 +81,14 @@ export function CoinFlipOverlay({ result, message, onContinue }: {
             <div style={coinEdgeStyle} />
           </div>
         </div>
-        <strong style={coinResultStyle}>{isSettled ? (result === "heads" ? "Heads" : "Tails") : "Flipping..."}</strong>
-        <span style={coinMessageStyle}>{isSettled ? message : ""}</span>
-        <span style={coinCountdownStyle}>{isSettled ? `Continuing in ${countdown}s` : ""}</span>
+        <div style={coinPipsStyle} aria-hidden="true">
+          {flipResults.map((entry, index) => (
+            <span key={`${entry}-${index}`} style={coinPipStyle(entry, index, activeIndex, isSettled)}>{entry === "heads" ? "H" : "T"}</span>
+          ))}
+        </div>
+        <strong style={coinResultStyle}>{isSettled ? (activeResult === "heads" ? "Heads" : "Tails") : "Flipping..."}</strong>
+        <span style={coinMessageStyle}>{isSettled && !hasMoreFlips ? message : ""}</span>
+        <span style={coinCountdownStyle}>{isSettled && !hasMoreFlips ? `Continuing in ${countdown}s` : ""}</span>
       </section>
     </div>
   );
@@ -205,6 +222,35 @@ const coinResultStyle: CSSProperties = {
   fontWeight: 950,
   textShadow: "0 0 0",
 };
+
+const coinPipsStyle: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 8,
+  minHeight: 26,
+};
+
+function coinPipStyle(result: "heads" | "tails", index: number, activeIndex: number, isSettled: boolean): CSSProperties {
+  const revealed = index < activeIndex || (index === activeIndex && isSettled);
+  return {
+    width: 26,
+    height: 26,
+    borderRadius: "50%",
+    display: "grid",
+    placeItems: "center",
+    border: revealed
+      ? result === "heads" ? "1px solid rgba(250, 204, 21, 0.9)" : "1px solid rgba(148, 163, 184, 0.82)"
+      : "1px solid rgba(226, 232, 240, 0.24)",
+    background: revealed
+      ? result === "heads" ? "rgba(250, 204, 21, 0.92)" : "rgba(100, 116, 139, 0.92)"
+      : "rgba(15, 23, 42, 0.64)",
+    color: revealed ? result === "heads" ? "#451a03" : "#f8fafc" : "rgba(226, 232, 240, 0.44)",
+    fontSize: 12,
+    fontWeight: 950,
+    lineHeight: 1,
+  };
+}
 
 const coinMessageStyle: CSSProperties = {
   maxWidth: 500,

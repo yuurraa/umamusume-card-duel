@@ -111,6 +111,7 @@ export function predictAttackDamage(
   if (attack.damagePerUmamusumeInPlay) {
     damage += (attack.damagePerUmamusumeInPlay.side === "all" ? allInPlayCount : ownInPlayCount) * attack.damagePerUmamusumeInPlay.amount;
   }
+  if (attack.attackDamageBonusIfToolAttached && attacker.toolCardId) damage += attack.attackDamageBonusIfToolAttached;
   const attackerCard = getUmamusumeCard(attacker);
   const defenderCard = getUmamusumeCard(defender);
   const conditionalBonus = attackerCard.ability?.attackDamageBonusIfAttachedEnergy;
@@ -118,6 +119,7 @@ export function predictAttackDamage(
   const evolvedLastTurnBonus = attackerCard.ability?.attackDamageBonusIfEvolvedLastTurn ?? 0;
   if (evolvedLastTurnBonus > 0 && turnNumber !== undefined && attacker.evolvedTurn === turnNumber - 1) damage += evolvedLastTurnBonus;
   if (attack.coinBonus) damage += Math.floor(attack.coinBonus / 2);
+  if (attack.knockOutActiveIfAllCoinHeads) damage += Math.floor(defender.hp / Math.pow(2, attack.knockOutActiveIfAllCoinHeads));
   if (defenderCard.weakness.type === attackerCard.type) damage += defenderCard.weakness.amount;
   return Math.max(0, damage);
 }

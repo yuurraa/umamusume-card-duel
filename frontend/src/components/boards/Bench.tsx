@@ -18,6 +18,7 @@ type BenchProps = {
   hidden?: boolean;
   hiddenBenchCount?: number;
   setupMode?: boolean;
+  setupInteractionsEnabled?: boolean;
   selectableUmamusumeUids?: Set<number> | undefined;
   abilityEnergyTypes?: Set<EnergyType> | undefined;
   onUmamusumeSelect?: ((umamusume: UmamusumeInstance) => void) | undefined;
@@ -53,6 +54,7 @@ export function Bench({
   hidden = false,
   hiddenBenchCount,
   setupMode = false,
+  setupInteractionsEnabled = true,
   selectableUmamusumeUids,
   abilityEnergyTypes,
   onUmamusumeSelect,
@@ -195,7 +197,7 @@ export function Bench({
                 }}
                 onDragOver={(event) => {
                   if (setupMode) {
-                    if (!onSetupDropBench || !hasTextDragPayload(event)) return;
+                    if (!setupInteractionsEnabled || !onSetupDropBench || !hasTextDragPayload(event)) return;
                     event.preventDefault();
                     event.dataTransfer.dropEffect = "move";
                     setHoveredSlot(index);
@@ -208,7 +210,7 @@ export function Bench({
                 }}
                 onDragEnter={(event) => {
                   if (setupMode) {
-                    if (!onSetupDropBench || !hasTextDragPayload(event)) return;
+                    if (!setupInteractionsEnabled || !onSetupDropBench || !hasTextDragPayload(event)) return;
                   } else if (!onHandCardDropOnBenchSlot || !hasTextDragPayload(event)) {
                     return;
                   }
@@ -219,7 +221,7 @@ export function Bench({
                   event.preventDefault();
                   setHoveredSlot(null);
                   if (setupMode) {
-                    if (!onSetupDropBench) return;
+                    if (!setupInteractionsEnabled || !onSetupDropBench) return;
                     const payload = readDragPayload(event.dataTransfer);
                     if (payload?.kind !== "setup-hand") return;
                     onSetupDropBench(payload.handIndex);
@@ -247,6 +249,7 @@ export function Bench({
             side={side}
             hidden={hidden}
             setupMode={setupMode}
+            setupInteractionsEnabled={setupInteractionsEnabled}
             activeSetupHandIndex={activeSetupHandIndex}
             setupDragHandIndex={setupDragHandIndexByUid[umamusume.uid]}
             onSetupPromoteToActive={onSetupPromoteToActive}
@@ -272,7 +275,7 @@ export function Bench({
   );
 }
 
-function BenchSlot({ card, umamusume, side, hidden, setupMode, activeSetupHandIndex, setupDragHandIndex, onSetupPromoteToActive, onHandCardDropOnUmamusume, onEnergyDropOnUmamusume, abilityReady, hoverBorderColor, hoverBackground, hoverRingColor, hoverGlowColor, isSelectable, isDimmed, abilityEnergyTypes, sleeveImage, revealOrder, shiftOffset, onInspect, onUmamusumeSelect }: { card: ReturnType<typeof getUmamusumeCard>; umamusume: UmamusumeInstance; side: SideState; hidden: boolean; setupMode: boolean; activeSetupHandIndex: number | undefined; setupDragHandIndex: number | undefined; onSetupPromoteToActive?: ((handIndex: number) => void) | undefined; onHandCardDropOnUmamusume?: ((handIndex: number, umamusumeUid: number) => void) | undefined; onEnergyDropOnUmamusume?: ((umamusumeUid: number) => void) | undefined; abilityReady: boolean; hoverBorderColor: string; hoverBackground: string; hoverRingColor: string; hoverGlowColor: string; isSelectable: boolean; isDimmed: boolean; abilityEnergyTypes?: Set<EnergyType> | undefined; sleeveImage?: string | null | undefined; revealOrder?: number | undefined; shiftOffset?: number | undefined; onInspect: (target: InspectTarget) => void; onUmamusumeSelect?: ((umamusume: UmamusumeInstance) => void) | undefined }) {
+function BenchSlot({ card, umamusume, side, hidden, setupMode, setupInteractionsEnabled, activeSetupHandIndex, setupDragHandIndex, onSetupPromoteToActive, onHandCardDropOnUmamusume, onEnergyDropOnUmamusume, abilityReady, hoverBorderColor, hoverBackground, hoverRingColor, hoverGlowColor, isSelectable, isDimmed, abilityEnergyTypes, sleeveImage, revealOrder, shiftOffset, onInspect, onUmamusumeSelect }: { card: ReturnType<typeof getUmamusumeCard>; umamusume: UmamusumeInstance; side: SideState; hidden: boolean; setupMode: boolean; setupInteractionsEnabled: boolean; activeSetupHandIndex: number | undefined; setupDragHandIndex: number | undefined; onSetupPromoteToActive?: ((handIndex: number) => void) | undefined; onHandCardDropOnUmamusume?: ((handIndex: number, umamusumeUid: number) => void) | undefined; onEnergyDropOnUmamusume?: ((umamusumeUid: number) => void) | undefined; abilityReady: boolean; hoverBorderColor: string; hoverBackground: string; hoverRingColor: string; hoverGlowColor: string; isSelectable: boolean; isDimmed: boolean; abilityEnergyTypes?: Set<EnergyType> | undefined; sleeveImage?: string | null | undefined; revealOrder?: number | undefined; shiftOffset?: number | undefined; onInspect: (target: InspectTarget) => void; onUmamusumeSelect?: ((umamusume: UmamusumeInstance) => void) | undefined }) {
   const [hovered, setHovered] = useState(false);
   const [dropHovered, setDropHovered] = useState(false);
   const activeHover = hovered && !isDimmed;
@@ -312,9 +315,9 @@ function BenchSlot({ card, umamusume, side, hidden, setupMode, activeSetupHandIn
           if (!isDimmed) setHovered(true);
         }}
         onBlur={() => setHovered(false)}
-        draggable={setupMode && setupDragHandIndex !== undefined && !hidden}
+        draggable={setupMode && setupInteractionsEnabled && setupDragHandIndex !== undefined && !hidden}
         onDragStart={(event) => {
-          if (!setupMode || setupDragHandIndex === undefined || hidden) return;
+          if (!setupMode || !setupInteractionsEnabled || setupDragHandIndex === undefined || hidden) return;
           event.dataTransfer.effectAllowed = "move";
           writeDragPayload(event.dataTransfer, { kind: "setup-hand", handIndex: setupDragHandIndex });
           applyDragPreview(event, { width: 184, height: 258 });
@@ -322,7 +325,7 @@ function BenchSlot({ card, umamusume, side, hidden, setupMode, activeSetupHandIn
         onDragOver={(event) => {
           if (hidden) return;
           if (setupMode) {
-            if (activeSetupHandIndex === undefined || setupDragHandIndex === undefined) return;
+            if (!setupInteractionsEnabled || activeSetupHandIndex === undefined || setupDragHandIndex === undefined) return;
             if (!hasTextDragPayload(event)) return;
             event.preventDefault();
             event.dataTransfer.dropEffect = "move";
@@ -337,7 +340,7 @@ function BenchSlot({ card, umamusume, side, hidden, setupMode, activeSetupHandIn
         onDragEnter={(event) => {
           if (hidden) return;
           if (setupMode) {
-            if (activeSetupHandIndex === undefined || setupDragHandIndex === undefined) return;
+            if (!setupInteractionsEnabled || activeSetupHandIndex === undefined || setupDragHandIndex === undefined) return;
             if (!hasTextDragPayload(event)) return;
           } else if (!hasTextDragPayload(event)) {
             return;
@@ -350,7 +353,7 @@ function BenchSlot({ card, umamusume, side, hidden, setupMode, activeSetupHandIn
           setDropHovered(false);
           if (hidden) return;
           if (setupMode) {
-            if (activeSetupHandIndex === undefined || setupDragHandIndex === undefined || !onSetupPromoteToActive) return;
+            if (!setupInteractionsEnabled || activeSetupHandIndex === undefined || setupDragHandIndex === undefined || !onSetupPromoteToActive) return;
             const payload = readDragPayload(event.dataTransfer);
             if (payload?.kind !== "setup-hand" || payload.handIndex !== activeSetupHandIndex) return;
             onSetupPromoteToActive(setupDragHandIndex);
@@ -393,6 +396,7 @@ function BenchSlot({ card, umamusume, side, hidden, setupMode, activeSetupHandIn
               shineVariant="compact"
               wrapperStyle={benchHoloImageWrapStyle}
             />
+            <div style={benchHpCornerBlurStyle} aria-hidden="true" />
             <CardHpOverlay hp={umamusume.hp} maxHp={umamusume.maxHp} size="sm" />
             {abilityReady && <AbilityReadyBadge corner="topLeft" size="xs" nudgeX={14} />}
             <AttachedToolBadge
@@ -437,4 +441,22 @@ const benchHoloImageWrapStyle: CSSProperties = {
   height: "100%",
   aspectRatio: CARD_ASPECT_RATIO,
   margin: "0 auto",
+};
+
+const benchHpCornerBlurStyle: CSSProperties = {
+  position: "absolute",
+  top: 0,
+  right: "14%",
+  width: "29%",
+  height: "15%",
+  zIndex: 2,
+  pointerEvents: "none",
+  borderRadius: `0 ${radius.md}px 10px 14px`,
+  background: "linear-gradient(135deg, rgba(248, 250, 252, 0.64) 0%, rgba(248, 250, 252, 0.46) 58%, rgba(248, 250, 252, 0) 100%)",
+  backdropFilter: "blur(18px) saturate(0.9) brightness(1.08)",
+  WebkitBackdropFilter: "blur(18px) saturate(0.9) brightness(1.08)",
+  WebkitMaskImage: "linear-gradient(90deg, transparent 0%, rgba(0, 0, 0, 0.2) 24%, rgba(0, 0, 0, 0.85) 46%, black 100%), linear-gradient(180deg, black 0%, black 48%, rgba(0, 0, 0, 0.62) 72%, transparent 100%)",
+  maskImage: "linear-gradient(90deg, transparent 0%, rgba(0, 0, 0, 0.2) 24%, rgba(0, 0, 0, 0.85) 46%, black 100%), linear-gradient(180deg, black 0%, black 48%, rgba(0, 0, 0, 0.62) 72%, transparent 100%)",
+  WebkitMaskComposite: "source-in",
+  maskComposite: "intersect",
 };

@@ -107,7 +107,7 @@ export function Hand({
           const isSetupBasic = isSetup && card.kind === "umamusume" && card.stage === 0;
           const isSelectable = selectableHandIndexes?.has(index) ?? false;
           const isChoosingHandCard = Boolean(selectableHandIndexes);
-          const canDrag = isChoosingHandCard ? false : isSetup ? isSetupBasic : playerTurn && action.canPlay;
+          const canDrag = isChoosingHandCard ? false : isSetup ? playerTurn && isSetupBasic : playerTurn && action.canPlay;
           const image = card.kind === "umamusume" ? card.portrait : card.image;
           const shadow = card.kind === "umamusume"
             ? "drop-shadow(0 18px 22px rgba(214, 81, 157, 0.22))"

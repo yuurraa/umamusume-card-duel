@@ -48,6 +48,9 @@ export type Attack = {
     side: "own" | "all";
     amount: number;
   };
+  attackDamageBonusIfToolAttached?: number;
+  guaranteeNextCoinFlipHeads?: number;
+  knockOutActiveIfAllCoinHeads?: number;
 };
 
 export type Ability = {
@@ -181,6 +184,7 @@ export type SideState = {
   usedRetreatThisTurn: boolean;
   usedStadiumThisTurn: boolean;
   usedAbilityNamesThisTurn: string[];
+  guaranteedCoinFlipHeads: number;
 };
 
 export type GameState = {

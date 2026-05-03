@@ -34,14 +34,17 @@ export function useCoinFlipResolution({
     if (!activeCoinFlip) return;
     const coinAttack = pendingCoinAttack?.eventId === activeCoinFlip.id ? pendingCoinAttack : null;
     if (coinAttack) {
-      const resolvedAttackCoinLog = `Flip a coin and got 1x ${coinAttack.result}.`;
+      const coinResults = coinAttack.results ?? [coinAttack.result];
+      const resolvedAttackCoinLog = coinResults.length === 1
+        ? `Flip a coin and got 1x ${coinResults[0]}.`
+        : `Flip ${coinResults.length} coins and got ${coinResults.filter((result) => result === "heads").length}x heads, ${coinResults.filter((result) => result === "tails").length}x tails.`;
       skipNextCoinLogMessageRef.current = resolvedAttackCoinLog;
       setAcknowledgedCoinLogMessage(resolvedAttackCoinLog);
       setCoinFlipQueue((queue) => queue.filter((event) => event.message !== resolvedAttackCoinLog));
       setGame((current) =>
         coinAttack.attackerId === "player"
-          ? playerAttack(current, coinAttack.attackTargetUid, coinAttack.healTargetUid, coinAttack.result)
-          : advanceOpponentTurnStep(current, coinAttack.result),
+          ? playerAttack(current, coinAttack.attackTargetUid, coinAttack.healTargetUid, coinResults, undefined, coinAttack.attackIndex)
+          : advanceOpponentTurnStep(current, coinResults),
       );
       setPendingCoinAttack(null);
     }

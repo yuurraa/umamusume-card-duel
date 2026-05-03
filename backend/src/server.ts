@@ -20,8 +20,10 @@ import {
   OPENING_HAND,
   ownedStarterCardIds,
   premadeDecks,
+  type EnergyType,
   type LocalDeck,
   type LocalDeckInput,
+  type PremadeDeck,
   normalizeDeckId,
   validateLocalDeck,
 } from "../../shared/src";
@@ -835,6 +837,7 @@ async function ensureCloudSeedDecks(userId: string): Promise<void> {
       name: deck.name,
       coverCardId: deck.coverCardId,
       cardIds: [...deck.cardIds],
+      ...(deck.energyTypes ? { energyTypes: [...deck.energyTypes] } : {}),
       formatVersion: LOCAL_DECK_FORMAT_VERSION,
       createdAt: nowIso,
       updatedAt: nowIso,
@@ -847,7 +850,7 @@ async function ensureCloudSeedDecks(userId: string): Promise<void> {
   await batch.commit();
 }
 
-function getCloudSeedDecksById(): Map<string, { id: string; name: string; coverCardId: string; cardIds: string[] }> {
+function getCloudSeedDecksById(): Map<string, PremadeDeck> {
   const seedDecks = cloudDevUnlocksEnabled ? aiPremadeDecks : premadeDecks;
   return new Map(seedDecks.map((deck) => [deck.id, deck]));
 }
@@ -856,13 +859,21 @@ function isSeedDeckDoc(deck: CloudDeckDoc): boolean {
   return deck.seedKind === "premade";
 }
 
-function isMatchingSeedDeckDoc(deck: CloudDeckDoc, seed: { id: string; name: string; coverCardId: string; cardIds: string[] }): boolean {
+function isMatchingSeedDeckDoc(deck: CloudDeckDoc, seed: PremadeDeck): boolean {
   return deck.id === seed.id
     && deck.name === seed.name
     && deck.coverCardId === seed.coverCardId
     && deck.formatVersion === LOCAL_DECK_FORMAT_VERSION
     && deck.cardIds.length === seed.cardIds.length
-    && deck.cardIds.every((cardId, index) => cardId === seed.cardIds[index]);
+    && deck.cardIds.every((cardId, index) => cardId === seed.cardIds[index])
+    && sameEnergyTypes(deck.energyTypes, seed.energyTypes);
+}
+
+function sameEnergyTypes(left: readonly EnergyType[] | undefined, right: readonly EnergyType[] | undefined): boolean {
+  const leftTypes = left ?? [];
+  const rightTypes = right ?? [];
+  return leftTypes.length === rightTypes.length
+    && leftTypes.every((energyType, index) => energyType === rightTypes[index]);
 }
 
 function readCloudDevUnlocksEnabled(): boolean {

@@ -19,7 +19,6 @@ type UmaCardProps = {
   isDimmed?: boolean;
   abilityReady?: boolean;
   sleeveImage?: string | null | undefined;
-  blurPrintedHpCorner?: boolean;
 };
 
 export function UmaCard({
@@ -31,7 +30,6 @@ export function UmaCard({
   isDimmed = false,
   abilityReady = false,
   sleeveImage = null,
-  blurPrintedHpCorner = false,
 }: UmaCardProps) {
   const [hovered, setHovered] = useState(false);
   const card = getUmamusumeCard(umamusume);
@@ -54,13 +52,13 @@ export function UmaCard({
         background: "transparent",
         cursor: "pointer",
         opacity: isDimmed ? 0.45 : 1,
-        filter: hidden
-          ? `drop-shadow(0 18px 28px ${shadowColor})`
-          : activeHover
-            ? `drop-shadow(0 34px 52px ${shadowColor}) saturate(1.06)`
-            : `drop-shadow(0 28px 42px ${shadowColor})`,
+        boxShadow: hidden ? `0 18px 28px ${shadowColor}` : activeHover ? `0 34px 52px ${shadowColor}` : `0 28px 42px ${shadowColor}`,
         transform: hidden ? "none" : activeHover ? "translateY(-10px) rotate(0.8deg) scale(1.025)" : "translateY(0) rotate(0deg) scale(1)",
-        transition: `opacity ${transitions.board}, transform ${transitions.slow}, filter ${transitions.slow}`,
+        transformStyle: "flat",
+        backfaceVisibility: "hidden",
+        WebkitBackfaceVisibility: "hidden",
+        willChange: hidden ? undefined : "transform",
+        transition: `opacity ${transitions.board}, transform ${transitions.slow}, box-shadow ${transitions.slow}`,
       }}
       onMouseEnter={() => {
         if (!hidden && !isDimmed) setHovered(true);
@@ -78,7 +76,7 @@ export function UmaCard({
       ) : (
         <>
           <HoloCardImage card={card} src={card.portrait} alt={card.name} imageStyle={umaCardImageStyle} radiusOverride={CARD_INSPECT_IMAGE_RADIUS} />
-          {blurPrintedHpCorner && <div style={printedHpCornerBlurStyle} aria-hidden="true" />}
+          <div style={cardHpCornerBlurStyle} aria-hidden="true" />
           <CardHpOverlay hp={umamusume.hp} maxHp={umamusume.maxHp} size="lg" />
           {abilityReady && <AbilityReadyBadge corner="topLeft" />}
           <AttachedToolBadge toolCardId={umamusume.toolCardId} onInspect={onToolInspect} />
@@ -94,7 +92,6 @@ export function CardHpOverlay({ hp, maxHp, size = "md" }: { hp: number; maxHp: n
   const fillColor = percent <= 25 ? "#f59e0b" : percent <= 50 ? "#facc15" : "#29e6bd";
   return (
     <div style={hpOverlayStyle(size)} aria-label={`${hp} of ${maxHp} HP`}>
-      <div style={hpDiffuseBlurStyle(size)} />
       <div style={hpContentStyle(size)}>
         <div style={hpNumberStyle(size)}>{hp}</div>
         <div style={hpTrackStyle(size)}>
@@ -241,22 +238,6 @@ function hpOverlayStyle(size: "sm" | "md" | "lg"): CSSProperties {
   };
 }
 
-function hpDiffuseBlurStyle(size: "sm" | "md" | "lg"): CSSProperties {
-  const inset = size === "lg" ? "-24px -30px -28px -34px" : size === "md" ? "-16px -20px -19px -23px" : "-13px -17px -16px -19px";
-  const mask = "radial-gradient(ellipse at 70% 48%, rgba(0, 0, 0, 0.82) 0%, rgba(0, 0, 0, 0.52) 28%, rgba(0, 0, 0, 0.16) 47%, rgba(0, 0, 0, 0.04) 58%, transparent 68%)";
-  const backdrop = size === "lg" ? "blur(10px) saturate(1.22)" : size === "md" ? "blur(8px) saturate(1.18)" : "blur(6px) saturate(1.14)";
-  return {
-    position: "absolute",
-    inset,
-    borderRadius: size === "lg" ? 14 : 10,
-    background: "transparent",
-    backdropFilter: backdrop,
-    WebkitBackdropFilter: backdrop,
-    WebkitMaskImage: mask,
-    maskImage: mask,
-  };
-}
-
 function hpContentStyle(size: "sm" | "md" | "lg"): CSSProperties {
   return {
     position: "relative",
@@ -342,17 +323,20 @@ const umaCardImageStyle: CSSProperties = {
   display: "block",
 };
 
-const printedHpCornerBlurStyle: CSSProperties = {
+const cardHpCornerBlurStyle: CSSProperties = {
   position: "absolute",
-  top: "2.8%",
-  right: "4%",
+  top: 0,
+  right: 0,
   width: "38%",
-  height: "25%",
+  height: "15%",
   zIndex: 2,
   pointerEvents: "none",
-  borderTopRightRadius: radius.md,
-  background: "transparent",
-  backdropFilter: "blur(30px) saturate(1.06)",
-  WebkitMaskImage: "radial-gradient(ellipse at 88% 12%, rgba(0, 0, 0, 0.99) 0%, rgba(0, 0, 0, 0.95) 28%, rgba(0, 0, 0, 0.72) 48%, rgba(0, 0, 0, 0.44) 62%, rgba(0, 0, 0, 0.2) 74%, rgba(0, 0, 0, 0.08) 83%, transparent 91%)",
-  maskImage: "radial-gradient(ellipse at 88% 12%, rgba(0, 0, 0, 0.99) 0%, rgba(0, 0, 0, 0.95) 28%, rgba(0, 0, 0, 0.72) 48%, rgba(0, 0, 0, 0.44) 62%, rgba(0, 0, 0, 0.2) 74%, rgba(0, 0, 0, 0.08) 83%, transparent 91%)",
+  borderRadius: `0 ${radius.md}px 22px 30px`,
+  background: "linear-gradient(135deg, rgba(248, 250, 252, 0.9) 0%, rgba(248, 250, 252, 0.8) 48%, rgba(248, 250, 252, 0.5) 72%, rgba(248, 250, 252, 0) 100%)",
+  backdropFilter: "blur(72px) saturate(0.78) brightness(1.16)",
+  WebkitBackdropFilter: "blur(72px) saturate(0.78) brightness(1.16)",
+  WebkitMaskImage: "linear-gradient(90deg, transparent 0%, rgba(0, 0, 0, 0.18) 20%, rgba(0, 0, 0, 0.86) 40%, black 100%), linear-gradient(180deg, black 0%, black 44%, rgba(0, 0, 0, 0.76) 64%, rgba(0, 0, 0, 0.22) 84%, transparent 100%)",
+  maskImage: "linear-gradient(90deg, transparent 0%, rgba(0, 0, 0, 0.18) 20%, rgba(0, 0, 0, 0.86) 40%, black 100%), linear-gradient(180deg, black 0%, black 44%, rgba(0, 0, 0, 0.76) 64%, rgba(0, 0, 0, 0.22) 84%, transparent 100%)",
+  WebkitMaskComposite: "source-in",
+  maskComposite: "intersect",
 };

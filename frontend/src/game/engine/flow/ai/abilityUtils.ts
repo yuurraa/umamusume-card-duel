@@ -170,7 +170,7 @@ export function aiUseCoinFlipDrawAbility(
   if (aiDifficulty === "hard" && newlyKoThreatenedByTails) return false;
   if (aiDifficulty === "hard" && side.hand.length >= 6) return false;
 
-  const heads = random() >= 0.5;
+  const heads = flipCoin(side, random) === "heads";
   heuristicMarkAbilityUsed(side, abilityUmamusume, ownerAbility.name);
   log(state, `${actorName(side)} used ${formatUmamusumeCardName(abilityCard)}'s ${ownerAbility.name}.`);
   log(state, `Flip a coin and got 1x ${heads ? "heads" : "tails"}.`);
@@ -190,6 +190,14 @@ export function aiUseCoinFlipDrawAbility(
     }
   }
   return true;
+}
+
+function flipCoin(side: SideState, random: () => number): "heads" | "tails" {
+  if ((side.guaranteedCoinFlipHeads ?? 0) > 0) {
+    side.guaranteedCoinFlipHeads -= 1;
+    return "heads";
+  }
+  return random() >= 0.5 ? "heads" : "tails";
 }
 
 function estimateBestAttackTotalDamage(state: GameState, actingSideId: SideId, deps: AiCombatDeps): number {

@@ -8,6 +8,7 @@ import {
 import type {
   AiDeckStyle,
   AiDifficulty,
+  CoinFlipResult,
   EnergyType,
   GameState,
   UmamusumeInstance,
@@ -203,10 +204,10 @@ export function attachPlayerEnergy(state: GameState, umamusumeUid?: number): Gam
   return next;
 }
 
-export function playerAttack(state: GameState, attackTargetUid?: number, healTargetUid?: number, forcedCoinResult?: "heads" | "tails", evolutionDeckCardIndex?: number): GameState {
+export function playerAttack(state: GameState, attackTargetUid?: number, healTargetUid?: number, forcedCoinResult?: CoinFlipResult | CoinFlipResult[], evolutionDeckCardIndex?: number, attackIndex = 0): GameState {
   const next = cloneGame(state);
   if (!canAttack(next, next.sides.player)) return next;
-  performAttack(next, "player", { refreshContinuousEffects, choosePreferredActiveIndex }, attackTargetUid, healTargetUid, forcedCoinResult, evolutionDeckCardIndex);
+  performAttack(next, "player", { refreshContinuousEffects, choosePreferredActiveIndex }, attackTargetUid, healTargetUid, forcedCoinResult, evolutionDeckCardIndex, attackIndex);
   if (next.pendingPlayerChoice) return next;
   if (!next.gameOver) advanceToNextTurn(next);
   return next;
@@ -261,18 +262,18 @@ export function opponentAbandonedMatch(state: GameState): GameState {
   return next;
 }
 
-export function advanceOpponentTurnStep(state: GameState, forcedAttackCoinResult?: "heads" | "tails", random: () => number = Math.random): GameState {
+export function advanceOpponentTurnStep(state: GameState, forcedAttackCoinResult?: CoinFlipResult | CoinFlipResult[], random: () => number = Math.random): GameState {
   return advanceAiTurnStep(state, "opponent", forcedAttackCoinResult, random);
 }
 
-export function advancePlayerAiTurnStep(state: GameState, forcedAttackCoinResult?: "heads" | "tails", random: () => number = Math.random): GameState {
+export function advancePlayerAiTurnStep(state: GameState, forcedAttackCoinResult?: CoinFlipResult | CoinFlipResult[], random: () => number = Math.random): GameState {
   return advanceAiTurnStep(state, "player", forcedAttackCoinResult, random);
 }
 
 function advanceAiTurnStep(
   state: GameState,
   actingSideId: SideId,
-  forcedAttackCoinResult?: "heads" | "tails",
+  forcedAttackCoinResult?: CoinFlipResult | CoinFlipResult[],
   random: () => number = Math.random,
 ): GameState {
   const next = cloneGame(state);
@@ -414,7 +415,7 @@ export function usePlayerAbility(
   if (ability.coinFlipDrawOrActiveDamageCounter) {
     const active = side.active;
     if (!active) return next;
-    const heads = Math.random() >= 0.5;
+    const heads = flipCoin(side) === "heads";
     abilityUmamusume.usedAbilityThisTurn = true;
     side.usedAbilityNamesThisTurn ??= [];
     if (!side.usedAbilityNamesThisTurn.includes(ability.name)) side.usedAbilityNamesThisTurn.push(ability.name);
@@ -503,6 +504,14 @@ export function usePlayerAbility(
   }
 
   return next;
+}
+
+function flipCoin(side: SideState): CoinFlipResult {
+  if ((side.guaranteedCoinFlipHeads ?? 0) > 0) {
+    side.guaranteedCoinFlipHeads -= 1;
+    return "heads";
+  }
+  return Math.random() >= 0.5 ? "heads" : "tails";
 }
 
 export function completePregameSetup(state: GameState, activeHandIndex: number, benchHandIndexes: number[]): GameState {

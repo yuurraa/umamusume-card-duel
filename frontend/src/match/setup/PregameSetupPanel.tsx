@@ -18,6 +18,7 @@ export function PregameSetupPanel({
   onSetActive,
   onReady,
   canReady,
+  canInteract,
   onSwitchPov,
   onInspect,
   sleeveImage,
@@ -33,6 +34,7 @@ export function PregameSetupPanel({
   onSetActive: (index: number) => void;
   onReady: () => void;
   canReady: boolean;
+  canInteract: boolean;
   onSwitchPov?: (() => void) | undefined;
   onInspect: (target: InspectTarget) => void;
   sleeveImage?: string | null;
@@ -71,7 +73,7 @@ export function PregameSetupPanel({
       <Hand
         state={game}
         mode="setup"
-        canPlayCards={canReady}
+        canPlayCards={canReady && canInteract}
         setupActiveIndex={activeIndex}
         setupBenchIndexes={benchIndexes}
         onSetupChooseActive={onSetActive}

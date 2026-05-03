@@ -1,5 +1,5 @@
 import { type CSSProperties, useState } from "react";
-import type { EnergyType, GameState, UmamusumeType } from "../../../../shared/src/types";
+import type { EnergyCost, EnergyType, GameState, UmamusumeInstance, UmamusumeType } from "../../../../shared/src/types";
 import type { InspectTarget } from "../../inspect";
 import { energyLabel, getAllUmamusume, getCard, getDisplayedRetreatCost, getUmamusumeCard } from "../../game/engine";
 import { UMAMUSUME_TYPE_TO_ENERGY } from "../../game/engine/core/constants";
@@ -18,7 +18,7 @@ export function CardPreview({ state, target, canUseAttack, canUseRetreat, canUse
   canUseAttack: boolean;
   canUseRetreat: boolean;
   canUseAbility: boolean;
-  onAttack: () => void;
+  onAttack: (attackIndex?: number) => void;
   onRetreat: () => void;
   onAbility: () => void;
   onInspect: (target: InspectTarget) => void;
@@ -189,7 +189,7 @@ export function CardPreview({ state, target, canUseAttack, canUseRetreat, canUse
             <section style={previewMovesStyle}>
               {card.attacks.map((attack, index) => {
                 const attackPreview = attackPreviews[index] ?? { damage: isNonDamagingAttack(attack) ? null : attack.damage, notes: [] as string[] };
-                const attackEnabled = canUseAttack && index === 0;
+                const attackEnabled = canUseAttack && (!umamusume || hasEnoughEnergyForAttack(umamusume, attack.cost));
                 const attackAccent = getAttackEnergyAccent(card.type);
                 return (
                 <PreviewAccentButton
@@ -197,7 +197,7 @@ export function CardPreview({ state, target, canUseAttack, canUseRetreat, canUse
                   accent={attackAccent}
                   style={({ hovered }) => attackPreviewButtonStyle(attackEnabled, hovered, attackAccent)}
                   disabled={!attackEnabled}
-                  onClick={onAttack}
+                  onClick={() => onAttack(index)}
                 >
                   <span style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
                     <strong>{attack.name}</strong>
@@ -657,6 +657,12 @@ function getAttackPreview(
     }
   }
 
+  if (attack.attackDamageBonusIfToolAttached && umamusume.toolCardId) {
+    damage += attack.attackDamageBonusIfToolAttached;
+    const tool = getCard(umamusume.toolCardId);
+    notes.push(`+${attack.attackDamageBonusIfToolAttached} damage - ${tool.name}`);
+  }
+
   const conditionalAttackBonus = card.ability?.attackDamageBonusIfAttachedEnergy;
   if (!nonDamagingAttack && conditionalAttackBonus && umamusume.energies[conditionalAttackBonus.type] >= conditionalAttackBonus.min) {
     damage += conditionalAttackBonus.amount;
@@ -675,6 +681,12 @@ function getAttackPreview(
   if (attack.drawOnHeads) {
     notes.push(`Draw ${attack.drawOnHeads} ${attack.drawOnHeads === 1 ? "Card" : "Cards"} - Heads`);
   }
+  if (attack.guaranteeNextCoinFlipHeads) {
+    notes.push("Next coin flip is heads");
+  }
+  if (attack.knockOutActiveIfAllCoinHeads) {
+    notes.push(`Knock Out - ${attack.knockOutActiveIfAllCoinHeads} Heads`);
+  }
 
   return { damage: nonDamagingAttack ? null : damage, notes };
 }
@@ -684,7 +696,19 @@ function isNonDamagingAttack(attack: NonNullable<ReturnType<typeof getUmamusumeC
     && !attack.coinBonus
     && !attack.bonusIfTookDamageLastTurn
     && !attack.damagePerAttachedEnergy
-    && !attack.damagePerUmamusumeInPlay;
+    && !attack.damagePerUmamusumeInPlay
+    && !attack.attackDamageBonusIfToolAttached;
+}
+
+function hasEnoughEnergyForAttack(umamusume: UmamusumeInstance, cost: EnergyCost): boolean {
+  const attached = { ...umamusume.energies };
+  const typedEntries = Object.entries(cost).filter(([type]) => type !== "colorless") as [EnergyType, number][];
+  for (const [type, amount] of typedEntries) {
+    if (attached[type] < amount) return false;
+    attached[type] -= amount;
+  }
+  const remainingAttached = Object.values(attached).reduce((sum, amount) => sum + amount, 0);
+  return remainingAttached >= (cost.colorless ?? 0);
 }
 
 function formatEnergyTypeList(types: EnergyType[]): string {

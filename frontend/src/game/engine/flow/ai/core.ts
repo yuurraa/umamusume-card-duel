@@ -1,5 +1,5 @@
 import { MAX_BENCH } from "../../../../../../shared/src/gameData";
-import type { AiDeckStyle, GameState, SideState } from "../../../../../../shared/src/types";
+import type { AiDeckStyle, CoinFlipResult, GameState, SideState } from "../../../../../../shared/src/types";
 import type { AiCombatDecisionResult, AiCombatDeps, AiTrainerDeps, PendingSwitchAfterGustResume } from "./types";
 import { getCard, getPrimaryAttack, getUmamusumeCard } from "../../core/catalog";
 import { actorName, formatUmamusumeCardName } from "../../core/labels";
@@ -135,7 +135,7 @@ export function aiPlayOneTrainer(
 export function aiResolveCombatDecision(
   state: GameState,
   side: SideState,
-  forcedAttackCoinResult: "heads" | "tails" | undefined,
+  forcedAttackCoinResult: CoinFlipResult | CoinFlipResult[] | undefined,
   deps: AiCombatDeps,
   random: () => number = Math.random,
 ): AiCombatDecisionResult {

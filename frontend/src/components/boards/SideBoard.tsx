@@ -17,6 +17,7 @@ type SideBoardProps = {
   hidden?: boolean;
   hiddenBenchCount?: number;
   setupMode?: boolean;
+  setupInteractionsEnabled?: boolean;
   selectableUmamusumeUids?: Set<number> | undefined;
   abilityEnergyTypes?: Set<EnergyType> | undefined;
   onUmamusumeSelect?: ((umamusume: UmamusumeInstance) => void) | undefined;
@@ -55,6 +56,7 @@ export function SideBoard({
   hidden = false,
   hiddenBenchCount,
   setupMode = false,
+  setupInteractionsEnabled = true,
   selectableUmamusumeUids,
   abilityEnergyTypes,
   onUmamusumeSelect,
@@ -83,7 +85,7 @@ export function SideBoard({
   const activeSetupHandIndex = side.active ? setupDragHandIndexByUid[side.active.uid] : undefined;
 
   const handleActiveDrop = (event: DragEvent<HTMLDivElement>) => {
-    if (!setupMode || hidden) return;
+    if (!setupMode || !setupInteractionsEnabled || hidden) return;
     const payload = readDragPayload(event.dataTransfer);
     if (payload?.kind !== "setup-hand") return;
     const handIndex = payload.handIndex;
@@ -129,10 +131,10 @@ export function SideBoard({
         animation: animateSetupReveal ? `setup-reveal-slide-up 320ms ${transitions.spring} 0ms both` : undefined,
         transition: `box-shadow ${transitions.fast}`,
       }}
-      draggable={setupMode && !hidden && activeSetupHandIndex !== undefined}
+      draggable={setupMode && setupInteractionsEnabled && !hidden && activeSetupHandIndex !== undefined}
       onDragStart={(event) => {
         if (setupMode) {
-          if (hidden || activeSetupHandIndex === undefined) return;
+          if (!setupInteractionsEnabled || hidden || activeSetupHandIndex === undefined) return;
           event.dataTransfer.effectAllowed = "move";
           writeDragPayload(event.dataTransfer, { kind: "setup-hand", handIndex: activeSetupHandIndex });
           applyDragPreview(event, { width: 184, height: 258 });
@@ -140,7 +142,7 @@ export function SideBoard({
       }}
       onDragOver={(event) => {
         if (setupMode) {
-          if (!onSetupDropActive || hidden || !hasTextDragPayload(event)) return;
+          if (!setupInteractionsEnabled || !onSetupDropActive || hidden || !hasTextDragPayload(event)) return;
           event.preventDefault();
           event.dataTransfer.dropEffect = "move";
           setActiveDropHovered(true);
@@ -161,19 +163,18 @@ export function SideBoard({
         event.preventDefault();
         setActiveDropHovered(false);
         if (setupMode) {
-          if (!onSetupDropActive || hidden) return;
+          if (!setupInteractionsEnabled || !onSetupDropActive || hidden) return;
           handleActiveDrop(event);
           return;
         }
         handlePlayActiveDrop(event);
       }}
     >
-      <UmaCard
-        umamusume={side.active}
-        hidden={hidden}
-        sleeveImage={sleeveImage}
-        blurPrintedHpCorner
-        isSelectable={activeSelectable}
+        <UmaCard
+          umamusume={side.active}
+          hidden={hidden}
+          sleeveImage={sleeveImage}
+          isSelectable={activeSelectable}
         isDimmed={dimUnselectableActive && isChoosingUmamusume && !activeSelectable}
         abilityReady={activeAbilityReady}
         onInspect={() => {
@@ -200,19 +201,19 @@ export function SideBoard({
         transition: `border-color ${transitions.fast}, background ${transitions.fast}, box-shadow ${transitions.fast}`,
       }}
       onDragOver={(event) => {
-        if (!setupMode || !onSetupDropActive || hidden || !hasTextDragPayload(event)) return;
+        if (!setupMode || !setupInteractionsEnabled || !onSetupDropActive || hidden || !hasTextDragPayload(event)) return;
         event.preventDefault();
         event.dataTransfer.dropEffect = "move";
         setActiveDropHovered(true);
       }}
       onDragEnter={(event) => {
-        if (!setupMode || hidden || !hasTextDragPayload(event)) return;
+        if (!setupMode || !setupInteractionsEnabled || hidden || !hasTextDragPayload(event)) return;
         setActiveDropHovered(true);
       }}
       onDragLeave={() => setActiveDropHovered(false)}
       onDrop={(event) => {
         event.preventDefault();
-        if (!setupMode || !onSetupDropActive || hidden) return;
+        if (!setupMode || !setupInteractionsEnabled || !onSetupDropActive || hidden) return;
         const payload = readDragPayload(event.dataTransfer);
         if (payload?.kind !== "setup-hand") return;
         setActiveDropHovered(false);
@@ -237,6 +238,7 @@ export function SideBoard({
         animateSetupReveal={animateSetupReveal}
         setupRevealToken={setupRevealToken}
         setupMode={setupMode}
+        setupInteractionsEnabled={setupInteractionsEnabled}
         abilityReadyUmamusumeUids={abilityReadyUmamusumeUids}
         selectableUmamusumeUids={selectableUmamusumeUids}
         abilityEnergyTypes={abilityEnergyTypes}

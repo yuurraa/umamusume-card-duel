@@ -236,7 +236,7 @@ export function useAppRuntimeEffects({
     const timeoutId = window.setTimeout(() => {
       const coinAttack = getPendingAttackCoinFlip(game, "opponent", coinFlipIdRef.current++);
       if (coinAttack) {
-        setPendingCoinAttack({ eventId: coinAttack.id, attackerId: "opponent", result: coinAttack.result });
+        setPendingCoinAttack({ eventId: coinAttack.id, attackerId: "opponent", result: coinAttack.result, results: coinAttack.results });
         setActiveCoinFlip(coinAttack);
         return;
       }
@@ -251,7 +251,7 @@ export function useAppRuntimeEffects({
       if (game.opponentTurnStep === "attack") {
         const coinAttack = getPendingAttackCoinFlip(game, "player", coinFlipIdRef.current++);
         if (coinAttack) {
-          setPendingCoinAttack({ eventId: coinAttack.id, attackerId: "player", result: coinAttack.result });
+          setPendingCoinAttack({ eventId: coinAttack.id, attackerId: "player", result: coinAttack.result, results: coinAttack.results });
           setActiveCoinFlip(coinAttack);
           return;
         }

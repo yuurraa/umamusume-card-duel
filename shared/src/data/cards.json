@@ -7,10 +7,12 @@
     "agnesTachyonStage1",
     "haruUraraBasic",
     "manhattanCafeStage1",
+    "matikanefukukitaruStage1",
     "matikanetannhauserStage2",
     "mihonoBourbonStage2",
     "niceNatureBasic",
     "nishinoFlowerBasic",
+    "oguriCapStage1",
     "riceShowerStage2",
     "tazunaHayakawa",
     "teamCanopus",
@@ -610,13 +612,80 @@
         }
       ]
     },
+    "matikanefukukitaruBasic": {
+      "id": "matikanefukukitaruBasic",
+      "owner": "player",
+      "kind": "umamusume",
+      "name": "Matikanefukukitaru",
+      "label": "Umamusume - Psychic - Basic",
+      "species": "Matikanefukukitaru",
+      "type": "Psychic",
+      "stage": 0,
+      "hp": 70,
+      "portrait": "/assets/cards/umamusume/matikanefukukitaru/basic.png",
+      "weakness": {
+        "type": "Darkness",
+        "amount": 20
+      },
+      "retreat": "Colorless",
+      "attacks": [
+        {
+          "name": "Rising Fortune",
+          "cost": {
+            "psychic": 1
+          },
+          "damage": 10,
+          "guaranteeNextCoinFlipHeads": 1,
+          "text": "Your next coin flip is guaranteed to be heads."
+        }
+      ]
+    },
+    "matikanefukukitaruStage1": {
+      "id": "matikanefukukitaruStage1",
+      "owner": "player",
+      "kind": "umamusume",
+      "name": "Matikanefukukitaru",
+      "label": "Umamusume - Psychic - Stage 1",
+      "species": "Matikanefukukitaru",
+      "type": "Psychic",
+      "stage": 1,
+      "evolvesFrom": "Matikanefukukitaru",
+      "hp": 100,
+      "portrait": "/assets/cards/umamusume/matikanefukukitaru/stage1.png",
+      "weakness": {
+        "type": "Darkness",
+        "amount": 20
+      },
+      "retreat": "Colorless x2",
+      "attacks": [
+        {
+          "name": "Luck Be With Me!",
+          "cost": {
+            "psychic": 1
+          },
+          "damage": 20,
+          "guaranteeNextCoinFlipHeads": 1,
+          "text": "Your next coin flip is guaranteed to be heads."
+        },
+        {
+          "name": "Divination: Great Fortune",
+          "cost": {
+            "psychic": 1,
+            "colorless": 1
+          },
+          "damage": 0,
+          "knockOutActiveIfAllCoinHeads": 3,
+          "text": "Flip 3 coins. If all 3 are heads, your opponent's Active Umamusume is Knocked Out."
+        }
+      ]
+    },
     "tazunaHayakawa": {
       "id": "tazunaHayakawa",
       "kind": "trainer",
       "trainerType": "supporter",
       "name": "Tazuna Hayakawa",
       "label": "Trainer - Supporter",
-      "image": "/assets/trainer/supporter/tazuna-hayakawa.png",
+      "image": "/assets/cards/trainer/supporter/tazuna-hayakawa.png",
       "text": "Draw 2 cards.",
       "effect": {
         "draw": 2
@@ -777,13 +846,69 @@
         }
       ]
     },
+    "oguriCapBasic": {
+      "id": "oguriCapBasic",
+      "owner": "player",
+      "kind": "umamusume",
+      "name": "Oguri Cap",
+      "label": "Umamusume - Colorless - Basic",
+      "species": "Oguri Cap",
+      "type": "Colorless",
+      "stage": 0,
+      "hp": 70,
+      "portrait": "/assets/cards/umamusume/oguri-cap/basic.png",
+      "weakness": {
+        "type": "Fighting",
+        "amount": 20
+      },
+      "retreat": "Colorless",
+      "attacks": [
+        {
+          "name": "Gourmand",
+          "cost": {
+            "colorless": 1
+          },
+          "damage": 20,
+          "text": "Do 20 damage to the Active Umamusume."
+        }
+      ]
+    },
+    "oguriCapStage1": {
+      "id": "oguriCapStage1",
+      "owner": "player",
+      "kind": "umamusume",
+      "name": "Oguri Cap",
+      "label": "Umamusume - Colorless - Stage 1",
+      "species": "Oguri Cap",
+      "type": "Colorless",
+      "stage": 1,
+      "evolvesFrom": "Oguri Cap",
+      "hp": 130,
+      "portrait": "/assets/cards/umamusume/oguri-cap/stage1.png",
+      "weakness": {
+        "type": "Fighting",
+        "amount": 20
+      },
+      "retreat": "Colorless x2",
+      "attacks": [
+        {
+          "name": "Triumphant Pulse",
+          "cost": {
+            "colorless": 1
+          },
+          "damage": 40,
+          "attackDamageBonusIfToolAttached": 30,
+          "text": "If this Umamusume has an Umamusume Tool attached to her, this attack does +30 damage."
+        }
+      ]
+    },
     "teamRigil": {
       "id": "teamRigil",
       "kind": "trainer",
       "trainerType": "supporter",
       "name": "Team Rigil",
       "label": "Trainer - Supporter",
-      "image": "/assets/trainer/supporter/team-rigil.png",
+      "image": "/assets/cards/trainer/supporter/team-rigil.png",
       "text": "Discard 1 random Energy from the opponent's Active Umamusume.",
       "effect": {
         "discardRandomOpponentActiveEnergy": true
@@ -795,7 +920,7 @@
       "trainerType": "supporter",
       "name": "Team Spica",
       "label": "Trainer - Supporter",
-      "image": "/assets/trainer/supporter/team-spica.png",
+      "image": "/assets/cards/trainer/supporter/team-spica.png",
       "text": "Search your deck for 1 Evolution Umamusume and put her into your hand.",
       "effect": {
         "searchEvolutionUmamusume": true
@@ -807,7 +932,7 @@
       "trainerType": "tool",
       "name": "Leftover Carrot",
       "label": "Trainer - Tool",
-      "image": "/assets/trainer/tool/leftover-carrot.png",
+      "image": "/assets/cards/trainer/tool/leftover-carrot.png",
       "text": "At the end of your turn, if the Umamusume this card is attached to is in the Active Spot, heal 10 damage from that Umamusume.",
       "effect": {
         "toolEndTurnHealActive": 10
@@ -819,7 +944,7 @@
       "trainerType": "item",
       "name": "Takoyaki Box",
       "label": "Trainer - Item",
-      "image": "/assets/trainer/item/takoyaki-box.png",
+      "image": "/assets/cards/trainer/item/takoyaki-box.png",
       "text": "Your Active Umamusume recovers from all Special Conditions.",
       "effect": {
         "recoverActiveSpecialConditions": true
@@ -831,7 +956,7 @@
       "trainerType": "item",
       "name": "Carrot Hamburger Steak",
       "label": "Trainer - Item",
-      "image": "/assets/trainer/item/carrot-hamburger-steak.png",
+      "image": "/assets/cards/trainer/item/carrot-hamburger-steak.png",
       "text": "Heal 20 damage from 1 of your Umamusume.",
       "effect": {
         "heal": 20,
@@ -844,7 +969,7 @@
       "trainerType": "item",
       "name": "Carrot Jelly",
       "label": "Trainer - Item",
-      "image": "/assets/trainer/item/carrot-jelly.png",
+      "image": "/assets/cards/trainer/item/carrot-jelly.png",
       "text": "During this turn, the Retreat Cost of your active Umamusume is 1 Colorless less.",
       "effect": {
         "retreatCostReduction": 1
@@ -856,7 +981,7 @@
       "trainerType": "item",
       "name": "3★ Make Debut Scout",
       "label": "Trainer - Item",
-      "image": "/assets/trainer/item/3★-make-debut-scout.png",
+      "image": "/assets/cards/trainer/item/3★-make-debut-scout.png",
       "text": "You can use this card only if you discard 1 other card from your hand. Search your deck for an Umamusume and put her into your hand.",
       "effect": {
         "discardOtherCard": true,
@@ -869,7 +994,7 @@
       "trainerType": "item",
       "name": "Trainee Scout Ticket",
       "label": "Trainer - Item",
-      "image": "/assets/trainer/item/trainee-scout-ticket.png",
+      "image": "/assets/cards/trainer/item/trainee-scout-ticket.png",
       "text": "Put 1 random Basic Umamusume from your deck into your hand.",
       "effect": {
         "searchRandomBasicUmamusume": true
@@ -881,7 +1006,7 @@
       "trainerType": "item",
       "name": "Rainbow Uncap Crystal",
       "label": "Trainer - Item",
-      "image": "/assets/trainer/item/rainbow-uncap-crystal.png",
+      "image": "/assets/cards/trainer/item/rainbow-uncap-crystal.png",
       "text": "Choose 1 of your Basic Umamusume in play. If you have a Stage 2 card in your hand that evolves from that Umamusume, put that card onto the Basic Umamusume to evolve it, skipping the Stage 1. You cannot use this card during your first turn or on a Basic Umamusume that was put into play this turn.",
       "effect": {
         "rainbowUncapCrystal": true
@@ -893,7 +1018,7 @@
       "trainerType": "tool",
       "name": "Training Helmet",
       "label": "Trainer - Tool",
-      "image": "/assets/trainer/tool/training-helmet.png",
+      "image": "/assets/cards/trainer/tool/training-helmet.png",
       "text": "The Umamusume this card is attached to takes 10 less damage.",
       "effect": {
         "toolDamageReduction": 10
@@ -905,7 +1030,7 @@
       "trainerType": "tool",
       "name": "Boxing Gloves",
       "label": "Trainer - Tool",
-      "image": "/assets/trainer/tool/boxing-gloves.png",
+      "image": "/assets/cards/trainer/tool/boxing-gloves.png",
       "text": "If the Umamusume this card is attached to is in the Active Spot and is damaged by an attack from your opponent's Umamusume, do 20 damage to the Attacking Umamusume.",
       "effect": {
         "toolCounterDamage": 20
@@ -917,7 +1042,7 @@
       "trainerType": "supporter",
       "name": "Yayoi Akikawa",
       "label": "Trainer - Supporter",
-      "image": "/assets/trainer/supporter/yayoi-akikawa.png",
+      "image": "/assets/cards/trainer/supporter/yayoi-akikawa.png",
       "text": "Switch out your opponent's Active Umamusume to the Bench. (Your opponent chooses the new Active Umamusume.)",
       "effect": {
         "gustOpponent": true
@@ -929,7 +1054,7 @@
       "trainerType": "supporter",
       "name": "Aoi Kiryuin",
       "label": "Trainer - Supporter",
-      "image": "/assets/trainer/supporter/aoi-kiryuin.png",
+      "image": "/assets/cards/trainer/supporter/aoi-kiryuin.png",
       "text": "During this turn, attacks used by your Active Umamusume do +10 damage to your opponent's Active Umamusume.",
       "effect": {
         "activeAttackDamageBonus": 10
@@ -941,7 +1066,7 @@
       "trainerType": "supporter",
       "name": "Team Canopus",
       "label": "Trainer - Supporter",
-      "image": "/assets/trainer/supporter/team-canopus.png",
+      "image": "/assets/cards/trainer/supporter/team-canopus.png",
       "text": "Generate 1 random Energy in your Energy Zone and attach it to 1 of your Benched Umamusume.",
       "effect": {
         "attachEnergyFromZoneToBench": 1
@@ -953,7 +1078,7 @@
       "trainerType": "supporter",
       "name": "Etsuko Otonashi",
       "label": "Trainer - Supporter",
-      "image": "/assets/trainer/supporter/etsuko-otonashi.png",
+      "image": "/assets/cards/trainer/supporter/etsuko-otonashi.png",
       "text": "Put 1 random Basic Umamusume from your discard pile into your hand.",
       "effect": {
         "randomBasicUmamusumeFromDiscard": true
@@ -965,7 +1090,7 @@
       "trainerType": "stadium",
       "name": "Nakayama Turf",
       "label": "Trainer - Stadium",
-      "image": "/assets/trainer/stadium/nakayama-turf.png",
+      "image": "/assets/cards/trainer/stadium/nakayama-turf.png",
       "text": "The Retreat Cost of each Umamusume in play (both yours and your opponent's) is 1 Colorless less.",
       "effect": {
         "globalRetreatCostReduction": 1
@@ -977,7 +1102,7 @@
       "trainerType": "stadium",
       "name": "Hanshin Racetrack",
       "label": "Trainer - Stadium",
-      "image": "/assets/trainer/stadium/hanshin-racetrack.png",
+      "image": "/assets/cards/trainer/stadium/hanshin-racetrack.png",
       "text": "Each Basic Umamusume in play (both yours and your opponent's) gets +20 HP.",
       "effect": {
         "basicHpBonus": 20
@@ -989,7 +1114,7 @@
       "trainerType": "stadium",
       "name": "Tracen Academy",
       "label": "Trainer - Stadium",
-      "image": "/assets/trainer/stadium/tracen-academy.png",
+      "image": "/assets/cards/trainer/stadium/tracen-academy.png",
       "text": "Once during each player's turn, that player may shuffle their hand into their deck and draw 4 cards. If they do, their turn ends.",
       "effect": {
         "shuffleHandIntoDeckDraw": 4
@@ -1001,7 +1126,7 @@
       "trainerType": "stadium",
       "name": "Tracen Gym",
       "label": "Trainer - Stadium",
-      "image": "/assets/trainer/stadium/tracen-gym.png",
+      "image": "/assets/cards/trainer/stadium/tracen-gym.png",
       "text": "Umamusume Tools attached to each Umamusume (both yours and your opponent's) have no effect.",
       "effect": {
         "disableTools": true

@@ -1,4 +1,4 @@
-import type { GameState, SideId, SideState } from "../../../../../../shared/src/types";
+import type { CoinFlipResult, GameState, SideId, SideState } from "../../../../../../shared/src/types";
 import type { AiCombatDecision, AiCombatDeps, CombatCandidate } from "./types";
 import { cloneGame } from "../../core/stateClone";
 import { getPrimaryAttack, getUmamusumeCard } from "../../core/catalog";
@@ -29,7 +29,7 @@ export function buildCombatCandidates(
   state: GameState,
   side: SideState,
   deps: AiCombatDeps,
-  forcedAttackCoinResult?: "heads" | "tails",
+  forcedAttackCoinResult?: CoinFlipResult | CoinFlipResult[],
 ): CombatCandidate[] {
   const candidates: CombatCandidate[] = [];
 
@@ -75,7 +75,7 @@ function buildAttackCandidates(
   state: GameState,
   side: SideState,
   deps: AiCombatDeps,
-  forcedAttackCoinResult?: "heads" | "tails",
+  forcedAttackCoinResult?: CoinFlipResult | CoinFlipResult[],
   retreatTargetUid?: number,
 ): CombatCandidate[] {
   const active = side.active;
@@ -90,7 +90,7 @@ function buildAttackCandidates(
     : [undefined];
   const resolvedAttackTargets = attackTargetUids.length > 0 ? attackTargetUids : [undefined];
   const resolvedHealTargets = healTargetUids.length > 0 ? healTargetUids : [undefined];
-  const usesCoinFlip = Boolean(attack.coinBonus || attack.drawOnHeads);
+  const usesCoinFlip = Boolean(attack.coinBonus || attack.drawOnHeads || attack.knockOutActiveIfAllCoinHeads);
   const candidates: CombatCandidate[] = [];
 
   resolvedAttackTargets.forEach((attackTargetUid) => {
@@ -134,7 +134,7 @@ function scoreCandidate(
   deps: AiCombatDeps,
   decision: AiCombatDecision,
   id: string,
-  forcedCoinResult?: "heads" | "tails",
+  forcedCoinResult?: CoinFlipResult | CoinFlipResult[],
 ): CombatCandidate {
   const before = cloneGame(baseState);
   const simulated = cloneGame(baseState);
