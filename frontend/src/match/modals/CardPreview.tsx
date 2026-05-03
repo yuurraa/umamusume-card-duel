@@ -662,6 +662,12 @@ function getAttackPreview(
     const tool = getCard(umamusume.toolCardId);
     notes.push(`+${attack.attackDamageBonusIfToolAttached} damage - ${tool.name}`);
   }
+  if (attack.attackDamageBonusIfDiscardHandCard) {
+    notes.push(`+${attack.attackDamageBonusIfDiscardHandCard} damage - discard 1 card`);
+  }
+  if (attack.shuffleRandomDiscardIntoDeck) {
+    notes.push("Shuffle 1 random discard into deck");
+  }
 
   const conditionalAttackBonus = card.ability?.attackDamageBonusIfAttachedEnergy;
   if (!nonDamagingAttack && conditionalAttackBonus && umamusume.energies[conditionalAttackBonus.type] >= conditionalAttackBonus.min) {
@@ -697,7 +703,8 @@ function isNonDamagingAttack(attack: NonNullable<ReturnType<typeof getUmamusumeC
     && !attack.bonusIfTookDamageLastTurn
     && !attack.damagePerAttachedEnergy
     && !attack.damagePerUmamusumeInPlay
-    && !attack.attackDamageBonusIfToolAttached;
+    && !attack.attackDamageBonusIfToolAttached
+    && !attack.attackDamageBonusIfDiscardHandCard;
 }
 
 function hasEnoughEnergyForAttack(umamusume: UmamusumeInstance, cost: EnergyCost): boolean {

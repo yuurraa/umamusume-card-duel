@@ -330,7 +330,38 @@
         "boxingGloves",
         "tazunaHayakawa",
         "tazunaHayakawaFullArt",
-        "teamCanopus",
+        "teamCanopusFullArt",
+        "teamSpicaFullArt",
+        "nakayamaTurf",
+        "tracenAcademy"
+      ]
+    },
+        {
+      "id": "symboliRudolf",
+      "name": "Symboli Rudolf",
+      "coverCardId": "symboliRudolfStage2FullArt",
+      "energyTypes": [
+        "water",
+        "dragon"
+      ],
+      "cardIds": [
+        "superCreekBasic",
+        "superCreekStage1FullArt",
+        "symboliRudolfBasic",
+        "symboliRudolfBasic",
+        "symboliRudolfStage1",
+        "symboliRudolfStage2",
+        "symboliRudolfStage2FullArt",
+        "3starMakeDebutScout",
+        "carrotHamburgerSteak",
+        "rainbowUncapCrystal",
+        "traineeScoutTicket",
+        "traineeScoutTicket",
+        "trainingHelmet",
+        "tazunaHayakawa",
+        "tazunaHayakawaFullArt",
+        "teamCanopusFullArt",
+        "teamRigilFullArt",
         "teamSpicaFullArt",
         "nakayamaTurf",
         "tracenAcademy"

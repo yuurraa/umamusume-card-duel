@@ -239,6 +239,28 @@ export function useMatchActions(args: UseMatchActionsArgs) {
       setPreviewTarget(null);
       return;
     }
+    if (pendingSelection.kind === "discardForAttackBonus") {
+      const attack = player.active ? getPrimaryAttack(getUmamusumeCard(player.active)) : null;
+      const revealedShuffleCardId = pendingSelection.randomDiscardIndex !== undefined ? player.discard[pendingSelection.randomDiscardIndex] : undefined;
+      if (isNetworkMatch) {
+        submitPlayerIntent({
+          type: "attack",
+          attackIndex: pendingSelection.attackIndex,
+          discardHandIndex: handIndex,
+          ...(pendingSelection.randomDiscardIndex !== undefined ? { randomDiscardIndex: pendingSelection.randomDiscardIndex } : {}),
+        });
+      } else if (attack?.draw) {
+        applyPlayerGameUpdate(
+          (current) => playerAttack(current, undefined, undefined, undefined, undefined, pendingSelection.attackIndex, handIndex, pendingSelection.randomDiscardIndex),
+          { kind: "genericGain" },
+        );
+      } else {
+        setGame((current) => playerAttack(current, undefined, undefined, undefined, undefined, pendingSelection.attackIndex, handIndex, pendingSelection.randomDiscardIndex));
+      }
+      setPendingSelection(null);
+      setPreviewTarget(revealedShuffleCardId ? { card: getCard(revealedShuffleCardId) } : null);
+      return;
+    }
     if (pendingSelection.kind === "discardForScout") {
       const discardedCardId = player.hand[handIndex];
       const discardedCardName = discardedCardId ? getCard(discardedCardId).name : "that card";

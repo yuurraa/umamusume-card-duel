@@ -53,6 +53,8 @@ export function SelectionPrompt({ pending, onCancel, nextEnergyType, onRetreatDi
               ? "Choose 1 of your opponent's Umamusume to damage."
             : pending.kind === "discardForAbility"
               ? "Choose 1 card from your hand to discard."
+              : pending.kind === "discardForAttackBonus"
+                ? "Choose 1 card from your hand to discard for +20 damage, or cancel to attack without the bonus."
           : "Choose your next action.";
 
   return (

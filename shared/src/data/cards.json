@@ -17,6 +17,7 @@
     "tazunaHayakawa",
     "teamCanopus",
     "superCreekStage1",
+    "symboliRudolfStage2",
     "tamamoCrossStage2",
     "teamRigil",
     "teamSpica",
@@ -843,6 +844,93 @@
           "healTarget": "any",
           "recoverSpecialConditions": true,
           "text": "Heal 20 damage from 1 of your Umamusume. That Umamusume recovers from all Special Conditions."
+        }
+      ]
+    },
+    "symboliRudolfBasic": {
+      "id": "symboliRudolfBasic",
+      "owner": "player",
+      "kind": "umamusume",
+      "name": "Symboli Rudolf",
+      "label": "Umamusume - Dragon - Basic",
+      "species": "Symboli Rudolf",
+      "type": "Dragon",
+      "stage": 0,
+      "hp": 50,
+      "portrait": "/assets/cards/umamusume/symboli-rudolf/basic.png",
+      "weakness": {
+        "type": "Colorless",
+        "amount": 20
+      },
+      "retreat": "Colorless",
+      "attacks": [
+        {
+          "name": "Emperor's Decree",
+          "cost": {
+            "dragon": 1
+          },
+          "damage": 30,
+          "text": "Do 30 damage to the Active Umamusume."
+        }
+      ]
+    },
+    "symboliRudolfStage1": {
+      "id": "symboliRudolfStage1",
+      "owner": "player",
+      "kind": "umamusume",
+      "name": "Symboli Rudolf",
+      "label": "Umamusume - Dragon - Stage 1",
+      "species": "Symboli Rudolf",
+      "type": "Dragon",
+      "stage": 1,
+      "evolvesFrom": "Symboli Rudolf",
+      "hp": 80,
+      "portrait": "/assets/cards/umamusume/symboli-rudolf/stage1.png",
+      "weakness": {
+        "type": "Colorless",
+        "amount": 20
+      },
+      "retreat": "Colorless",
+      "attacks": [
+        {
+          "name": "Emperor's Resolve",
+          "cost": {
+            "dragon": 1
+          },
+          "damage": 30,
+          "attackDamageBonusIfDiscardHandCard": 20,
+          "text": "You may discard 1 card from your hand. If you do, this attack does +20 damage."
+        }
+      ]
+    },
+    "symboliRudolfStage2": {
+      "id": "symboliRudolfStage2",
+      "owner": "player",
+      "kind": "umamusume",
+      "name": "Symboli Rudolf",
+      "label": "Umamusume - Dragon - Stage 2",
+      "species": "Symboli Rudolf",
+      "type": "Dragon",
+      "stage": 2,
+      "evolvesFrom": "Symboli Rudolf",
+      "hp": 120,
+      "portrait": "/assets/cards/umamusume/symboli-rudolf/stage2.png",
+      "weakness": {
+        "type": "Colorless",
+        "amount": 20
+      },
+      "retreat": "Colorless x2",
+      "attacks": [
+        {
+          "name": "Emperor's Path",
+          "cost": {
+            "water": 1,
+            "dragon": 1,
+            "colorless": 1
+          },
+          "damage": 100,
+          "shuffleRandomDiscardIntoDeck": 1,
+          "text": "You may shuffle 1 random card from your discard pile into your deck."
         }
       ]
     },

@@ -8,6 +8,7 @@ import {
   canUseStadium,
   canUseUmamusumeAbility,
   getDamagedUmamusume,
+  getCard,
   getDisplayedRetreatCost,
   getPrimaryAttack,
   getUmamusumeCard,
@@ -91,8 +92,21 @@ export function useCardPreviewActions(args: UseCardPreviewActionsArgs) {
       setPreviewTarget(null);
       return;
     }
+    if (attack.attackDamageBonusIfDiscardHandCard && player.hand.length > 0) {
+      setPendingSelection({ kind: "discardForAttackBonus", attackIndex });
+      setPreviewTarget(null);
+      return;
+    }
+    const randomDiscardIndex = attack.shuffleRandomDiscardIntoDeck && player.discard.length > 0
+      ? Math.floor(Math.random() * player.discard.length)
+      : undefined;
+    const revealedShuffleCardId = randomDiscardIndex !== undefined ? player.discard[randomDiscardIndex] : undefined;
     if (isNetworkMatch) {
-      submitPlayerIntent({ type: "attack" });
+      submitPlayerIntent({
+        type: "attack",
+        attackIndex,
+        ...(randomDiscardIndex !== undefined ? { randomDiscardIndex } : {}),
+      });
     } else {
       const coinAttack = getPendingAttackCoinFlip(game, "player", coinFlipIdRef.current++, attackIndex);
       if (coinAttack) {
@@ -102,12 +116,12 @@ export function useCardPreviewActions(args: UseCardPreviewActionsArgs) {
         return;
       }
       if (attack.draw) {
-        applyPlayerGameUpdate((current) => playerAttack(current, undefined, undefined, undefined, undefined, attackIndex), { kind: "genericGain" });
+        applyPlayerGameUpdate((current) => playerAttack(current, undefined, undefined, undefined, undefined, attackIndex, undefined, randomDiscardIndex), { kind: "genericGain" });
       } else {
-        setGame((current) => playerAttack(current, undefined, undefined, undefined, undefined, attackIndex));
+        setGame((current) => playerAttack(current, undefined, undefined, undefined, undefined, attackIndex, undefined, randomDiscardIndex));
       }
     }
-    setPreviewTarget(null);
+    setPreviewTarget(revealedShuffleCardId ? { card: getCard(revealedShuffleCardId) } : null);
   };
 
   const onRetreat = () => {

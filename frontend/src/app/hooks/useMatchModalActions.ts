@@ -55,7 +55,18 @@ export function useMatchModalActions({
   };
 
   const onActionNoticeClose = () => setActionNotice(null);
-  const onSelectionCancel = hasPendingPlayerChoice ? () => undefined : cancelPendingSelection;
+  const onSelectionCancel = hasPendingPlayerChoice
+    ? () => undefined
+    : pendingSelection?.kind === "discardForAttackBonus"
+      ? () => {
+        submitPlayerIntent({
+          type: "attack",
+          attackIndex: pendingSelection.attackIndex,
+          ...(pendingSelection.randomDiscardIndex !== undefined ? { randomDiscardIndex: pendingSelection.randomDiscardIndex } : {}),
+        });
+        setPendingSelection(null);
+      }
+      : cancelPendingSelection;
   const onPlayAgain = () => {
     if (isNetworkMatch) {
       navigateToScreen("pvpLobby");

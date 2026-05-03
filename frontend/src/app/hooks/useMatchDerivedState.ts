@@ -55,6 +55,8 @@ export function useMatchDerivedState({
       )
     : pendingSelection?.kind === "discardForAbility"
       ? new Set(player.hand.map((_, index) => index))
+      : pendingSelection?.kind === "discardForAttackBonus"
+        ? new Set(player.hand.map((_, index) => index))
       : pendingSelection?.kind === "discardForScout"
         ? new Set(player.hand.map((_, index) => index).filter((index) => index !== pendingSelection.handIndex))
       : undefined;

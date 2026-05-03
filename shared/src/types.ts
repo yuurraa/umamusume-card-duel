@@ -49,6 +49,8 @@ export type Attack = {
     amount: number;
   };
   attackDamageBonusIfToolAttached?: number;
+  attackDamageBonusIfDiscardHandCard?: number;
+  shuffleRandomDiscardIntoDeck?: number;
   guaranteeNextCoinFlipHeads?: number;
   knockOutActiveIfAllCoinHeads?: number;
 };

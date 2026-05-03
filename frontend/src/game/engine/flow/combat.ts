@@ -22,6 +22,8 @@ export function performAttack(
   forcedCoinResult?: CoinFlipResult | CoinFlipResult[],
   evolutionDeckCardIndex?: number,
   attackIndex = 0,
+  discardHandIndex?: number,
+  randomDiscardIndex?: number,
 ): void {
   const defenderId = attackerId === "player" ? "opponent" : "player";
   const pointsBeforeAttack = {
@@ -58,6 +60,20 @@ export function performAttack(
   }
   if (attack.attackDamageBonusIfToolAttached && attacker.active.toolCardId) {
     damage += attack.attackDamageBonusIfToolAttached;
+  }
+  if (attack.attackDamageBonusIfDiscardHandCard && attacker.hand.length > 0) {
+    const requestedDiscardIndex = discardHandIndex !== undefined && discardHandIndex >= 0 && discardHandIndex < attacker.hand.length
+      ? discardHandIndex
+      : undefined;
+    const resolvedDiscardIndex = requestedDiscardIndex ?? (!state.humanBySide[attackerId] ? 0 : undefined);
+    if (resolvedDiscardIndex !== undefined) {
+      const [discardedCardId] = attacker.hand.splice(resolvedDiscardIndex, 1);
+      if (discardedCardId) {
+        attacker.discard.push(discardedCardId);
+        damage += attack.attackDamageBonusIfDiscardHandCard;
+        log(state, `${actorName(attacker)} discarded ${formatCardName(getCard(discardedCardId))} for ${attack.name}.`);
+      }
+    }
   }
   const conditionalAttackBonus = attackerCard.ability?.attackDamageBonusIfAttachedEnergy;
   if (!nonDamagingAttack && conditionalAttackBonus && attacker.active.energies[conditionalAttackBonus.type] >= conditionalAttackBonus.min) {
@@ -172,6 +188,9 @@ export function performAttack(
   if (attack.shuffleSelfIntoDeck && attacker.active) {
     shuffleActiveIntoDeckIfPaid(state, attacker, attack.shuffleSelfIntoDeck, deps);
   }
+  if (attack.shuffleRandomDiscardIntoDeck) {
+    shuffleRandomDiscardIntoDeck(state, attacker, attack.name, randomDiscardIndex);
+  }
 
   resolveKnockout(state, attackerId, defenderId, deps, `${formatUmamusumeCardName(attackerCard)}'s ${attack.name}`);
   defender.bench
@@ -193,6 +212,17 @@ export function performAttack(
       deps.refreshContinuousEffects(state);
     }
   }
+}
+
+function shuffleRandomDiscardIntoDeck(state: GameState, side: SideState, attackName: string, randomDiscardIndex?: number): void {
+  if (side.discard.length === 0) return;
+  const discardIndex = randomDiscardIndex !== undefined && randomDiscardIndex >= 0 && randomDiscardIndex < side.discard.length
+    ? randomDiscardIndex
+    : Math.floor(Math.random() * side.discard.length);
+  const [cardId] = side.discard.splice(discardIndex, 1);
+  if (!cardId) return;
+  side.deck = shuffle([...side.deck, cardId]);
+  log(state, `${attackName} shuffled ${formatCardName(getCard(cardId))} from ${actorPossessive(side)} discard pile into the deck.`);
 }
 
 function evolveActiveFromDeck(state: GameState, side: SideState, evolutionDeckCardIndex?: number): void {
@@ -359,7 +389,8 @@ function isNonDamagingAttack(attack: ReturnType<typeof getPrimaryAttack>): boole
     && !attack.bonusIfTookDamageLastTurn
     && !attack.damagePerAttachedEnergy
     && !attack.damagePerUmamusumeInPlay
-    && !attack.attackDamageBonusIfToolAttached;
+    && !attack.attackDamageBonusIfToolAttached
+    && !attack.attackDamageBonusIfDiscardHandCard;
 }
 
 function flipCoin(side: SideState, forcedCoinResults: CoinFlipResult[]): CoinFlipResult {
