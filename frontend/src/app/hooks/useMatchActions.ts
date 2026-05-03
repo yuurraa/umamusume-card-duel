@@ -44,6 +44,7 @@ type UseMatchActionsArgs = {
   getPendingAttackCoinFlip: (state: GameState, attackerId: "player" | "opponent", id: number, attackIndex?: number) => CoinFlipEvent | null;
   submitPlayerIntent: (intent: PlayerIntent) => void;
   isNetworkMatch: boolean;
+  showShuffleReveal: (cardId: string) => void;
 };
 
 export function useMatchActions(args: UseMatchActionsArgs) {
@@ -66,6 +67,7 @@ export function useMatchActions(args: UseMatchActionsArgs) {
     getPendingAttackCoinFlip,
     submitPlayerIntent,
     isNetworkMatch,
+    showShuffleReveal,
   } = args;
 
   const playCard = (handIndex: number) => {
@@ -258,7 +260,8 @@ export function useMatchActions(args: UseMatchActionsArgs) {
         setGame((current) => playerAttack(current, undefined, undefined, undefined, undefined, pendingSelection.attackIndex, handIndex, pendingSelection.randomDiscardIndex));
       }
       setPendingSelection(null);
-      setPreviewTarget(revealedShuffleCardId ? { card: getCard(revealedShuffleCardId) } : null);
+      setPreviewTarget(null);
+      if (revealedShuffleCardId) showShuffleReveal(revealedShuffleCardId);
       return;
     }
     if (pendingSelection.kind === "discardForScout") {

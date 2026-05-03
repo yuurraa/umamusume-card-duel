@@ -1,4 +1,4 @@
-import { CARD_RARITY_LABELS, getCardRarity, toBaseCardId } from "../../../../shared/src/cardRarity";
+import { CARD_RARITY_LABELS, getCardRarity, isCardDisabled, toBaseCardId } from "../../../../shared/src/cardRarity";
 import { cards } from "../../../../shared/src/gameData";
 import type { Card, CardRarity, EnergyType, TrainerType, UmamusumeType } from "../../../../shared/src/types";
 import type { LocalDeck } from "../../../../shared/src/localDecks";
@@ -61,7 +61,10 @@ export const rarityFilters: Array<{ id: RarityFilter; label: string }> = [
   { id: "uncommon", label: CARD_RARITY_LABELS.uncommon },
   { id: "uncommonPlus", label: CARD_RARITY_LABELS.uncommonPlus },
   { id: "rare", label: CARD_RARITY_LABELS.rare },
-  { id: "doubleRare", label: CARD_RARITY_LABELS.doubleRare },
+  { id: "artRare", label: CARD_RARITY_LABELS.artRare },
+  { id: "specialArtRare", label: CARD_RARITY_LABELS.specialArtRare },
+  { id: "secretRare", label: CARD_RARITY_LABELS.secretRare },
+  { id: "ultraRare", label: CARD_RARITY_LABELS.ultraRare },
 ];
 
 export const cardEntries = Object.values(cards).sort((left, right) => {
@@ -113,6 +116,7 @@ export function parseDeckJson(text: string): { ok: true; payload: DeckJsonPayloa
   for (const cardId of cardIds) {
     const card = cards[cardId];
     if (!card) return { ok: false, error: `Unknown card id: ${cardId}` };
+    if (isCardDisabled(card)) return { ok: false, error: `${card.name} is not available for decks yet.` };
   }
 
   if (!cardIds.some((cardId) => {
@@ -130,6 +134,7 @@ export function parseDeckJson(text: string): { ok: true; payload: DeckJsonPayloa
   if (!resolvedCoverCardId) return { ok: false, error: "Deck must contain at least 1 card." };
   const coverCard = cards[resolvedCoverCardId];
   if (!coverCard) return { ok: false, error: `Unknown card id: ${resolvedCoverCardId}` };
+  if (isCardDisabled(coverCard)) return { ok: false, error: `${coverCard.name} is not available for decks yet.` };
 
   const energyTypes = parseDeckEnergyTypes(candidate.energyTypes, cardIds);
   if (!energyTypes.ok) return { ok: false, error: energyTypes.error };
@@ -199,7 +204,7 @@ export function matchesAnyRarityFilter(card: Card, filters: Set<RarityFilter>): 
 
 function isFullArtCard(card: Card): boolean {
   const image = getCardImage(card);
-  return card.id.endsWith("FullArt") || image.includes("-fullart.");
+  return card.id.endsWith("FullArt") || card.id.endsWith("FullArtGold") || image.includes("-fullart.") || image.includes("-fullart-gold.");
 }
 
 export function getCardImage(card: Card): string {

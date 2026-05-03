@@ -8,7 +8,6 @@ import {
   canUseStadium,
   canUseUmamusumeAbility,
   getDamagedUmamusume,
-  getCard,
   getDisplayedRetreatCost,
   getPrimaryAttack,
   getUmamusumeCard,
@@ -33,6 +32,7 @@ type UseCardPreviewActionsArgs = {
   getPendingAttackCoinFlip: (state: GameState, attackerId: "player" | "opponent", id: number, attackIndex?: number) => CoinFlipEvent | null;
   submitPlayerIntent: (intent: PlayerIntent) => void;
   isNetworkMatch: boolean;
+  showShuffleReveal: (cardId: string) => void;
 };
 
 export function useCardPreviewActions(args: UseCardPreviewActionsArgs) {
@@ -51,6 +51,7 @@ export function useCardPreviewActions(args: UseCardPreviewActionsArgs) {
     getPendingAttackCoinFlip,
     submitPlayerIntent,
     isNetworkMatch,
+    showShuffleReveal,
   } = args;
 
   const canUseAttack = Boolean(!isTurnFlowBlocked && player.active && previewTarget?.isActive && previewTarget.sideId === "player" && canAttack(game, player));
@@ -121,7 +122,8 @@ export function useCardPreviewActions(args: UseCardPreviewActionsArgs) {
         setGame((current) => playerAttack(current, undefined, undefined, undefined, undefined, attackIndex, undefined, randomDiscardIndex));
       }
     }
-    setPreviewTarget(revealedShuffleCardId ? { card: getCard(revealedShuffleCardId) } : null);
+    setPreviewTarget(null);
+    if (revealedShuffleCardId) showShuffleReveal(revealedShuffleCardId);
   };
 
   const onRetreat = () => {

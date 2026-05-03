@@ -40,8 +40,9 @@ export function Hand({
   const handPanRef = useRef<{ active: boolean; pointerId: number; startX: number; startScrollLeft: number } | null>(null);
   const [isHandPanning, setIsHandPanning] = useState(false);
   const isSetup = mode === "setup";
+  const isSetupReady = isSetup && Boolean(state.setup?.readyBySide.player);
   const playerTurn = canPlayCards ?? (isSetup || (!state.gameOver && state.currentSide === "player"));
-  const hiddenSetupIndexes = isSetup ? new Set([setupActiveIndex, ...setupBenchIndexes].filter((index): index is number => index !== null)) : null;
+  const hiddenSetupIndexes = isSetup && !isSetupReady ? new Set([setupActiveIndex, ...setupBenchIndexes].filter((index): index is number => index !== null)) : null;
   const topDiscardCardId = player.discard[player.discard.length - 1] ?? null;
   const topDiscardCard = topDiscardCardId ? getCard(topDiscardCardId) : null;
 

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CARD_RARITY_SHORT_LABELS, getCardRarity } from "../../../../shared/src/cardRarity";
+import { CARD_RARITY_SHORT_LABELS, getCardRarity, isCardDisabled } from "../../../../shared/src/cardRarity";
 import { ownedStarterCardIds } from "../../../../shared/src/gameData";
 import type { Card, EnergyType } from "../../../../shared/src/types";
 import { energyLabel, getCard } from "../../game/engine";
@@ -82,6 +82,7 @@ import {
   deckSelectorHoverDimStyle,
   deckSelectorInspectActionBarStyle,
   deckSelectorInspectActionButtonStyle,
+  deckSelectorInspectNoticeStyle,
   deckSelectorFilterPanelStyle,
   deckSelectorHoverPreviewImageStyle,
   deckSelectorHoverPreviewStyle,
@@ -908,7 +909,10 @@ export function DeckCardSelectorModal({
   const inspectedCopyKey = inspectCard ? toDeckCountKey(inspectCard.id) : null;
   const inspectedCopyCount = inspectedCopyKey ? cardCounts.get(inspectedCopyKey) ?? 0 : 0;
   const inspectedOwnedCount = inspectCard ? getOwnedCount(inspectCard.id) : 0;
-  const inspectedCanEquip = Boolean(inspectCard && inspectedOwnedCount > 0 && inspectedCopyCount < 2);
+  const inspectedDisabledReason = inspectCard && isCardDisabled(inspectCard)
+    ? (inspectCard.disabledReason ?? "This card is not available for decks yet.")
+    : null;
+  const inspectedCanEquip = Boolean(inspectCard && !inspectedDisabledReason && inspectedOwnedCount > 0 && inspectedCopyCount < 2);
 
   useEffect(() => {
     onInspectActiveChange?.(inspectActive);
@@ -1094,7 +1098,8 @@ export function DeckCardSelectorModal({
                 const copyCount = cardCounts.get(copyKey) ?? 0;
                 const ownedCount = getOwnedCount(card.id);
                 const isOwned = ownedCount > 0;
-                const isDisabled = copyCount >= 2 || !isOwned;
+                const disabledReason = isCardDisabled(card) ? (card.disabledReason ?? "This card is not available for decks yet.") : undefined;
+                const isDisabled = copyCount >= 2 || !isOwned || Boolean(disabledReason);
                 return (
                   <CardTile
                     key={card.id}
@@ -1102,6 +1107,7 @@ export function DeckCardSelectorModal({
                     ownedCount={ownedCount}
                     unowned={!isOwned}
                     disabled={isDisabled}
+                    disabledReason={disabledReason}
                     onInspect={(anchorEl) => inspectCardFromTile(card, anchorEl)}
                     previewActive={inspectCard?.id === card.id}
                   />
@@ -1133,6 +1139,9 @@ export function DeckCardSelectorModal({
                 radiusOverride={CARD_INSPECT_IMAGE_RADIUS}
                 motionVariant="inspect"
               />
+              {inspectedDisabledReason && (
+                <div style={deckSelectorInspectNoticeStyle}>{inspectedDisabledReason}</div>
+              )}
               <div style={deckSelectorInspectActionBarStyle}>
                 <NeutralButton
                   style={deckSelectorInspectActionButtonStyle}
@@ -1169,6 +1178,7 @@ function CardTile({
   ownedCount,
   unowned = false,
   disabled = false,
+  disabledReason,
   onInspect,
   previewActive = false,
 }: {
@@ -1176,6 +1186,7 @@ function CardTile({
   ownedCount: number;
   unowned?: boolean;
   disabled?: boolean;
+  disabledReason?: string | undefined;
   onInspect: (anchorEl: HTMLButtonElement) => void;
   previewActive?: boolean;
 }) {
@@ -1208,7 +1219,7 @@ function CardTile({
         setHovered(false);
       }}
       aria-label={`Inspect ${name}`}
-      title={unowned ? `You do not own ${name}` : disabled ? `Max 2 copies per deck (${name})` : undefined}
+      title={disabledReason ?? (unowned ? `You do not own ${name}` : disabled ? `Max 2 copies per deck (${name})` : undefined)}
     >
       <HoloCardImage
         card={card}
@@ -1216,10 +1227,10 @@ function CardTile({
         alt=""
         imageStyle={selectorCardImageStyle(owned)}
         draggable={false}
-        disableHoverAnimation={unowned || disabled}
+        disableHoverAnimation={unowned}
       />
       <span style={rarityBadgeStyle(rarity)}>{CARD_RARITY_SHORT_LABELS[rarity]}</span>
-      <span style={selectorOwnershipBadgeStyle(owned)}>{ownershipLabel}</span>
+      <span style={selectorOwnershipBadgeStyle(owned && !disabledReason)}>{disabledReason ? "Disabled" : ownershipLabel}</span>
     </button>
   );
 }

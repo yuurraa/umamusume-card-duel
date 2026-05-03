@@ -1,5 +1,5 @@
 import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
-import { CARD_RARITY_LABELS, CARD_RARITY_SHORT_LABELS, getCardRarity, isFullArtCard } from "../../../shared/src/cardRarity";
+import { CARD_RARITY_LABELS, CARD_RARITY_SHORT_LABELS, getCardRarity, isCardDisabled, isFullArtCard } from "../../../shared/src/cardRarity";
 import { allCards, ownedStarterCardIds } from "../../../shared/src/gameData";
 import type { Card, CardRarity, EnergyType, TrainerType, UmamusumeType } from "../../../shared/src/types";
 import { EnergyIcon } from "../components/cards/EnergyIcon";
@@ -60,7 +60,10 @@ const rarityFilters: Array<{ id: RarityFilter; label: string }> = [
   { id: "uncommon", label: CARD_RARITY_LABELS.uncommon },
   { id: "uncommonPlus", label: CARD_RARITY_LABELS.uncommonPlus },
   { id: "rare", label: CARD_RARITY_LABELS.rare },
-  { id: "doubleRare", label: CARD_RARITY_LABELS.doubleRare },
+  { id: "artRare", label: CARD_RARITY_LABELS.artRare },
+  { id: "specialArtRare", label: CARD_RARITY_LABELS.specialArtRare },
+  { id: "secretRare", label: CARD_RARITY_LABELS.secretRare },
+  { id: "ultraRare", label: CARD_RARITY_LABELS.ultraRare },
 ];
 
 const cardEntries = Object.values(allCards).sort((left, right) => {
@@ -452,6 +455,7 @@ function CardTile({
   const [hovered, setHovered] = useState(false);
   const image = getCardImage(card);
   const rarity = getCardRarity(card);
+  const disabledReason = isCardDisabled(card) ? (card.disabledReason ?? "This card is not available yet.") : null;
   const owned = ownedCount > 0;
   const ownershipLabel = owned ? `${ownedCount}x Owned` : "Unowned";
   const animate = owned;
@@ -482,7 +486,7 @@ function CardTile({
     >
       <HoloCardImage card={card} src={image} alt="" imageStyle={cardImageStyle(owned)} draggable={false} disableHoverAnimation={!owned} />
       <span style={rarityBadgeStyle(rarity)}>{CARD_RARITY_SHORT_LABELS[rarity]}</span>
-      <span style={ownershipBadgeStyle(owned)}>{ownershipLabel}</span>
+      <span style={ownershipBadgeStyle(owned && !disabledReason)}>{disabledReason ? "Disabled" : ownershipLabel}</span>
     </button>
   );
 }
@@ -917,10 +921,25 @@ function rarityBadgeStyle(rarity: ReturnType<typeof getCardRarity>): CSSProperti
       background: "rgba(30, 64, 175, 0.86)",
       color: colors.white,
     },
-    doubleRare: {
-      border: "1px solid rgba(250, 204, 21, 0.86)",
-      background: "rgba(133, 77, 14, 0.9)",
+    artRare: {
+      border: "1px solid rgba(244, 114, 182, 0.78)",
+      background: "rgba(157, 23, 77, 0.88)",
+      color: "#fff1f7",
+    },
+    specialArtRare: {
+      border: "1px solid rgba(216, 180, 254, 0.84)",
+      background: "rgba(91, 33, 182, 0.88)",
+      color: "#faf5ff",
+    },
+    secretRare: {
+      border: "1px solid rgba(250, 204, 21, 0.9)",
+      background: "rgba(133, 77, 14, 0.92)",
       color: "#fff7cc",
+    },
+    ultraRare: {
+      border: "1px solid rgba(248, 113, 113, 0.9)",
+      background: "rgba(127, 29, 29, 0.92)",
+      color: "#fff1f2",
     },
   };
   const color = palette[rarity];

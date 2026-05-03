@@ -1,5 +1,5 @@
 import { useState, type CSSProperties, type MouseEvent, type PointerEvent } from "react";
-import { getCardRarity, isFullArtCard, isUncommonPlusCard } from "../../../../shared/src/cardRarity";
+import { getCardRarity, isExCard, isFullArtCard, isGoldFullArtCard, isUncommonPlusCard } from "../../../../shared/src/cardRarity";
 import type { Card, CardPrintVariant, CardRarity } from "../../../../shared/src/types";
 
 type HoloCardImageProps = {
@@ -163,9 +163,10 @@ function roundMotion(value: number): number {
 }
 
 function getFoilEffect(card: Card, rarity: CardRarity, printVariant: CardPrintVariant): PokemonFoilEffect | null {
+  if (isExCard(card)) return "trainerGallery";
   if (isUncommonPlusCard(card)) return "uncommonPlus";
   if (isFullArtCard(card)) {
-    return card.kind === "trainer" && card.trainerType === "supporter" ? "trainerHolo" : "trainerGallery";
+    return card.kind === "trainer" ? "trainerHolo" : "trainerGallery";
   }
   if (printVariant === "holographic" && card.kind === "trainer") return "trainerHolo";
   if (rarity === "rare") return "rareHolo";
@@ -183,7 +184,7 @@ function getPokemonFoilData(card: Card, foilEffect: PokemonFoilEffect | null): {
 } {
   if (foilEffect === "trainerGallery") {
     return {
-      rarity: "rare holo",
+      rarity: isExCard(card) ? "rare holo v" : "rare holo",
       supertype: "pokémon",
       subtypes: card.kind === "umamusume" && card.stage > 0 ? `stage${card.stage}` : "basic",
       trainerGallery: "true",
@@ -191,7 +192,7 @@ function getPokemonFoilData(card: Card, foilEffect: PokemonFoilEffect | null): {
   }
   if (foilEffect === "trainerHolo") {
     return {
-      rarity: isFullArtCard(card) ? "rare ultra" : "rare holo",
+      rarity: isGoldFullArtCard(card) ? "rare secret" : isFullArtCard(card) ? "rare ultra" : "rare holo",
       supertype: "trainer",
       subtypes: card.kind === "trainer" ? card.trainerType : "supporter",
       trainerGallery: "false",

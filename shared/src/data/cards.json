@@ -23,6 +23,10 @@
     "teamSpica",
     "yayoiAkikawa"
   ],
+  "goldFullArtBaseCardIds": [
+    "3starMakeDebutScout",
+    "rainbowUncapCrystal"
+  ],
   "baseCards": {
     "matikanetannhauserBasic": {
       "id": "matikanetannhauserBasic",
@@ -987,6 +991,181 @@
           "damage": 40,
           "attackDamageBonusIfToolAttached": 30,
           "text": "If this Umamusume has an Umamusume Tool attached to her, this attack does +30 damage."
+        }
+      ]
+    },
+    "niceNatureBasicEx": {
+      "id": "niceNatureBasicEx",
+      "implemented": false,
+      "disabledReason": "TODO: Implement EX card moves and rules.",
+      "owner": "player",
+      "kind": "umamusume",
+      "name": "Nice Nature EX",
+      "label": "Umamusume - Grass - Basic EX",
+      "species": "Nice Nature",
+      "type": "Grass",
+      "stage": 0,
+      "hp": 70,
+      "portrait": "/assets/cards/umamusume/nice-nature/basic-ex.png",
+      "weakness": {
+        "type": "Fire",
+        "amount": 20
+      },
+      "retreat": "Colorless",
+      "attacks": [
+        {
+          "name": "TODO",
+          "cost": {},
+          "damage": 0,
+          "text": "TODO: Implement Nice Nature EX's attack."
+        }
+      ]
+    },
+    "agnesTachyonStage1Ex": {
+      "id": "agnesTachyonStage1Ex",
+      "implemented": false,
+      "disabledReason": "TODO: Implement EX card moves and rules.",
+      "owner": "player",
+      "kind": "umamusume",
+      "name": "Agnes Tachyon EX",
+      "label": "Umamusume - Fire - Stage 1 EX",
+      "species": "Agnes Tachyon",
+      "type": "Fire",
+      "stage": 1,
+      "evolvesFrom": "Agnes Tachyon",
+      "hp": 80,
+      "portrait": "/assets/cards/umamusume/agnes-tachyon/stage1-ex.png",
+      "weakness": {
+        "type": "Water",
+        "amount": 20
+      },
+      "retreat": "Colorless x2",
+      "ability": {
+        "name": "TODO",
+        "text": "TODO: Implement Agnes Tachyon EX's Ability."
+      },
+      "attacks": [
+        {
+          "name": "TODO",
+          "cost": {},
+          "damage": 0,
+          "text": "TODO: Implement Agnes Tachyon EX's attack."
+        }
+      ]
+    },
+    "oguriCapStage1Ex": {
+      "id": "oguriCapStage1Ex",
+      "implemented": false,
+      "disabledReason": "TODO: Implement EX card moves and rules.",
+      "owner": "player",
+      "kind": "umamusume",
+      "name": "Oguri Cap EX",
+      "label": "Umamusume - Colorless - Stage 1 EX",
+      "species": "Oguri Cap",
+      "type": "Colorless",
+      "stage": 1,
+      "evolvesFrom": "Oguri Cap",
+      "hp": 130,
+      "portrait": "/assets/cards/umamusume/oguri-cap/stage1-ex.png",
+      "weakness": {
+        "type": "Fighting",
+        "amount": 20
+      },
+      "retreat": "Colorless x2",
+      "attacks": [
+        {
+          "name": "TODO",
+          "cost": {},
+          "damage": 0,
+          "text": "TODO: Implement Oguri Cap EX's attack."
+        }
+      ]
+    },
+    "mihonoBourbonStage2Ex": {
+      "id": "mihonoBourbonStage2Ex",
+      "implemented": false,
+      "disabledReason": "TODO: Implement EX card moves and rules.",
+      "owner": "player",
+      "kind": "umamusume",
+      "name": "Mihono Bourbon EX",
+      "label": "Umamusume - Steel - Stage 2 EX",
+      "species": "Mihono Bourbon",
+      "type": "Steel",
+      "stage": 2,
+      "evolvesFrom": "Mihono Bourbon",
+      "hp": 130,
+      "portrait": "/assets/cards/umamusume/mihono-bourbon/stage2-ex.png",
+      "weakness": {
+        "type": "Fighting",
+        "amount": 20
+      },
+      "retreat": "Colorless x3",
+      "ability": {
+        "name": "TODO",
+        "text": "TODO: Implement Mihono Bourbon EX's Ability."
+      },
+      "attacks": [
+        {
+          "name": "TODO",
+          "cost": {},
+          "damage": 0,
+          "text": "TODO: Implement Mihono Bourbon EX's attack."
+        }
+      ]
+    },
+    "riceShowerStage2Ex": {
+      "id": "riceShowerStage2Ex",
+      "implemented": false,
+      "disabledReason": "TODO: Implement EX card moves and rules.",
+      "owner": "player",
+      "kind": "umamusume",
+      "name": "Rice Shower EX",
+      "label": "Umamusume - Dark - Stage 2 EX",
+      "species": "Rice Shower",
+      "type": "Darkness",
+      "stage": 2,
+      "evolvesFrom": "Rice Shower",
+      "hp": 140,
+      "portrait": "/assets/cards/umamusume/rice-shower/stage2-ex.png",
+      "weakness": {
+        "type": "Steel",
+        "amount": 20
+      },
+      "retreat": "Colorless x2",
+      "attacks": [
+        {
+          "name": "TODO",
+          "cost": {},
+          "damage": 0,
+          "text": "TODO: Implement Rice Shower EX's attack."
+        }
+      ]
+    },
+    "symboliRudolfStage2Ex": {
+      "id": "symboliRudolfStage2Ex",
+      "implemented": false,
+      "disabledReason": "TODO: Implement EX card moves and rules.",
+      "owner": "player",
+      "kind": "umamusume",
+      "name": "Symboli Rudolf EX",
+      "label": "Umamusume - Dragon - Stage 2 EX",
+      "species": "Symboli Rudolf",
+      "type": "Dragon",
+      "stage": 2,
+      "evolvesFrom": "Symboli Rudolf",
+      "hp": 120,
+      "portrait": "/assets/cards/umamusume/symboli-rudolf/stage2-ex.png",
+      "weakness": {
+        "type": "Colorless",
+        "amount": 20
+      },
+      "retreat": "Colorless x2",
+      "attacks": [
+        {
+          "name": "TODO",
+          "cost": {},
+          "damage": 0,
+          "text": "TODO: Implement Symboli Rudolf EX's attack."
         }
       ]
     },

@@ -18,6 +18,7 @@ import { SelectionPrompt } from "../match/controls/SelectionPrompt";
 import { OpponentActionBanner } from "../match/feedback/OpponentActionBanner";
 import { ActionNotice } from "../match/feedback/ActionNotice";
 import { CoinFlipOverlay } from "../match/feedback/CoinFlipOverlay";
+import { ShuffleCardReveal } from "../match/feedback/ShuffleCardReveal";
 import {
   getPlaymatTextTone,
   getSelectedPlaymat,
@@ -126,6 +127,7 @@ export function App() {
   const [activeCoinFlip, setActiveCoinFlip] = useState<CoinFlipEvent | null>(null);
   const [acknowledgedCoinLogMessage, setAcknowledgedCoinLogMessage] = useState<string | null>(null);
   const [pendingCoinAttack, setPendingCoinAttack] = useState<PendingCoinAttack | null>(null);
+  const [shuffleRevealCardId, setShuffleRevealCardId] = useState<string | null>(null);
   const [setupActiveIndex, setSetupActiveIndex] = useState<number | null>(null);
   const [setupBenchIndexes, setSetupBenchIndexes] = useState<number[]>([]);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -274,6 +276,7 @@ export function App() {
     setActiveCoinFlip(null);
     setAcknowledgedCoinLogMessage(null);
     setPendingCoinAttack(null);
+    setShuffleRevealCardId(null);
     skipNextCoinLogMessageRef.current = null;
     setSetupActiveIndex(null);
     setSetupBenchIndexes([]);
@@ -1007,6 +1010,7 @@ export function App() {
     getPendingAttackCoinFlip,
     submitPlayerIntent,
     isNetworkMatch,
+    showShuffleReveal: setShuffleRevealCardId,
   });
   const cardPreviewActions = useCardPreviewActions({
     game,
@@ -1023,6 +1027,7 @@ export function App() {
     getPendingAttackCoinFlip,
     submitPlayerIntent,
     isNetworkMatch,
+    showShuffleReveal: setShuffleRevealCardId,
   });
   const { handleCoinFlipContinue } = useCoinFlipResolution({
     game,
@@ -1169,6 +1174,13 @@ export function App() {
           results={activeCoinFlip.results}
           message={formatMatchText(activeCoinFlip.message)}
           onContinue={handleCoinFlipContinue}
+        />
+      )}
+      {shuffleRevealCardId && (
+        <ShuffleCardReveal
+          key={shuffleRevealCardId}
+          cardId={shuffleRevealCardId}
+          onDone={() => setShuffleRevealCardId(null)}
         />
       )}
       {activePendingSelection && (

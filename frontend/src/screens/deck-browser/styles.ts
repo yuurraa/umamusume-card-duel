@@ -1,4 +1,5 @@
 import type { CSSProperties } from "react";
+import type { CardRarity } from "../../../../shared/src/types";
 import { APP_BACKGROUND_FALLBACK, CARD_ASPECT_RATIO, GLASS_TILE_BACKGROUND, GLASS_TILE_BACKDROP_FILTER, borders, colors, glassPanelStyle, overlayBackdropStyle, overlayButtonStyle, overlaySurfaceStyle, previewKickerStyle, radius, shadows, transitions, uiTextColor, uiTextShadow } from "../../styles/shared";
 
 export const menuKickerStyle: CSSProperties = {
@@ -845,8 +846,8 @@ export const cardImageStyle: CSSProperties = {
   borderRadius: radius.md,
 };
 
-export function rarityBadgeStyle(rarity: "common" | "uncommon" | "uncommonPlus" | "rare" | "doubleRare"): CSSProperties {
-  const palette: Record<typeof rarity, { border: string; background: string; color: string }> = {
+export function rarityBadgeStyle(rarity: CardRarity): CSSProperties {
+  const palette: Record<CardRarity, { border: string; background: string; color: string }> = {
     common: {
       border: "1px solid rgba(255, 255, 255, 0.64)",
       background: "rgba(31, 41, 55, 0.76)",
@@ -867,10 +868,25 @@ export function rarityBadgeStyle(rarity: "common" | "uncommon" | "uncommonPlus" 
       background: "rgba(30, 64, 175, 0.86)",
       color: colors.white,
     },
-    doubleRare: {
-      border: "1px solid rgba(250, 204, 21, 0.86)",
-      background: "rgba(133, 77, 14, 0.9)",
+    artRare: {
+      border: "1px solid rgba(244, 114, 182, 0.78)",
+      background: "rgba(157, 23, 77, 0.88)",
+      color: "#fff1f7",
+    },
+    specialArtRare: {
+      border: "1px solid rgba(216, 180, 254, 0.84)",
+      background: "rgba(91, 33, 182, 0.88)",
+      color: "#faf5ff",
+    },
+    secretRare: {
+      border: "1px solid rgba(250, 204, 21, 0.9)",
+      background: "rgba(133, 77, 14, 0.92)",
       color: "#fff7cc",
+    },
+    ultraRare: {
+      border: "1px solid rgba(248, 113, 113, 0.9)",
+      background: "rgba(127, 29, 29, 0.92)",
+      color: "#fff1f2",
     },
   };
   const color = palette[rarity];
@@ -924,6 +940,19 @@ export const deckSelectorInspectActionBarStyle: CSSProperties = {
   justifyContent: "center",
   gap: 10,
   marginTop: 10,
+};
+
+export const deckSelectorInspectNoticeStyle: CSSProperties = {
+  marginTop: 10,
+  border: "1px solid rgba(251, 191, 36, 0.45)",
+  borderRadius: radius.sm,
+  background: "rgba(120, 53, 15, 0.72)",
+  color: "#fff7ed",
+  padding: "8px 10px",
+  fontSize: 12,
+  fontWeight: 850,
+  textAlign: "center",
+  textShadow: "0 1px 2px rgba(0, 0, 0, 0.42)",
 };
 
 export const deckSelectorInspectActionButtonStyle: CSSProperties = {

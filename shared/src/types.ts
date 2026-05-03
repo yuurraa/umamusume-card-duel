@@ -8,7 +8,7 @@ export type EnergyRequirement = EnergyType | "colorless";
 export type EnergyCost = Partial<Record<EnergyRequirement, number>>;
 export type TrainerType = "supporter" | "item" | "stadium" | "tool";
 export type SpecialCondition = "asleep" | "burned" | "confused" | "paralyzed" | "poisoned";
-export type CardRarity = "common" | "uncommon" | "uncommonPlus" | "rare" | "doubleRare";
+export type CardRarity = "common" | "uncommon" | "uncommonPlus" | "rare" | "artRare" | "specialArtRare" | "secretRare" | "ultraRare";
 export type CardPrintVariant = "standard" | "holographic";
 export type OpponentTurnStep = "bench" | "trainerBefore" | "evolve" | "attach" | "trainerAfter" | "attack" | "finish";
 export type PremadeDeck = {
@@ -83,6 +83,8 @@ export type Ability = {
 
 export type UmamusumeCard = {
   id: string;
+  implemented?: boolean;
+  disabledReason?: string;
   owner: SideId;
   kind: "umamusume";
   name: string;
@@ -101,6 +103,8 @@ export type UmamusumeCard = {
 
 export type TrainerCard = {
   id: string;
+  implemented?: boolean;
+  disabledReason?: string;
   kind: "trainer";
   trainerType: TrainerType;
   name: string;

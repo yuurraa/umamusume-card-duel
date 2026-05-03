@@ -114,7 +114,7 @@ export function SideBoard({
     ? null
     : side.active
       ? null
-      : <EmptyHealthBar />;
+      : null;
   const health = baseHealth;
   const baseActive = side.active ? (
     <div
@@ -283,14 +283,6 @@ export function SideBoard({
         )}
       </div>
     </section>
-  );
-}
-
-function EmptyHealthBar() {
-  return (
-    <div style={{ boxSizing: "border-box", height: "var(--board-health-height)", borderRadius: radius.md, border: borders.neutralDashed, background: colors.glassMedium, display: "grid", placeItems: "center", color: uiTextColor, textShadow: uiTextShadow, fontSize: "clamp(10px, 0.625vw, 12px)", fontWeight: 900, backdropFilter: filters.glassBlurSoft }}>
-      No Active
-    </div>
   );
 }
 

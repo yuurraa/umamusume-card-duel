@@ -1,4 +1,4 @@
-import { toBaseCardId } from "./cardRarity";
+import { isCardDisabled, toBaseCardId } from "./cardRarity";
 import type { Card, EnergyType } from "./types";
 
 export const LOCAL_DECK_FORMAT_VERSION = 1;
@@ -74,12 +74,14 @@ export function validateLocalDeck(
   if (deck.cardIds.length !== DECK_CARD_COUNT) return { ok: false, reason: `Deck must contain exactly ${DECK_CARD_COUNT} cards.` };
   const coverCard = resolveDeckCard(deck.coverCardId, allCards);
   if (!coverCard) return { ok: false, reason: `Unknown deck cover card id: ${deck.coverCardId}` };
+  if (isCardDisabled(coverCard)) return { ok: false, reason: `${coverCard.name} is not available for decks yet.` };
 
   let hasBasicUmamusume = false;
   const countsByKey = new Map<string, number>();
   for (const cardId of deck.cardIds) {
     const card = resolveDeckCard(cardId, allCards);
     if (!card) return { ok: false, reason: `Unknown card id in deck: ${cardId}` };
+    if (isCardDisabled(card)) return { ok: false, reason: `${card.name} is not available for decks yet.` };
     if (card.kind === "umamusume" && card.stage === 0) hasBasicUmamusume = true;
     const key = toDeckCountKey(cardId);
     const nextCount = (countsByKey.get(key) ?? 0) + 1;
@@ -141,9 +143,12 @@ function resolveDeckCard(cardId: string, allCards: Record<string, Card>): Card |
 
 const CARD_ID_ALIASES: Record<string, string> = {
   makeDebutScout: "3starMakeDebutScout",
-  makeDebutScoutFullArt: "3starMakeDebutScoutFullArt",
+  makeDebutScoutFullArt: "3starMakeDebutScoutFullArtGold",
+  makeDebutScoutFullArtGold: "3starMakeDebutScoutFullArtGold",
   "3starMakeDebutScout": "makeDebutScout",
-  "3starMakeDebutScoutFullArt": "makeDebutScoutFullArt",
+  "3starMakeDebutScoutFullArt": "3starMakeDebutScoutFullArtGold",
+  "3starMakeDebutScoutFullArtGold": "makeDebutScoutFullArtGold",
+  "rainbowUncapCrystalFullArt": "rainbowUncapCrystalFullArtGold",
 };
 
 const COUNT_KEY_ALIASES: Record<string, string> = {

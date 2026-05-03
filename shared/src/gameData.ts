@@ -1,5 +1,6 @@
 import cardsDataRaw from "./data/cards.json";
 import premadeDecksDataRaw from "./data/premadeDecks.json";
+import { isExCard } from "./cardRarity";
 import type { Card, EnergyType, GameData, PremadeDeck } from "./types";
 
 export const MAX_POINTS = 3;
@@ -11,6 +12,7 @@ type CardsDataFile = {
   weaknessBonus: number;
   fullArtSuffix: string;
   fullArtBaseCardIds: string[];
+  goldFullArtBaseCardIds?: string[];
   baseCards: Record<string, Card>;
 };
 
@@ -42,11 +44,12 @@ export const energyImages: Record<EnergyType, string> = {
 
 const baseCards = cardsData.baseCards;
 const fullArtBaseCardIds = cardsData.fullArtBaseCardIds;
+const goldFullArtBaseCardIds = cardsData.goldFullArtBaseCardIds ?? [];
 const starterCardIds = new Set(
   premadeDecksData.premadeDecks.flatMap((deck) => [deck.coverCardId, ...deck.cardIds]),
 );
 
-export const allCards = withUncommonPlusVariants(withFullArtVariants(baseCards, fullArtBaseCardIds));
+export const allCards = withUncommonPlusVariants(withGoldFullArtVariants(withFullArtVariants(baseCards, fullArtBaseCardIds), goldFullArtBaseCardIds));
 export const ownedStarterCardIds: ReadonlySet<string> = starterCardIds;
 export const cards = allCards;
 
@@ -75,10 +78,32 @@ function withFullArtVariants(sourceCards: Record<string, Card>, baseCardIds: rea
   return nextCards;
 }
 
+function withGoldFullArtVariants(sourceCards: Record<string, Card>, baseCardIds: readonly string[]): Record<string, Card> {
+  const nextCards: Record<string, Card> = { ...sourceCards };
+
+  baseCardIds.forEach((baseCardId) => {
+    const baseCard = sourceCards[baseCardId];
+    if (!baseCard || baseCard.kind !== "trainer") return;
+    nextCards[`${baseCardId}FullArtGold`] = {
+      ...baseCard,
+      id: `${baseCardId}FullArtGold`,
+      image: toGoldFullArtAssetPath(baseCard.image),
+    };
+  });
+
+  return nextCards;
+}
+
 function toFullArtAssetPath(assetPath: string): string {
   return assetPath.endsWith(".png")
     ? assetPath.slice(0, -4) + `${FULL_ART_SUFFIX}.png`
     : `${assetPath}${FULL_ART_SUFFIX}`;
+}
+
+function toGoldFullArtAssetPath(assetPath: string): string {
+  return assetPath.endsWith(".png")
+    ? assetPath.slice(0, -4) + "-fullart-gold.png"
+    : `${assetPath}-fullart-gold`;
 }
 
 function withUncommonPlusVariants(sourceCards: Record<string, Card>): Record<string, Card> {
@@ -97,7 +122,8 @@ function withUncommonPlusVariants(sourceCards: Record<string, Card>): Record<str
 }
 
 function isUncommonPlusBaseCard(card: Card): boolean {
-  if (card.id.endsWith("FullArt") || card.id.endsWith("UncommonPlus")) return false;
+  if (card.id.endsWith("FullArt") || card.id.endsWith("FullArtGold") || card.id.endsWith("UncommonPlus")) return false;
+  if (isExCard(card)) return false;
   if (card.kind === "umamusume") return card.stage === 1;
   return card.trainerType === "tool";
 }
