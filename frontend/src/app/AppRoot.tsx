@@ -18,7 +18,7 @@ import { SelectionPrompt } from "../match/controls/SelectionPrompt";
 import { OpponentActionBanner } from "../match/feedback/OpponentActionBanner";
 import { ActionNotice } from "../match/feedback/ActionNotice";
 import { CoinFlipOverlay } from "../match/feedback/CoinFlipOverlay";
-import { ShuffleCardReveal } from "../match/feedback/ShuffleCardReveal";
+import { CardFlowOverlay, type CardFlowItem } from "../match/feedback/CardFlowOverlay";
 import {
   getPlaymatTextTone,
   getSelectedPlaymat,
@@ -53,7 +53,7 @@ import { useAppRuntimeEffects } from "./hooks/useAppRuntimeEffects";
 import { useMatchUiActions } from "./hooks/useMatchUiActions";
 import { useMatchModalActions } from "./hooks/useMatchModalActions";
 import { applyPlayerIntent, type PlayerIntent } from "../pvp/playerIntent";
-import { createGuestSyncState, mirrorGameState, mirrorGameStateForGuest, redactOpponentLogPrivateInfo } from "../pvp/stateMirror";
+import { createGuestSyncState, mirrorGameState, mirrorGameStateForGuest } from "../pvp/stateMirror";
 import { DEFAULT_ICE_SERVERS, PeerRuntime } from "../pvp/peer";
 import type { PvpWireMessage } from "../pvp/protocol";
 import type { PvpRole } from "../screens/PvpLobbyScreen";
@@ -96,6 +96,82 @@ function toStunFallbackRtcConfig(config: RTCConfiguration | null): RTCConfigurat
   return { ...config, iceTransportPolicy: "all" };
 }
 
+function firstCardMoved(fromBefore: string[], fromAfter: string[], toBefore: string[], toAfter: string[]): string | null {
+  return allCardsMoved(fromBefore, fromAfter, toBefore, toAfter)[0] ?? null;
+}
+
+function subtractCardLists(source: string[], minus: string[]): string[] {
+  const minusCounts = new Map<string, number>();
+  for (const cardId of minus) minusCounts.set(cardId, (minusCounts.get(cardId) ?? 0) + 1);
+  const result: string[] = [];
+  for (const cardId of source) {
+    const remaining = minusCounts.get(cardId) ?? 0;
+    if (remaining > 0) {
+      minusCounts.set(cardId, remaining - 1);
+      continue;
+    }
+    result.push(cardId);
+  }
+  return result;
+}
+
+function allCardsMoved(fromBefore: string[], fromAfter: string[], toBefore: string[], toAfter: string[]): string[] {
+  const removed = subtractCardLists(fromBefore, fromAfter);
+  if (removed.length === 0) return [];
+  const added = subtractCardLists(toAfter, toBefore);
+  if (added.length === 0) return [];
+  const addedCounts = new Map<string, number>();
+  for (const cardId of added) addedCounts.set(cardId, (addedCounts.get(cardId) ?? 0) + 1);
+  const moved: string[] = [];
+  for (const cardId of removed) {
+    const remaining = addedCounts.get(cardId) ?? 0;
+    if (remaining <= 0) continue;
+    moved.push(cardId);
+    addedCounts.set(cardId, remaining - 1);
+  }
+  return moved;
+}
+
+function getNewLogHeadEntries(previousLog: string[], currentLog: string[]): string[] {
+  if (previousLog.length === 0) return currentLog;
+  for (let start = 0; start < currentLog.length; start += 1) {
+    const overlap = Math.min(previousLog.length, currentLog.length - start);
+    let matches = true;
+    for (let index = 0; index < overlap; index += 1) {
+      if (currentLog[start + index] !== previousLog[index]) {
+        matches = false;
+        break;
+      }
+    }
+    if (matches) return currentLog.slice(0, start);
+  }
+  return currentLog;
+}
+
+function hasPlayLogEntry(previousLog: string[], currentLog: string[], cardName: string): boolean {
+  const newEntries = getNewLogHeadEntries(previousLog, currentLog);
+  return newEntries.some((entry) => entry.includes(`played ${cardName}.`));
+}
+
+function getShuffleHandDrawCount(previousLog: string[], currentLog: string[], sideId: SideId): number | null {
+  const actor = sideId === "player" ? "You" : "Opponent";
+  const newEntries = getNewLogHeadEntries(previousLog, currentLog);
+  const entry = newEntries.find((line) => line.startsWith(`${actor} used `) && line.includes(" shuffled ") && line.includes(" and drew "));
+  if (!entry) return null;
+  const match = entry.match(/ and drew (\d+) cards?\./);
+  if (!match?.[1]) return null;
+  const count = Number(match[1]);
+  return Number.isFinite(count) && count > 0 ? count : null;
+}
+
+function tryGetCardName(cardId: string): string | null {
+  try {
+    return getCard(cardId).name;
+  } catch {
+    return null;
+  }
+}
+
 export function App() {
   const [screen, setScreen] = useState<AppScreen>("mainMenu");
   const [pendingScreen, setPendingScreen] = useState<AppScreen | null>(null);
@@ -127,7 +203,7 @@ export function App() {
   const [activeCoinFlip, setActiveCoinFlip] = useState<CoinFlipEvent | null>(null);
   const [acknowledgedCoinLogMessage, setAcknowledgedCoinLogMessage] = useState<string | null>(null);
   const [pendingCoinAttack, setPendingCoinAttack] = useState<PendingCoinAttack | null>(null);
-  const [shuffleRevealCardId, setShuffleRevealCardId] = useState<string | null>(null);
+  const [cardFlowQueue, setCardFlowQueue] = useState<CardFlowItem[][]>([]);
   const [setupActiveIndex, setSetupActiveIndex] = useState<number | null>(null);
   const [setupBenchIndexes, setSetupBenchIndexes] = useState<number[]>([]);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -136,6 +212,14 @@ export function App() {
   const [pvpTimerNowMs, setPvpTimerNowMs] = useState(() => Date.now());
   const pvpDeadlineTurnKeyRef = useRef<string | null>(null);
   const previousLogRef = useRef<string[]>([]);
+  const previousPlayerZonesRef = useRef<{
+    player: { hand: string[]; deck: string[]; discard: string[] };
+    opponent: { hand: string[]; deck: string[]; discard: string[] };
+    currentSide: SideId;
+    turnNumber: number;
+    phase: GameState["phase"];
+    log: string[];
+  } | null>(null);
   const wasSetupCoinFlipBlockingRef = useRef(false);
   const coinFlipIdRef = useRef(1);
   const skipNextCoinLogMessageRef = useRef<string | null>(null);
@@ -174,8 +258,9 @@ export function App() {
   const localPlayerName = getAccountPlayerName(firebaseAccount);
   const opponentDisplayName = game.sides.opponent.title || "Opponent";
   const formatMatchText = (text: string): string => {
-    if (isNetworkMatch) return formatBattleText(text, localPlayerName, opponentDisplayName);
-    return displayPerspective === "opponent" ? swapBattlePerspectiveText(text) : text;
+    if (isNetworkMatch) return formatBattleText(redactHiddenSidePrivateInfo(text), localPlayerName, opponentDisplayName);
+    const perspectiveText = displayPerspective === "opponent" ? swapBattlePerspectiveText(text) : text;
+    return redactHiddenSidePrivateInfo(perspectiveText);
   };
   const displayLog = game.log.map(formatMatchText);
   const hasLocalPendingChoice = game.pendingPlayerChoice?.sideId === "player";
@@ -272,11 +357,12 @@ export function App() {
 
   const resetTransientMatchUi = () => {
     previousLogRef.current = [];
+    previousPlayerZonesRef.current = null;
     setCoinFlipQueue([]);
     setActiveCoinFlip(null);
     setAcknowledgedCoinLogMessage(null);
     setPendingCoinAttack(null);
-    setShuffleRevealCardId(null);
+    setCardFlowQueue([]);
     skipNextCoinLogMessageRef.current = null;
     setSetupActiveIndex(null);
     setSetupBenchIndexes([]);
@@ -377,7 +463,7 @@ export function App() {
           : current;
         const mirrored = mirrorGameState(timed);
         const nextMirrored = applyPlayerIntent(mirrored, message.intent);
-        const canonical = redactOpponentLogPrivateInfo(mirrorGameState(nextMirrored));
+        const canonical = mirrorGameState(nextMirrored);
         syncToGuest(canonical);
         return canonical;
       });
@@ -899,7 +985,7 @@ export function App() {
     isNetworkMatch,
     shouldDriveSetupCountdown: !isNetworkMatch || isPvpHost,
     advanceSetupCountdown,
-    isTurnFlowBlocked,
+    isTurnFlowBlocked: isTurnFlowBlocked || cardFlowQueue.length > 0,
     isCoinFlipBlocking,
     hiddenOpponent,
     equippedDeckId: equippedDeck.id,
@@ -980,6 +1066,109 @@ export function App() {
     formatKoActionNotice,
   });
 
+  useEffect(() => {
+    const previous = previousPlayerZonesRef.current;
+    const current = {
+      player: {
+        hand: [...game.sides.player.hand],
+        deck: [...game.sides.player.deck],
+        discard: [...game.sides.player.discard],
+      },
+      opponent: {
+        hand: [...game.sides.opponent.hand],
+        deck: [...game.sides.opponent.deck],
+        discard: [...game.sides.opponent.discard],
+      },
+      currentSide: game.currentSide,
+      turnNumber: game.turnNumber,
+      phase: game.phase,
+      log: [...game.log],
+    };
+
+    if (!previous) {
+      previousPlayerZonesRef.current = current;
+      return;
+    }
+
+    if (game.phase !== "play" || game.gameOver) {
+      previousPlayerZonesRef.current = current;
+      return;
+    }
+    const nextFlow: CardFlowItem[] = [];
+    const povSideId: SideId = isAiVsAi ? displayPerspective : "player";
+    const sideIds: SideId[] = ["player", "opponent"];
+    for (const sideId of sideIds) {
+      const previousSide = previous[sideId];
+      const currentSide = current[sideId];
+      const isPovSide = sideId === povSideId;
+      const sideOnRight = sideId === "player";
+      const discardedFromHandCards = allCardsMoved(
+        previousSide.hand,
+        currentSide.hand,
+        previousSide.discard,
+        currentSide.discard,
+      );
+      let obtainedFromDeckCards = subtractCardLists(currentSide.hand, previousSide.hand);
+      const shuffleDrawCount = getShuffleHandDrawCount(previous.log, current.log, sideId);
+      if (shuffleDrawCount && obtainedFromDeckCards.length < shuffleDrawCount) {
+        // For effects like Tracen Academy, a card may leave hand, shuffle into deck, then be redrawn.
+        // Diff alone misses those redraws, so take the freshly rebuilt hand tail by drawn count.
+        obtainedFromDeckCards = currentSide.hand.slice(-shuffleDrawCount);
+      }
+      const discardedFromHand = discardedFromHandCards[0] ?? null;
+      if (obtainedFromDeckCards.length > 0 && isPovSide) {
+        const label = "Card drawn";
+        obtainedFromDeckCards.forEach((cardId) => {
+          nextFlow.push({
+            cardId,
+            label,
+            group: "drawn",
+            enterFrom: sideOnRight ? "leftDeck" : "bottomLeft",
+            exitTo: sideOnRight ? "rightHand" : "leftHand",
+          });
+        });
+      }
+
+      if (!discardedFromHand) continue;
+      const cardName = tryGetCardName(discardedFromHand);
+      const played = Boolean(cardName && hasPlayLogEntry(previous.log, current.log, cardName));
+      if (played) {
+        nextFlow.push({
+          cardId: discardedFromHand,
+          label: "Card played",
+          group: "discarded",
+          enterFrom: sideOnRight ? "rightHand" : "leftHand",
+          exitTo: isPovSide ? (sideOnRight ? "rightDiscard" : "bottomLeft") : (sideOnRight ? "rightHand" : "leftHand"),
+        });
+      } else if (isPovSide) {
+        nextFlow.push({
+          cardId: discardedFromHand,
+          label: "Card discarded",
+          group: "discarded",
+          enterFrom: sideOnRight ? "rightHand" : "leftHand",
+          exitTo: sideOnRight ? "rightDiscard" : "bottomLeft",
+        });
+      }
+    }
+
+    if (nextFlow.length > 0) setCardFlowQueue((queue) => [...queue, nextFlow]);
+
+    previousPlayerZonesRef.current = current;
+  }, [game, isAiVsAi, displayPerspective]);
+
+  const showShuffleReveal = (cardId: string) => {
+    setCardFlowQueue((queue) => [
+      ...queue,
+      [{
+        cardId,
+        label: "Card drawn",
+        group: "drawn",
+        enterFrom: "rightDiscard",
+        exitTo: "leftDeck",
+      }],
+    ]);
+  };
+
   const {
     playHandCardOnCenter,
     playHandCardOnStadiumSpot,
@@ -1010,7 +1199,7 @@ export function App() {
     getPendingAttackCoinFlip,
     submitPlayerIntent,
     isNetworkMatch,
-    showShuffleReveal: setShuffleRevealCardId,
+    showShuffleReveal,
   });
   const cardPreviewActions = useCardPreviewActions({
     game,
@@ -1027,7 +1216,7 @@ export function App() {
     getPendingAttackCoinFlip,
     submitPlayerIntent,
     isNetworkMatch,
-    showShuffleReveal: setShuffleRevealCardId,
+    showShuffleReveal,
   });
   const { handleCoinFlipContinue } = useCoinFlipResolution({
     game,
@@ -1176,11 +1365,10 @@ export function App() {
           onContinue={handleCoinFlipContinue}
         />
       )}
-      {shuffleRevealCardId && (
-        <ShuffleCardReveal
-          key={shuffleRevealCardId}
-          cardId={shuffleRevealCardId}
-          onDone={() => setShuffleRevealCardId(null)}
+      {cardFlowQueue.length > 0 && (
+        <CardFlowOverlay
+          items={cardFlowQueue[0]}
+          onDone={() => setCardFlowQueue((queue) => queue.slice(1))}
         />
       )}
       {activePendingSelection && (
@@ -1340,4 +1528,27 @@ function swapBattlePerspectiveText(text: string): string {
     .split("§YOU_LOW§").join("you")
     .split("§OPP_CAP§").join("Opponent")
     .split("§OPP_LOW§").join("opponent");
+}
+
+function redactHiddenSidePrivateInfo(entry: string): string {
+  if (!entry.startsWith("Opponent")) return entry;
+  if (/^Opponent added .+ from .*deck to .*hand\.?$/.test(entry)) return "Opponent added 1 card from their deck to their hand.";
+  if (/^Opponent put .+ from .*discard into .*hand\.?$/.test(entry)) return "Opponent put 1 card from discard into their hand.";
+  if (/^Opponent revealed .+ and added it to .*hand\.?$/.test(entry)) return "Opponent revealed a card and added it to their hand.";
+  const drawnCountMatch = entry.match(/^Opponent drew (\d+) cards?\./);
+  if (drawnCountMatch?.[1]) {
+    const count = Number(drawnCountMatch[1]);
+    return `Opponent drew ${count} ${count === 1 ? "card" : "cards"}.`;
+  }
+  if (entry.startsWith("Opponent drew ")) return "Opponent drew cards.";
+  if (entry.includes(" discarded ") && entry.includes(" and drew ")) {
+    const drawCount = entry.match(/ and drew (\d+) cards?\./);
+    if (drawCount?.[1]) {
+      const count = Number(drawCount[1]);
+      return `Opponent discarded a card and drew ${count} ${count === 1 ? "card" : "cards"}.`;
+    }
+    return "Opponent discarded a card and drew cards.";
+  }
+  if (entry.startsWith("Opponent discarded ")) return "Opponent discarded a card.";
+  return entry;
 }
