@@ -165,7 +165,10 @@ export type PendingPlayerChoice =
   | { kind: "switchAfterGust"; sideId: SideId; resume: "resumeOpponentAfterFirstTrainerPass" | "resumeOpponentAfterSecondTrainerPass" | "none" };
 
 export type SetupState = {
-  coinFlipResult: CoinFlipResult;
+  coinChoice: CoinFlipResult | null;
+  coinFlipResult: CoinFlipResult | null;
+  openingHands: Record<SideId, string[]>;
+  openingHandsDealt: boolean;
   readyBySide: Record<SideId, boolean>;
   opponentRevealed: boolean;
   countdownSecondsRemaining: number | null;

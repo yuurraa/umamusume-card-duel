@@ -1,4 +1,3 @@
-import { aiPremadeDecks, premadeDecks } from "../../../shared/src/gameData";
 import type { AppScreen, MatchMode } from "../types/ui";
 import { MainMenuScreen } from "../screens/MainMenuScreen";
 import { MatchModeScreen } from "../screens/MatchModeScreen";
@@ -10,7 +9,7 @@ import type { PremadeDeck } from "../types/ui";
 import type { CustomisationSettings } from "../utils/customisation";
 import type { FirebaseAccountSnapshot } from "../utils/firebaseAuth";
 import { getAccountPlayerName } from "../utils/playerNames";
-import { devUnlocksEnabled } from "../config/devUnlocks";
+import { getSelectablePremadeDecks } from "../utils/deck";
 import { appStyle, screenFadeOverlayStyle } from "./styles";
 
 type NonMatchScreenProps = {
@@ -44,9 +43,7 @@ type NonMatchScreenProps = {
 };
 
 export function renderNonMatchScreen(props: NonMatchScreenProps): JSX.Element | null {
-  const selectablePremadeDecks = devUnlocksEnabled
-    ? aiPremadeDecks
-    : premadeDecks;
+  const selectablePremadeDecks = getSelectablePremadeDecks();
 
   const {
     screen,

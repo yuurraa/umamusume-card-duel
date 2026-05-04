@@ -19,7 +19,7 @@ export function GameOverModal({
   onMainMenu: () => void;
 }) {
   const playerWon = game.winner === "player";
-  const title = playerWon ? `${playerName} Wins` : `${opponentName} Wins`;
+  const title = playerWon ? formatWinTitle(playerName) : formatWinTitle(opponentName);
   const body = latest ?? (playerWon ? "First to three points." : "The duel is over.");
 
   return (
@@ -38,6 +38,10 @@ export function GameOverModal({
       </section>
     </div>
   );
+}
+
+function formatWinTitle(name: string): string {
+  return name.toLowerCase() === "you" ? "You Win" : `${name} Wins`;
 }
 
 function ScoreSummary({ label, points, highlighted }: { label: string; points: number; highlighted: boolean }) {

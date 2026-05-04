@@ -40,11 +40,17 @@ export function PregameSetupPanel({
   sleeveImage?: string | null;
 }) {
   const setup = game.setup;
-  const setupLabel = !setup?.readyBySide.player
-    ? "Click ready to start"
-    : (!setup.readyBySide.opponent
-      ? "Waiting for opponent..."
-      : `Starts in ${Math.max(1, setup.countdownSecondsRemaining ?? 3)}...`);
+  const needsCoinChoice = game.phase === "setup" && !setup?.coinFlipResult;
+  const waitingForOpeningHand = game.phase === "setup" && Boolean(setup?.coinFlipResult) && !setup?.openingHandsDealt;
+  const setupLabel = needsCoinChoice
+    ? "Waiting for opening coin flip..."
+    : waitingForOpeningHand
+      ? "Drawing opening hand..."
+      : !setup?.readyBySide.player
+        ? "Click ready to start"
+        : (!setup.readyBySide.opponent
+          ? "Waiting for opponent..."
+          : `Starts in ${Math.max(1, setup.countdownSecondsRemaining ?? 3)}...`);
 
   return (
     <div style={pregamePanelStyle}>

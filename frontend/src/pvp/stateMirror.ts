@@ -39,11 +39,13 @@ export function mirrorGameState(state: GameState): GameState {
   }
 
   if (mirrored.setup) {
-    mirrored.setup.coinFlipResult = mirrored.setup.coinFlipResult === "heads" ? "tails" : "heads";
     const playerReady = mirrored.setup.readyBySide.player;
     const opponentReady = mirrored.setup.readyBySide.opponent;
     mirrored.setup.readyBySide.player = opponentReady;
     mirrored.setup.readyBySide.opponent = playerReady;
+    const playerOpeningHand = mirrored.setup.openingHands.player;
+    mirrored.setup.openingHands.player = mirrored.setup.openingHands.opponent;
+    mirrored.setup.openingHands.opponent = playerOpeningHand;
   }
 
   mirrored.log = mirrored.log.map((entry) => swapPerspectiveText(entry));
@@ -63,6 +65,9 @@ export function createGuestSyncState(state: GameState): GameState {
   hostSide.hand = createHiddenCardList(hostSide.hand.length);
   hostSide.deck = createHiddenCardList(hostSide.deck.length);
   hostSide.energyPool = [];
+  if (guestState.setup) {
+    guestState.setup.openingHands.player = createHiddenCardList(guestState.setup.openingHands.player.length);
+  }
   return guestState;
 }
 

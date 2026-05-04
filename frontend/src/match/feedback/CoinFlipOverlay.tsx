@@ -1,27 +1,41 @@
 import { type CSSProperties, useEffect, useRef, useState } from "react";
-import { overlayBackdropStyle } from "../../styles/shared";
+import { NeutralButton } from "../../components/buttons/NeutralButton";
+import { attackButtonStyle, overlayBackdropStyle } from "../../styles/shared";
 
-export function CoinFlipOverlay({ result, results, message, onContinue }: {
-  result: "heads" | "tails";
+export function CoinFlipOverlay({
+  result = "heads",
+  results,
+  message,
+  onContinue,
+  mode = "result",
+  onChoose,
+  canChoose = true,
+}: {
+  result?: "heads" | "tails";
   results?: Array<"heads" | "tails"> | undefined;
   message: string;
-  onContinue: () => void;
+  onContinue?: () => void;
+  mode?: "result" | "prompt";
+  onChoose?: ((choice: "heads" | "tails") => void) | undefined;
+  canChoose?: boolean | undefined;
 }) {
+  const isPrompt = mode === "prompt";
   const flipResults = results && results.length > 0 ? results : [result];
   const [activeIndex, setActiveIndex] = useState(0);
   const [angle, setAngle] = useState(0);
   const [isSettled, setIsSettled] = useState(false);
   const [countdown, setCountdown] = useState(5);
-  const onContinueRef = useRef(onContinue);
+  const onContinueRef = useRef(onContinue ?? (() => undefined));
   const activeResult = flipResults[activeIndex] ?? result;
   const finalAngle = 2160 + (activeResult === "heads" ? 0 : 180);
   const hasMoreFlips = activeIndex < flipResults.length - 1;
 
   useEffect(() => {
-    onContinueRef.current = onContinue;
+    onContinueRef.current = onContinue ?? (() => undefined);
   }, [onContinue]);
 
   useEffect(() => {
+    if (isPrompt) return undefined;
     let frame = 0;
     const totalFrames = 22;
     setAngle(0);
@@ -39,9 +53,10 @@ export function CoinFlipOverlay({ result, results, message, onContinue }: {
     }, 32);
 
     return () => window.clearInterval(intervalId);
-  }, [finalAngle, activeIndex]);
+  }, [finalAngle, activeIndex, isPrompt]);
 
   useEffect(() => {
+    if (isPrompt) return undefined;
     if (!isSettled) return undefined;
     if (hasMoreFlips) {
       const timeoutId = window.setTimeout(() => {
@@ -62,7 +77,48 @@ export function CoinFlipOverlay({ result, results, message, onContinue }: {
     }, 1000);
 
     return () => window.clearInterval(intervalId);
-  }, [isSettled, hasMoreFlips, flipResults.length]);
+  }, [isSettled, hasMoreFlips, flipResults.length, isPrompt]);
+
+  if (isPrompt) {
+    const promptTitle = canChoose ? "Choose Heads or Tails" : "Preparing coin flip";
+    return (
+      <div style={coinFlipBackdropStyle}>
+        <section style={coinFlipShellStyle}>
+          <span style={coinFlipKickerStyle}>Coin Flip</span>
+          <div style={coinSlotStyle}>
+            <div aria-hidden="true" style={coinStyle(0, "heads")}>
+              <div style={coinFaceStyle("heads")}>
+                <span style={coinFaceMarkStyle}>H</span>
+                <span style={coinFaceLabelStyle}>Heads</span>
+              </div>
+              <div style={coinFaceStyle("tails")}>
+                <span style={coinFaceMarkStyle}>T</span>
+                <span style={coinFaceLabelStyle}>Tails</span>
+              </div>
+              <div style={coinEdgeStyle} />
+            </div>
+          </div>
+          <strong style={coinResultStyle}>{promptTitle}</strong>
+          <div style={coinChoiceRowStyle}>
+            <NeutralButton
+              style={attackButtonStyle(canChoose)}
+              disabled={!canChoose}
+              onClick={() => onChoose?.("heads")}
+            >
+              Heads
+            </NeutralButton>
+            <NeutralButton
+              style={attackButtonStyle(canChoose)}
+              disabled={!canChoose}
+              onClick={() => onChoose?.("tails")}
+            >
+              Tails
+            </NeutralButton>
+          </div>
+        </section>
+      </div>
+    );
+  }
 
   return (
     <div style={coinFlipBackdropStyle}>
@@ -83,7 +139,7 @@ export function CoinFlipOverlay({ result, results, message, onContinue }: {
         </div>
         <div style={coinPipsStyle} aria-hidden="true">
           {flipResults.map((entry, index) => (
-            <span key={`${entry}-${index}`} style={coinPipStyle(entry, index, activeIndex, isSettled)}>{entry === "heads" ? "H" : "T"}</span>
+            <span key={`${entry}-${index}`} style={coinPipStyle(entry, index, activeIndex, isSettled)}>{coinPipLabel(entry, index, activeIndex, isSettled)}</span>
           ))}
         </div>
         <strong style={coinResultStyle}>{isSettled ? (activeResult === "heads" ? "Heads" : "Tails") : "Flipping..."}</strong>
@@ -102,6 +158,7 @@ const coinFlipBackdropStyle: CSSProperties = {
 
 const coinFlipShellStyle: CSSProperties = {
   width: "min(560px, calc(100vw - 36px))",
+  minHeight: 320,
   borderRadius: 14,
   border: "1px solid rgba(255, 255, 255, 0.26)",
   background: "radial-gradient(circle at 20% 0%, rgba(255, 255, 255, 0.2) 0%, rgba(15, 23, 42, 0.96) 58%)",
@@ -164,7 +221,7 @@ function coinFaceStyle(face: "heads" | "tails"): CSSProperties {
     boxSizing: "border-box",
     backfaceVisibility: "hidden",
     WebkitBackfaceVisibility: "hidden",
-    transform: face === "heads" ? "translateZ(6px)" : "rotateY(180deg) translateZ(6px)",
+    transform: face === "heads" ? "translateZ(7px)" : "rotateY(180deg) translateZ(7px)",
     overflow: "hidden",
   };
 }
@@ -211,7 +268,7 @@ const coinEdgeStyle: CSSProperties = {
   inset: 4,
   borderRadius: "50%",
   border: "10px solid rgba(120, 53, 15, 0.72)",
-  transform: "translateZ(0)",
+  transform: "translateZ(-1px)",
   pointerEvents: "none",
 };
 
@@ -229,6 +286,13 @@ const coinPipsStyle: CSSProperties = {
   justifyContent: "center",
   gap: 8,
   minHeight: 26,
+};
+
+const coinChoiceRowStyle: CSSProperties = {
+  display: "flex",
+  gap: 12,
+  alignItems: "center",
+  justifyContent: "center",
 };
 
 function coinPipStyle(result: "heads" | "tails", index: number, activeIndex: number, isSettled: boolean): CSSProperties {
@@ -250,6 +314,12 @@ function coinPipStyle(result: "heads" | "tails", index: number, activeIndex: num
     fontWeight: 950,
     lineHeight: 1,
   };
+}
+
+function coinPipLabel(result: "heads" | "tails", index: number, activeIndex: number, isSettled: boolean): string {
+  const revealed = index < activeIndex || (index === activeIndex && isSettled);
+  if (!revealed) return "";
+  return result === "heads" ? "H" : "T";
 }
 
 const coinMessageStyle: CSSProperties = {

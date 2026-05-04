@@ -60,6 +60,7 @@ import {
   deckEmptySlotTileStyle,
   deckEnergyIconWrapStyle,
   deckEnergyRowStyle,
+  deckFavoriteBadgeStyle,
   deckInspectBackdropStyle,
   deckInspectImageStyle,
   deckInspectSurfaceStyle,
@@ -148,7 +149,23 @@ function getHoverPreviewPosition(rect: DOMRect, extraHeight = 0): { left: number
   return { left, top, width: popupWidth };
 }
 
-export function DeckBrowserTile({ deck, equipped, onOpen, label, isDraft = false }: { deck: DeckEntity; equipped: boolean; onOpen: () => void; label?: string; isDraft?: boolean }) {
+export function DeckBrowserTile({
+  deck,
+  equipped,
+  favorite = false,
+  onOpen,
+  onToggleFavorite,
+  label,
+  isDraft = false,
+}: {
+  deck: DeckEntity;
+  equipped: boolean;
+  favorite?: boolean;
+  onOpen: () => void;
+  onToggleFavorite?: () => void;
+  label?: string;
+  isDraft?: boolean;
+}) {
   const [hovered, setHovered] = useState(false);
 
   return (
@@ -161,6 +178,28 @@ export function DeckBrowserTile({ deck, equipped, onOpen, label, isDraft = false
       onFocus={() => setHovered(true)}
       onBlur={() => setHovered(false)}
     >
+      {onToggleFavorite && (
+        <span
+          role="button"
+          tabIndex={0}
+          aria-label={favorite ? "Remove deck from favorites" : "Add deck to favorites"}
+          title={favorite ? "Remove favorite" : "Favorite deck"}
+          style={deckFavoriteBadgeStyle(favorite)}
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            onToggleFavorite();
+          }}
+          onKeyDown={(event) => {
+            if (event.key !== "Enter" && event.key !== " ") return;
+            event.preventDefault();
+            event.stopPropagation();
+            onToggleFavorite();
+          }}
+        >
+          ★
+        </span>
+      )}
       {equipped && <span style={deckSelectedBadgeStyle}>{SELECTED_TICK}</span>}
       <DeckSummaryCard
         deck={deck}

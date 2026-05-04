@@ -50,16 +50,28 @@ export const deckBrowserBackButtonStyle: CSSProperties = {
   height: 44,
 };
 
+export const deckBrowserFilterPanelStyle: CSSProperties = {
+  ...glassPanelStyle,
+  position: "relative",
+  zIndex: 4,
+  display: "grid",
+  gap: 10,
+  padding: 14,
+};
+
 export const deckBrowserGridStyle: CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
+  gridTemplateColumns: "repeat(3, minmax(320px, 1fr))",
   gap: 22,
+  justifyContent: "center",
+  alignItems: "start",
 };
 
 export function deckBrowserCardStyle(equipped: boolean, hovered: boolean): CSSProperties {
   return {
     position: "relative",
-    minHeight: 482,
+    width: "100%",
+    height: 482,
     border: equipped
       ? "2px solid rgba(0, 0, 0, 0.62)"
       : hovered
@@ -247,6 +259,29 @@ export const deckSelectedBadgeStyle: CSSProperties = {
   fontWeight: 950,
   boxShadow: "0 10px 20px rgba(17, 24, 39, 0.18)",
 };
+
+export function deckFavoriteBadgeStyle(active: boolean): CSSProperties {
+  return {
+    position: "absolute",
+    top: 12,
+    left: 12,
+    zIndex: 2,
+    width: 34,
+    height: 34,
+    display: "grid",
+    placeItems: "center",
+    borderRadius: radius.circle,
+    border: active ? "1px solid rgba(0, 0, 0, 0.5)" : borders.neutralStrong,
+    background: active ? colors.black : "rgba(245, 248, 245, 0.86)",
+    color: active ? "#facc15" : "rgba(0, 0, 0, 0.58)",
+    textShadow: "none",
+    fontSize: 18,
+    fontWeight: 950,
+    boxShadow: active ? "0 10px 20px rgba(17, 24, 39, 0.22)" : "0 8px 18px rgba(17, 24, 39, 0.1)",
+    cursor: "pointer",
+    transition: `background ${transitions.base}, color ${transitions.base}, box-shadow ${transitions.base}`,
+  };
+}
 
 export const deckModalBackdropStyle: CSSProperties = {
   ...overlayBackdropStyle,

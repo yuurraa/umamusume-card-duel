@@ -5,6 +5,8 @@ import type { PremadeDeck } from "../types/ui";
 import { devUnlocksEnabled } from "../config/devUnlocks";
 
 const EQUIPPED_DECK_STORAGE_KEY = "umamusume-tcg-pocket-equipped-deck";
+const HIDDEN_PREMADE_DECKS_STORAGE_KEY = "umamusume-tcg-pocket-hidden-premade-decks";
+const EDITED_PREMADE_DECK_ID_SUFFIX = "-edited";
 export const LOCAL_DECK_CACHE_STORAGE_KEY = "umamusume-tcg-pocket-local-decks-cache";
 const LEGACY_DECK_ID_MAP: Record<string, string> = {
   matikanetannhauserNiceNature: "matikanetannhauser",
@@ -26,11 +28,12 @@ const DECK_TYPE_TO_ENERGY: Record<UmamusumeType, EnergyType> = {
 
 export function getDeckById(deckId: string): PremadeDeck {
   const resolvedDeckId = LEGACY_DECK_ID_MAP[deckId] ?? deckId;
-  const selectablePremadeDecks = devUnlocksEnabled ? aiPremadeDecks : premadeDecks;
+  const selectablePremadeDecks = getSelectablePremadeDecks();
   const defaultSelectableDeckId = selectablePremadeDecks.find((deck) => deck.id === defaultPlayerDeckId)?.id
     ?? selectablePremadeDecks[0]?.id
     ?? defaultPlayerDeckId;
-  const localDecks = devUnlocksEnabled ? readCachedLocalDecks() : [];
+  const hiddenDeckIds = readHiddenPremadeDeckIds();
+  const localDecks = devUnlocksEnabled ? readCachedLocalDecks().filter((deck) => !isHiddenEditedPremadeDeck(deck.id, hiddenDeckIds)) : [];
   return selectablePremadeDecks.find((deck) => deck.id === resolvedDeckId)
     ?? localDecks.find((deck) => deck.id === resolvedDeckId)
     ?? selectablePremadeDecks.find((deck) => deck.id === defaultSelectableDeckId)
@@ -39,7 +42,7 @@ export function getDeckById(deckId: string): PremadeDeck {
 }
 
 export function readEquippedDeckId(): string {
-  const selectablePremadeDecks = devUnlocksEnabled ? aiPremadeDecks : premadeDecks;
+  const selectablePremadeDecks = getSelectablePremadeDecks();
   const defaultSelectableDeckId = selectablePremadeDecks.find((deck) => deck.id === defaultPlayerDeckId)?.id
     ?? selectablePremadeDecks[0]?.id
     ?? defaultPlayerDeckId;
@@ -47,7 +50,8 @@ export function readEquippedDeckId(): string {
   const stored = window.localStorage.getItem(EQUIPPED_DECK_STORAGE_KEY);
   if (!stored) return defaultSelectableDeckId;
   const resolvedDeckId = LEGACY_DECK_ID_MAP[stored] ?? stored;
-  const localDecks = devUnlocksEnabled ? readCachedLocalDecks() : [];
+  const hiddenDeckIds = readHiddenPremadeDeckIds();
+  const localDecks = devUnlocksEnabled ? readCachedLocalDecks().filter((deck) => !isHiddenEditedPremadeDeck(deck.id, hiddenDeckIds)) : [];
   const exists = selectablePremadeDecks.some((deck) => deck.id === resolvedDeckId)
     || localDecks.some((deck) => deck.id === resolvedDeckId);
   return exists ? resolvedDeckId : defaultSelectableDeckId;
@@ -56,6 +60,34 @@ export function readEquippedDeckId(): string {
 export function writeEquippedDeckId(deckId: string): void {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(EQUIPPED_DECK_STORAGE_KEY, deckId);
+}
+
+export function getSelectablePremadeDecks(): PremadeDeck[] {
+  const hiddenDeckIds = readHiddenPremadeDeckIds();
+  const selectablePremadeDecks = devUnlocksEnabled ? aiPremadeDecks : premadeDecks;
+  return selectablePremadeDecks.filter((deck) => !hiddenDeckIds.has(deck.id));
+}
+
+export function readHiddenPremadeDeckIds(): Set<string> {
+  if (typeof window === "undefined") return new Set();
+  const raw = window.localStorage.getItem(HIDDEN_PREMADE_DECKS_STORAGE_KEY);
+  if (!raw) return new Set();
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return new Set();
+    return new Set(parsed.filter((deckId): deckId is string => typeof deckId === "string" && deckId.length > 0));
+  } catch {
+    return new Set();
+  }
+}
+
+export function writeHiddenPremadeDeckIds(deckIds: Set<string>): void {
+  if (typeof window === "undefined") return;
+  if (deckIds.size === 0) {
+    window.localStorage.removeItem(HIDDEN_PREMADE_DECKS_STORAGE_KEY);
+    return;
+  }
+  window.localStorage.setItem(HIDDEN_PREMADE_DECKS_STORAGE_KEY, JSON.stringify([...deckIds]));
 }
 
 export function pickRandomOpponentDeck(): PremadeDeck {
@@ -114,6 +146,11 @@ function readCachedLocalDecks(): PremadeDeck[] {
   } catch {
     return [];
   }
+}
+
+function isHiddenEditedPremadeDeck(deckId: string, hiddenDeckIds: Set<string>): boolean {
+  if (!deckId.endsWith(EDITED_PREMADE_DECK_ID_SUFFIX)) return false;
+  return hiddenDeckIds.has(deckId.slice(0, -EDITED_PREMADE_DECK_ID_SUFFIX.length));
 }
 
 function tryGetCard(cardId: string) {

@@ -4,6 +4,7 @@ import {
   advancePlayerAiTurnStep,
   canAttachEnergy,
   canAttack,
+  chooseOpeningCoin,
   completePregameSetup,
   getAllUmamusume,
   getUmamusumeCard,
@@ -206,6 +207,20 @@ export function useAppRuntimeEffects({
     }, 1500);
     return () => window.clearTimeout(timeoutId);
   }, [game, isAiVsAi, isTurnFlowBlocked, setGame, setSetupActiveIndex, setSetupBenchIndexes]);
+
+  useEffect(() => {
+    if (!isAiVsAi || game.phase !== "setup" || game.gameOver || isTurnFlowBlocked || isCoinFlipBlocking) return;
+    if (game.setup?.coinFlipResult || game.setup?.coinChoice) return;
+    const timeoutId = window.setTimeout(() => {
+      setGame((current) => {
+        if (current.phase !== "setup" || current.gameOver) return current;
+        if (current.setup?.coinFlipResult || current.setup?.coinChoice) return current;
+        const choice = Math.random() >= 0.5 ? "heads" : "tails";
+        return chooseOpeningCoin(current, choice);
+      });
+    }, 520);
+    return () => window.clearTimeout(timeoutId);
+  }, [game, isAiVsAi, isTurnFlowBlocked, isCoinFlipBlocking, setGame]);
 
   useEffect(() => {
     const setup = game.setup;

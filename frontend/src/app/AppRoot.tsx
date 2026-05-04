@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import {
   canAttachEnergy,
+  chooseOpeningCoin,
   createGame,
+  dealOpeningHands,
+  getCard,
   opponentAbandonedMatch,
   tickSetupCountdown,
   timeoutEndTurn,
@@ -67,8 +70,8 @@ import {
   submitPvpCandidates,
 } from "../pvp/signalApi";
 import { getFirebaseAccountSnapshot, linkFirebaseAccountWithGoogle, signOutFirebaseAccount, type FirebaseAccountSnapshot } from "../utils/firebaseAuth";
-import { formatBattleText, getAccountPlayerName } from "../utils/playerNames";
-import type { EnergyType, GameState, SideId, SideState } from "../../../shared/src/types";
+import { getAccountPlayerName } from "../utils/playerNames";
+import type { CoinFlipResult, EnergyType, GameState, SideId, SideState } from "../../../shared/src/types";
 
 const EMPTY_FIREBASE_ACCOUNT: FirebaseAccountSnapshot = {
   configured: false,
@@ -204,6 +207,7 @@ export function App() {
   const [acknowledgedCoinLogMessage, setAcknowledgedCoinLogMessage] = useState<string | null>(null);
   const [pendingCoinAttack, setPendingCoinAttack] = useState<PendingCoinAttack | null>(null);
   const [cardFlowQueue, setCardFlowQueue] = useState<CardFlowItem[][]>([]);
+  const [openingCoinChoicePending, setOpeningCoinChoicePending] = useState(false);
   const [setupActiveIndex, setSetupActiveIndex] = useState<number | null>(null);
   const [setupBenchIndexes, setSetupBenchIndexes] = useState<number[]>([]);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -215,13 +219,15 @@ export function App() {
   const previousPlayerZonesRef = useRef<{
     player: { hand: string[]; deck: string[]; discard: string[] };
     opponent: { hand: string[]; deck: string[]; discard: string[] };
-    currentSide: SideId;
+    currentSide: GameState["currentSide"];
     turnNumber: number;
     phase: GameState["phase"];
     log: string[];
   } | null>(null);
   const wasSetupCoinFlipBlockingRef = useRef(false);
   const coinFlipIdRef = useRef(1);
+  const openingHandAnimationKeyRef = useRef<string | null>(null);
+  const shouldDealOpeningHandsAfterFlowRef = useRef(false);
   const skipNextCoinLogMessageRef = useRef<string | null>(null);
   const pvpPeerRef = useRef<PeerRuntime | null>(null);
   const pvpRtcConfigRef = useRef<RTCConfiguration | null>(null);
@@ -256,9 +262,8 @@ export function App() {
   const player = game.sides.player;
   const displayPlayer = displayGame.sides.player;
   const localPlayerName = getAccountPlayerName(firebaseAccount);
-  const opponentDisplayName = game.sides.opponent.title || "Opponent";
   const formatMatchText = (text: string): string => {
-    if (isNetworkMatch) return formatBattleText(redactHiddenSidePrivateInfo(text), localPlayerName, opponentDisplayName);
+    if (isNetworkMatch) return redactHiddenSidePrivateInfo(text);
     const perspectiveText = displayPerspective === "opponent" ? swapBattlePerspectiveText(text) : text;
     return redactHiddenSidePrivateInfo(perspectiveText);
   };
@@ -373,6 +378,8 @@ export function App() {
     setActionNotice(null);
     setDiscardOpen(false);
     setMenuOpen(false);
+    openingHandAnimationKeyRef.current = null;
+    shouldDealOpeningHandsAfterFlowRef.current = false;
   };
 
   const syncToGuest = (state: typeof game) => {
@@ -978,6 +985,49 @@ export function App() {
     });
   };
 
+  const handleChooseOpeningCoin = (choice: CoinFlipResult) => {
+    setOpeningCoinChoicePending(true);
+    setGame((current) => {
+      const next = chooseOpeningCoin(current, choice);
+      if (isPvpHost) syncToGuest(next);
+      return next;
+    });
+  };
+
+  useEffect(() => {
+    if (game.phase !== "setup") {
+      setOpeningCoinChoicePending(false);
+      return;
+    }
+    if (!game.setup?.coinChoice) {
+      setOpeningCoinChoicePending(false);
+      return;
+    }
+    if (game.setup.coinFlipResult || activeCoinFlip) setOpeningCoinChoicePending(false);
+  }, [activeCoinFlip, game.phase, game.setup?.coinChoice, game.setup?.coinFlipResult]);
+
+  useEffect(() => {
+    const setup = game.setup;
+    if (game.phase !== "setup" || !setup?.coinFlipResult || setup.openingHandsDealt) return;
+    if (isCoinFlipBlocking || cardFlowQueue.length > 0) return;
+    const openingHand = setup.openingHands.player.filter(Boolean);
+    if (openingHand.length === 0) return;
+
+    const animationKey = `${setup.coinFlipResult}:${openingHand.join("|")}`;
+    if (openingHandAnimationKeyRef.current === animationKey) return;
+    openingHandAnimationKeyRef.current = animationKey;
+    shouldDealOpeningHandsAfterFlowRef.current = true;
+    setCardFlowQueue((queue) => [
+      ...queue,
+      openingHand.slice(0, 5).map((cardId) => ({
+        cardId,
+        group: "drawn",
+        enterFrom: "leftDeck",
+        exitTo: "rightHand",
+      })),
+    ]);
+  }, [cardFlowQueue.length, game.phase, game.setup, isCoinFlipBlocking]);
+
   useAppRuntimeEffects({
     game,
     player,
@@ -1115,10 +1165,9 @@ export function App() {
         // Diff alone misses those redraws, so take the freshly rebuilt hand tail by drawn count.
         obtainedFromDeckCards = currentSide.hand.slice(-shuffleDrawCount);
       }
-      const discardedFromHand = discardedFromHandCards[0] ?? null;
       if (obtainedFromDeckCards.length > 0 && isPovSide) {
         const label = "Card drawn";
-        obtainedFromDeckCards.forEach((cardId) => {
+        obtainedFromDeckCards.slice(0, 5).forEach((cardId) => {
           nextFlow.push({
             cardId,
             label,
@@ -1129,26 +1178,19 @@ export function App() {
         });
       }
 
-      if (!discardedFromHand) continue;
-      const cardName = tryGetCardName(discardedFromHand);
-      const played = Boolean(cardName && hasPlayLogEntry(previous.log, current.log, cardName));
-      if (played) {
+      discardedFromHandCards.slice(0, 5).forEach((discardedFromHand) => {
+        const cardName = tryGetCardName(discardedFromHand);
+        const played = Boolean(cardName && hasPlayLogEntry(previous.log, current.log, cardName));
+        if (!played && !isPovSide) return;
+
         nextFlow.push({
           cardId: discardedFromHand,
-          label: "Card played",
-          group: "discarded",
+          label: played ? "Card played" : "Card discarded",
+          group: played ? "played" : "discarded",
           enterFrom: sideOnRight ? "rightHand" : "leftHand",
-          exitTo: isPovSide ? (sideOnRight ? "rightDiscard" : "bottomLeft") : (sideOnRight ? "rightHand" : "leftHand"),
+          exitTo: isPovSide ? "rightDiscard" : sideOnRight ? "rightHand" : "leftHand",
         });
-      } else if (isPovSide) {
-        nextFlow.push({
-          cardId: discardedFromHand,
-          label: "Card discarded",
-          group: "discarded",
-          enterFrom: sideOnRight ? "rightHand" : "leftHand",
-          exitTo: sideOnRight ? "rightDiscard" : "bottomLeft",
-        });
-      }
+      });
     }
 
     if (nextFlow.length > 0) setCardFlowQueue((queue) => [...queue, nextFlow]);
@@ -1161,8 +1203,8 @@ export function App() {
       ...queue,
       [{
         cardId,
-        label: "Card drawn",
-        group: "drawn",
+        label: "Card retrieved",
+        group: "retrieved",
         enterFrom: "rightDiscard",
         exitTo: "leftDeck",
       }],
@@ -1233,7 +1275,12 @@ export function App() {
   const canAttachInHeader = !isAiVsAi && canAttachEnergy(game, player) && !isBusyWithChoice;
   const canEndTurnInHeader = !isAiVsAi && !game.gameOver && game.currentSide === "player" && !isBusyWithChoice;
   const hasLocalSetupReady = game.phase === "setup" ? (game.setup?.readyBySide.player ?? false) : false;
-  const canSetupReady = !isAiVsAi && !hasLocalSetupReady && !isSetupCountdownActive;
+  const openingHandsDealt = game.phase === "setup" ? (game.setup?.openingHandsDealt ?? false) : true;
+  const canChooseOpeningCoin = game.phase === "setup"
+    && !game.setup?.coinFlipResult
+    && !isAiVsAi
+    && (!isNetworkMatch || isPvpHost);
+  const canSetupReady = !isAiVsAi && openingHandsDealt && !hasLocalSetupReady && !isSetupCountdownActive;
   const canSurrenderInPanels = !game.gameOver && !isTurnFlowBlocked;
   const playerExtraEnergyCount = Math.max(0, displayPlayer.energyZone.length - 1);
   const topBanner = getTopActionBanner(game);
@@ -1339,7 +1386,7 @@ export function App() {
         onSurrender={handleSurrender}
         onSetupReady={handleSetupReady}
         canSetupReady={canSetupReady}
-        canSetupInteract={!isSetupCountdownActive}
+        canSetupInteract={openingHandsDealt && !isSetupCountdownActive}
         onSwitchPov={switchPov}
         selectedSleeveImage={displayPlayerSleeveImage}
         canPlayHandCards={!isAiVsAi}
@@ -1356,6 +1403,21 @@ export function App() {
         displayLog={displayLog}
       />
       {displayTopBanner && <OpponentActionBanner title={displayTopBanner.title} message={displayTopBanner.message} paused={displayTopBanner.paused} />}
+      {game.phase === "setup" && (!game.setup?.coinFlipResult || (openingCoinChoicePending && !activeCoinFlip)) && (
+        <CoinFlipOverlay
+          key="opening-coin-choice"
+          mode="prompt"
+          message={openingCoinChoicePending
+            ? "Flipping coin..."
+            : isAiVsAi
+              ? "AI choosing heads or tails..."
+              : canChooseOpeningCoin
+                ? "Choose heads or tails"
+                : "Waiting for host to choose heads or tails..."}
+          canChoose={canChooseOpeningCoin && !openingCoinChoicePending}
+          onChoose={handleChooseOpeningCoin}
+        />
+      )}
       {activeCoinFlip && (
         <CoinFlipOverlay
           key={activeCoinFlip.id}
@@ -1365,10 +1427,20 @@ export function App() {
           onContinue={handleCoinFlipContinue}
         />
       )}
-      {cardFlowQueue.length > 0 && (
+      {cardFlowQueue[0] && (
         <CardFlowOverlay
           items={cardFlowQueue[0]}
-          onDone={() => setCardFlowQueue((queue) => queue.slice(1))}
+          durationMs={game.phase === "setup" ? 1500 : 2100}
+          onDone={() => {
+            setCardFlowQueue((queue) => queue.slice(1));
+            if (!shouldDealOpeningHandsAfterFlowRef.current) return;
+            shouldDealOpeningHandsAfterFlowRef.current = false;
+            setGame((current) => {
+              const next = dealOpeningHands(current);
+              if (isPvpHost) syncToGuest(next);
+              return next;
+            });
+          }}
         />
       )}
       {activePendingSelection && (
@@ -1428,8 +1500,8 @@ export function App() {
       {game.gameOver && (
         <GameOverModal
           game={displayGame}
-          playerName={isNetworkMatch ? localPlayerName : "You"}
-          opponentName={isNetworkMatch ? opponentDisplayName : "Opponent"}
+          playerName="You"
+          opponentName="Opponent"
           latest={displayLog[0]}
           onPlayAgain={isNetworkMatch ? returnToPvpLobbyForRematch : onPlayAgain}
           onMainMenu={returnToMainMenu}
@@ -1469,6 +1541,10 @@ function toPerspectiveGame(game: GameState, perspective: SideId): GameState {
     setup: game.setup
       ? {
           ...game.setup,
+          openingHands: {
+            player: game.setup.openingHands.opponent,
+            opponent: game.setup.openingHands.player,
+          },
           readyBySide: {
             player: game.setup.readyBySide.opponent,
             opponent: game.setup.readyBySide.player,

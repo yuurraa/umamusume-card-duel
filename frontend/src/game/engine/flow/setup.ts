@@ -56,6 +56,29 @@ export function buildOpeningSide(id: SideId, title: string, deckList: string[], 
   return side;
 }
 
+export function buildDeferredOpeningSide(id: SideId, title: string, deckList: string[], selectedEnergyTypes?: EnergyType[]): { side: SideState; openingHand: string[] } {
+  const { deck, hand } = drawOpeningHand(deckList);
+  return {
+    side: makeSide(id, title, deck, getDeckEnergyPool(deckList, selectedEnergyTypes)),
+    openingHand: hand,
+  };
+}
+
+export function autoSetupBasicUmamusume(side: SideState): void {
+  const basicIndexes = side.hand
+    .map((cardId, index) => ({ cardId, index }))
+    .filter(({ cardId }) => isBasicUmamusumeInDeck(cardId))
+    .slice(0, MAX_BENCH + 1);
+  const activeEntry = basicIndexes[0];
+  if (!activeEntry) return;
+
+  side.active = createUmamusume(activeEntry.cardId, 0);
+  const benchEntries = basicIndexes.slice(1);
+  side.bench = benchEntries.map(({ cardId }) => createUmamusume(cardId, 0));
+  const taken = new Set(basicIndexes.map(({ index }) => index));
+  side.hand = side.hand.filter((_, index) => !taken.has(index));
+}
+
 function createEmptyEnergyRecord(): Record<EnergyType, number> {
   return ALL_ENERGY_TYPES.reduce<Record<EnergyType, number>>((energies, type) => {
     energies[type] = 0;

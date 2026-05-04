@@ -1,13 +1,47 @@
 import { useId, useRef, useState, type CSSProperties, type PointerEvent } from "react";
 import { getCard } from "../../game/engine";
+import { energyLabel, formatCardName } from "../../game/engine/core/labels";
 import { NeutralButton } from "../../components/buttons/NeutralButton";
 import { HoloCardImage } from "../../components/cards/HoloCardImage";
+import { EnergyIcon } from "../../components/cards/EnergyIcon";
 import { borders, colors, overlayBackdropStyle, overlayButtonStyle, overlaySurfaceStyle, previewKickerStyle, radius, transitions } from "../../styles/shared";
+import { energyTypes, getSearchText, stageFilters, toggleSetValue, type StageFilter } from "../../screens/deck-browser/helpers";
+import {
+  clearFiltersButtonStyle,
+  energyFilterButtonStyle,
+  energyFilterGridStyle,
+  filterChipStyle,
+  filterGroupLabelStyle,
+  filterGroupStyle,
+  filterMenuButtonStyle,
+  filterMenuWrapStyle,
+  filterOptionGridStyle,
+  filterPopoverHeaderStyle,
+  filterPopoverStyle,
+  filterPopoverTitleStyle,
+  searchInputStyle,
+  searchToolbarStyle,
+  sortControlGroupStyle,
+  sortDirectionButtonStyle,
+  sortSelectStyle,
+} from "../../screens/deck-browser/styles";
+import type { EnergyType, UmamusumeCard } from "../../../../shared/src/types";
 
 type DeckChoiceOption = {
   deckIndex: number;
   cardId: string;
+  card: UmamusumeCard;
 };
+
+type DeckChoiceSortKey = "deck" | "name" | "stage" | "type";
+type SortDirection = "asc" | "desc";
+
+const deckChoiceSorts: Array<{ id: DeckChoiceSortKey; label: string }> = [
+  { id: "deck", label: "Deck Order" },
+  { id: "name", label: "Name" },
+  { id: "stage", label: "Stage" },
+  { id: "type", label: "Type" },
+];
 
 export function DeckChoiceModal({
   cardIds,
@@ -30,12 +64,35 @@ export function DeckChoiceModal({
     if (filter === "evolutionUmamusume" && card.stage <= 0) return [];
     if (evolvesFrom !== undefined && card.evolvesFrom !== evolvesFrom) return [];
     if (stage !== undefined && card.stage !== stage) return [];
-    return [{ deckIndex, cardId }];
+    return [{ deckIndex, cardId, card }];
   });
   const deckScrollerClassName = `deck-scroller-${useId().replace(/:/g, "")}`;
   const deckScrollRef = useRef<HTMLDivElement | null>(null);
   const deckPanRef = useRef<{ active: boolean; pointerId: number; startX: number; startScrollLeft: number } | null>(null);
   const [isDeckPanning, setIsDeckPanning] = useState(false);
+  const [query, setQuery] = useState("");
+  const [sortKey, setSortKey] = useState<DeckChoiceSortKey>("deck");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [stageFiltersSelected, setStageFiltersSelected] = useState<Set<StageFilter>>(new Set());
+  const [energyFiltersSelected, setEnergyFiltersSelected] = useState<Set<EnergyType>>(new Set());
+  const normalizedQuery = query.trim().toLowerCase();
+  const activeFilterCount = stageFiltersSelected.size + energyFiltersSelected.size;
+  const visibleOptions = sortDeckChoiceOptions(
+    options.filter((option) => {
+      if (stageFiltersSelected.size > 0 && !stageFiltersSelected.has(option.card.stage as StageFilter)) return false;
+      if (energyFiltersSelected.size > 0 && !energyFiltersSelected.has(option.card.type.toLowerCase() as EnergyType)) return false;
+      if (normalizedQuery && !getSearchText(option.card).includes(normalizedQuery)) return false;
+      return true;
+    }),
+    sortKey,
+    sortDirection,
+  );
+
+  const clearFilters = () => {
+    setStageFiltersSelected(new Set());
+    setEnergyFiltersSelected(new Set());
+  };
 
   const stopDeckPan = () => {
     deckPanRef.current = null;
@@ -79,12 +136,101 @@ export function DeckChoiceModal({
         <header style={deckHeaderStyle}>
           <div>
             <div style={deckKickerStyle}>Deck</div>
-            <h2 style={deckTitleStyle}>{options.length} {options.length === 1 ? "card" : "cards"}</h2>
+            <h2 style={deckTitleStyle}>{visibleOptions.length} of {options.length} {options.length === 1 ? "card" : "cards"}</h2>
           </div>
           <NeutralButton style={closeButtonStyle} onClick={onClose}>Back</NeutralButton>
         </header>
+        <div style={searchToolbarStyle}>
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search deck"
+            aria-label="Search selectable deck cards"
+            style={searchInputStyle}
+          />
+          <div style={sortControlGroupStyle}>
+            <select
+              value={sortKey}
+              aria-label="Sort selectable deck cards"
+              style={sortSelectStyle}
+              onChange={(event) => setSortKey(event.target.value as DeckChoiceSortKey)}
+            >
+              {deckChoiceSorts.map((sort) => (
+                <option key={sort.id} value={sort.id}>{sort.label}</option>
+              ))}
+            </select>
+            <button
+              type="button"
+              aria-label="Toggle sort direction"
+              style={sortDirectionButtonStyle(sortKey !== "deck")}
+              disabled={sortKey === "deck"}
+              onClick={() => setSortDirection((current) => (current === "asc" ? "desc" : "asc"))}
+            >
+              {sortDirection === "asc" ? "Asc" : "Desc"}
+            </button>
+          </div>
+          <div style={filterMenuWrapStyle}>
+            <button
+              type="button"
+              aria-expanded={filtersOpen}
+              aria-haspopup="menu"
+              style={filterMenuButtonStyle(filtersOpen || activeFilterCount > 0)}
+              onClick={() => setFiltersOpen((open) => !open)}
+            >
+              Filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}
+            </button>
+            {filtersOpen && (
+              <div style={filterPopoverStyle} role="menu">
+                <div style={filterPopoverHeaderStyle}>
+                  <div style={filterPopoverTitleStyle}>Filters</div>
+                  <button
+                    type="button"
+                    style={clearFiltersButtonStyle(activeFilterCount > 0)}
+                    disabled={activeFilterCount === 0}
+                    onClick={clearFilters}
+                  >
+                    Clear
+                  </button>
+                </div>
+                <div style={filterGroupStyle}>
+                  <div style={filterGroupLabelStyle}>Stage</div>
+                  <div style={filterOptionGridStyle}>
+                    {stageFilters.map((stageFilter) => (
+                      <FilterChip
+                        key={stageFilter.id}
+                        active={stageFiltersSelected.has(stageFilter.id)}
+                        onClick={() => setStageFiltersSelected((selected) => toggleSetValue(selected, stageFilter.id))}
+                      >
+                        {stageFilter.label}
+                      </FilterChip>
+                    ))}
+                  </div>
+                </div>
+                <div style={filterGroupStyle}>
+                  <div style={filterGroupLabelStyle}>Type</div>
+                  <div style={energyFilterGridStyle}>
+                    {energyTypes.map((type) => (
+                      <button
+                        key={type}
+                        type="button"
+                        aria-label={`${energyLabel(type)} filter`}
+                        title={energyLabel(type)}
+                        style={energyFilterButtonStyle(energyFiltersSelected.has(type))}
+                        onClick={() => setEnergyFiltersSelected((selected) => toggleSetValue(selected, type))}
+                      >
+                        <EnergyIcon type={type} size="md" />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
         {options.length === 0 ? (
           <div style={emptyDeckStyle}>No Umamusume can be selected from your deck.</div>
+        ) : visibleOptions.length === 0 ? (
+          <div style={emptyDeckStyle}>No cards match those filters.</div>
         ) : (
           <div
             ref={deckScrollRef}
@@ -96,7 +242,7 @@ export function DeckChoiceModal({
             onPointerCancel={stopDeckPan}
             onPointerLeave={stopDeckPan}
           >
-            {options.map((option) => (
+            {visibleOptions.map((option) => (
               <DeckChoiceCardButton
                 key={`${option.cardId}-${option.deckIndex}`}
                 option={option}
@@ -110,9 +256,18 @@ export function DeckChoiceModal({
   );
 }
 
+function sortDeckChoiceOptions(options: DeckChoiceOption[], sortKey: DeckChoiceSortKey, direction: SortDirection): DeckChoiceOption[] {
+  const multiplier = direction === "asc" ? 1 : -1;
+  return [...options].sort((left, right) => {
+    if (sortKey === "deck") return left.deckIndex - right.deckIndex;
+    if (sortKey === "name") return (formatCardName(left.card).localeCompare(formatCardName(right.card)) || left.deckIndex - right.deckIndex) * multiplier;
+    if (sortKey === "stage") return (left.card.stage - right.card.stage || formatCardName(left.card).localeCompare(formatCardName(right.card)) || left.deckIndex - right.deckIndex) * multiplier;
+    return (left.card.type.localeCompare(right.card.type) || formatCardName(left.card).localeCompare(formatCardName(right.card)) || left.deckIndex - right.deckIndex) * multiplier;
+  });
+}
+
 function DeckChoiceCardButton({ option, onChoose }: { option: DeckChoiceOption; onChoose: (deckIndex: number) => void }) {
-  const card = getCard(option.cardId);
-  const image = card.kind === "umamusume" ? card.portrait : card.image;
+  const card = option.card;
   const [hovered, setHovered] = useState(false);
   return (
     <button
@@ -125,7 +280,15 @@ function DeckChoiceCardButton({ option, onChoose }: { option: DeckChoiceOption; 
       onFocus={() => setHovered(true)}
       onBlur={() => setHovered(false)}
     >
-      <HoloCardImage card={card} src={image} alt="" imageStyle={deckCardImageStyle} draggable={false} />
+      <HoloCardImage card={card} src={card.portrait} alt="" imageStyle={deckCardImageStyle} draggable={false} />
+    </button>
+  );
+}
+
+function FilterChip({ active, onClick, children }: { active: boolean; onClick: () => void; children: string }) {
+  return (
+    <button type="button" style={filterChipStyle(active)} onClick={onClick}>
+      {children}
     </button>
   );
 }
@@ -137,10 +300,10 @@ const deckBackdropStyle: CSSProperties = {
 
 const deckModalStyle: CSSProperties = {
   ...overlaySurfaceStyle,
-  width: "min(940px, calc(100vw - 64px))",
-  maxHeight: "min(320px, calc(100vh - 64px))",
+  width: "min(1000px, calc(100vw - 64px))",
+  maxHeight: "min(430px, calc(100vh - 64px))",
   display: "grid",
-  gridTemplateRows: "auto minmax(0, 1fr)",
+  gridTemplateRows: "auto auto minmax(0, 1fr)",
   gap: 12,
   padding: 16,
   background: colors.glassOverlay,

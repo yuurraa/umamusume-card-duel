@@ -5,8 +5,8 @@ export function ShuffleCardReveal({ cardId, onDone }: { cardId: string; onDone: 
     <CardFlowOverlay
       items={[{
         cardId,
-        label: "Card drawn",
-        group: "drawn",
+        label: "Card retrieved",
+        group: "retrieved",
         enterFrom: "rightDiscard",
         exitTo: "leftDeck",
       }]}

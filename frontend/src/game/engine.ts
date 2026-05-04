@@ -30,7 +30,7 @@ import { log } from "./engine/core/log";
 import { getEvolutionTargets, isValidEvolutionTarget } from "./engine/flow/evolution";
 import { attachEnergy, getAbilityMoveEnergyTypes } from "./engine/flow/energy";
 import { effectiveRetreatCost, getDisplayedRetreatCost, payRetreatCost, payRetreatCostBySelection } from "./engine/flow/retreat";
-import { buildOpeningSide, createUmamusume, resetUmamusumeIdCounter } from "./engine/flow/setup";
+import { autoSetupBasicUmamusume, buildDeferredOpeningSide, buildOpeningSide, createUmamusume, resetUmamusumeIdCounter } from "./engine/flow/setup";
 import { canAttachEnergy, canAttachEnergyToUmamusume, canAttack, canRetreat, canUseUmamusumeAbility, isPlayerTurn } from "./engine/flow/eligibility";
 import { drawCards, endTurn, startTurn } from "./engine/flow/turn";
 import type { PlayChoices } from "./engine/core/playTypes";
@@ -79,33 +79,37 @@ export function createGame(
   opponentEnergyTypes?: EnergyType[],
 ): GameState {
   resetUmamusumeIdCounter();
-  const firstPlayer = Math.random() >= 0.5 ? "player" : "opponent";
-  const coinFlipResult = firstPlayer === "player" ? "heads" : "tails";
-  const playerOpening = buildOpeningSide("player", playerName, playerDeck, false, playerEnergyTypes);
-  const opponentOpening = buildOpeningSide("opponent", opponentName, opponentDeck, !opponentIsHuman, opponentEnergyTypes);
+  const playerOpening = buildDeferredOpeningSide("player", playerName, playerDeck, playerEnergyTypes);
+  const opponentOpening = buildDeferredOpeningSide("opponent", opponentName, opponentDeck, opponentEnergyTypes);
 
   const state: GameState = {
     phase: "setup",
     setup: {
-      coinFlipResult,
+      coinChoice: null,
+      coinFlipResult: null,
+      openingHands: {
+        player: playerOpening.openingHand,
+        opponent: opponentOpening.openingHand,
+      },
+      openingHandsDealt: false,
       readyBySide: {
         player: false,
-        opponent: !opponentIsHuman,
+        opponent: false,
       },
       opponentRevealed: false,
       countdownSecondsRemaining: null,
     },
     pendingPlayerChoice: null,
     sides: {
-      player: playerOpening,
-      opponent: opponentOpening,
+      player: playerOpening.side,
+      opponent: opponentOpening.side,
     },
-    currentSide: firstPlayer,
+    currentSide: "player",
     opponentTurnStep: null,
     stadium: null,
     turnDeadlineMs: null,
     turnNumber: 1,
-    firstPlayer,
+    firstPlayer: "player",
     turnsTakenBySide: {
       player: 0,
       opponent: 0,
@@ -124,7 +128,6 @@ export function createGame(
     log: [],
   };
 
-  log(state, `Coin flip was ${coinFlipResult}. ${firstPlayer === "player" ? "You are going first." : "Opponent is going first."}`);
   return state;
 }
 
@@ -527,7 +530,7 @@ export function completePregameSetup(state: GameState, activeHandIndex: number, 
   const next = cloneGame(state);
   if (next.phase !== "setup") return next;
   const setup = next.setup;
-  if (!setup || setup.readyBySide.player) return next;
+  if (!setup || setup.readyBySide.player || !setup.openingHandsDealt) return next;
   const player = next.sides.player;
   const activeCardId = player.hand[activeHandIndex];
   if (!activeCardId || !isBasicUmamusumeInDeck(activeCardId)) return next;
@@ -555,6 +558,42 @@ export function completePregameSetup(state: GameState, activeHandIndex: number, 
   setup.countdownSecondsRemaining = 3;
   next.setup = { ...setup, opponentRevealed: false };
   log(next, "Both players are ready. Match starts in 3...");
+  return next;
+}
+
+export function chooseOpeningCoin(state: GameState, choice: CoinFlipResult): GameState {
+  const next = cloneGame(state);
+  if (next.phase !== "setup") return next;
+  const setup = next.setup;
+  if (!setup || setup.coinFlipResult) return next;
+
+  const result: CoinFlipResult = Math.random() >= 0.5 ? "heads" : "tails";
+  const firstPlayer: SideId = result === choice ? "player" : "opponent";
+  setup.coinChoice = choice;
+  setup.coinFlipResult = result;
+  next.firstPlayer = firstPlayer;
+  next.currentSide = firstPlayer;
+  next.setup = { ...setup };
+  log(next, `Coin flip was ${result}. You chose ${choice}. ${firstPlayer === "player" ? "You are going first." : "Opponent is going first."}`);
+  return next;
+}
+
+export function dealOpeningHands(state: GameState): GameState {
+  const next = cloneGame(state);
+  if (next.phase !== "setup") return next;
+  const setup = next.setup;
+  if (!setup || !setup.coinFlipResult || setup.openingHandsDealt) return next;
+
+  next.sides.player.hand = [...setup.openingHands.player];
+  next.sides.opponent.hand = [...setup.openingHands.opponent];
+  setup.openingHandsDealt = true;
+
+  if (!next.humanBySide.opponent && !setup.readyBySide.opponent) {
+    autoSetupBasicUmamusume(next.sides.opponent);
+    setup.readyBySide.opponent = true;
+  }
+
+  next.setup = { ...setup };
   return next;
 }
 
