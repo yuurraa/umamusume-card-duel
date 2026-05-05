@@ -106,6 +106,17 @@ export function useCardPreviewActions(args: UseCardPreviewActionsArgs) {
     const randomDiscardIndex = attack.shuffleRandomDiscardIntoDeck && player.discard.length > 0
       ? Math.floor(Math.random() * player.discard.length)
       : undefined;
+    const canOfferShuffleSelfChoice = Boolean(
+      attack.shuffleSelfIntoDeck
+      && player.active
+      && (!attack.shuffleSelfIntoDeck.requiresBench || player.bench.length > 0)
+      && Object.entries(attack.shuffleSelfIntoDeck.discardEnergy).every(([type, amount]) => player.active!.energies[type as EnergyType] >= (amount ?? 0)),
+    );
+    if (canOfferShuffleSelfChoice) {
+      setPendingSelection({ kind: "attackShuffleSelfChoice", attackIndex });
+      setPreviewTarget(null);
+      return;
+    }
     const revealedShuffleCardId = randomDiscardIndex !== undefined ? player.discard[randomDiscardIndex] : undefined;
     if (isNetworkMatch) {
       submitPlayerIntent({

@@ -1,6 +1,6 @@
 import { MAX_BENCH } from "../../../../../../shared/src/gameData";
 import type { AiDeckStyle, CoinFlipResult, GameState, SideState } from "../../../../../../shared/src/types";
-import type { AiCombatDecisionResult, AiCombatDeps, AiTrainerDeps, PendingSwitchAfterGustResume } from "./types";
+import type { AiCombatDecisionResult, AiCombatDeps, AiTrainerDeps, AiTurnGoal, PendingSwitchAfterGustResume } from "./types";
 import { getCard, getPrimaryAttack, getUmamusumeCard } from "../../core/catalog";
 import { actorName, formatUmamusumeCardName } from "../../core/labels";
 import { canAttachEnergy, canUseUmamusumeAbility } from "../eligibility";
@@ -19,6 +19,8 @@ import { getAiRainbowUncapChoice, getAiTrainerChoices, scoreEvolutionTarget, sho
 import { aiUseCoinFlipDrawAbility, aiUseDamageAbility, aiUseMoveBenchedEnergyAbility } from "./abilityUtils";
 import { aiAttachOneEnergy as executeAiAttachOneEnergy, estimateAttackDamageOutput, markAbilityUsed, withEnergyShift } from "./attachUtils";
 import { aiRetreatToTarget, buildCombatCandidates } from "./combatPlanner";
+import { chooseMidLevelCombatDecision } from "./midLevel";
+import { chooseAiTurnGoal } from "./turnPlan";
 
 const BASE_THREAT_PENALTY = 120;
 
@@ -67,7 +69,8 @@ export function aiEvolveOne(state: GameState, side: SideState): boolean {
 
 export function aiAttachOneEnergy(state: GameState, side: SideState): boolean {
   if (!side.active || !canAttachEnergy(state, side)) return false;
-  return executeAiAttachOneEnergy(state, side);
+  const turnGoal = chooseAiTurnGoal(state, side);
+  return executeAiAttachOneEnergy(state, side, turnGoal);
 }
 
 export function aiPlayOneTrainer(
@@ -76,16 +79,17 @@ export function aiPlayOneTrainer(
   pendingChoiceResume: PendingSwitchAfterGustResume,
   deps: AiTrainerDeps,
 ): boolean {
+  const turnGoal = chooseAiTurnGoal(state, side);
   const index = side.hand.findIndex((cardId, handIndex) => {
     const card = getCard(cardId);
-    return shouldAiPlayTrainer(state, side, card, handIndex);
+    return shouldAiPlayTrainer(state, side, card, handIndex, turnGoal);
   });
   if (index === -1) return false;
   const cardId = side.hand[index];
   if (!cardId) return false;
   const card = getCard(cardId);
   if (card.kind !== "trainer") return false;
-  const choices = getAiTrainerChoices(state, side, card, index);
+  const choices = getAiTrainerChoices(state, side, card, index, turnGoal);
   if (card.effect.rainbowUncapCrystal) {
     const rainbowChoice = getAiRainbowUncapChoice(state, side);
     if (!rainbowChoice) return false;
@@ -150,7 +154,9 @@ export function aiResolveCombatDecision(
     });
   }
 
-  const selected = pickCandidateByDifficulty(candidates, state.aiDifficulty, random, canImmediateOpponentKo(state, side.id));
+  const tacticalChoice = chooseMidLevelCombatDecision(state, side, candidates, deps, forcedAttackCoinResult);
+  const selected = tacticalChoice?.candidate
+    ?? pickCandidateByDifficulty(candidates, state.aiDifficulty, random, canImmediateOpponentKo(state, side.id));
   if (!selected || selected.decision.kind === "endTurn") return { resolved: true, usedAttack: false, didRetreat: false };
 
   if (selected.decision.retreatTargetUid !== undefined) {
@@ -181,6 +187,7 @@ export function aiUseOneAbility(
   side: SideState,
   deps: AiCombatDeps,
   random: () => number = Math.random,
+  turnGoal: AiTurnGoal = "maximize_progress",
 ): boolean {
   const priorities = getAllUmamusume(side)
     .filter((umamusume) => canUseUmamusumeAbility(state, side, umamusume.uid))
@@ -197,7 +204,10 @@ export function aiUseOneAbility(
       withEnergyShift,
       markAbilityUsed,
     })) return true;
-    if (ability.coinFlipDrawOrActiveDamageCounter && aiUseCoinFlipDrawAbility(state, side, abilityUmamusume, random, deps, state.aiDifficulty)) return true;
+    if (ability.coinFlipDrawOrActiveDamageCounter) {
+      if (turnGoal === "deny_opponent_lethal" || turnGoal === "secure_lethal_now") continue;
+      if (aiUseCoinFlipDrawAbility(state, side, abilityUmamusume, random, deps, state.aiDifficulty)) return true;
+    }
   }
 
   return false;

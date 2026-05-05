@@ -11,6 +11,7 @@ export type PendingSelection =
   | { kind: "forceSwitchActive" }
   | { kind: "attackHealTarget" }
   | { kind: "attackDamageTarget" }
+  | { kind: "attackShuffleSelfChoice"; attackIndex: number }
   | { kind: "attackSwitchTarget"; attackIndex: number }
   | { kind: "healTarget"; handIndex: number }
   | { kind: "evolveTarget"; handIndex: number }

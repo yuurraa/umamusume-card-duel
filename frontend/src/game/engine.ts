@@ -39,6 +39,7 @@ import { adjustHandChoices, getPlayableAction, getRainbowUncapEvolutionHandOptio
 import { aiAttachOneEnergy, aiEvolveOne, aiPlayOneBasic, aiPlayOneTrainer, aiResolveCombatDecision, aiUseOneAbility } from "./engine/flow/ai";
 import { knockOutUmamusume, performAttack } from "./engine/flow/combat";
 import { canUseStadium, useStadium } from "./engine/flow/trainers";
+import { chooseAiTurnGoal } from "./engine/flow/ai/turnPlan";
 
 export type { PlayChoices };
 
@@ -217,10 +218,24 @@ export function playerAttack(
   discardHandIndex?: number,
   randomDiscardIndex?: number,
   switchTargetUid?: number,
+  useShuffleSelfIntoDeck?: boolean,
 ): GameState {
   const next = cloneGame(state);
   if (!canAttack(next, next.sides.player)) return next;
-  performAttack(next, "player", { refreshContinuousEffects, choosePreferredActiveIndex }, attackTargetUid, healTargetUid, forcedCoinResult, evolutionDeckCardIndex, attackIndex, discardHandIndex, randomDiscardIndex, switchTargetUid);
+  performAttack(
+    next,
+    "player",
+    { refreshContinuousEffects, choosePreferredActiveIndex },
+    attackTargetUid,
+    healTargetUid,
+    forcedCoinResult,
+    evolutionDeckCardIndex,
+    attackIndex,
+    discardHandIndex,
+    randomDiscardIndex,
+    switchTargetUid,
+    useShuffleSelfIntoDeck,
+  );
   if (next.pendingPlayerChoice) return next;
   if (!next.gameOver) advanceToNextTurn(next);
   return next;
@@ -336,7 +351,8 @@ function advanceAiTurnStep(
 
     if (step === "attack") {
       refreshContinuousEffects(next);
-      if (aiUseOneAbility(next, actingSide, { refreshContinuousEffects, choosePreferredActiveIndex }, random)) return next;
+      const turnGoal = chooseAiTurnGoal(next, actingSide);
+      if (aiUseOneAbility(next, actingSide, { refreshContinuousEffects, choosePreferredActiveIndex }, random, turnGoal)) return next;
       const combat = aiResolveCombatDecision(next, actingSide, forcedAttackCoinResult, { refreshContinuousEffects, choosePreferredActiveIndex }, random);
       if (!combat.resolved) return next;
       if (combat.didRetreat) return next;

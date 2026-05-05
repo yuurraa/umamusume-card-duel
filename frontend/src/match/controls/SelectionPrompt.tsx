@@ -6,12 +6,13 @@ import { NeutralButton } from "../../components/buttons/NeutralButton";
 import { borders, colors, overlayButtonStyle, overlaySurfaceStyle, inlineEnergyLabelStyle, radius } from "../../styles/shared";
 import type { PendingSelection } from "../../types/ui";
 
-export function SelectionPrompt({ pending, onCancel, nextEnergyType, onRetreatDiscardAdjust, onConfirmRetreatDiscard }: {
+export function SelectionPrompt({ pending, onCancel, nextEnergyType, onRetreatDiscardAdjust, onConfirmRetreatDiscard, onChooseAttackShuffleSelf }: {
   pending: PendingSelection;
   onCancel: () => void;
   nextEnergyType: EnergyType | null;
   onRetreatDiscardAdjust?: (energyType: EnergyType, delta: 1 | -1) => void;
   onConfirmRetreatDiscard?: () => void;
+  onChooseAttackShuffleSelf?: (shouldShuffle: boolean) => void;
 }) {
   const isRetreatDiscard = pending.kind === "retreatDiscard";
   const retreatSelectedCount = isRetreatDiscard ? getSelectedEnergyCount(pending.selectedEnergyCounts) : 0;
@@ -37,6 +38,8 @@ export function SelectionPrompt({ pending, onCancel, nextEnergyType, onRetreatDi
         ? "Choose 1 of your damaged Umamusume to heal."
       : pending.kind === "attackDamageTarget"
         ? "Choose 1 of your opponent's Umamusume to damage."
+      : pending.kind === "attackShuffleSelfChoice"
+        ? "Use White Lightning's optional effect to discard 3 Lightning Energy and shuffle this Umamusume plus all attached cards into your deck?"
       : pending.kind === "attackSwitchTarget"
         ? "Choose 1 of your benched Umamusume to switch in, or cancel to keep the Active Umamusume."
       : pending.kind === "healTarget"
@@ -78,6 +81,11 @@ export function SelectionPrompt({ pending, onCancel, nextEnergyType, onRetreatDi
           >
             Confirm
           </NeutralButton>
+        </div>
+      ) : pending.kind === "attackShuffleSelfChoice" ? (
+        <div style={selectionPromptActionRowStyle}>
+          <NeutralButton style={selectionPromptInlineButtonStyle} onClick={() => onChooseAttackShuffleSelf?.(false)}>No</NeutralButton>
+          <NeutralButton style={selectionPromptInlineButtonStyle} onClick={() => onChooseAttackShuffleSelf?.(true)}>Yes</NeutralButton>
         </div>
       ) : (
         pending.kind !== "replaceActive" && pending.kind !== "forceSwitchActive" && <NeutralButton style={selectionPromptButtonStyle} onClick={onCancel}>Cancel</NeutralButton>

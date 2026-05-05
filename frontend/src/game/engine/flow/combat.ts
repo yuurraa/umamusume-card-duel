@@ -25,6 +25,7 @@ export function performAttack(
   discardHandIndex?: number,
   randomDiscardIndex?: number,
   switchTargetUid?: number,
+  useShuffleSelfIntoDeck?: boolean,
 ): void {
   const defenderId = attackerId === "player" ? "opponent" : "player";
   const pointsBeforeAttack = {
@@ -191,7 +192,8 @@ export function performAttack(
   if (attack.evolveFromDeck && attacker.active) {
     evolveActiveFromDeck(state, attacker, evolutionDeckCardIndex);
   }
-  if (attack.shuffleSelfIntoDeck && attacker.active) {
+  const shouldShuffleSelfIntoDeck = useShuffleSelfIntoDeck ?? !state.humanBySide[attackerId];
+  if (attack.shuffleSelfIntoDeck && attacker.active && shouldShuffleSelfIntoDeck) {
     shuffleActiveIntoDeckIfPaid(state, attacker, attack.shuffleSelfIntoDeck, deps);
   }
   if (attack.shuffleRandomDiscardIntoDeck) {

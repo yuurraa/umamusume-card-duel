@@ -49,6 +49,7 @@ type MatchBoardLayoutProps = {
   selectedSleeveImage: string | null;
   canPlayHandCards: boolean;
   handDrawRevealEnabled?: boolean;
+  handDeferredRevealCardIds?: string[];
   canAttach: boolean;
   nextPlayerEnergy: EnergyType | null;
   playerExtraEnergyCount: number;
@@ -103,6 +104,7 @@ export function MatchBoardLayout(props: MatchBoardLayoutProps) {
     selectedSleeveImage,
     canPlayHandCards,
     handDrawRevealEnabled = true,
+    handDeferredRevealCardIds = [],
     canAttach,
     nextPlayerEnergy,
     playerExtraEnergyCount,
@@ -194,6 +196,8 @@ export function MatchBoardLayout(props: MatchBoardLayoutProps) {
             onSwitchPov={onSwitchPov}
             onInspect={onInspect}
             sleeveImage={selectedSleeveImage}
+            handDrawRevealEnabled={handDrawRevealEnabled}
+            handDeferredRevealCardIds={handDeferredRevealCardIds}
           />
         ) : (
           <>
@@ -219,6 +223,7 @@ export function MatchBoardLayout(props: MatchBoardLayoutProps) {
               onInspect={onInspect}
               canPlayCards={canPlayHandCards}
               drawRevealEnabled={handDrawRevealEnabled}
+              deferredRevealCardIds={handDeferredRevealCardIds}
               selectableHandIndexes={selectableHandIndexes}
               onChooseHandCard={onChooseHandCard}
               onOpenDiscard={onOpenDiscard}

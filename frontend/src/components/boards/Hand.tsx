@@ -21,6 +21,7 @@ type HandProps = {
   side?: SideState | undefined;
   canPlayCards?: boolean | undefined;
   drawRevealEnabled?: boolean | undefined;
+  deferredRevealCardIds?: string[] | undefined;
 };
 
 export function Hand({
@@ -36,6 +37,7 @@ export function Hand({
   side,
   canPlayCards,
   drawRevealEnabled = true,
+  deferredRevealCardIds = [],
 }: HandProps) {
   const player = side ?? state.sides.player;
   const handScrollerClassName = `hand-scroller-${useId().replace(/:/g, "")}`;
@@ -44,6 +46,7 @@ export function Hand({
   const [isHandPanning, setIsHandPanning] = useState(false);
   const [drawRevealOrderByIndex, setDrawRevealOrderByIndex] = useState<Record<number, number>>({});
   const previousHandRef = useRef<string[]>([...player.hand]);
+  const previousDeferredRevealCardIdsRef = useRef<string[]>([]);
   const drawRevealClearTimeoutRef = useRef<number | null>(null);
   const isSetup = mode === "setup";
   const isSetupReady = isSetup && Boolean(state.setup?.readyBySide.player);
@@ -51,6 +54,22 @@ export function Hand({
   const hiddenSetupIndexes = isSetup && !isSetupReady ? new Set([setupActiveIndex, ...setupBenchIndexes].filter((index): index is number => index !== null)) : null;
   const topDiscardCardId = player.discard[player.discard.length - 1] ?? null;
   const topDiscardCard = topDiscardCardId ? getCard(topDiscardCardId) : null;
+  const hiddenDeferredIndexes = (() => {
+    if (deferredRevealCardIds.length === 0) return new Set<number>();
+    const remainingByCardId = new Map<string, number>();
+    deferredRevealCardIds.forEach((cardId) => remainingByCardId.set(cardId, (remainingByCardId.get(cardId) ?? 0) + 1));
+    const hidden = new Set<number>();
+    for (let index = player.hand.length - 1; index >= 0; index -= 1) {
+      const cardId = player.hand[index];
+      if (!cardId) continue;
+      const remaining = remainingByCardId.get(cardId) ?? 0;
+      if (remaining <= 0) continue;
+      hidden.add(index);
+      if (remaining === 1) remainingByCardId.delete(cardId);
+      else remainingByCardId.set(cardId, remaining - 1);
+    }
+    return hidden;
+  })();
 
   useEffect(() => () => {
     if (drawRevealClearTimeoutRef.current !== null) window.clearTimeout(drawRevealClearTimeoutRef.current);
@@ -72,7 +91,14 @@ export function Hand({
       setDrawRevealOrderByIndex((current) => (Object.keys(current).length > 0 ? {} : current));
       return;
     }
-    if (!drawRevealEnabled) return;
+    if (!drawRevealEnabled) {
+      // Keep the hand baseline in sync while reveal animation is suppressed
+      // (for example during setup card-flow overlays) so cards do not
+      // incorrectly animate as newly drawn once reveal is re-enabled.
+      previousHandRef.current = [...currentHand];
+      setDrawRevealOrderByIndex((current) => (Object.keys(current).length > 0 ? {} : current));
+      return;
+    }
 
     const previousCounts = new Map<string, number>();
     previousHand.forEach((cardId) => previousCounts.set(cardId, (previousCounts.get(cardId) ?? 0) + 1));
@@ -98,6 +124,45 @@ export function Hand({
 
     previousHandRef.current = [...currentHand];
   }, [player.hand, state.gameOver, drawRevealEnabled]);
+
+  useEffect(() => {
+    const previousDeferred = previousDeferredRevealCardIdsRef.current;
+    const currentDeferred = deferredRevealCardIds;
+    if (state.gameOver) {
+      previousDeferredRevealCardIdsRef.current = currentDeferred;
+      return;
+    }
+    if (previousDeferred.length === 0 || currentDeferred.length > 0) {
+      previousDeferredRevealCardIdsRef.current = currentDeferred;
+      return;
+    }
+
+    // Deferred draw reveal has just completed. Animate those cards as they
+    // enter the hand instead of letting them pop in.
+    const remainingByCardId = new Map<string, number>();
+    previousDeferred.forEach((cardId) => remainingByCardId.set(cardId, (remainingByCardId.get(cardId) ?? 0) + 1));
+    const revealIndexes: number[] = [];
+    for (let index = player.hand.length - 1; index >= 0; index -= 1) {
+      const cardId = player.hand[index];
+      if (!cardId) continue;
+      const remaining = remainingByCardId.get(cardId) ?? 0;
+      if (remaining <= 0) continue;
+      revealIndexes.push(index);
+      if (remaining === 1) remainingByCardId.delete(cardId);
+      else remainingByCardId.set(cardId, remaining - 1);
+    }
+    revealIndexes.sort((left, right) => left - right);
+    if (revealIndexes.length > 0) {
+      const revealOrderByIndex = Object.fromEntries(revealIndexes.map((index, order) => [index, order])) as Record<number, number>;
+      setDrawRevealOrderByIndex(revealOrderByIndex);
+      if (drawRevealClearTimeoutRef.current !== null) window.clearTimeout(drawRevealClearTimeoutRef.current);
+      drawRevealClearTimeoutRef.current = window.setTimeout(() => {
+        setDrawRevealOrderByIndex({});
+        drawRevealClearTimeoutRef.current = null;
+      }, 680);
+    }
+    previousDeferredRevealCardIdsRef.current = currentDeferred;
+  }, [deferredRevealCardIds, player.hand, state.gameOver]);
 
   const stopHandPan = () => {
     handPanRef.current = null;
@@ -156,6 +221,7 @@ export function Hand({
         <div style={handEdgeSpacerStyle} aria-hidden="true" />
         {player.hand.map((cardId, index) => {
           if (hiddenSetupIndexes?.has(index)) return null;
+          if (hiddenDeferredIndexes.has(index)) return null;
           const card = getCard(cardId);
           const action = getPlayableAction(state, player, cardId);
           const isSetupBasic = isSetup && card.kind === "umamusume" && card.stage === 0;

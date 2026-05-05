@@ -5,10 +5,11 @@ import { attachEnergy, hasEnoughEnergy } from "../energy";
 import { effectiveRetreatCost } from "../retreat";
 import { attachedEnergyCount, getAllUmamusume } from "../../core/umamusume";
 import { predictAttackDamage } from "./combatUtils";
+import type { AiTurnGoal } from "./types";
 
 const ENERGY_TYPES: EnergyType[] = ["grass", "fire", "water", "lightning", "psychic", "fighting", "darkness", "steel", "colorless", "dragon"];
 
-export function aiAttachOneEnergy(state: GameState, side: SideState): boolean {
+export function aiAttachOneEnergy(state: GameState, side: SideState, turnGoal: AiTurnGoal = "maximize_progress"): boolean {
   if (!side.active) return false;
   const nextEnergyType = side.energyZone[0];
   if (!nextEnergyType) return false;
@@ -39,6 +40,7 @@ export function aiAttachOneEnergy(state: GameState, side: SideState): boolean {
         futureDemand,
         usefulCapByUid.get(umamusume.uid) ?? 1,
         hasUnderchargedAlternative,
+        turnGoal,
       ),
     }))
     .sort((left, right) => {
@@ -110,6 +112,7 @@ function scoreAttachTarget(
   futureDemand: Record<EnergyType, number>,
   usefulCap: number,
   hasUnderchargedAlternative: boolean,
+  turnGoal: AiTurnGoal,
 ): number {
   const active = side.active;
   const isActive = target.uid === active?.uid;
@@ -139,7 +142,37 @@ function scoreAttachTarget(
   if (totalEnergyAfter > usefulCap) score -= (totalEnergyAfter - usefulCap) * 140;
   if (hasUnderchargedAlternative && totalEnergyAfter > usefulCap) score -= 180;
   score += scoreDeckStyleAttachPreference(side, target, deckStyle, energyType, beforeCanAttack, afterCanAttack, beforeDamage, afterDamage);
+  score += scoreTurnGoalAttachPreference(side, target, beforeCanAttack, afterCanAttack, turnGoal);
   return score;
+}
+
+function scoreTurnGoalAttachPreference(
+  side: SideState,
+  target: UmamusumeInstance,
+  beforeCanAttack: boolean,
+  afterCanAttack: boolean,
+  turnGoal: AiTurnGoal,
+): number {
+  const isActive = target.uid === side.active?.uid;
+  if (turnGoal === "deny_opponent_lethal") {
+    let score = isActive ? 30 : 10;
+    if (!beforeCanAttack && afterCanAttack) score += isActive ? 120 : 28;
+    if (target.maxHp >= 100 && isActive) score += 16;
+    return score;
+  }
+  if (turnGoal === "stabilize_board") {
+    let score = 0;
+    if (!isActive) score += 22;
+    if (!beforeCanAttack && afterCanAttack) score += 34;
+    if (target.maxHp >= 90) score += 10;
+    return score;
+  }
+  if (turnGoal === "secure_lethal_now") {
+    let score = isActive ? 26 : -8;
+    if (!beforeCanAttack && afterCanAttack && isActive) score += 84;
+    return score;
+  }
+  return 0;
 }
 
 function getUsefulEnergyCap(

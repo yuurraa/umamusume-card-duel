@@ -6,6 +6,7 @@ import {
   dealOpeningHands,
   getCard,
   opponentAbandonedMatch,
+  playerAttack,
   tickSetupCountdown,
   timeoutEndTurn,
 } from "../game/engine";
@@ -159,6 +160,17 @@ function allCardsMoved(fromBefore: string[], fromAfter: string[], toBefore: stri
   return moved;
 }
 
+function getInPlayCardIds(side: SideState): string[] {
+  const collectFromUmamusume = (umamusume: SideState["active"]): string[] => {
+    if (!umamusume) return [];
+    return [...(umamusume.evolutionCardIds ?? []), umamusume.cardId, ...(umamusume.toolCardId ? [umamusume.toolCardId] : [])];
+  };
+  return [
+    ...collectFromUmamusume(side.active),
+    ...side.bench.flatMap((umamusume) => collectFromUmamusume(umamusume)),
+  ];
+}
+
 function getNewLogHeadEntries(previousLog: string[], currentLog: string[]): string[] {
   if (previousLog.length === 0) return currentLog;
   for (let start = 0; start < currentLog.length; start += 1) {
@@ -242,8 +254,8 @@ export function App() {
   const pvpDeadlineTurnKeyRef = useRef<string | null>(null);
   const previousLogRef = useRef<string[]>([]);
   const previousPlayerZonesRef = useRef<{
-    player: { hand: string[]; deck: string[]; discard: string[] };
-    opponent: { hand: string[]; deck: string[]; discard: string[] };
+    player: { hand: string[]; deck: string[]; discard: string[]; inPlay: string[] };
+    opponent: { hand: string[]; deck: string[]; discard: string[]; inPlay: string[] };
     currentSide: GameState["currentSide"];
     turnNumber: number;
     phase: GameState["phase"];
@@ -1035,6 +1047,31 @@ export function App() {
     setActionNotice,
     submitPlayerIntent,
   });
+  const onChooseAttackShuffleSelf = (shouldShuffle: boolean) => {
+    if (!pendingSelection || pendingSelection.kind !== "attackShuffleSelfChoice") return;
+    if (isNetworkMatch) {
+      submitPlayerIntent({
+        type: "attack",
+        attackIndex: pendingSelection.attackIndex,
+        useShuffleSelfIntoDeck: shouldShuffle,
+      });
+    } else {
+      setGame((current) => playerAttack(
+        current,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        pendingSelection.attackIndex,
+        undefined,
+        undefined,
+        undefined,
+        shouldShuffle,
+      ));
+    }
+    setPendingSelection(null);
+    setPreviewTarget(null);
+  };
 
   const advanceSetupCountdown = () => {
     setGame((current) => {
@@ -1182,11 +1219,13 @@ export function App() {
         hand: [...game.sides.player.hand],
         deck: [...game.sides.player.deck],
         discard: [...game.sides.player.discard],
+        inPlay: getInPlayCardIds(game.sides.player),
       },
       opponent: {
         hand: [...game.sides.opponent.hand],
         deck: [...game.sides.opponent.deck],
         discard: [...game.sides.opponent.discard],
+        inPlay: getInPlayCardIds(game.sides.opponent),
       },
       currentSide: game.currentSide,
       turnNumber: game.turnNumber,
@@ -1220,6 +1259,12 @@ export function App() {
         previousSide.discard,
         currentSide.discard,
       );
+      const retrievedIntoDeckCards = allCardsMoved(
+        previousSide.inPlay,
+        currentSide.inPlay,
+        previousSide.deck,
+        currentSide.deck,
+      );
       let obtainedFromDeckCards = subtractCardLists(currentSide.hand, previousSide.hand);
       const shuffleDrawCount = getShuffleHandDrawCount(previous.log, current.log, sideId);
       if (shuffleDrawCount && obtainedFromDeckCards.length < shuffleDrawCount) {
@@ -1236,6 +1281,17 @@ export function App() {
             group: "drawn",
             enterFrom: sideOnRight ? "leftDeck" : "bottomLeft",
             exitTo: "bottomCenter",
+          });
+        });
+      }
+      if (retrievedIntoDeckCards.length > 0 && isPovSide) {
+        retrievedIntoDeckCards.slice(0, 8).forEach((cardId) => {
+          nextFlow.push({
+            cardId,
+            label: "Card retrieved",
+            group: "retrieved",
+            enterFrom: sideOnRight ? "bottomRight" : "bottomLeft",
+            exitTo: "leftDeck",
           });
         });
       }
@@ -1370,6 +1426,9 @@ export function App() {
     : undefined;
   const displayPlayerSleeveImage = isAiVsAi && displayPerspective === "opponent" ? opponentSleeve.image : selectedSleeve.image;
   const displayOpponentSleeveImage = isAiVsAi && displayPerspective === "opponent" ? selectedSleeve.image : opponentSleeve.image;
+  const deferredHandRevealCardIds = (cardFlowQueue[0] ?? [])
+    .filter((item) => item.group === "drawn" && item.exitTo === "bottomCenter")
+    .map((item) => item.cardId);
   const isPlayPhase = game.phase === "play";
   const showSelectedPlaymat = isPlayPhase
     ? game.currentSide === "player"
@@ -1484,6 +1543,7 @@ export function App() {
             && !isTurnFlowBlocked
           }
           handDrawRevealEnabled={cardFlowQueue.length === 0}
+          handDeferredRevealCardIds={deferredHandRevealCardIds}
           canAttach={canAttachInHeader}
           nextPlayerEnergy={nextPlayerEnergy}
           playerExtraEnergyCount={playerExtraEnergyCount}
@@ -1541,6 +1601,7 @@ export function App() {
           <SelectionPrompt
             pending={activePendingSelection}
             onCancel={onSelectionCancel}
+            onChooseAttackShuffleSelf={onChooseAttackShuffleSelf}
             nextEnergyType={nextPlayerEnergy}
             onRetreatDiscardAdjust={adjustRetreatDiscard}
             onConfirmRetreatDiscard={confirmRetreatDiscard}

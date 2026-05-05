@@ -31,4 +31,20 @@ export type CombatCandidate = {
   targetIsActive: boolean;
 };
 
+export type AiTacticalGoal =
+  | "secure_lethal"
+  | "deny_opponent_lethal"
+  | "maximize_expected_damage";
+
+export type AiTurnGoal =
+  | "secure_lethal_now"
+  | "deny_opponent_lethal"
+  | "stabilize_board"
+  | "maximize_progress";
+
+export type MidLevelDecision = {
+  goal: AiTacticalGoal;
+  candidate: CombatCandidate;
+};
+
 export type PendingSwitchAfterGustResume = Extract<PendingPlayerChoice, { kind: "switchAfterGust" }>["resume"];

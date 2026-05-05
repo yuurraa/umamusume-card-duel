@@ -74,6 +74,15 @@ export function useMatchModalActions({
           });
           setPendingSelection(null);
         }
+      : pendingSelection?.kind === "attackShuffleSelfChoice"
+        ? () => {
+          submitPlayerIntent({
+            type: "attack",
+            attackIndex: pendingSelection.attackIndex,
+            useShuffleSelfIntoDeck: false,
+          });
+          setPendingSelection(null);
+        }
       : cancelPendingSelection;
   const onPlayAgain = () => {
     if (isNetworkMatch) {

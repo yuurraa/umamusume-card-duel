@@ -72,6 +72,7 @@
         "psychic"
       ],
       "cardIds": [
+        "haruUraraBasicFullArt",
         "matikanefukukitaruBasic",
         "matikanefukukitaruStage1FullArt",
         "matikanetannhauserBasic",
@@ -79,7 +80,6 @@
         "matikanetannhauserStage1UncommonPlus",
         "matikanetannhauserStage2",
         "matikanetannhauserStage2FullArt",
-        "niceNatureBasicFullArt",
         "3starMakeDebutScout",
         "carrotJelly",
         "carrotHamburgerSteak",
@@ -254,7 +254,7 @@
         "lightning"
       ],
       "cardIds": [
-        "niceNatureBasicFullArt",
+        "agnesTachyonBasic",
         "tamamoCrossBasic",
         "tamamoCrossBasic",
         "tamamoCrossStage1UncommonPlus",

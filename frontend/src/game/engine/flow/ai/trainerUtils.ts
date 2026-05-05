@@ -5,16 +5,21 @@ import { hasEnoughEnergy } from "../energy";
 import { canAttack, canRetreat } from "../eligibility";
 import { hasDamagedHealingTarget } from "../trainers";
 import { getPlayableAction, getRainbowUncapEvolutionHandOptions, getRainbowUncapTargets, getToolTargets } from "../playRules";
-import { choosePreferredActiveIndex, getOpposingSide } from "../board";
 import { effectiveRetreatCost, retreatCost } from "../retreat";
 import { attachedEnergyCount, getAllUmamusume } from "../../core/umamusume";
 import type { PlayChoices } from "../../core/playTypes";
-import { predictAttackDamage } from "./combatUtils";
+import { getPublicOpponentView } from "./publicInfo";
+import {
+  getAoiKiryuinBonusValueFromPublic,
+  getOpponentActiveEnergyCountFromPublic,
+  getYayoiAkikawaValueFromPublic,
+} from "./opponentHeuristics";
+import type { AiTurnGoal } from "./types";
 
-export function shouldAiPlayTrainer(state: GameState, side: SideState, card: Card, handIndex: number): boolean {
+export function shouldAiPlayTrainer(state: GameState, side: SideState, card: Card, handIndex: number, turnGoal: AiTurnGoal = "maximize_progress"): boolean {
   if (card.kind !== "trainer") return false;
   if (!getPlayableAction(state, side, card.id).canPlay) return false;
-  if (card.trainerType === "stadium") return shouldAiPlayStadium(state, side, card);
+  if (card.trainerType === "stadium") return shouldAiPlayStadium(state, side, card, turnGoal);
   if (card.trainerType === "tool") return getToolTargets(side).length > 0;
   if (card.effect.gustOpponent) return getYayoiAkikawaValue(state, side) > 0;
   if (card.effect.activeAttackDamageBonus) return getAoiKiryuinBonusValue(state, side) > 0;
@@ -24,15 +29,20 @@ export function shouldAiPlayTrainer(state: GameState, side: SideState, card: Car
   if (card.effect.retreatCostReduction) {
     const active = side.active;
     if (!active) return false;
+    if (turnGoal === "deny_opponent_lethal") {
+      return side.bench.length > 0;
+    }
     return side.bench.length > 0 && attachedEnergyCount(active) + card.effect.retreatCostReduction >= effectiveRetreatCost(state, side) && !canRetreat(state, side);
   }
   if (card.effect.heal && !hasDamagedHealingTarget(side, card)) return Boolean(card.effect.draw && side.hand.length < MAX_HAND);
   if (card.effect.draw && side.hand.length >= MAX_HAND) return false;
   if (card.effect.searchUmamusume || card.effect.searchEvolutionUmamusume || card.effect.searchRandomBasicUmamusume) {
     if (side.hand.length >= MAX_HAND) return false;
+    if (turnGoal === "stabilize_board" && card.effect.searchUmamusume) return true;
     if (card.effect.discardOtherCard) {
+      if (turnGoal === "deny_opponent_lethal" && side.hand.length <= 2) return false;
       const discardIndex = chooseAiDiscardHandIndex(state, side, handIndex);
-      const searchIndex = chooseAiSearchDeckIndex(state, side);
+      const searchIndex = chooseAiSearchDeckIndex(state, side, false, turnGoal === "stabilize_board");
       if (discardIndex === undefined || searchIndex === undefined) return false;
       const discardedCardId = side.hand[discardIndex];
       const searchedCardId = side.deck[searchIndex];
@@ -47,8 +57,9 @@ export function shouldAiPlayTrainer(state: GameState, side: SideState, card: Car
   return true;
 }
 
-function shouldAiPlayStadium(state: GameState, side: SideState, card: Extract<Card, { kind: "trainer" }>): boolean {
+function shouldAiPlayStadium(state: GameState, side: SideState, card: Extract<Card, { kind: "trainer" }>, turnGoal: AiTurnGoal): boolean {
   if (card.trainerType !== "stadium") return false;
+  if (turnGoal === "stabilize_board" && card.effect.shuffleHandIntoDeckDraw) return true;
   const candidateValue = evaluateStadiumNetValue(state, side.id, card);
 
   if (!state.stadium) {
@@ -129,10 +140,35 @@ function scoreShuffleHandIntoDeckDrawValue(state: GameState, side: SideState): n
         : 4;
   const attackPenalty = canAttack(state, side) ? 0.45 : 1;
   const alreadyUsedPenalty = side.usedStadiumThisTurn ? 0.35 : 1;
-  return handSizeScore * attackPenalty * alreadyUsedPenalty;
+  let score = handSizeScore * attackPenalty * alreadyUsedPenalty;
+
+  // Emergency mulligan heuristic:
+  // if we have no bench and no Basic in hand, prioritize digging for one to avoid instant loss on active KO.
+  const hasBench = side.bench.length > 0;
+  const hasBasicInHand = side.hand.some((cardId) => {
+    const card = getCard(cardId);
+    return card.kind === "umamusume" && card.stage === 0;
+  });
+  if (!hasBench && !hasBasicInHand) {
+    const basicsInDeck = side.deck.reduce((count, cardId) => {
+      const card = getCard(cardId);
+      return count + (card.kind === "umamusume" && card.stage === 0 ? 1 : 0);
+    }, 0);
+    if (basicsInDeck > 0) {
+      score += 44;
+    }
+  }
+
+  return score;
 }
 
-export function getAiTrainerChoices(state: GameState, side: SideState, card: Extract<Card, { kind: "trainer" }>, handIndex: number): PlayChoices {
+export function getAiTrainerChoices(
+  state: GameState,
+  side: SideState,
+  card: Extract<Card, { kind: "trainer" }>,
+  handIndex: number,
+  turnGoal: AiTurnGoal = "maximize_progress",
+): PlayChoices {
   const choices: PlayChoices = {};
   if (card.effect.attachEnergyFromZoneToBench) {
     const target = getAiBenchEnergyAttachTarget(side);
@@ -143,7 +179,7 @@ export function getAiTrainerChoices(state: GameState, side: SideState, card: Ext
     if (discardIndex !== undefined) choices.discardHandIndex = discardIndex;
   }
   if (card.effect.searchUmamusume) {
-    const deckCardIndex = chooseAiSearchDeckIndex(state, side);
+    const deckCardIndex = chooseAiSearchDeckIndex(state, side, false, turnGoal === "stabilize_board");
     if (deckCardIndex !== undefined) choices.deckCardIndex = deckCardIndex;
   }
   if (card.effect.searchEvolutionUmamusume) {
@@ -226,7 +262,12 @@ function chooseAiDiscardHandIndex(state: GameState, side: SideState, excludingHa
   return sorted[0]?.handIndex;
 }
 
-function chooseAiSearchDeckIndex(state: GameState, side: SideState, evolutionOnly = false): number | undefined {
+function chooseAiSearchDeckIndex(
+  state: GameState,
+  side: SideState,
+  evolutionOnly = false,
+  preferBasics = false,
+): number | undefined {
   const options = side.deck
     .map((cardId, deckCardIndex) => ({ cardId, deckCardIndex }))
     .filter(({ cardId }) => {
@@ -234,6 +275,16 @@ function chooseAiSearchDeckIndex(state: GameState, side: SideState, evolutionOnl
       return card.kind === "umamusume" && (!evolutionOnly || card.stage > 0);
     });
   if (options.length === 0) return undefined;
+  if (preferBasics) {
+    const basicOptions = options.filter(({ cardId }) => {
+      const card = getCard(cardId);
+      return card.kind === "umamusume" && card.stage === 0;
+    });
+    if (basicOptions.length > 0) {
+      const bestBasic = [...basicOptions].sort((left, right) => scoreCardFutureValue(state, side, right.cardId) - scoreCardFutureValue(state, side, left.cardId))[0];
+      return bestBasic?.deckCardIndex;
+    }
+  }
   const sorted = [...options].sort((left, right) => scoreCardFutureValue(state, side, right.cardId) - scoreCardFutureValue(state, side, left.cardId));
   return sorted[0]?.deckCardIndex;
 }
@@ -262,39 +313,30 @@ function scoreCardFutureValue(state: GameState, side: SideState, cardId: string)
 }
 
 function getOpponentActiveEnergyCount(state: GameState, side: SideState): number {
-  const opponent = state.sides[side.id === "player" ? "opponent" : "player"];
-  if (!opponent.active) return 0;
-  return Object.values(opponent.active.energies).reduce((sum, count) => sum + count, 0);
+  const opponent = getPublicOpponentView(state, side.id);
+  return getOpponentActiveEnergyCountFromPublic(opponent);
 }
 
 function getAoiKiryuinBonusValue(state: GameState, side: SideState): number {
   if (!side.active || !canAttack(state, side)) return 0;
-  const opponent = getOpposingSide(state, side.id);
-  const target = opponent.active;
-  if (!target) return 0;
-  const ownInPlayCount = 1 + side.bench.length;
-  const allInPlayCount = ownInPlayCount + 1 + opponent.bench.length;
-  const withoutBonus = predictAttackDamage(side.active, target, side.activeAttackDamageBonus, ownInPlayCount, allInPlayCount, state.turnNumber);
-  const withBonus = predictAttackDamage(side.active, target, side.activeAttackDamageBonus + 10, ownInPlayCount, allInPlayCount, state.turnNumber);
-  const delta = Math.max(0, withBonus - withoutBonus);
-  const koSwing = withoutBonus < target.hp && withBonus >= target.hp ? 90 : 0;
-  return delta * 2 + koSwing;
+  const opponent = getPublicOpponentView(state, side.id);
+  return getAoiKiryuinBonusValueFromPublic(
+    side.active,
+    opponent,
+    side.activeAttackDamageBonus,
+    side.bench.length,
+    state.turnNumber,
+  );
 }
 
 function getYayoiAkikawaValue(state: GameState, side: SideState): number {
   if (!side.active || !canAttack(state, side)) return 0;
-  const opponent = getOpposingSide(state, side.id);
-  if (!opponent.active || opponent.bench.length === 0) return 0;
-  const ownInPlayCount = 1 + side.bench.length;
-  const allInPlayCount = ownInPlayCount + 1 + opponent.bench.length;
-  const damageNow = predictAttackDamage(side.active, opponent.active, side.activeAttackDamageBonus, ownInPlayCount, allInPlayCount, state.turnNumber);
-
-  const preferredBenchIndex = choosePreferredActiveIndex(opponent);
-  const fallbackTarget = preferredBenchIndex >= 0 ? opponent.bench[preferredBenchIndex] : opponent.bench[0];
-  if (!fallbackTarget) return 0;
-  const damageAfterGust = predictAttackDamage(side.active, fallbackTarget, side.activeAttackDamageBonus, ownInPlayCount, allInPlayCount, state.turnNumber);
-  const koNow = damageNow >= opponent.active.hp;
-  const koAfter = damageAfterGust >= fallbackTarget.hp;
-  if (!koNow && koAfter) return 120;
-  return Math.max(0, damageAfterGust - damageNow);
+  const opponent = getPublicOpponentView(state, side.id);
+  return getYayoiAkikawaValueFromPublic(
+    side.active,
+    opponent,
+    side.activeAttackDamageBonus,
+    side.bench.length,
+    state.turnNumber,
+  );
 }

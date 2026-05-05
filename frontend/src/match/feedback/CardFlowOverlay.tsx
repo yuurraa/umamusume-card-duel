@@ -53,17 +53,19 @@ export function CardFlowOverlay({
   }));
 
   useLayoutEffect(() => {
-    const drawnGroup = groupsWithIndexes.find((group) => group.key === "drawn");
-    if (!drawnGroup || drawnGroup.items.length === 0) return;
+    const convergingGroups = groupsWithIndexes.filter((group) => group.key === "drawn" || group.key === "retrieved");
+    if (convergingGroups.length === 0) return;
     let raf = window.requestAnimationFrame(() => {
       const centerX = window.innerWidth / 2;
       const next: Record<number, number> = {};
-      drawnGroup.items.forEach(({ globalIndex }) => {
-        const node = slotNodeByGlobalIndexRef.current.get(globalIndex);
-        if (!node) return;
-        const rect = node.getBoundingClientRect();
-        const cardCenterX = rect.left + rect.width / 2;
-        next[globalIndex] = Math.round(centerX - cardCenterX);
+      convergingGroups.forEach((group) => {
+        group.items.forEach(({ globalIndex }) => {
+          const node = slotNodeByGlobalIndexRef.current.get(globalIndex);
+          if (!node) return;
+          const rect = node.getBoundingClientRect();
+          const cardCenterX = rect.left + rect.width / 2;
+          next[globalIndex] = Math.round(centerX - cardCenterX);
+        });
       });
       setEndDeltaXByGlobalIndex((current) => {
         const currentKeys = Object.keys(current);
@@ -192,7 +194,7 @@ function groupHeaderStyle(durationMs: number): CSSProperties {
 
 function cardWrapStyle(durationMs: number, enterFrom: CardFlowAnchor, exitTo: CardFlowAnchor, group: CardFlowGroup): CSSProperties {
   const shouldTravel = enterFrom !== exitTo;
-  const shouldFadeOut = group === "drawn" || group === "played" || group === "discarded";
+  const shouldFadeOut = group === "drawn" || group === "retrieved" || group === "played" || group === "discarded";
   return {
     position: "relative",
     zIndex: 1,
@@ -422,7 +424,7 @@ function FlowCard({
     };
   }, [image, ready]);
 
-  const xToCenterPx = group === "drawn" ? (endDeltaXByGlobalIndex[index] ?? 0) : 0;
+  const xToCenterPx = (group === "drawn" || group === "retrieved") ? (endDeltaXByGlobalIndex[index] ?? 0) : 0;
   return (
     <div
       style={itemShellStyle(group, groupCount)}
@@ -433,7 +435,7 @@ function FlowCard({
           ...wrapStyle,
           ["--card-flow-start-x" as string]: baseStart.x,
           ["--card-flow-start-y" as string]: baseStart.y,
-          ["--card-flow-end-x" as string]: group === "drawn" ? addPxToX(baseEnd.x, xToCenterPx) : baseEnd.x,
+          ["--card-flow-end-x" as string]: (group === "drawn" || group === "retrieved") ? addPxToX(baseEnd.x, xToCenterPx) : baseEnd.x,
           ["--card-flow-end-y" as string]: baseEnd.y,
           animationDelay: ready ? `${70 + index * staggerMs}ms` : undefined,
           animation: ready ? wrapStyle.animation : undefined,

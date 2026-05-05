@@ -22,6 +22,8 @@ export function PregameSetupPanel({
   onSwitchPov,
   onInspect,
   sleeveImage,
+  handDrawRevealEnabled = true,
+  handDeferredRevealCardIds = [],
 }: {
   game: GameState;
   activeIndex: number | null;
@@ -38,6 +40,8 @@ export function PregameSetupPanel({
   onSwitchPov?: (() => void) | undefined;
   onInspect: (target: InspectTarget) => void;
   sleeveImage?: string | null;
+  handDrawRevealEnabled?: boolean;
+  handDeferredRevealCardIds?: string[];
 }) {
   const setup = game.setup;
   const needsCoinChoice = game.phase === "setup" && !setup?.coinFlipResult;
@@ -80,6 +84,8 @@ export function PregameSetupPanel({
         state={game}
         mode="setup"
         canPlayCards={canReady && canInteract}
+        drawRevealEnabled={handDrawRevealEnabled}
+        deferredRevealCardIds={handDeferredRevealCardIds}
         setupActiveIndex={activeIndex}
         setupBenchIndexes={benchIndexes}
         onSetupChooseActive={onSetActive}

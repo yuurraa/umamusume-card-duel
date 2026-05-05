@@ -15,6 +15,8 @@ const scenarios: Scenario[] = [
   { name: "hard chooses a damaged heal target on heal-any attack", run: scenarioHealTargeting },
   { name: "hard retreats when immediate KO threat exists and attack line remains", run: scenarioThreatRetreat },
   { name: "hard does not retreat when attacking now is clearly better", run: scenarioNoUnneededRetreat },
+  { name: "hard uses move-energy ability when it unlocks active pressure", run: scenarioUsefulMoveEnergyAbility },
+  { name: "hard skips move-energy ability when attacking now is better", run: scenarioSkipsUselessMoveEnergyAbility },
   { name: "Tamamo Cross Stage 1 evolves from deck after attacking", run: scenarioTamamoAttackEvolvesFromDeck },
   { name: "Fast As Lightning evolves into the selected deck card", run: scenarioPlayerTamamoAttackSelectsEvolution },
   { name: "Thunderbolt Step adds damage when evolved last turn", run: scenarioThunderboltStepDamage },
@@ -23,6 +25,12 @@ const scenarios: Scenario[] = [
   { name: "Team Spica searches an Evolution Umamusume", run: scenarioTeamSpicaSearchEvolution },
   { name: "Leftover Carrot heals active at end of turn", run: scenarioLeftoverCarrotEndTurnHeal },
   { name: "Clear Heart heals and clears Special Conditions", run: scenarioClearHeartRecovery },
+  { name: "Agnes Digital attack scales with own in-play count", run: scenarioAgnesDigitalOwnInPlayScaling },
+  { name: "Burning Passion grants damage bonus at 4 Fire Energy", run: scenarioBurningPassionThresholdBonus },
+  { name: "Mihono Bourbon reduction alters lethal target choice", run: scenarioMihonoReductionInfluencesTargeting },
+  { name: "Team Canopus attaches Energy to highest-value bench target", run: scenarioTeamCanopusBenchAttachTargeting },
+  { name: "Carrot Jelly is used when it unlocks a retreat attack line", run: scenarioCarrotJellyEnablesRetreatLine },
+  { name: "Tracen Gym disables Oguri tool bonus damage", run: scenarioTracenGymDisablesToolBonusDamage },
 ];
 
 scenarios.forEach(({ name, run }) => {
@@ -263,6 +271,103 @@ function scenarioClearHeartRecovery() {
   assert.deepEqual(healed?.specialConditions, [], "Clear Heart should clear all Special Conditions");
 }
 
+function scenarioAgnesDigitalOwnInPlayScaling() {
+  const state = makePlayerActionState();
+  const player = state.sides.player;
+  const opponent = state.sides.opponent;
+  player.active = withEnergy(createUma("agnesDigitalBasic"), { fire: 1 });
+  player.bench = [createUma("riceShowerBasic"), createUma("nishinoFlowerBasic")];
+  opponent.active = createUma("superCreekBasic");
+  opponent.active.hp = 50;
+
+  const next = playerAttack(state);
+  assert.equal(next.sides.opponent.active?.hp, 20, "Fangirling should do 30 damage with 3 own Umamusume in play");
+}
+
+function scenarioBurningPassionThresholdBonus() {
+  const state = makePlayerActionState();
+  const player = state.sides.player;
+  const opponent = state.sides.opponent;
+  player.active = withEnergy(createUma("agnesDigitalStage1"), { fire: 4 });
+  opponent.active = createUma("superCreekStage1");
+  opponent.active.hp = 120;
+
+  const next = playerAttack(state);
+  assert.equal(next.sides.opponent.active?.hp, 40, "Uma Stan should do 80 damage when Burning Passion is active");
+}
+
+function scenarioMihonoReductionInfluencesTargeting() {
+  const state = makeCombatState();
+  const opponent = state.sides.opponent;
+  const player = state.sides.player;
+  opponent.active = withEnergy(createUma("manhattanCafeBasic"), { darkness: 1 });
+  player.active = createUma("riceShowerBasic");
+  player.active.hp = 20;
+  const protectedBench = createUma("mihonoBourbonBasic");
+  protectedBench.hp = 20;
+  player.bench = [protectedBench];
+
+  const next = advanceOpponentTurnStep(state);
+  assert.equal(next.sides.opponent.points, 1, "AI should take guaranteed lethal on active instead of reduced-damage bench target");
+  const postProtected = next.sides.player.bench.find((umamusume) => umamusume.uid === protectedBench.uid);
+  assert.equal(postProtected?.hp, 20, "bench Mihono should remain untouched when AI prefers active lethal");
+}
+
+function scenarioTeamCanopusBenchAttachTargeting() {
+  const state = makeCombatState();
+  const opponent = state.sides.opponent;
+  const player = state.sides.player;
+  state.opponentTurnStep = "trainerAfter";
+  opponent.hand = ["teamCanopus"];
+  opponent.active = createUma("riceShowerBasic");
+  const weakBench = createUma("tamamoCrossBasic");
+  const strongBench = createUma("riceShowerStage2");
+  opponent.bench = [weakBench, strongBench];
+  player.active = createUma("riceShowerBasic");
+
+  const next = advanceOpponentTurnStep(state);
+  const weakAfter = next.sides.opponent.bench.find((umamusume) => umamusume.uid === weakBench.uid);
+  const strongAfter = next.sides.opponent.bench.find((umamusume) => umamusume.uid === strongBench.uid);
+  const weakEnergy = weakAfter ? totalAttachedEnergy(weakAfter) : 0;
+  const strongEnergy = strongAfter ? totalAttachedEnergy(strongAfter) : 0;
+  assert.equal(strongEnergy, 1, "Team Canopus should attach to the higher-value bench attacker");
+  assert.equal(weakEnergy, 0, "lower-value bench attacker should not receive the Energy");
+}
+
+function scenarioCarrotJellyEnablesRetreatLine() {
+  const state = makeCombatState();
+  const opponent = state.sides.opponent;
+  const player = state.sides.player;
+  state.opponentTurnStep = "trainerAfter";
+  opponent.hand = ["carrotJelly"];
+  opponent.active = withEnergy(createUma("riceShowerStage2"), { darkness: 1 });
+  const benchAttacker = withEnergy(createUma("tamamoCrossStage2"), { lightning: 1, colorless: 1 });
+  opponent.bench = [benchAttacker];
+  player.active = createUma("superCreekBasic");
+  player.active.hp = 60;
+
+  const afterTrainer = advanceOpponentTurnStep(state);
+  assert.equal(afterTrainer.sides.opponent.hand.includes("carrotJelly"), false, "AI should play Carrot Jelly in trainer-after step");
+
+  const afterRetreat = runOpponentUntilAttackResolution(afterTrainer);
+  assert.equal(afterRetreat.sides.opponent.active?.uid, benchAttacker.uid, "AI should retreat after Carrot Jelly lowers retreat cost");
+  assert.equal(afterRetreat.sides.opponent.usedRetreatThisTurn, true, "retreat should be consumed");
+}
+
+function scenarioTracenGymDisablesToolBonusDamage() {
+  const state = makePlayerActionState();
+  const player = state.sides.player;
+  const opponent = state.sides.opponent;
+  state.stadium = { cardId: "tracenGym", owner: "player" };
+  player.active = withEnergy(createUma("oguriCapStage1"), { colorless: 1 });
+  player.active.toolCardId = "leftoverCarrot";
+  opponent.active = createUma("superCreekBasic");
+  opponent.active.hp = 70;
+
+  const next = playerAttack(state);
+  assert.equal(next.sides.opponent.active?.hp, 30, "Tracen Gym should suppress Oguri's +30 tool damage bonus");
+}
+
 function makeCombatState(): GameState {
   resetUmamusumeIdCounter();
   const state = createGame(playerDeckList, opponentDeckList, "Opponent");
@@ -319,4 +424,18 @@ function withEnergy(umamusume: UmamusumeInstance, energies: Partial<Record<Energ
     umamusume.energies[energyType as EnergyType] = amount;
   });
   return umamusume;
+}
+
+function totalAttachedEnergy(umamusume: UmamusumeInstance): number {
+  return Object.values(umamusume.energies).reduce((sum, value) => sum + value, 0);
+}
+
+function runOpponentUntilAttackResolution(state: GameState, maxSteps = 8): GameState {
+  let next = state;
+  for (let step = 0; step < maxSteps; step += 1) {
+    const updated = advanceOpponentTurnStep(next);
+    if (updated.currentSide !== "opponent" || updated.opponentTurnStep === null) return updated;
+    next = updated;
+  }
+  return next;
 }
