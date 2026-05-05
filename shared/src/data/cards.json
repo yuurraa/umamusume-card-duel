@@ -589,7 +589,7 @@
       "type": "Darkness",
       "stage": 1,
       "evolvesFrom": "Manhattan Cafe",
-      "hp": 80,
+      "hp": 90,
       "portrait": "/assets/cards/umamusume/manhattan-cafe/stage1.png",
       "weakness": {
         "type": "Steel",
@@ -976,7 +976,7 @@
       "type": "Colorless",
       "stage": 1,
       "evolvesFrom": "Oguri Cap",
-      "hp": 130,
+      "hp": 120,
       "portrait": "/assets/cards/umamusume/oguri-cap/stage1.png",
       "weakness": {
         "type": "Fighting",
@@ -1094,13 +1094,13 @@
       "species": "Nice Nature",
       "type": "Grass",
       "stage": 0,
-      "hp": 70,
+      "hp": 110,
       "portrait": "/assets/cards/umamusume/nice-nature/basic-ex.png",
       "weakness": {
         "type": "Fire",
         "amount": 20
       },
-      "retreat": "Colorless",
+      "retreat": "Colorless x2",
       "attacks": [
         {
           "name": "TODO",
@@ -1121,7 +1121,7 @@
       "type": "Fire",
       "stage": 1,
       "evolvesFrom": "Agnes Tachyon",
-      "hp": 80,
+      "hp": 140,
       "portrait": "/assets/cards/umamusume/agnes-tachyon/stage1-ex.png",
       "weakness": {
         "type": "Water",
@@ -1152,13 +1152,13 @@
       "type": "Colorless",
       "stage": 1,
       "evolvesFrom": "Oguri Cap",
-      "hp": 130,
+      "hp": 180,
       "portrait": "/assets/cards/umamusume/oguri-cap/stage1-ex.png",
       "weakness": {
         "type": "Fighting",
         "amount": 20
       },
-      "retreat": "Colorless x2",
+      "retreat": "Colorless x3",
       "attacks": [
         {
           "name": "TODO",
@@ -1179,7 +1179,7 @@
       "type": "Steel",
       "stage": 2,
       "evolvesFrom": "Mihono Bourbon",
-      "hp": 130,
+      "hp": 180,
       "portrait": "/assets/cards/umamusume/mihono-bourbon/stage2-ex.png",
       "weakness": {
         "type": "Fighting",
@@ -1210,7 +1210,7 @@
       "type": "Darkness",
       "stage": 2,
       "evolvesFrom": "Rice Shower",
-      "hp": 140,
+      "hp": 170,
       "portrait": "/assets/cards/umamusume/rice-shower/stage2-ex.png",
       "weakness": {
         "type": "Steel",
@@ -1237,7 +1237,7 @@
       "type": "Dragon",
       "stage": 2,
       "evolvesFrom": "Symboli Rudolf",
-      "hp": 120,
+      "hp": 160,
       "portrait": "/assets/cards/umamusume/symboli-rudolf/stage2-ex.png",
       "weakness": {
         "type": "Colorless",

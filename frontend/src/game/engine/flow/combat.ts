@@ -223,7 +223,7 @@ export function performAttack(
     state.gameOver = true;
     state.winner = attackerId;
     state.currentSide = "done";
-    log(state, `${actorName(attacker)} reached 3 points and won.`);
+    log(state, `${actorName(attacker)} reached 3 points`);
   }
   if (!state.gameOver && !preserveAttackerWin && attacker.active && attacker.active.hp <= 0) {
     if (knockOutUmamusume(state, defenderId, attackerId, attacker.active, deps.choosePreferredActiveIndex, "Boxing Gloves")) {
@@ -329,7 +329,7 @@ export function knockOutUmamusume(
     state.gameOver = true;
     state.winner = scoringSideId;
     state.currentSide = "done";
-    log(state, `${actorName(attacker)} reached 3 points and won.`);
+    log(state, `${actorName(attacker)} reached 3 points`);
     return true;
   }
 
@@ -337,7 +337,7 @@ export function knockOutUmamusume(
     state.gameOver = true;
     state.winner = scoringSideId;
     state.currentSide = "done";
-    log(state, `${actorName(defender)} had no benched Umamusume. ${actorName(attacker)} won.`);
+    log(state, `${actorName(defender)} had no benched Umamusume.`);
     return true;
   }
 

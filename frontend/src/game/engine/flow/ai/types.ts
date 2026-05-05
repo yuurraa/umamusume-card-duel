@@ -18,6 +18,7 @@ export type AiCombatDecision =
 export type AiCombatDecisionResult = {
   resolved: boolean;
   usedAttack: boolean;
+  didRetreat?: boolean;
 };
 
 export type CombatCandidate = {

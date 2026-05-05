@@ -190,11 +190,14 @@ export function useAppRuntimeEffects({
 
   useEffect(() => {
     if (game.phase !== "setup") return;
+    // In AI-vs-AI, auto-setup removes cards from hand when the side is marked ready.
+    // Preserve the chosen setup indexes so reveal animations can still play.
+    if (isAiVsAi && game.setup?.readyBySide.player) return;
     setSetupActiveIndex(null);
     setSetupBenchIndexes([]);
     setPendingSelection(null);
     setPreviewTarget(null);
-  }, [game.phase, playerHandSignature, setSetupActiveIndex, setSetupBenchIndexes, setPendingSelection, setPreviewTarget]);
+  }, [game.phase, game.setup?.readyBySide.player, isAiVsAi, playerHandSignature, setSetupActiveIndex, setSetupBenchIndexes, setPendingSelection, setPreviewTarget]);
 
   useEffect(() => {
     if (!isAiVsAi || game.phase !== "setup" || game.gameOver || isTurnFlowBlocked) return;

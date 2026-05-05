@@ -1203,6 +1203,9 @@ export function App() {
       previousPlayerZonesRef.current = current;
       return;
     }
+    // Defer visual zone-diff animations until coin-flip UI is fully resolved/closed.
+    // Keeping the previous snapshot allows the queued diff to animate immediately after unblock.
+    if (isCoinFlipBlocking) return;
     const nextFlow: CardFlowItem[] = [];
     const povSideId: SideId = isAiVsAi ? displayPerspective : "player";
     const sideIds: SideId[] = ["player", "opponent"];
@@ -1255,7 +1258,7 @@ export function App() {
     if (nextFlow.length > 0) setCardFlowQueue((queue) => [...queue, nextFlow]);
 
     previousPlayerZonesRef.current = current;
-  }, [game, isAiVsAi, displayPerspective]);
+  }, [game, isAiVsAi, displayPerspective, isCoinFlipBlocking]);
 
   const showShuffleReveal = (cardId: string) => {
     setCardFlowQueue((queue) => [
@@ -1480,6 +1483,7 @@ export function App() {
             && displayGame.currentSide === "player"
             && !isTurnFlowBlocked
           }
+          handDrawRevealEnabled={cardFlowQueue.length === 0}
           canAttach={canAttachInHeader}
           nextPlayerEnergy={nextPlayerEnergy}
           playerExtraEnergyCount={playerExtraEnergyCount}

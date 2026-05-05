@@ -139,10 +139,10 @@ export function aiResolveCombatDecision(
   deps: AiCombatDeps,
   random: () => number = Math.random,
 ): AiCombatDecisionResult {
-  if (!side.active) return { resolved: true, usedAttack: false };
+  if (!side.active) return { resolved: true, usedAttack: false, didRetreat: false };
 
   const candidates = buildCombatCandidates(state, side, deps, forcedAttackCoinResult);
-  if (candidates.length === 0) return { resolved: true, usedAttack: false };
+  if (candidates.length === 0) return { resolved: true, usedAttack: false, didRetreat: false };
   const safeExists = candidates.some((candidate) => candidate.keepsSafe);
   if (safeExists) {
     candidates.forEach((candidate) => {
@@ -151,15 +151,17 @@ export function aiResolveCombatDecision(
   }
 
   const selected = pickCandidateByDifficulty(candidates, state.aiDifficulty, random, canImmediateOpponentKo(state, side.id));
-  if (!selected || selected.decision.kind === "endTurn") return { resolved: true, usedAttack: false };
+  if (!selected || selected.decision.kind === "endTurn") return { resolved: true, usedAttack: false, didRetreat: false };
 
   if (selected.decision.retreatTargetUid !== undefined) {
     const retreated = aiRetreatToTarget(state, side, selected.decision.retreatTargetUid);
-    if (!retreated) return { resolved: true, usedAttack: false };
+    if (!retreated) return { resolved: true, usedAttack: false, didRetreat: false };
+    // Stagger retreat and attack into separate AI beats for clearer board feedback.
+    return { resolved: true, usedAttack: false, didRetreat: true };
   }
 
   if (selected.decision.usesCoinFlip && !forcedAttackCoinResult) {
-    return { resolved: false, usedAttack: false };
+    return { resolved: false, usedAttack: false, didRetreat: false };
   }
 
   performAttack(
@@ -171,7 +173,7 @@ export function aiResolveCombatDecision(
     forcedAttackCoinResult,
     undefined,
   );
-  return { resolved: true, usedAttack: true };
+  return { resolved: true, usedAttack: true, didRetreat: false };
 }
 
 export function aiUseOneAbility(

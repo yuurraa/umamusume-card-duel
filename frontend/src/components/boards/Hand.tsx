@@ -1,4 +1,4 @@
-import { type CSSProperties, type DragEvent, type PointerEvent, useId, useRef, useState } from "react";
+import { type CSSProperties, type DragEvent, type PointerEvent, useEffect, useId, useRef, useState } from "react";
 import { getCard, getPlayableAction } from "../../game/engine";
 import type { Card, GameState, SideState } from "../../../../shared/src/types";
 import type { InspectTarget } from "../../inspect";
@@ -19,6 +19,7 @@ type HandProps = {
   sleeveImage?: string | null | undefined;
   side?: SideState | undefined;
   canPlayCards?: boolean | undefined;
+  drawRevealEnabled?: boolean | undefined;
 };
 
 export function Hand({
@@ -33,18 +34,61 @@ export function Hand({
   sleeveImage = null,
   side,
   canPlayCards,
+  drawRevealEnabled = true,
 }: HandProps) {
   const player = side ?? state.sides.player;
   const handScrollerClassName = `hand-scroller-${useId().replace(/:/g, "")}`;
   const handScrollRef = useRef<HTMLDivElement | null>(null);
   const handPanRef = useRef<{ active: boolean; pointerId: number; startX: number; startScrollLeft: number } | null>(null);
   const [isHandPanning, setIsHandPanning] = useState(false);
+  const [drawRevealOrderByIndex, setDrawRevealOrderByIndex] = useState<Record<number, number>>({});
+  const previousHandRef = useRef<string[]>([...player.hand]);
+  const drawRevealClearTimeoutRef = useRef<number | null>(null);
   const isSetup = mode === "setup";
   const isSetupReady = isSetup && Boolean(state.setup?.readyBySide.player);
   const playerTurn = canPlayCards ?? (isSetup || (!state.gameOver && state.currentSide === "player"));
   const hiddenSetupIndexes = isSetup && !isSetupReady ? new Set([setupActiveIndex, ...setupBenchIndexes].filter((index): index is number => index !== null)) : null;
   const topDiscardCardId = player.discard[player.discard.length - 1] ?? null;
   const topDiscardCard = topDiscardCardId ? getCard(topDiscardCardId) : null;
+
+  useEffect(() => () => {
+    if (drawRevealClearTimeoutRef.current !== null) window.clearTimeout(drawRevealClearTimeoutRef.current);
+  }, []);
+
+  useEffect(() => {
+    const previousHand = previousHandRef.current;
+    const currentHand = player.hand;
+    if (state.gameOver) {
+      previousHandRef.current = [...currentHand];
+      setDrawRevealOrderByIndex((current) => (Object.keys(current).length > 0 ? {} : current));
+      return;
+    }
+    if (!drawRevealEnabled) return;
+
+    const previousCounts = new Map<string, number>();
+    previousHand.forEach((cardId) => previousCounts.set(cardId, (previousCounts.get(cardId) ?? 0) + 1));
+    const addedIndexes: number[] = [];
+    currentHand.forEach((cardId, index) => {
+      const remaining = previousCounts.get(cardId) ?? 0;
+      if (remaining > 0) {
+        previousCounts.set(cardId, remaining - 1);
+        return;
+      }
+      addedIndexes.push(index);
+    });
+
+    if (addedIndexes.length > 0) {
+      const revealOrderByIndex = Object.fromEntries(addedIndexes.map((index, order) => [index, order])) as Record<number, number>;
+      setDrawRevealOrderByIndex(revealOrderByIndex);
+      if (drawRevealClearTimeoutRef.current !== null) window.clearTimeout(drawRevealClearTimeoutRef.current);
+      drawRevealClearTimeoutRef.current = window.setTimeout(() => {
+        setDrawRevealOrderByIndex({});
+        drawRevealClearTimeoutRef.current = null;
+      }, 680);
+    }
+
+    previousHandRef.current = [...currentHand];
+  }, [player.hand, state.gameOver, drawRevealEnabled]);
 
   const stopHandPan = () => {
     handPanRef.current = null;
@@ -126,6 +170,7 @@ export function Hand({
               isSetup={isSetup}
               isSelectable={isSelectable}
               isDimmed={isChoosingHandCard && !isSelectable}
+              {...(drawRevealOrderByIndex[index] !== undefined ? { revealOrder: drawRevealOrderByIndex[index] } : {})}
               onPrimaryAction={() => {
                 if (isSelectable) {
                   onChooseHandCard?.(index);
@@ -160,6 +205,7 @@ function HandCard({
   onPrimaryAction,
   isSelectable,
   isDimmed,
+  revealOrder,
 }: {
   card: Card;
   handIndex: number;
@@ -169,6 +215,7 @@ function HandCard({
   isSetup: boolean;
   isSelectable: boolean;
   isDimmed: boolean;
+  revealOrder?: number;
   onPrimaryAction: () => void;
 }) {
   const [hovered, setHovered] = useState(false);
@@ -190,6 +237,7 @@ function HandCard({
         height: 258,
         flex: "0 0 auto",
         opacity: 1,
+        animation: revealOrder !== undefined ? `setup-reveal-slide-up 280ms ${transitions.spring} ${revealOrder * 70}ms both` : undefined,
         filter: isDimmed
           ? "grayscale(0.92) brightness(0.86)"
           : canDrag || isSelectable

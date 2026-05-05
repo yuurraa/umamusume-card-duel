@@ -339,6 +339,7 @@ function advanceAiTurnStep(
       if (aiUseOneAbility(next, actingSide, { refreshContinuousEffects, choosePreferredActiveIndex }, random)) return next;
       const combat = aiResolveCombatDecision(next, actingSide, forcedAttackCoinResult, { refreshContinuousEffects, choosePreferredActiveIndex }, random);
       if (!combat.resolved) return next;
+      if (combat.didRetreat) return next;
       if (combat.usedAttack) {
         if (next.pendingPlayerChoice) {
           next.opponentTurnStep = "finish";

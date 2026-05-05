@@ -48,6 +48,7 @@ type MatchBoardLayoutProps = {
   onSwitchPov?: (() => void) | undefined;
   selectedSleeveImage: string | null;
   canPlayHandCards: boolean;
+  handDrawRevealEnabled?: boolean;
   canAttach: boolean;
   nextPlayerEnergy: EnergyType | null;
   playerExtraEnergyCount: number;
@@ -101,6 +102,7 @@ export function MatchBoardLayout(props: MatchBoardLayoutProps) {
     onSwitchPov,
     selectedSleeveImage,
     canPlayHandCards,
+    handDrawRevealEnabled = true,
     canAttach,
     nextPlayerEnergy,
     playerExtraEnergyCount,
@@ -146,7 +148,7 @@ export function MatchBoardLayout(props: MatchBoardLayoutProps) {
               onEnergyDropOnUmamusume={onEnergyDropOnUmamusume}
               onAbilityEnergyDropOnActive={onAbilityEnergyDropOnActive}
               setupDragHandIndexByUid={setupDragHandIndexByUid}
-              animateSetupReveal={(!game.gameOver && game.phase === "setup" && setupActiveIndex !== null) || povSwitchAnimationToken > 0}
+              animateSetupReveal={(!game.gameOver && game.phase === "setup" && displayedPlayerSide.active !== null) || povSwitchAnimationToken > 0}
               setupRevealToken={povSwitchAnimationToken > 0 ? povSwitchAnimationToken : playerSetupRevealToken}
             />
           </div>
@@ -216,6 +218,7 @@ export function MatchBoardLayout(props: MatchBoardLayoutProps) {
               state={game}
               onInspect={onInspect}
               canPlayCards={canPlayHandCards}
+              drawRevealEnabled={handDrawRevealEnabled}
               selectableHandIndexes={selectableHandIndexes}
               onChooseHandCard={onChooseHandCard}
               onOpenDiscard={onOpenDiscard}
