@@ -48,8 +48,9 @@ export function UmaCard({
         isolation: "isolate",
         padding: 0,
         border: 0,
-        borderRadius: radius.md,
+        borderRadius: CARD_INSPECT_IMAGE_RADIUS,
         background: "transparent",
+        overflow: "visible",
         cursor: "pointer",
         opacity: isDimmed ? 0.45 : 1,
         boxShadow: hidden ? `0 18px 28px ${shadowColor}` : activeHover ? `0 34px 52px ${shadowColor}` : `0 28px 42px ${shadowColor}`,
@@ -75,8 +76,10 @@ export function UmaCard({
         <FaceDownCard sleeveImage={sleeveImage} fontSize={18} />
       ) : (
         <>
-          <HoloCardImage card={card} src={card.portrait} alt={card.name} imageStyle={umaCardImageStyle} radiusOverride={CARD_INSPECT_IMAGE_RADIUS} />
-          <div style={cardHpCornerBlurStyle} aria-hidden="true" />
+          <div style={cardClippedFrameStyle(CARD_INSPECT_IMAGE_RADIUS)} aria-hidden="true">
+            <HoloCardImage card={card} src={card.portrait} alt={card.name} imageStyle={umaCardImageStyle} radiusOverride={CARD_INSPECT_IMAGE_RADIUS} />
+            <div style={cardHpCornerBlurStyle} aria-hidden="true" />
+          </div>
           <CardHpOverlay hp={umamusume.hp} maxHp={umamusume.maxHp} size="lg" />
           {abilityReady && <AbilityReadyBadge corner="topLeft" />}
           <AttachedToolBadge toolCardId={umamusume.toolCardId} onInspect={onToolInspect} />
@@ -331,7 +334,7 @@ const cardHpCornerBlurStyle: CSSProperties = {
   height: "15%",
   zIndex: 2,
   pointerEvents: "none",
-  borderRadius: `0 ${radius.md}px 22px 30px`,
+  borderRadius: `0 ${radius.xl + 8}px 32px 40px`,
   background: "linear-gradient(135deg, rgba(248, 250, 252, 0.9) 0%, rgba(248, 250, 252, 0.8) 48%, rgba(248, 250, 252, 0.5) 72%, rgba(248, 250, 252, 0) 100%)",
   backdropFilter: "blur(72px) saturate(0.78) brightness(1.16)",
   WebkitBackdropFilter: "blur(72px) saturate(0.78) brightness(1.16)",
@@ -340,3 +343,13 @@ const cardHpCornerBlurStyle: CSSProperties = {
   WebkitMaskComposite: "source-in",
   maskComposite: "intersect",
 };
+
+function cardClippedFrameStyle(borderRadius: number): CSSProperties {
+  return {
+    position: "absolute",
+    inset: 0,
+    overflow: "hidden",
+    borderRadius,
+    zIndex: 0,
+  };
+}

@@ -12,11 +12,16 @@ export const menuKickerStyle: CSSProperties = {
 };
 
 export const deckBrowserShellStyle: CSSProperties = {
-  maxWidth: 1180,
+  maxWidth: 1440,
   margin: "0 auto",
   display: "grid",
   gap: 22,
-  padding: "24px 0 40px",
+  // Keep header/filters fixed; only the deck tray scrolls.
+  gridTemplateRows: "auto auto minmax(0, 1fr)",
+  height: "calc(100dvh - 32px)",
+  boxSizing: "border-box",
+  padding: "24px 0 16px",
+  overflow: "hidden",
 };
 
 export const deckBrowserHeaderStyle: CSSProperties = {
@@ -59,9 +64,21 @@ export const deckBrowserFilterPanelStyle: CSSProperties = {
   padding: 14,
 };
 
+export const deckBrowserDeckTrayStyle: CSSProperties = {
+  ...glassPanelStyle,
+  position: "relative",
+  zIndex: 0,
+  backdropFilter: "none",
+  minHeight: 0,
+  overflowX: "hidden",
+  overflowY: "auto",
+  padding: 12,
+  boxSizing: "border-box",
+};
+
 export const deckBrowserGridStyle: CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(3, minmax(320px, 1fr))",
+  gridTemplateColumns: "repeat(4, minmax(320px, 1fr))",
   gap: 22,
   justifyContent: "center",
   alignItems: "start",
@@ -245,17 +262,17 @@ export const deckCoverAuroraSleeveMarkStyle: CSSProperties = {
 export const deckSelectedBadgeStyle: CSSProperties = {
   position: "absolute",
   top: 12,
-  right: 12,
+  right: 8,
   zIndex: 1,
-  width: 34,
-  height: 34,
+  width: 24,
+  height: 24,
   display: "grid",
   placeItems: "center",
   borderRadius: "50%",
   border: "1px solid rgba(0, 0, 0, 0.18)",
   background: colors.black,
   color: colors.white,
-  fontSize: 18,
+  fontSize: 15,
   fontWeight: 950,
   boxShadow: "0 10px 20px rgba(17, 24, 39, 0.18)",
 };
@@ -264,10 +281,10 @@ export function deckFavoriteBadgeStyle(active: boolean): CSSProperties {
   return {
     position: "absolute",
     top: 12,
-    left: 12,
+    left: 8,
     zIndex: 2,
-    width: 34,
-    height: 34,
+    width: 24,
+    height: 24,
     display: "grid",
     placeItems: "center",
     borderRadius: radius.circle,
@@ -275,7 +292,7 @@ export function deckFavoriteBadgeStyle(active: boolean): CSSProperties {
     background: active ? colors.black : "rgba(245, 248, 245, 0.86)",
     color: active ? "#facc15" : "rgba(0, 0, 0, 0.58)",
     textShadow: "none",
-    fontSize: 18,
+    fontSize: 15,
     fontWeight: 950,
     boxShadow: active ? "0 10px 20px rgba(17, 24, 39, 0.22)" : "0 8px 18px rgba(17, 24, 39, 0.1)",
     cursor: "pointer",
@@ -604,7 +621,8 @@ export const localDeckPersistenceNoticeStyle: CSSProperties = {
 export const deckSelectorModalStyle: CSSProperties = {
   ...deckModalStyle,
   position: "relative",
-  width: "min(1320px, calc(100vw - 48px))",
+  // Match Card Browser width so 10 columns don't shrink tiles.
+  width: "min(1760px, calc(100vw - 48px))",
   maxHeight: "calc(100dvh - 48px)",
   gridTemplateRows: "auto auto minmax(0, 1fr)",
 };
@@ -842,7 +860,8 @@ export function energyFilterButtonStyle(active: boolean): CSSProperties {
 
 export const cardGridStyle: CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fill, minmax(146px, 1fr))",
+  // Keep card sizes consistent while showing 10 columns.
+  gridTemplateColumns: "repeat(10, minmax(146px, 1fr))",
   gap: 8,
   alignItems: "start",
 };

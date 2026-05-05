@@ -5,7 +5,7 @@ import { getCard } from "../../game/engine";
 import { AbilityReadyBadge } from "../../components/cards/AbilityReadyBadge";
 import { HoloCardImage } from "../../components/cards/HoloCardImage";
 import { hasTextDragPayload, readDragPayload } from "../../components/drag/dragData";
-import { colors, radius, transitions, uiTextColor, uiTextShadow } from "../../styles/shared";
+import { CARD_ASPECT_RATIO, colors, radius, transitions, uiTextColor, uiTextShadow } from "../../styles/shared";
 
 export function StadiumSpot({ state, abilityReady = false, onDropHandCard, onInspect }: {
   state: GameState;
@@ -16,17 +16,19 @@ export function StadiumSpot({ state, abilityReady = false, onDropHandCard, onIns
   const [hovered, setHovered] = useState(false);
   const [opponentStadiumRevealToken, setOpponentStadiumRevealToken] = useState(0);
   const previousStadiumCardIdRef = useRef<string | null>(state.stadium?.cardId ?? null);
+  const animationsEnabled = !state.gameOver;
   const stadium = state.stadium ? getCard(state.stadium.cardId) : null;
   const stadiumImage = stadium?.kind === "trainer" ? stadium.image : null;
   const stadiumName = stadium?.kind === "trainer" ? stadium.name : "Stadium Spot";
 
   useEffect(() => {
+    if (!animationsEnabled) return;
     const previousCardId = previousStadiumCardIdRef.current;
     const currentCardId = state.stadium?.cardId ?? null;
     const newlyPlayedStadium = previousCardId !== currentCardId && currentCardId !== null;
     if (newlyPlayedStadium) setOpponentStadiumRevealToken((current) => current + 1);
     previousStadiumCardIdRef.current = currentCardId;
-  }, [state.stadium]);
+  }, [animationsEnabled, state.stadium]);
 
   const handleDrop = (event: DragEvent<HTMLButtonElement>) => {
     event.preventDefault();
@@ -71,7 +73,7 @@ export function StadiumSpot({ state, abilityReady = false, onDropHandCard, onIns
               card={stadium}
               src={stadiumImage}
               alt={stadiumName}
-              imageStyle={stadiumImageStyle(hovered, Boolean(opponentStadiumRevealToken > 0))}
+              imageStyle={stadiumImageStyle(hovered, animationsEnabled && Boolean(opponentStadiumRevealToken > 0))}
               draggable={false}
             />
             {abilityReady && <AbilityReadyBadge corner="topLeft" size="xs" nudgeX={0} />}
@@ -83,14 +85,15 @@ export function StadiumSpot({ state, abilityReady = false, onDropHandCard, onIns
 }
 
 function StadiumSpotStyle(hovered: boolean, hasCard: boolean, abilityReady: boolean): CSSProperties {
+  const width = "clamp(118px, 7.708vw, 148px)";
   return {
     position: "absolute",
     left: "50%",
     top: "calc(52% - clamp(150px, 9.792vw, 188px))",
     transform: "translate(-50%, -50%)",
     zIndex: 4,
-    width: "clamp(118px, 7.708vw, 148px)",
-    height: "clamp(166px, 10.833vw, 208px)",
+    width,
+    aspectRatio: CARD_ASPECT_RATIO,
     display: "grid",
     placeItems: "center",
     overflow: "visible",
@@ -99,7 +102,7 @@ function StadiumSpotStyle(hovered: boolean, hasCard: boolean, abilityReady: bool
     background: hasCard ? colors.glass : colors.glassSoft,
     color: uiTextColor,
     textShadow: uiTextShadow,
-    padding: "clamp(6px, 0.417vw, 8px)",
+    padding: hasCard ? 0 : "clamp(6px, 0.417vw, 8px)",
     fontSize: "clamp(10px, 0.625vw, 12px)",
     fontWeight: 950,
     cursor: hasCard ? "pointer" : "default",

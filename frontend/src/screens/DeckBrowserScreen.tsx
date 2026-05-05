@@ -37,6 +37,7 @@ import {
 import {
   clearFiltersButtonStyle,
   deckBrowserBackButtonStyle,
+  deckBrowserDeckTrayStyle,
   deckBrowserFilterPanelStyle,
   deckBrowserGridStyle,
   deckBrowserHeaderStyle,
@@ -581,55 +582,57 @@ Created decks are saved to cloud storage for this test profile. Export still giv
           </div>
         </div>
       </section>
-      <div style={deckBrowserGridStyle}>
-        {visibleDecks.map((deck) => {
-          const equipped = deck.source !== "draft" && deck.id === equippedDeckId;
-          const hasDraft = deck.source === "draft" || Boolean(editDraftByDeckId[getEditDraftKeyForDeck(deck)]);
-          const favorite = favoriteDeckKeys.has(toDeckFavoriteKey(deck));
-          return (
-            <DeckBrowserTile
-              key={`${deck.source}-${deck.id}`}
-              deck={deck}
-              equipped={equipped}
-              isDraft={hasDraft}
-              favorite={favorite}
-              label={deck.source === "premade" ? "Premade Deck" : deck.source === "premadeEdited" ? "Premade Deck (Edited)" : hasDraft ? "Draft Deck" : "Created Deck"}
-              onOpen={() => setOpenedDeckRef({ id: deck.id, source: deck.source })}
-              onToggleFavorite={() => {
-                const key = toDeckFavoriteKey(deck);
-                setFavoriteDeckKeys((current) => toggleSetValue(current, key));
-              }}
+      <div style={deckBrowserDeckTrayStyle}>
+        <div style={deckBrowserGridStyle}>
+          {visibleDecks.map((deck) => {
+            const equipped = deck.source !== "draft" && deck.id === equippedDeckId;
+            const hasDraft = deck.source === "draft" || Boolean(editDraftByDeckId[getEditDraftKeyForDeck(deck)]);
+            const favorite = favoriteDeckKeys.has(toDeckFavoriteKey(deck));
+            return (
+              <DeckBrowserTile
+                key={`${deck.source}-${deck.id}`}
+                deck={deck}
+                equipped={equipped}
+                isDraft={hasDraft}
+                favorite={favorite}
+                label={deck.source === "premade" ? "Premade Deck" : deck.source === "premadeEdited" ? "Premade Deck (Edited)" : hasDraft ? "Draft Deck" : "Created Deck"}
+                onOpen={() => setOpenedDeckRef({ id: deck.id, source: deck.source })}
+                onToggleFavorite={() => {
+                  const key = toDeckFavoriteKey(deck);
+                  setFavoriteDeckKeys((current) => toggleSetValue(current, key));
+                }}
+              />
+            );
+          })}
+          {customDecksEnabled && (
+            <DeckBrowserCreateTile
+              onOpen={() => {
+                const blankCardIds = Array.from({ length: DECK_CARD_COUNT }, () => null as string | null);
+                setCreateName("New Deck");
+                setCreateCardIds(blankCardIds);
+                setCreateError(null);
+                setPickerSlotIndex(null);
+                setEditingDeckId(null);
+                setEditingCreateDraftId(null);
+                setPendingValidatedDeck(null);
+                setPendingEnergySelectionDeck(null);
+                setEnergySelectionError(null);
+                setSelectedCoverCardId(null);
+                setSelectedEnergyTypes(["psychic"]);
+                setShowImportOverwriteConfirm(false);
+                setShowClearAllConfirm(false);
+                setShowUnsavedChangesConfirm(null);
+                setEditorBaseline({
+                  name: "New Deck",
+                  cardIds: blankCardIds,
+                  selectedCoverCardId: null,
+                  energyTypes: ["psychic"],
+                });
+                setIsCreateOpen(true);
+            }}
             />
-          );
-        })}
-        {customDecksEnabled && (
-          <DeckBrowserCreateTile
-            onOpen={() => {
-              const blankCardIds = Array.from({ length: DECK_CARD_COUNT }, () => null as string | null);
-              setCreateName("New Deck");
-              setCreateCardIds(blankCardIds);
-              setCreateError(null);
-              setPickerSlotIndex(null);
-              setEditingDeckId(null);
-              setEditingCreateDraftId(null);
-              setPendingValidatedDeck(null);
-              setPendingEnergySelectionDeck(null);
-              setEnergySelectionError(null);
-              setSelectedCoverCardId(null);
-              setSelectedEnergyTypes(["psychic"]);
-              setShowImportOverwriteConfirm(false);
-              setShowClearAllConfirm(false);
-              setShowUnsavedChangesConfirm(null);
-              setEditorBaseline({
-                name: "New Deck",
-                cardIds: blankCardIds,
-                selectedCoverCardId: null,
-                energyTypes: ["psychic"],
-              });
-              setIsCreateOpen(true);
-          }}
-          />
-        )}
+          )}
+        </div>
       </div>
       {openedDeck && (
         <DeckListModal

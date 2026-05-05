@@ -254,7 +254,6 @@ body {
   clip-path: var(--clip-trainer);
 }
 
-/* Ported from pokemon-cards-css regular-holo.css */
 .pokemon-card-foil[data-rarity="rare holo"]:not([data-trainer-gallery="true"]) .pokemon-card-foil__shine {
   --scanlines-space: 1px;
   --scanlines-light: #666;
@@ -404,7 +403,6 @@ body {
   opacity: calc(1 - var(--pointer-from-top) * 0.75);
 }
 
-/* Ported from pokemon-cards-css trainer-gallery-holo.css */
 .pokemon-card-foil[data-trainer-gallery="true"] .pokemon-card-foil__shine {
   --space: 5%;
   --angle: -22deg;
@@ -445,7 +443,6 @@ body {
   display: none;
 }
 
-/* Ported from pokemon-cards-css v-full-art.css for Trainer Gallery V. */
 .pokemon-card-foil[data-rarity="rare holo v"][data-trainer-gallery="true"] .pokemon-card-foil__shine,
 .pokemon-card-foil[data-rarity="rare holo v"][data-trainer-gallery="true"] .pokemon-card-foil__shine::after {
   --space: 5%;
@@ -503,7 +500,6 @@ body {
   opacity: calc(var(--card-opacity) * 0.4);
 }
 
-/* Ported from pokemon-cards-css v-full-art.css and trainer-full-art.css */
 .pokemon-card-foil[data-rarity="rare ultra"][data-subtypes*="supporter"] .pokemon-card-foil__shine,
 .pokemon-card-foil[data-rarity="rare ultra"][data-subtypes*="supporter"] .pokemon-card-foil__shine::after {
   --space: 5%;
@@ -536,10 +532,6 @@ body {
   filter: brightness(calc((var(--pointer-from-center) * 0.4) + 0.85)) contrast(2) saturate(0.5);
 }
 
-/*
-  SECRET RARE (GOLD)
-  Ported from pokemon-cards-css secret-rare.css for data-rarity="rare secret".
-*/
 .pokemon-card-foil[data-rarity="rare secret"] .pokemon-card-foil__shine {
   --shift: 1px;
   --imgsize: cover;

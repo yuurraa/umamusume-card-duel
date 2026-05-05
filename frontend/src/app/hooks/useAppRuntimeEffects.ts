@@ -4,6 +4,7 @@ import {
   advancePlayerAiTurnStep,
   canAttachEnergy,
   canAttack,
+  autoCompleteOpponentSetup,
   chooseOpeningCoin,
   completePregameSetup,
   getAllUmamusume,
@@ -67,6 +68,8 @@ type UseAppRuntimeEffectsArgs = {
   setActiveCoinFlip: SetState<CoinFlipEvent | null>;
   setCoinFlipQueue: SetState<CoinFlipEvent[]>;
 };
+
+const AI_SETUP_DELAY_MS = 700;
 
 export function useAppRuntimeEffects({
   game,
@@ -195,18 +198,29 @@ export function useAppRuntimeEffects({
 
   useEffect(() => {
     if (!isAiVsAi || game.phase !== "setup" || game.gameOver || isTurnFlowBlocked) return;
+    if (!game.setup?.openingHandsDealt || game.setup.readyBySide.player) return;
     const setup = chooseAiSetupSelection(game);
     if (!setup) return;
-    setSetupActiveIndex(setup.activeIndex);
-    setSetupBenchIndexes(setup.benchIndexes);
     const timeoutId = window.setTimeout(() => {
+      setSetupActiveIndex(setup.activeIndex);
+      setSetupBenchIndexes(setup.benchIndexes);
       setGame((current) => {
         if (current.phase !== "setup" || current.gameOver) return current;
         return completePregameSetup(current, setup.activeIndex, setup.benchIndexes);
       });
-    }, 1500);
+    }, AI_SETUP_DELAY_MS);
     return () => window.clearTimeout(timeoutId);
   }, [game, isAiVsAi, isTurnFlowBlocked, setGame, setSetupActiveIndex, setSetupBenchIndexes]);
+
+  useEffect(() => {
+    if (isNetworkMatch || game.phase !== "setup" || game.gameOver || isTurnFlowBlocked) return;
+    if (game.humanBySide.opponent) return;
+    if (!game.setup?.openingHandsDealt || game.setup.readyBySide.opponent) return;
+    const timeoutId = window.setTimeout(() => {
+      setGame((current) => autoCompleteOpponentSetup(current));
+    }, AI_SETUP_DELAY_MS);
+    return () => window.clearTimeout(timeoutId);
+  }, [game, isNetworkMatch, isTurnFlowBlocked, setGame]);
 
   useEffect(() => {
     if (!isAiVsAi || game.phase !== "setup" || game.gameOver || isTurnFlowBlocked || isCoinFlipBlocking) return;

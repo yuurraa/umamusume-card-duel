@@ -7,6 +7,7 @@ import { getDeckEnergyTypes, pickRandomOpponentDeck } from "../../utils/deck";
 import { getRandomCustomisationSettings, type CustomisationSettings } from "../../utils/customisation";
 import type { PendingCoinAttack } from "./useMatchActions";
 import type { PlayerIntent } from "../../pvp/playerIntent";
+import type { CardFlowItem } from "../../match/feedback/CardFlowOverlay";
 
 export type UseAppNavigationArgs = {
   screen: AppScreen;
@@ -26,6 +27,7 @@ export type UseAppNavigationArgs = {
   setActiveCoinFlip: Dispatch<SetStateAction<{ id: number; result: "heads" | "tails"; message: string } | null>>;
   setAcknowledgedCoinLogMessage: Dispatch<SetStateAction<string | null>>;
   setPendingCoinAttack: Dispatch<SetStateAction<PendingCoinAttack | null>>;
+  setCardFlowQueue: Dispatch<SetStateAction<CardFlowItem[][]>>;
   setSetupActiveIndex: Dispatch<SetStateAction<number | null>>;
   setSetupBenchIndexes: Dispatch<SetStateAction<number[]>>;
   setPendingSelection: Dispatch<SetStateAction<PendingSelection | null>>;
@@ -38,6 +40,8 @@ export type UseAppNavigationArgs = {
   setAiPerspective: Dispatch<SetStateAction<SideId>>;
   setPovSwitchAnimationToken: Dispatch<SetStateAction<number>>;
   setEndTurnWarningActions: Dispatch<SetStateAction<string[] | null>>;
+  openingHandAnimationKeyRef: MutableRefObject<string | null>;
+  shouldDealOpeningHandsAfterFlowRef: MutableRefObject<boolean>;
   submitPlayerIntent: (intent: PlayerIntent) => void;
 };
 
@@ -59,6 +63,7 @@ export function useAppNavigation({
   setActiveCoinFlip,
   setAcknowledgedCoinLogMessage,
   setPendingCoinAttack,
+  setCardFlowQueue,
   setSetupActiveIndex,
   setSetupBenchIndexes,
   setPendingSelection,
@@ -71,6 +76,8 @@ export function useAppNavigation({
   setAiPerspective,
   setPovSwitchAnimationToken,
   setEndTurnWarningActions,
+  openingHandAnimationKeyRef,
+  shouldDealOpeningHandsAfterFlowRef,
   submitPlayerIntent,
 }: UseAppNavigationArgs) {
   const startNewGame = (mode: MatchMode = matchMode) => {
@@ -82,6 +89,7 @@ export function useAppNavigation({
     setActiveCoinFlip(null);
     setAcknowledgedCoinLogMessage(null);
     setPendingCoinAttack(null);
+    setCardFlowQueue([]);
     skipNextCoinLogMessageRef.current = null;
     setSetupActiveIndex(null);
     setSetupBenchIndexes([]);
@@ -91,6 +99,8 @@ export function useAppNavigation({
     setActionNotice(null);
     setDiscardOpen(false);
     setMenuOpen(false);
+    openingHandAnimationKeyRef.current = null;
+    shouldDealOpeningHandsAfterFlowRef.current = false;
     setOpponentCustomisation(getRandomCustomisationSettings());
     const playerAiDeck = mode === "aiVsAi" ? pickRandomOpponentDeck() : null;
     const opponent = pickRandomOpponentDeck();
@@ -149,6 +159,9 @@ export function useAppNavigation({
 
   const handleSurrender = () => {
     setMenuOpen(false);
+    setCardFlowQueue([]);
+    openingHandAnimationKeyRef.current = null;
+    shouldDealOpeningHandsAfterFlowRef.current = false;
     submitPlayerIntent({ type: "surrender" });
   };
 

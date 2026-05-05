@@ -1,9 +1,9 @@
-import type { CSSProperties } from "react";
+import { type CSSProperties, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { getCard } from "../../game/engine";
 import { HoloCardImage } from "../../components/cards/HoloCardImage";
 import { CARD_ASPECT_RATIO, CARD_INSPECT_IMAGE_RADIUS, colors, radius, shadows } from "../../styles/shared";
 
-export type CardFlowAnchor = "bottomLeft" | "bottomRight" | "leftDeck" | "rightDiscard" | "rightHand" | "leftHand";
+export type CardFlowAnchor = "bottomLeft" | "bottomCenter" | "bottomRight" | "leftDeck" | "rightDiscard" | "rightHand" | "leftHand";
 export type CardFlowGroup = "drawn" | "retrieved" | "played" | "discarded";
 
 export type CardFlowItem = {
@@ -25,10 +25,17 @@ export function CardFlowOverlay({
 }) {
   if (items.length === 0) return null;
 
-  const drawnItems = items.filter((item) => resolveGroup(item) === "drawn").slice(0, 5);
-  const retrievedItems = items.filter((item) => resolveGroup(item) === "retrieved").slice(0, 5);
-  const playedItems = items.filter((item) => resolveGroup(item) === "played").slice(0, 5);
-  const discardedItems = items.filter((item) => resolveGroup(item) === "discarded").slice(0, 5);
+  const [endDeltaXByGlobalIndex, setEndDeltaXByGlobalIndex] = useState<Record<number, number>>({});
+  // Track the static (non-animated) slot position for each rendered card so we can
+  // compute a screen-space delta to center. This must NOT be the animated node,
+  // because animation-fill-mode applies the 0% transform during the delay.
+  const slotNodeByGlobalIndexRef = useRef<Map<number, HTMLDivElement>>(new Map());
+  const MEASURE_PAD_MS = 70;
+
+  const drawnItems = items.filter((item) => resolveGroup(item) === "drawn").slice(0, 10);
+  const retrievedItems = items.filter((item) => resolveGroup(item) === "retrieved").slice(0, 10);
+  const playedItems = items.filter((item) => resolveGroup(item) === "played").slice(0, 10);
+  const discardedItems = items.filter((item) => resolveGroup(item) === "discarded").slice(0, 10);
   const groups = [
     { key: "drawn", title: titleForCount(drawnItems.length, "Card Drawn", "Cards Drawn"), items: drawnItems },
     { key: "retrieved", title: titleForCount(retrievedItems.length, "Card Retrieved", "Cards Retrieved"), items: retrievedItems },
@@ -36,27 +43,64 @@ export function CardFlowOverlay({
     { key: "discarded", title: titleForCount(discardedItems.length, "Card Discarded", "Cards Discarded"), items: discardedItems },
   ].filter((group) => group.items.length > 0);
   const totalRendered = groups.reduce((count, group) => count + group.items.length, 0);
+  const staggerMs = 90;
+  const totalDurationMs = MEASURE_PAD_MS + durationMs + Math.max(0, totalRendered - 1) * staggerMs;
   let renderedIndex = 0;
   const groupsWithIndexes = groups.map((group) => ({
     ...group,
     items: group.items.map((item) => ({ item, globalIndex: renderedIndex++ })),
   }));
 
+  useLayoutEffect(() => {
+    const drawnGroup = groupsWithIndexes.find((group) => group.key === "drawn");
+    if (!drawnGroup || drawnGroup.items.length === 0) return;
+    let raf = window.requestAnimationFrame(() => {
+      const centerX = window.innerWidth / 2;
+      const next: Record<number, number> = {};
+      drawnGroup.items.forEach(({ globalIndex }) => {
+        const node = slotNodeByGlobalIndexRef.current.get(globalIndex);
+        if (!node) return;
+        const rect = node.getBoundingClientRect();
+        const cardCenterX = rect.left + rect.width / 2;
+        next[globalIndex] = Math.round(centerX - cardCenterX);
+      });
+      setEndDeltaXByGlobalIndex((current) => {
+        const currentKeys = Object.keys(current);
+        const nextKeys = Object.keys(next);
+        if (currentKeys.length !== nextKeys.length) return next;
+        for (const key of nextKeys) {
+          const numericKey = Number(key);
+          if (current[numericKey] !== next[numericKey]) return next;
+        }
+        return current;
+      });
+    });
+    return () => window.cancelAnimationFrame(raf);
+  // Only re-measure when a new overlay `items` set is shown.
+  }, [items]);
+
   return (
     <div style={rootStyle} aria-live="polite">
       <style>{buildKeyframes()}</style>
-      <div style={dimStyle(durationMs)} />
+      <div style={dimStyle(totalDurationMs)} />
       <div style={boxStyle(groups.length)}>
         {groupsWithIndexes.map((group) => (
           <div key={group.key} style={groupShellStyle(groups.length)}>
-            <div style={groupHeaderStyle(durationMs)}>{group.title}</div>
+            <div style={groupHeaderStyle(totalDurationMs)}>{group.title}</div>
             <div style={groupRowStyle(group.items.length)}>
-              {group.items.map(({ item, globalIndex }) => renderFlowCard(
+              {group.items.map(({ item, globalIndex }, localIndex) => renderFlowCard(
                 item,
                 globalIndex,
+                localIndex,
                 group.items.length,
                 totalRendered,
                 durationMs,
+                staggerMs,
+                endDeltaXByGlobalIndex,
+                (idx, node) => {
+                  if (!node) slotNodeByGlobalIndexRef.current.delete(idx);
+                  else slotNodeByGlobalIndexRef.current.set(idx, node);
+                },
                 onDone,
               ))}
             </div>
@@ -143,8 +187,9 @@ function groupHeaderStyle(durationMs: number): CSSProperties {
   };
 }
 
-function cardWrapStyle(durationMs: number, enterFrom: CardFlowAnchor, exitTo: CardFlowAnchor): CSSProperties {
+function cardWrapStyle(durationMs: number, enterFrom: CardFlowAnchor, exitTo: CardFlowAnchor, group: CardFlowGroup): CSSProperties {
   const shouldTravel = enterFrom !== exitTo;
+  const shouldFadeOut = group === "drawn" || group === "played" || group === "discarded";
   return {
     position: "relative",
     zIndex: 1,
@@ -153,7 +198,7 @@ function cardWrapStyle(durationMs: number, enterFrom: CardFlowAnchor, exitTo: Ca
     borderRadius: radius.md,
     boxShadow: shadows.xl,
     transformOrigin: "center center",
-    animation: `${shouldTravel ? "card-flow-card" : "card-flow-fade"} ${durationMs}ms cubic-bezier(0.2, 0.8, 0.18, 1) both`,
+    animation: `${shouldTravel ? (shouldFadeOut ? "card-flow-card" : "card-flow-card-solid") : "card-flow-fade"} ${durationMs}ms cubic-bezier(0.2, 0.8, 0.18, 1) both`,
     ["--card-flow-start-x" as string]: anchorToTranslate(enterFrom).x,
     ["--card-flow-start-y" as string]: anchorToTranslate(enterFrom).y,
     ["--card-flow-end-x" as string]: anchorToTranslate(exitTo).x,
@@ -174,16 +219,26 @@ function anchorToTranslate(anchor: CardFlowAnchor): { x: string; y: string } {
     case "bottomLeft":
     case "leftDeck":
       return { x: "calc(-50vw + 100px)", y: "calc(50vh - 116px)" };
+    case "bottomCenter":
+      return { x: "0px", y: "calc(50vh - 28px)" };
     case "bottomRight":
     case "rightDiscard":
       return { x: "calc(50vw - 28px)", y: "calc(50vh - 28px)" };
     case "rightHand":
-      return { x: "0", y: "calc(50vh - 18px)" };
+      return { x: "0px", y: "calc(50vh - 18px)" };
     case "leftHand":
-      return { x: "0", y: "calc(50vh - 18px)" };
+      return { x: "0px", y: "calc(50vh - 18px)" };
     default:
-      return { x: "0", y: "0" };
+      return { x: "0px", y: "0px" };
   }
+}
+
+function addPxToX(baseX: string, deltaPx: number): string {
+  if (!deltaPx) return baseX;
+  if (baseX.startsWith("calc(") && baseX.endsWith(")")) {
+    return `calc(${baseX.slice(5, -1)} + ${deltaPx}px)`;
+  }
+  return `calc(${baseX} + ${deltaPx}px)`;
 }
 
 function buildKeyframes(): string {
@@ -210,6 +265,25 @@ function buildKeyframes(): string {
   }
   100% {
     opacity: 0;
+    transform: translate3d(var(--card-flow-end-x), var(--card-flow-end-y), 0) scale(0.16);
+  }
+}
+
+@keyframes card-flow-card-solid {
+  0% {
+    opacity: 0;
+    transform: translate3d(var(--card-flow-start-x), var(--card-flow-start-y), 0) scale(0.16);
+  }
+  18% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  66% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  100% {
+    opacity: 1;
     transform: translate3d(var(--card-flow-end-x), var(--card-flow-end-y), 0) scale(0.16);
   }
 }
@@ -259,6 +333,25 @@ function buildKeyframes(): string {
       transform: translate3d(var(--card-flow-end-x), var(--card-flow-end-y), 0) scale(0.2);
     }
   }
+
+  @keyframes card-flow-card-solid {
+    0% {
+      opacity: 0;
+      transform: translate3d(var(--card-flow-start-x), var(--card-flow-start-y), 0) scale(0.2);
+    }
+    18% {
+      opacity: 1;
+      transform: translate3d(0, 0, 0) scale(0.93);
+    }
+    66% {
+      opacity: 1;
+      transform: translate3d(0, 0, 0) scale(0.93);
+    }
+    100% {
+      opacity: 1;
+      transform: translate3d(var(--card-flow-end-x), var(--card-flow-end-y), 0) scale(0.2);
+    }
+  }
 }
 `;
 }
@@ -279,18 +372,40 @@ function titleForCount(count: number, singular: string, plural: string): string 
 function renderFlowCard(
   item: CardFlowItem,
   index: number,
+  localIndex: number,
   groupCount: number,
   totalCount: number,
   durationMs: number,
+  staggerMs: number,
+  endDeltaXByGlobalIndex: Record<number, number>,
+  registerNode: (globalIndex: number, node: HTMLDivElement | null) => void,
   onDone: () => void,
 ) {
   const card = getCard(item.cardId);
   const image = card.kind === "umamusume" ? card.portrait : card.image;
   const group = resolveGroup(item);
   const doneHandler = index === totalCount - 1 ? onDone : undefined;
+  const baseEnd = anchorToTranslate(item.exitTo);
+  const baseStart = anchorToTranslate(item.enterFrom);
+
+  const xToCenterPx = group === "drawn" ? (endDeltaXByGlobalIndex[index] ?? 0) : 0;
   return (
-    <div key={`${item.cardId}-${group}-${index}`} style={itemShellStyle(group, groupCount)}>
-      <div style={cardWrapStyle(durationMs, item.enterFrom, item.exitTo)} onAnimationEnd={doneHandler}>
+    <div
+      key={`${item.cardId}-${group}-${index}`}
+      style={itemShellStyle(group, groupCount)}
+      ref={(node) => registerNode(index, node)}
+    >
+      <div
+        style={{
+          ...cardWrapStyle(durationMs, item.enterFrom, item.exitTo, group),
+          ["--card-flow-start-x" as string]: baseStart.x,
+          ["--card-flow-start-y" as string]: baseStart.y,
+          ["--card-flow-end-x" as string]: group === "drawn" ? addPxToX(baseEnd.x, xToCenterPx) : baseEnd.x,
+          ["--card-flow-end-y" as string]: baseEnd.y,
+          animationDelay: `${70 + index * staggerMs}ms`,
+        }}
+        onAnimationEnd={doneHandler}
+      >
         <HoloCardImage
           card={card}
           src={image}

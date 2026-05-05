@@ -21,6 +21,7 @@
     "tamamoCrossStage2",
     "teamRigil",
     "teamSpica",
+    "vodkaStage2",
     "yayoiAkikawa"
   ],
   "goldFullArtBaseCardIds": [
@@ -994,10 +995,98 @@
         }
       ]
     },
+    "vodkaBasic": {
+      "id": "vodkaBasic",
+      "owner": "player",
+      "kind": "umamusume",
+      "name": "Vodka",
+      "label": "Umamusume - Fighting - Basic",
+      "species": "Vodka",
+      "type": "Fighting",
+      "stage": 0,
+      "hp": 60,
+      "portrait": "/assets/cards/umamusume/vodka/basic.png",
+      "weakness": {
+        "type": "Psychic",
+        "amount": 20
+      },
+      "retreat": "Colorless",
+      "attacks": [
+        {
+          "name": "Cut And Drive!",
+          "cost": {
+            "fighting": 1
+          },
+          "damage": 20,
+          "text": "Do 20 damage to the Active Umamusume."
+        }
+      ]
+    },
+    "vodkaStage1": {
+      "id": "vodkaStage1",
+      "owner": "player",
+      "kind": "umamusume",
+      "name": "Vodka",
+      "label": "Umamusume - Fighting - Stage 1",
+      "species": "Vodka",
+      "type": "Fighting",
+      "stage": 1,
+      "evolvesFrom": "Vodka",
+      "hp": 80,
+      "portrait": "/assets/cards/umamusume/vodka/stage1.png",
+      "weakness": {
+        "type": "Psychic",
+        "amount": 20
+      },
+      "retreat": "Colorless",
+      "attacks": [
+        {
+          "name": "Wild Top Gear",
+          "cost": {
+            "fighting": 1,
+            "colorless": 1
+          },
+          "damage": 50,
+          "switchSelfAfterAttack": {},
+          "text": "You may switch this Umamusume with 1 of your Benched Umamusume."
+        }
+      ]
+    },
+    "vodkaStage2": {
+      "id": "vodkaStage2",
+      "owner": "player",
+      "kind": "umamusume",
+      "name": "Vodka",
+      "label": "Umamusume - Fighting - Stage 2",
+      "species": "Vodka",
+      "type": "Fighting",
+      "stage": 2,
+      "evolvesFrom": "Vodka",
+      "hp": 110,
+      "portrait": "/assets/cards/umamusume/vodka/stage2.png",
+      "weakness": {
+        "type": "Psychic",
+        "amount": 20
+      },
+      "retreat": "Colorless x2",
+      "attacks": [
+        {
+          "name": "Xceleration",
+          "cost": {
+            "fighting": 2,
+            "colorless": 1
+          },
+          "damage": 60,
+          "switchSelfAfterAttack": {
+            "bonusDamage": 30
+          },
+          "text": "You may switch this Umamusume with 1 of your Benched Umamusume. If you do, this attack does +30 damage."
+        }
+      ]
+    },
     "niceNatureBasicEx": {
       "id": "niceNatureBasicEx",
       "implemented": false,
-      "disabledReason": "TODO: Implement EX card moves and rules.",
       "owner": "player",
       "kind": "umamusume",
       "name": "Nice Nature EX",
@@ -1024,7 +1113,6 @@
     "agnesTachyonStage1Ex": {
       "id": "agnesTachyonStage1Ex",
       "implemented": false,
-      "disabledReason": "TODO: Implement EX card moves and rules.",
       "owner": "player",
       "kind": "umamusume",
       "name": "Agnes Tachyon EX",
@@ -1056,7 +1144,6 @@
     "oguriCapStage1Ex": {
       "id": "oguriCapStage1Ex",
       "implemented": false,
-      "disabledReason": "TODO: Implement EX card moves and rules.",
       "owner": "player",
       "kind": "umamusume",
       "name": "Oguri Cap EX",
@@ -1084,7 +1171,6 @@
     "mihonoBourbonStage2Ex": {
       "id": "mihonoBourbonStage2Ex",
       "implemented": false,
-      "disabledReason": "TODO: Implement EX card moves and rules.",
       "owner": "player",
       "kind": "umamusume",
       "name": "Mihono Bourbon EX",
@@ -1116,7 +1202,6 @@
     "riceShowerStage2Ex": {
       "id": "riceShowerStage2Ex",
       "implemented": false,
-      "disabledReason": "TODO: Implement EX card moves and rules.",
       "owner": "player",
       "kind": "umamusume",
       "name": "Rice Shower EX",
@@ -1144,7 +1229,6 @@
     "symboliRudolfStage2Ex": {
       "id": "symboliRudolfStage2Ex",
       "implemented": false,
-      "disabledReason": "TODO: Implement EX card moves and rules.",
       "owner": "player",
       "kind": "umamusume",
       "name": "Symboli Rudolf EX",

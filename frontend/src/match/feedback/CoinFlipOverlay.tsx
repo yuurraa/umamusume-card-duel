@@ -83,6 +83,7 @@ export function CoinFlipOverlay({
     const promptTitle = canChoose ? "Choose Heads or Tails" : "Preparing coin flip";
     return (
       <div style={coinFlipBackdropStyle}>
+        <style>{OVERLAY_FADE_IN_KEYFRAMES}</style>
         <section style={coinFlipShellStyle}>
           <span style={coinFlipKickerStyle}>Coin Flip</span>
           <div style={coinSlotStyle}>
@@ -122,6 +123,7 @@ export function CoinFlipOverlay({
 
   return (
     <div style={coinFlipBackdropStyle}>
+      <style>{OVERLAY_FADE_IN_KEYFRAMES}</style>
       <section style={coinFlipShellStyle}>
         <span style={coinFlipKickerStyle}>{flipResults.length > 1 ? `Coin Flip ${activeIndex + 1} / ${flipResults.length}` : "Coin Flip"}</span>
         <div style={coinSlotStyle}>
@@ -154,7 +156,15 @@ const coinFlipBackdropStyle: CSSProperties = {
   ...overlayBackdropStyle,
   zIndex: 90,
   background: "rgba(15, 23, 42, 0.72)",
+  animation: "overlay-fade-in 140ms ease both",
 };
+
+const OVERLAY_FADE_IN_KEYFRAMES = `
+@keyframes overlay-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+`;
 
 const coinFlipShellStyle: CSSProperties = {
   width: "min(560px, calc(100vw - 36px))",

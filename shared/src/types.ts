@@ -38,6 +38,9 @@ export type Attack = {
     discardEnergy: Partial<Record<EnergyType, number>>;
     requiresBench: boolean;
   };
+  switchSelfAfterAttack?: {
+    bonusDamage?: number;
+  };
   preventDamageNextTurn?: number;
   bonusIfTookDamageLastTurn?: number;
   damagePerAttachedEnergy?: {
@@ -84,7 +87,6 @@ export type Ability = {
 export type UmamusumeCard = {
   id: string;
   implemented?: boolean;
-  disabledReason?: string;
   owner: SideId;
   kind: "umamusume";
   name: string;
@@ -104,7 +106,6 @@ export type UmamusumeCard = {
 export type TrainerCard = {
   id: string;
   implemented?: boolean;
-  disabledReason?: string;
   kind: "trainer";
   trainerType: TrainerType;
   name: string;

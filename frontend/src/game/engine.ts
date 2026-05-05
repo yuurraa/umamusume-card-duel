@@ -216,10 +216,11 @@ export function playerAttack(
   attackIndex = 0,
   discardHandIndex?: number,
   randomDiscardIndex?: number,
+  switchTargetUid?: number,
 ): GameState {
   const next = cloneGame(state);
   if (!canAttack(next, next.sides.player)) return next;
-  performAttack(next, "player", { refreshContinuousEffects, choosePreferredActiveIndex }, attackTargetUid, healTargetUid, forcedCoinResult, evolutionDeckCardIndex, attackIndex, discardHandIndex, randomDiscardIndex);
+  performAttack(next, "player", { refreshContinuousEffects, choosePreferredActiveIndex }, attackTargetUid, healTargetUid, forcedCoinResult, evolutionDeckCardIndex, attackIndex, discardHandIndex, randomDiscardIndex, switchTargetUid);
   if (next.pendingPlayerChoice) return next;
   if (!next.gameOver) advanceToNextTurn(next);
   return next;
@@ -257,7 +258,7 @@ export function playerSurrender(state: GameState): GameState {
   next.gameOver = true;
   next.winner = "opponent";
   next.currentSide = "done";
-  log(next, "You surrendered. Opponent won.");
+  log(next, "You surrendered.");
   return next;
 }
 
@@ -270,7 +271,7 @@ export function opponentAbandonedMatch(state: GameState): GameState {
   next.winner = "player";
   next.currentSide = "done";
   next.turnDeadlineMs = null;
-  log(next, "Opponent left the match. You won.");
+  log(next, "Opponent left the match.");
   return next;
 }
 
@@ -587,10 +588,23 @@ export function dealOpeningHands(state: GameState): GameState {
   next.sides.player.hand = [...setup.openingHands.player];
   next.sides.opponent.hand = [...setup.openingHands.opponent];
   setup.openingHandsDealt = true;
+  next.setup = { ...setup };
+  return next;
+}
 
-  if (!next.humanBySide.opponent && !setup.readyBySide.opponent) {
-    autoSetupBasicUmamusume(next.sides.opponent);
-    setup.readyBySide.opponent = true;
+export function autoCompleteOpponentSetup(state: GameState): GameState {
+  const next = cloneGame(state);
+  if (next.phase !== "setup") return next;
+  const setup = next.setup;
+  if (!setup || setup.readyBySide.opponent || !setup.openingHandsDealt) return next;
+
+  autoSetupBasicUmamusume(next.sides.opponent);
+  setup.readyBySide.opponent = true;
+  if (setup.readyBySide.player) {
+    setup.countdownSecondsRemaining = 3;
+    next.setup = { ...setup, opponentRevealed: false };
+    log(next, "Both players are ready. Match starts in 3...");
+    return next;
   }
 
   next.setup = { ...setup };

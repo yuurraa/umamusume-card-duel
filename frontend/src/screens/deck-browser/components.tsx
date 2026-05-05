@@ -83,7 +83,6 @@ import {
   deckSelectorHoverDimStyle,
   deckSelectorInspectActionBarStyle,
   deckSelectorInspectActionButtonStyle,
-  deckSelectorInspectNoticeStyle,
   deckSelectorFilterPanelStyle,
   deckSelectorHoverPreviewImageStyle,
   deckSelectorHoverPreviewStyle,
@@ -948,10 +947,7 @@ export function DeckCardSelectorModal({
   const inspectedCopyKey = inspectCard ? toDeckCountKey(inspectCard.id) : null;
   const inspectedCopyCount = inspectedCopyKey ? cardCounts.get(inspectedCopyKey) ?? 0 : 0;
   const inspectedOwnedCount = inspectCard ? getOwnedCount(inspectCard.id) : 0;
-  const inspectedDisabledReason = inspectCard && isCardDisabled(inspectCard)
-    ? (inspectCard.disabledReason ?? "This card is not available for decks yet.")
-    : null;
-  const inspectedCanEquip = Boolean(inspectCard && !inspectedDisabledReason && inspectedOwnedCount > 0 && inspectedCopyCount < 2);
+  const inspectedCanEquip = Boolean(inspectCard && inspectedOwnedCount > 0 && inspectedCopyCount < 2);
 
   useEffect(() => {
     onInspectActiveChange?.(inspectActive);
@@ -1137,7 +1133,7 @@ export function DeckCardSelectorModal({
                 const copyCount = cardCounts.get(copyKey) ?? 0;
                 const ownedCount = getOwnedCount(card.id);
                 const isOwned = ownedCount > 0;
-                const disabledReason = isCardDisabled(card) ? (card.disabledReason ?? "This card is not available for decks yet.") : undefined;
+                const disabledReason = isCardDisabled(card) ? "This card is not available for decks yet." : undefined;
                 const isDisabled = copyCount >= 2 || !isOwned || Boolean(disabledReason);
                 return (
                   <CardTile
@@ -1178,9 +1174,6 @@ export function DeckCardSelectorModal({
                 radiusOverride={CARD_INSPECT_IMAGE_RADIUS}
                 motionVariant="inspect"
               />
-              {inspectedDisabledReason && (
-                <div style={deckSelectorInspectNoticeStyle}>{inspectedDisabledReason}</div>
-              )}
               <div style={deckSelectorInspectActionBarStyle}>
                 <NeutralButton
                   style={deckSelectorInspectActionButtonStyle}

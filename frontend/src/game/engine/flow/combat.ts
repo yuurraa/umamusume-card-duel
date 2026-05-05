@@ -24,6 +24,7 @@ export function performAttack(
   attackIndex = 0,
   discardHandIndex?: number,
   randomDiscardIndex?: number,
+  switchTargetUid?: number,
 ): void {
   const defenderId = attackerId === "player" ? "opponent" : "player";
   const pointsBeforeAttack = {
@@ -35,6 +36,8 @@ export function performAttack(
   if (!attacker.active || !defender.active) return;
   const attackerCard = getUmamusumeCard(attacker.active);
   const attack = attackerCard.attacks[attackIndex] ?? getPrimaryAttack(attackerCard);
+  const startingActive = attacker.active;
+  const switchTarget = resolveSwitchTarget(state, attacker, attackerId, switchTargetUid, attack.switchSelfAfterAttack, deps.choosePreferredActiveIndex);
   const attackTarget = attack.targetOpponent === "any"
     ? (attackTargetUid !== undefined ? getAllUmamusume(defender).find((umamusume) => umamusume.uid === attackTargetUid) : undefined) ?? defender.active
     : defender.active;
@@ -60,6 +63,9 @@ export function performAttack(
   }
   if (attack.attackDamageBonusIfToolAttached && attacker.active.toolCardId) {
     damage += attack.attackDamageBonusIfToolAttached;
+  }
+  if (switchTarget && attack.switchSelfAfterAttack?.bonusDamage) {
+    damage += attack.switchSelfAfterAttack.bonusDamage;
   }
   if (attack.attackDamageBonusIfDiscardHandCard && attacker.hand.length > 0) {
     const requestedDiscardIndex = discardHandIndex !== undefined && discardHandIndex >= 0 && discardHandIndex < attacker.hand.length
@@ -200,6 +206,18 @@ export function performAttack(
         if (!state.gameOver) deps.refreshContinuousEffects(state);
       }
     });
+  if (switchTarget && attacker.active && attacker.active.uid === startingActive.uid && attacker.active.hp > 0) {
+    const switchIndex = attacker.bench.findIndex((umamusume) => umamusume.uid === switchTarget.uid);
+    if (switchIndex >= 0) {
+      const promoted = attacker.bench.splice(switchIndex, 1)[0];
+      if (promoted) {
+        attacker.bench.push(attacker.active);
+        attacker.active = promoted;
+        log(state, `${actorName(attacker)} switched to ${formatUmamusumeInstanceName(promoted)}.`);
+        deps.refreshContinuousEffects(state);
+      }
+    }
+  }
   const preserveAttackerWin = shouldPreserveAttackerWinOnSimultaneousKo(state, attackerId, defenderId, pointsBeforeAttack);
   if (preserveAttackerWin && !state.gameOver) {
     state.gameOver = true;
@@ -390,7 +408,25 @@ function isNonDamagingAttack(attack: ReturnType<typeof getPrimaryAttack>): boole
     && !attack.damagePerAttachedEnergy
     && !attack.damagePerUmamusumeInPlay
     && !attack.attackDamageBonusIfToolAttached
-    && !attack.attackDamageBonusIfDiscardHandCard;
+    && !attack.attackDamageBonusIfDiscardHandCard
+    && !attack.switchSelfAfterAttack?.bonusDamage;
+}
+
+function resolveSwitchTarget(
+  state: GameState,
+  attacker: SideState,
+  attackerId: SideId,
+  switchTargetUid: number | undefined,
+  switchEffect: ReturnType<typeof getPrimaryAttack>["switchSelfAfterAttack"],
+  choosePreferredActiveIndex: (side: SideState) => number,
+): UmamusumeInstance | null {
+  if (!switchEffect) return null;
+  if (switchTargetUid !== undefined) {
+    return attacker.bench.find((umamusume) => umamusume.uid === switchTargetUid) ?? null;
+  }
+  if (state.humanBySide[attackerId] || attacker.bench.length === 0) return null;
+  const preferredIndex = choosePreferredActiveIndex(attacker);
+  return preferredIndex >= 0 ? attacker.bench[preferredIndex] ?? null : attacker.bench[0] ?? null;
 }
 
 function flipCoin(side: SideState, forcedCoinResults: CoinFlipResult[]): CoinFlipResult {

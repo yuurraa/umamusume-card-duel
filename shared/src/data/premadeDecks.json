@@ -306,7 +306,7 @@
         "tracenAcademy"
       ]
     },
-        {
+    {
       "id": "symboliRudolf",
       "name": "Symboli Rudolf",
       "coverCardId": "symboliRudolfStage2FullArt",
@@ -335,6 +335,37 @@
         "teamSpicaFullArt",
         "nakayamaTurf",
         "tracenAcademy"
+      ]
+    },
+    {
+      "id": "vodka",
+      "name": "Vodka",
+      "coverCardId": "vodkaStage2FullArt",
+      "energyTypes": [
+        "fighting",
+        "grass"
+      ],
+      "cardIds": [
+        "nishinoFlowerBasicFullArt",
+        "vodkaBasic",
+        "vodkaBasic",
+        "vodkaStage1",
+        "vodkaStage1UncommonPlus",
+        "vodkaStage2",
+        "vodkaStage2FullArt",
+        "3starMakeDebutScout",
+        "carrotHamburgerSteak",
+        "carrotJelly",
+        "rainbowUncapCrystal",
+        "traineeScoutTicket",
+        "traineeScoutTicket",
+        "tazunaHayakawa",
+        "tazunaHayakawaFullArt",
+        "teamCanopus",
+        "teamCanopusFullArt",
+        "teamSpicaFullArt",
+        "nakayamaTurf",
+        "tracenGym"
       ]
     }
   ]

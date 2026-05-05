@@ -455,7 +455,7 @@ function CardTile({
   const [hovered, setHovered] = useState(false);
   const image = getCardImage(card);
   const rarity = getCardRarity(card);
-  const disabledReason = isCardDisabled(card) ? (card.disabledReason ?? "This card is not available yet.") : null;
+  const disabledReason = isCardDisabled(card) ? "This card is not available yet." : null;
   const owned = ownedCount > 0;
   const ownershipLabel = owned ? `${ownedCount}x Owned` : "Unowned";
   const animate = owned;
@@ -588,7 +588,8 @@ function toEnergyType(type: UmamusumeType): EnergyType {
 
 const cardBrowserShellStyle: CSSProperties = {
   isolation: "isolate",
-  maxWidth: 1320,
+  // 10 columns at ~146px + gaps needs a wider shell to avoid shrinking tiles.
+  maxWidth: 1760,
   margin: "0 auto",
   display: "grid",
   gap: 18,
@@ -845,7 +846,8 @@ const cardTrayStyle: CSSProperties = {
 
 const cardGridStyle: CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fill, minmax(146px, 1fr))",
+  // Keep existing card tile sizing; just render 10 columns.
+  gridTemplateColumns: "repeat(10, minmax(146px, 1fr))",
   gap: 8,
   alignItems: "start",
 };

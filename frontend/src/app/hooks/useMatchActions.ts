@@ -357,6 +357,22 @@ export function useMatchActions(args: UseMatchActionsArgs) {
           setGame((current) => playerAttack(current, umamusume.uid));
         }
       }
+    } else if (pendingSelection.kind === "attackSwitchTarget") {
+      if (isNetworkMatch) {
+        submitPlayerIntent({ type: "attack", attackIndex: pendingSelection.attackIndex, switchTargetUid: umamusume.uid });
+      } else {
+        const active = player.active;
+        const activeCard = active ? getUmamusumeCard(active) : null;
+        const attack = activeCard ? (activeCard.attacks[pendingSelection.attackIndex] ?? getPrimaryAttack(activeCard)) : null;
+        if (attack?.draw) {
+          applyPlayerGameUpdate(
+            (current) => playerAttack(current, undefined, undefined, undefined, undefined, pendingSelection.attackIndex, undefined, undefined, umamusume.uid),
+            { kind: "genericGain" },
+          );
+        } else {
+          setGame((current) => playerAttack(current, undefined, undefined, undefined, undefined, pendingSelection.attackIndex, undefined, undefined, umamusume.uid));
+        }
+      }
     } else if (pendingSelection.kind === "abilityDamageTarget") {
       submitPlayerIntent({
         type: "useAbility",

@@ -37,6 +37,8 @@ export function SelectionPrompt({ pending, onCancel, nextEnergyType, onRetreatDi
         ? "Choose 1 of your damaged Umamusume to heal."
       : pending.kind === "attackDamageTarget"
         ? "Choose 1 of your opponent's Umamusume to damage."
+      : pending.kind === "attackSwitchTarget"
+        ? "Choose 1 of your benched Umamusume to switch in, or cancel to keep the Active Umamusume."
       : pending.kind === "healTarget"
         ? "Choose 1 Umamusume to heal."
         : pending.kind === "evolveTarget"

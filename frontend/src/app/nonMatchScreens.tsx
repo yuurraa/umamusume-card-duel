@@ -1,16 +1,29 @@
+import { lazy, Suspense } from "react";
 import type { AppScreen, MatchMode } from "../types/ui";
 import { MainMenuScreen } from "../screens/MainMenuScreen";
-import { MatchModeScreen } from "../screens/MatchModeScreen";
-import { DeckBrowserScreen } from "../screens/DeckBrowserScreen";
-import { CardBrowserScreen } from "../screens/CardBrowserScreen";
-import { CustomisationScreen } from "../screens/CustomisationScreen";
-import { type PvpRole, PvpLobbyScreen } from "../screens/PvpLobbyScreen";
+import type { PvpRole } from "../screens/PvpLobbyScreen";
 import type { PremadeDeck } from "../types/ui";
 import type { CustomisationSettings } from "../utils/customisation";
 import type { FirebaseAccountSnapshot } from "../utils/firebaseAuth";
 import { getAccountPlayerName } from "../utils/playerNames";
 import { getSelectablePremadeDecks } from "../utils/deck";
 import { appStyle, screenFadeOverlayStyle } from "./styles";
+
+const MatchModeScreen = lazy(() => import("../screens/MatchModeScreen").then((module) => ({
+  default: module.MatchModeScreen,
+})));
+const DeckBrowserScreen = lazy(() => import("../screens/DeckBrowserScreen").then((module) => ({
+  default: module.DeckBrowserScreen,
+})));
+const CardBrowserScreen = lazy(() => import("../screens/CardBrowserScreen").then((module) => ({
+  default: module.CardBrowserScreen,
+})));
+const CustomisationScreen = lazy(() => import("../screens/CustomisationScreen").then((module) => ({
+  default: module.CustomisationScreen,
+})));
+const PvpLobbyScreen = lazy(() => import("../screens/PvpLobbyScreen").then((module) => ({
+  default: module.PvpLobbyScreen,
+})));
 
 type NonMatchScreenProps = {
   screen: AppScreen;
@@ -75,6 +88,24 @@ export function renderNonMatchScreen(props: NonMatchScreenProps): JSX.Element | 
     onPvpClear,
   } = props;
 
+  const lazyFallback = (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        minHeight: "60vh",
+        color: "var(--ui-text-color)",
+        textShadow: "var(--ui-text-shadow)",
+        fontSize: "0.85rem",
+        letterSpacing: "0.08em",
+        textTransform: "uppercase",
+      }}
+    >
+      Loading...
+    </div>
+  );
+
   if (screen === "mainMenu") {
     return (
       <main style={appStyle(true, selectedPlaymatImage, uiTextTone)}>
@@ -102,10 +133,12 @@ export function renderNonMatchScreen(props: NonMatchScreenProps): JSX.Element | 
   if (screen === "modeSelect") {
     return (
       <main style={appStyle(true, selectedPlaymatImage, uiTextTone)}>
-        <MatchModeScreen
-          onBack={() => navigateToScreen("mainMenu")}
-          onChooseMode={startWithMode}
-        />
+        <Suspense fallback={lazyFallback}>
+          <MatchModeScreen
+            onBack={() => navigateToScreen("mainMenu")}
+            onChooseMode={startWithMode}
+          />
+        </Suspense>
         <div style={screenFadeOverlayStyle(screenFadeOverlayOpacity)} />
       </main>
     );
@@ -114,27 +147,29 @@ export function renderNonMatchScreen(props: NonMatchScreenProps): JSX.Element | 
   if (screen === "pvpLobby") {
     return (
       <main style={appStyle(true, selectedPlaymatImage, uiTextTone)}>
-        <PvpLobbyScreen
-          role={pvpRole}
-          statusDetail={pvpStatusDetail}
-          localSignal={pvpLocalSignal}
-          remoteSignal={pvpRemoteSignal}
-          connected={pvpConnected}
-          onBack={() => {
-            if (pvpRole) {
+        <Suspense fallback={lazyFallback}>
+          <PvpLobbyScreen
+            role={pvpRole}
+            statusDetail={pvpStatusDetail}
+            localSignal={pvpLocalSignal}
+            remoteSignal={pvpRemoteSignal}
+            connected={pvpConnected}
+            onBack={() => {
+              if (pvpRole) {
+                onPvpClear();
+                return;
+              }
               onPvpClear();
-              return;
-            }
-            onPvpClear();
-            navigateToScreen("modeSelect");
-          }}
-          onSetRole={onPvpSetRole}
-          onCreateOffer={onPvpCreateOffer}
-          onJoinWithOffer={onPvpJoinWithOffer}
-          onRemoteSignalChange={onPvpRemoteSignalChange}
-          onCopyLocalSignal={onPvpCopyLocalSignal}
-          onClear={onPvpClear}
-        />
+              navigateToScreen("modeSelect");
+            }}
+            onSetRole={onPvpSetRole}
+            onCreateOffer={onPvpCreateOffer}
+            onJoinWithOffer={onPvpJoinWithOffer}
+            onRemoteSignalChange={onPvpRemoteSignalChange}
+            onCopyLocalSignal={onPvpCopyLocalSignal}
+            onClear={onPvpClear}
+          />
+        </Suspense>
         <div style={screenFadeOverlayStyle(screenFadeOverlayOpacity)} />
       </main>
     );
@@ -143,12 +178,14 @@ export function renderNonMatchScreen(props: NonMatchScreenProps): JSX.Element | 
   if (screen === "decks") {
     return (
       <main style={appStyle(false, selectedPlaymatImage, uiTextTone)}>
-        <DeckBrowserScreen
-          decks={selectablePremadeDecks}
-          equippedDeckId={equippedDeck.id}
-          onEquipDeck={(deckId) => setEquippedDeckId(deckId)}
-          onBack={() => navigateToScreen("mainMenu")}
-        />
+        <Suspense fallback={lazyFallback}>
+          <DeckBrowserScreen
+            decks={selectablePremadeDecks}
+            equippedDeckId={equippedDeck.id}
+            onEquipDeck={(deckId) => setEquippedDeckId(deckId)}
+            onBack={() => navigateToScreen("mainMenu")}
+          />
+        </Suspense>
         <div style={screenFadeOverlayStyle(screenFadeOverlayOpacity)} />
       </main>
     );
@@ -157,11 +194,13 @@ export function renderNonMatchScreen(props: NonMatchScreenProps): JSX.Element | 
   if (screen === "customisation") {
     return (
       <main style={appStyle(false, selectedPlaymatImage, uiTextTone)}>
-        <CustomisationScreen
-          settings={customisation}
-          onChange={setCustomisation}
-          onBack={() => navigateToScreen("mainMenu")}
-        />
+        <Suspense fallback={lazyFallback}>
+          <CustomisationScreen
+            settings={customisation}
+            onChange={setCustomisation}
+            onBack={() => navigateToScreen("mainMenu")}
+          />
+        </Suspense>
         <div style={screenFadeOverlayStyle(screenFadeOverlayOpacity)} />
       </main>
     );
@@ -170,7 +209,9 @@ export function renderNonMatchScreen(props: NonMatchScreenProps): JSX.Element | 
   if (screen === "cards") {
     return (
       <main style={appStyle(false, selectedPlaymatImage, uiTextTone)}>
-        <CardBrowserScreen onBack={() => navigateToScreen("mainMenu")} />
+        <Suspense fallback={lazyFallback}>
+          <CardBrowserScreen onBack={() => navigateToScreen("mainMenu")} />
+        </Suspense>
         <div style={screenFadeOverlayStyle(screenFadeOverlayOpacity)} />
       </main>
     );

@@ -114,6 +114,14 @@ export function MatchBoardLayout(props: MatchBoardLayoutProps) {
     displayLog,
   } = props;
 
+  const playerSetupRevealToken = (() => {
+    // Stable across "Ready" toggles; only changes when the selected setup cards change.
+    // Keeps setup animations from replaying when pressing Ready.
+    let token = (setupActiveIndex ?? -1) + 2;
+    for (const benchIndex of setupBenchIndexes) token = (token * 31 + (benchIndex + 2)) % 1000000007;
+    return token;
+  })();
+
   return (
     <div style={contentStyle}>
       <div style={duelViewportStyle}>
@@ -138,8 +146,8 @@ export function MatchBoardLayout(props: MatchBoardLayoutProps) {
               onEnergyDropOnUmamusume={onEnergyDropOnUmamusume}
               onAbilityEnergyDropOnActive={onAbilityEnergyDropOnActive}
               setupDragHandIndexByUid={setupDragHandIndexByUid}
-              animateSetupReveal={povSwitchAnimationToken > 0}
-              setupRevealToken={povSwitchAnimationToken}
+              animateSetupReveal={(!game.gameOver && game.phase === "setup" && setupActiveIndex !== null) || povSwitchAnimationToken > 0}
+              setupRevealToken={povSwitchAnimationToken > 0 ? povSwitchAnimationToken : playerSetupRevealToken}
             />
           </div>
           <div style={opponentBoardSlotStyle}>
@@ -152,7 +160,7 @@ export function MatchBoardLayout(props: MatchBoardLayoutProps) {
               selectableUmamusumeUids={game.phase === "play" ? opponentSelectableUmamusumeUids : undefined}
               onUmamusumeSelect={onUmamusumeSelect}
               sleeveImage={opponentSleeveImage}
-              animateSetupReveal={(game.phase === "setup" && opponentBoardHidden && opponentSetupRevealToken > 0) || povSwitchAnimationToken > 0}
+              animateSetupReveal={(!game.gameOver && game.phase === "setup" && opponentBoardHidden && opponentSetupRevealToken > 0) || povSwitchAnimationToken > 0}
               setupRevealToken={povSwitchAnimationToken > 0 ? povSwitchAnimationToken : opponentSetupRevealToken}
               {...(hiddenOpponentBenchCount !== undefined ? { hiddenBenchCount: hiddenOpponentBenchCount } : {})}
             />

@@ -66,6 +66,14 @@ export function useMatchModalActions({
         });
         setPendingSelection(null);
       }
+      : pendingSelection?.kind === "attackSwitchTarget"
+        ? () => {
+          submitPlayerIntent({
+            type: "attack",
+            attackIndex: pendingSelection.attackIndex,
+          });
+          setPendingSelection(null);
+        }
       : cancelPendingSelection;
   const onPlayAgain = () => {
     if (isNetworkMatch) {

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import {
   canAttachEnergy,
   chooseOpeningCoin,
@@ -12,16 +12,7 @@ import {
 import type { InspectTarget } from "../inspect";
 import type { AppScreen, MatchMode, PendingSelection } from "../types/ui";
 import { getDeckById, getDeckEnergyTypes, readEquippedDeckId, pickRandomOpponentDeck } from "../utils/deck";
-import { CardPreview } from "../match/modals/CardPreview";
-import { DiscardPileModal } from "../match/modals/DiscardPileModal";
-import { DeckChoiceModal } from "../match/modals/DeckChoiceModal";
-import { GameOverModal } from "../match/modals/GameOverModal";
-import { EndTurnWarningModal } from "../match/modals/EndTurnWarningModal";
-import { SelectionPrompt } from "../match/controls/SelectionPrompt";
-import { OpponentActionBanner } from "../match/feedback/OpponentActionBanner";
-import { ActionNotice } from "../match/feedback/ActionNotice";
-import { CoinFlipOverlay } from "../match/feedback/CoinFlipOverlay";
-import { CardFlowOverlay, type CardFlowItem } from "../match/feedback/CardFlowOverlay";
+import type { CardFlowItem } from "../match/feedback/CardFlowOverlay";
 import {
   getPlaymatTextTone,
   getSelectedPlaymat,
@@ -41,9 +32,8 @@ import {
   isBottomActionNotice,
   toCoinFlipEvent,
 } from "./gameUiHelpers";
-import { appStyle, matchBackgroundLayerStyle, screenFadeOverlayStyle } from "./styles";
+import { SCREEN_FADE_MS, appStyle, matchBackgroundLayerStyle, screenFadeOverlayStyle } from "./styles";
 import { renderNonMatchScreen } from "./nonMatchScreens";
-import { MatchBoardLayout } from "./MatchBoardLayout";
 import { useEscapeHotkey } from "./hooks/useEscapeHotkey";
 import { useLogNotifications } from "./hooks/useLogNotifications";
 import { type PendingCoinAttack, useMatchActions } from "./hooks/useMatchActions";
@@ -83,6 +73,40 @@ const EMPTY_FIREBASE_ACCOUNT: FirebaseAccountSnapshot = {
 };
 
 const TURN_RELAY_UNAVAILABLE_TEXT = "TURN relay candidate was not available.";
+
+const MatchBoardLayout = lazy(() => import("./MatchBoardLayout").then((module) => ({
+  default: module.MatchBoardLayout,
+})));
+const CardPreview = lazy(() => import("../match/modals/CardPreview").then((module) => ({
+  default: module.CardPreview,
+})));
+const DiscardPileModal = lazy(() => import("../match/modals/DiscardPileModal").then((module) => ({
+  default: module.DiscardPileModal,
+})));
+const DeckChoiceModal = lazy(() => import("../match/modals/DeckChoiceModal").then((module) => ({
+  default: module.DeckChoiceModal,
+})));
+const GameOverModal = lazy(() => import("../match/modals/GameOverModal").then((module) => ({
+  default: module.GameOverModal,
+})));
+const EndTurnWarningModal = lazy(() => import("../match/modals/EndTurnWarningModal").then((module) => ({
+  default: module.EndTurnWarningModal,
+})));
+const SelectionPrompt = lazy(() => import("../match/controls/SelectionPrompt").then((module) => ({
+  default: module.SelectionPrompt,
+})));
+const OpponentActionBanner = lazy(() => import("../match/feedback/OpponentActionBanner").then((module) => ({
+  default: module.OpponentActionBanner,
+})));
+const ActionNotice = lazy(() => import("../match/feedback/ActionNotice").then((module) => ({
+  default: module.ActionNotice,
+})));
+const CoinFlipOverlay = lazy(() => import("../match/feedback/CoinFlipOverlay").then((module) => ({
+  default: module.CoinFlipOverlay,
+})));
+const CardFlowOverlay = lazy(() => import("../match/feedback/CardFlowOverlay").then((module) => ({
+  default: module.CardFlowOverlay,
+})));
 
 function isTurnRelayUnavailableError(error: unknown): error is Error {
   return error instanceof Error && error.message.includes(TURN_RELAY_UNAVAILABLE_TEXT);
@@ -214,6 +238,7 @@ export function App() {
   const [opponentSetupRevealToken, setOpponentSetupRevealToken] = useState(0);
   const [povSwitchAnimationToken, setPovSwitchAnimationToken] = useState(0);
   const [pvpTimerNowMs, setPvpTimerNowMs] = useState(() => Date.now());
+  const [suppressOpponentPlaymatLayer, setSuppressOpponentPlaymatLayer] = useState(true);
   const pvpDeadlineTurnKeyRef = useRef<string | null>(null);
   const previousLogRef = useRef<string[]>([]);
   const previousPlayerZonesRef = useRef<{
@@ -257,7 +282,9 @@ export function App() {
   const isNetworkMatch = matchMode === "playerVsPlayer";
   const isPvpHost = isNetworkMatch && pvpRole === "host";
   const isPvpGuest = isNetworkMatch && pvpRole === "guest";
-  const displayPerspective: SideId = isAiVsAi ? aiPerspective : "player";
+  // During preparation we always show the player's playmat to avoid a one-frame flash
+  // if the POV was previously switched in AI-vs-AI.
+  const displayPerspective: SideId = isAiVsAi ? (game.phase === "setup" ? "player" : aiPerspective) : "player";
   const displayGame = isNetworkMatch ? game : toPerspectiveGame(game, displayPerspective);
   const player = game.sides.player;
   const displayPlayer = displayGame.sides.player;
@@ -354,6 +381,29 @@ export function App() {
   useEffect(() => {
     gameRef.current = game;
   }, [game]);
+
+  useEffect(() => {
+    // Prevent a one-frame flash of the opponent playmat when entering the match screen
+    // while the game state is being replaced (e.g. starting a new game).
+    if (screen !== "match") {
+      setSuppressOpponentPlaymatLayer(true);
+      return;
+    }
+    setSuppressOpponentPlaymatLayer(true);
+  }, [screen]);
+
+  useEffect(() => {
+    if (screen !== "match") return;
+    if (game.phase === "setup") setSuppressOpponentPlaymatLayer(true);
+    if (game.phase === "play") setSuppressOpponentPlaymatLayer(false);
+  }, [game.phase, screen]);
+
+  useEffect(() => {
+    if (!game.gameOver) return;
+    setCardFlowQueue([]);
+    openingHandAnimationKeyRef.current = null;
+    shouldDealOpeningHandsAfterFlowRef.current = false;
+  }, [game.gameOver]);
 
   useEffect(() => {
     equippedDeckCardIdsRef.current = equippedDeck.cardIds;
@@ -919,6 +969,7 @@ export function App() {
     setActiveCoinFlip,
     setAcknowledgedCoinLogMessage,
     setPendingCoinAttack,
+    setCardFlowQueue,
     setSetupActiveIndex,
     setSetupBenchIndexes,
     setPendingSelection,
@@ -931,6 +982,8 @@ export function App() {
     setAiPerspective,
     setPovSwitchAnimationToken,
     setEndTurnWarningActions,
+    openingHandAnimationKeyRef,
+    shouldDealOpeningHandsAfterFlowRef,
     submitPlayerIntent,
   });
 
@@ -966,7 +1019,13 @@ export function App() {
     isNetworkMatch,
     pendingSelection,
     hasPendingPlayerChoice: hasLocalPendingChoice,
-    startNewGame,
+    startNewGame: async () => {
+      // Fade out/in when starting a new local match.
+      setScreenFadeOverlayOpacity(1);
+      await delay(SCREEN_FADE_MS);
+      startNewGame();
+      window.requestAnimationFrame(() => setScreenFadeOverlayOpacity(0));
+    },
     navigateToScreen,
     cancelPendingSelection,
     setDiscardOpen,
@@ -1019,11 +1078,11 @@ export function App() {
     shouldDealOpeningHandsAfterFlowRef.current = true;
     setCardFlowQueue((queue) => [
       ...queue,
-      openingHand.slice(0, 5).map((cardId) => ({
+      openingHand.map((cardId) => ({
         cardId,
         group: "drawn",
         enterFrom: "leftDeck",
-        exitTo: "rightHand",
+        exitTo: "bottomCenter",
       })),
     ]);
   }, [cardFlowQueue.length, game.phase, game.setup, isCoinFlipBlocking]);
@@ -1173,7 +1232,7 @@ export function App() {
             label,
             group: "drawn",
             enterFrom: sideOnRight ? "leftDeck" : "bottomLeft",
-            exitTo: sideOnRight ? "rightHand" : "leftHand",
+            exitTo: "bottomCenter",
           });
         });
       }
@@ -1313,8 +1372,9 @@ export function App() {
     ? game.currentSide === "player"
     : displayPerspective === "player";
   const showOpponentPlaymat = isPlayPhase
-    ? game.currentSide === "opponent"
+    ? game.currentSide === "opponent" && !suppressOpponentPlaymatLayer
     : displayPerspective === "opponent";
+  const renderOpponentPlaymatLayer = !suppressOpponentPlaymatLayer;
 
   const nonMatchScreen = renderNonMatchScreen({
     screen,
@@ -1347,166 +1407,197 @@ export function App() {
   });
   if (nonMatchScreen) return nonMatchScreen;
 
+  const matchFallback = (
+    <div
+      style={{
+        position: "absolute",
+        inset: 0,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 1,
+        color: "var(--ui-text-color)",
+        textShadow: "var(--ui-text-shadow)",
+        fontSize: "0.85rem",
+        letterSpacing: "0.12em",
+        textTransform: "uppercase",
+        background: "rgba(7, 12, 16, 0.35)",
+        pointerEvents: "none",
+      }}
+    >
+      Loading match...
+    </div>
+  );
+
   return (
     <main style={appStyle(false, undefined, uiTextTone)}>
       <div style={matchBackgroundLayerStyle(selectedPlaymat.image, showSelectedPlaymat ? 1 : 0)} />
-      <div style={matchBackgroundLayerStyle(opponentPlaymat.image, showOpponentPlaymat ? 1 : 0)} />
-      <MatchBoardLayout
-        game={displayGame}
-        displayedPlayerSide={displayedPlayerSide}
-        displayedOpponentSide={displayedOpponentSide}
-        hiddenOpponent={hiddenOpponent}
-        opponentBoardHidden={opponentBoardHidden}
-        opponentSetupRevealToken={opponentSetupRevealToken}
-        povSwitchAnimationToken={povSwitchAnimationToken}
-        hiddenOpponentBenchCount={hiddenOpponentBenchCount}
-        abilityReadyUmamusumeUids={abilityReadyUmamusumeUids}
-        playerSelectableUmamusumeUids={playerSelectableUmamusumeUids}
-        opponentSelectableUmamusumeUids={opponentSelectableUmamusumeUids}
-        abilityEnergyTypes={abilityEnergyTypes}
-        setupDragHandIndexByUid={setupDragHandIndexByUid}
-        onInspect={openPreview}
-        onUmamusumeSelect={selectUmamusume}
-        onSetupDropActive={applySetupActive}
-        onSetupDropBench={applySetupBench}
-        onSetupPromoteToActive={promoteSetupBenchToActive}
-        onHandCardDropOnUmamusume={playHandCardOnUmamusume}
-        onHandCardDropOnBenchSlot={playHandCardOnBenchSlot}
-        onEnergyDropOnUmamusume={attachEnergyByDrop}
-        onAbilityEnergyDropOnActive={moveAbilityEnergyByDrop}
-        opponentSleeveImage={displayOpponentSleeveImage}
-        stadiumAbilityReady={stadiumAbilityReady}
-        onDropHandCardOnStadium={playHandCardOnStadiumSpot}
-        onDropHandCardOnCenter={playHandCardOnCenter}
-        setupActiveIndex={setupActiveIndex}
-        setupBenchIndexes={setupBenchIndexes}
-        menuOpen={menuOpen}
-        canSurrender={canSurrenderInPanels}
-        onToggleMenu={toggleMenu}
-        onSurrender={handleSurrender}
-        onSetupReady={handleSetupReady}
-        canSetupReady={canSetupReady}
-        canSetupInteract={openingHandsDealt && !isSetupCountdownActive}
-        onSwitchPov={switchPov}
-        selectedSleeveImage={displayPlayerSleeveImage}
-        canPlayHandCards={!isAiVsAi}
-        canAttach={canAttachInHeader}
-        nextPlayerEnergy={nextPlayerEnergy}
-        playerExtraEnergyCount={playerExtraEnergyCount}
-        canEndTurn={canEndTurnInHeader}
-        turnLabel={turnLabel}
-        turnAlert={turnAlert}
-        onEndTurn={handleEndTurn}
-        selectableHandIndexes={selectableHandIndexes}
-        onChooseHandCard={chooseHandCard}
-        onOpenDiscard={onOpenDiscard}
-        displayLog={displayLog}
-      />
-      {displayTopBanner && <OpponentActionBanner title={displayTopBanner.title} message={displayTopBanner.message} paused={displayTopBanner.paused} />}
-      {game.phase === "setup" && (!game.setup?.coinFlipResult || (openingCoinChoicePending && !activeCoinFlip)) && (
-        <CoinFlipOverlay
-          key="opening-coin-choice"
-          mode="prompt"
-          message={openingCoinChoicePending
-            ? "Flipping coin..."
-            : isAiVsAi
-              ? "AI choosing heads or tails..."
-              : canChooseOpeningCoin
-                ? "Choose heads or tails"
-                : "Waiting for host to choose heads or tails..."}
-          canChoose={canChooseOpeningCoin && !openingCoinChoicePending}
-          onChoose={handleChooseOpeningCoin}
-        />
-      )}
-      {activeCoinFlip && (
-        <CoinFlipOverlay
-          key={activeCoinFlip.id}
-          result={activeCoinFlip.result}
-          results={activeCoinFlip.results}
-          message={formatMatchText(activeCoinFlip.message)}
-          onContinue={handleCoinFlipContinue}
-        />
-      )}
-      {cardFlowQueue[0] && (
-        <CardFlowOverlay
-          items={cardFlowQueue[0]}
-          durationMs={game.phase === "setup" ? 1500 : 2100}
-          onDone={() => {
-            setCardFlowQueue((queue) => queue.slice(1));
-            if (!shouldDealOpeningHandsAfterFlowRef.current) return;
-            shouldDealOpeningHandsAfterFlowRef.current = false;
-            setGame((current) => {
-              const next = dealOpeningHands(current);
-              if (isPvpHost) syncToGuest(next);
-              return next;
-            });
-          }}
-        />
-      )}
-      {activePendingSelection && (
-        <SelectionPrompt
-          pending={activePendingSelection}
-          onCancel={onSelectionCancel}
-          nextEnergyType={nextPlayerEnergy}
-          onRetreatDiscardAdjust={adjustRetreatDiscard}
-          onConfirmRetreatDiscard={confirmRetreatDiscard}
-        />
-      )}
-      <CardPreview
-        state={displayGame}
-        target={previewTarget}
-        canUseAttack={cardPreviewActions.canUseAttack}
-        canUseRetreat={cardPreviewActions.canUseRetreat}
-        canUseAbility={cardPreviewActions.canUseAbility}
-        onAttack={cardPreviewActions.onAttack}
-        onRetreat={cardPreviewActions.onRetreat}
-        onAbility={cardPreviewActions.onAbility}
-        onInspect={openPreview}
-        onClose={closePreview}
-      />
-      <EndTurnWarningModal
-        actions={endTurnWarningActions}
-        suppressForGame={suppressEndTurnWarningForGame}
-        onSuppressForGameChange={setSuppressEndTurnWarningForGame}
-        onCancel={onEndTurnWarningCancel}
-        onConfirm={onEndTurnWarningConfirm}
-      />
-      {discardOpen && (
-        <DiscardPileModal
-          cardIds={displayPlayer.discard}
-          onInspect={onDiscardInspect}
-          onClose={onCloseDiscard}
-        />
-      )}
-      {(pendingSelection?.kind === "deckForScout" || pendingSelection?.kind === "deckForEvolutionSearch" || pendingSelection?.kind === "deckForAttackEvolution") && (
-        <DeckChoiceModal
-          cardIds={player.deck}
-          filter={pendingSelection.kind === "deckForEvolutionSearch" || pendingSelection.kind === "deckForAttackEvolution" ? "evolutionUmamusume" : "umamusume"}
-          evolvesFrom={pendingSelection.kind === "deckForAttackEvolution" ? pendingSelection.evolvesFrom : undefined}
-          stage={pendingSelection.kind === "deckForAttackEvolution" ? pendingSelection.stage : undefined}
-          onChoose={chooseScoutDeckCard}
-          onClose={onDeckScoutClose}
-        />
-      )}
-      {actionNotice && (
-        <ActionNotice
-          notice={formatMatchText(actionNotice)}
-          tone={getActionNoticeTone(actionNotice)}
-          placement={isBottomActionNotice(actionNotice) ? "bottom" : "top"}
-          interactive={isBottomActionNotice(actionNotice)}
-          onClose={onActionNoticeClose}
-        />
-      )}
-      {game.gameOver && (
-        <GameOverModal
+      {renderOpponentPlaymatLayer && <div style={matchBackgroundLayerStyle(opponentPlaymat.image, showOpponentPlaymat ? 1 : 0)} />}
+      <Suspense fallback={matchFallback}>
+        <MatchBoardLayout
           game={displayGame}
-          playerName="You"
-          opponentName="Opponent"
-          latest={displayLog[0]}
-          onPlayAgain={isNetworkMatch ? returnToPvpLobbyForRematch : onPlayAgain}
-          onMainMenu={returnToMainMenu}
+          displayedPlayerSide={displayedPlayerSide}
+          displayedOpponentSide={displayedOpponentSide}
+          hiddenOpponent={hiddenOpponent}
+          opponentBoardHidden={opponentBoardHidden}
+          opponentSetupRevealToken={opponentSetupRevealToken}
+          povSwitchAnimationToken={povSwitchAnimationToken}
+          hiddenOpponentBenchCount={hiddenOpponentBenchCount}
+          abilityReadyUmamusumeUids={abilityReadyUmamusumeUids}
+          playerSelectableUmamusumeUids={playerSelectableUmamusumeUids}
+          opponentSelectableUmamusumeUids={opponentSelectableUmamusumeUids}
+          abilityEnergyTypes={abilityEnergyTypes}
+          setupDragHandIndexByUid={setupDragHandIndexByUid}
+          onInspect={openPreview}
+          onUmamusumeSelect={selectUmamusume}
+          onSetupDropActive={applySetupActive}
+          onSetupDropBench={applySetupBench}
+          onSetupPromoteToActive={promoteSetupBenchToActive}
+          onHandCardDropOnUmamusume={playHandCardOnUmamusume}
+          onHandCardDropOnBenchSlot={playHandCardOnBenchSlot}
+          onEnergyDropOnUmamusume={attachEnergyByDrop}
+          onAbilityEnergyDropOnActive={moveAbilityEnergyByDrop}
+          opponentSleeveImage={displayOpponentSleeveImage}
+          stadiumAbilityReady={stadiumAbilityReady}
+          onDropHandCardOnStadium={playHandCardOnStadiumSpot}
+          onDropHandCardOnCenter={playHandCardOnCenter}
+          setupActiveIndex={setupActiveIndex}
+          setupBenchIndexes={setupBenchIndexes}
+          menuOpen={menuOpen}
+          canSurrender={canSurrenderInPanels}
+          onToggleMenu={toggleMenu}
+          onSurrender={handleSurrender}
+          onSetupReady={handleSetupReady}
+          canSetupReady={canSetupReady}
+          canSetupInteract={openingHandsDealt && !isSetupCountdownActive}
+          onSwitchPov={switchPov}
+          selectedSleeveImage={displayPlayerSleeveImage}
+          canPlayHandCards={
+            !isAiVsAi
+            && displayGame.phase === "play"
+            && !displayGame.gameOver
+            && !displayGame.pendingPlayerChoice
+            && displayGame.currentSide === "player"
+            && !isTurnFlowBlocked
+          }
+          canAttach={canAttachInHeader}
+          nextPlayerEnergy={nextPlayerEnergy}
+          playerExtraEnergyCount={playerExtraEnergyCount}
+          canEndTurn={canEndTurnInHeader}
+          turnLabel={turnLabel}
+          turnAlert={turnAlert}
+          onEndTurn={handleEndTurn}
+          selectableHandIndexes={selectableHandIndexes}
+          onChooseHandCard={chooseHandCard}
+          onOpenDiscard={onOpenDiscard}
+          displayLog={displayLog}
         />
-      )}
+        {displayTopBanner && <OpponentActionBanner title={displayTopBanner.title} message={displayTopBanner.message} paused={displayTopBanner.paused} />}
+        {game.phase === "setup" && (!game.setup?.coinFlipResult || (openingCoinChoicePending && !activeCoinFlip)) && (
+          <CoinFlipOverlay
+            key="opening-coin-choice"
+            mode="prompt"
+            message={openingCoinChoicePending
+              ? "Flipping coin..."
+              : isAiVsAi
+                ? "AI choosing heads or tails..."
+                : canChooseOpeningCoin
+                  ? "Choose heads or tails"
+                  : "Waiting for host to choose heads or tails..."}
+            canChoose={canChooseOpeningCoin && !openingCoinChoicePending}
+            onChoose={handleChooseOpeningCoin}
+          />
+        )}
+        {activeCoinFlip && (
+          <CoinFlipOverlay
+            key={activeCoinFlip.id}
+            result={activeCoinFlip.result}
+            results={activeCoinFlip.results}
+            message={formatMatchText(activeCoinFlip.message)}
+            onContinue={handleCoinFlipContinue}
+          />
+        )}
+        {cardFlowQueue[0] && (
+          <CardFlowOverlay
+            items={cardFlowQueue[0]}
+            durationMs={game.phase === "setup" ? 1500 : 2100}
+            onDone={() => {
+              setCardFlowQueue((queue) => queue.slice(1));
+              if (!shouldDealOpeningHandsAfterFlowRef.current) return;
+              shouldDealOpeningHandsAfterFlowRef.current = false;
+              setGame((current) => {
+                const next = dealOpeningHands(current);
+                if (isPvpHost) syncToGuest(next);
+                return next;
+              });
+            }}
+          />
+        )}
+        {activePendingSelection && (
+          <SelectionPrompt
+            pending={activePendingSelection}
+            onCancel={onSelectionCancel}
+            nextEnergyType={nextPlayerEnergy}
+            onRetreatDiscardAdjust={adjustRetreatDiscard}
+            onConfirmRetreatDiscard={confirmRetreatDiscard}
+          />
+        )}
+        <CardPreview
+          state={displayGame}
+          target={previewTarget}
+          canUseAttack={cardPreviewActions.canUseAttack}
+          canUseRetreat={cardPreviewActions.canUseRetreat}
+          canUseAbility={cardPreviewActions.canUseAbility}
+          onAttack={cardPreviewActions.onAttack}
+          onRetreat={cardPreviewActions.onRetreat}
+          onAbility={cardPreviewActions.onAbility}
+          onInspect={openPreview}
+          onClose={closePreview}
+        />
+        <EndTurnWarningModal
+          actions={endTurnWarningActions}
+          suppressForGame={suppressEndTurnWarningForGame}
+          onSuppressForGameChange={setSuppressEndTurnWarningForGame}
+          onCancel={onEndTurnWarningCancel}
+          onConfirm={onEndTurnWarningConfirm}
+        />
+        {discardOpen && (
+          <DiscardPileModal
+            cardIds={displayPlayer.discard}
+            onInspect={onDiscardInspect}
+            onClose={onCloseDiscard}
+          />
+        )}
+        {(pendingSelection?.kind === "deckForScout" || pendingSelection?.kind === "deckForEvolutionSearch" || pendingSelection?.kind === "deckForAttackEvolution") && (
+          <DeckChoiceModal
+            cardIds={player.deck}
+            filter={pendingSelection.kind === "deckForEvolutionSearch" || pendingSelection.kind === "deckForAttackEvolution" ? "evolutionUmamusume" : "umamusume"}
+            evolvesFrom={pendingSelection.kind === "deckForAttackEvolution" ? pendingSelection.evolvesFrom : undefined}
+            stage={pendingSelection.kind === "deckForAttackEvolution" ? pendingSelection.stage : undefined}
+            onChoose={chooseScoutDeckCard}
+            onClose={onDeckScoutClose}
+          />
+        )}
+        {actionNotice && (
+          <ActionNotice
+            notice={formatMatchText(actionNotice)}
+            tone={getActionNoticeTone(actionNotice)}
+            placement={isBottomActionNotice(actionNotice) ? "bottom" : "top"}
+            interactive={isBottomActionNotice(actionNotice)}
+            onClose={onActionNoticeClose}
+          />
+        )}
+        {game.gameOver && (
+          <GameOverModal
+            game={displayGame}
+            playerName="You"
+            opponentName="Opponent"
+            latest={displayLog[0]}
+            onPlayAgain={isNetworkMatch ? returnToPvpLobbyForRematch : onPlayAgain}
+            onMainMenu={returnToMainMenu}
+          />
+        )}
+      </Suspense>
       <div style={screenFadeOverlayStyle(screenFadeOverlayOpacity)} />
     </main>
   );

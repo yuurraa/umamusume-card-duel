@@ -98,6 +98,11 @@ export function useCardPreviewActions(args: UseCardPreviewActionsArgs) {
       setPreviewTarget(null);
       return;
     }
+    if (attack.switchSelfAfterAttack && player.bench.length > 0) {
+      setPendingSelection({ kind: "attackSwitchTarget", attackIndex });
+      setPreviewTarget(null);
+      return;
+    }
     const randomDiscardIndex = attack.shuffleRandomDiscardIntoDeck && player.discard.length > 0
       ? Math.floor(Math.random() * player.discard.length)
       : undefined;

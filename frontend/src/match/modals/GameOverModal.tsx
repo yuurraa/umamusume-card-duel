@@ -24,6 +24,7 @@ export function GameOverModal({
 
   return (
     <div style={gameOverBackdropStyle}>
+      <style>{OVERLAY_FADE_IN_KEYFRAMES}</style>
       <section style={gameOverShellStyle(playerWon)}>
         <div style={resultBadgeStyle(playerWon)}>{playerWon ? "Victory" : "Defeat"}</div>
         <div style={gameOverKickerStyle}>Duel Finished</div>
@@ -55,6 +56,13 @@ function ScoreSummary({ label, points, highlighted }: { label: string; points: n
 
 const gameOverBackdropStyle: CSSProperties = { ...overlayBackdropStyle, zIndex: 80 };
 
+const OVERLAY_FADE_IN_KEYFRAMES = `
+@keyframes overlay-fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+`;
+
 function gameOverShellStyle(playerWon: boolean): CSSProperties {
   const hue = playerWon
     ? {
@@ -80,6 +88,7 @@ function gameOverShellStyle(playerWon: boolean): CSSProperties {
     color: colors.black,
     textShadow: "none",
     boxShadow: `0 26px 80px ${hue.glow}, 0 22px 68px rgba(17, 24, 39, 0.2)`,
+    animation: "overlay-fade-in 160ms ease both",
   };
 }
 

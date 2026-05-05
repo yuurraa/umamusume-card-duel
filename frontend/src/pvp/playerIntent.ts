@@ -16,7 +16,7 @@ import {
 export type PlayerIntent =
   | { type: "playHandCard"; handIndex: number; choices?: PlayChoices }
   | { type: "attachEnergy"; umamusumeUid?: number }
-  | { type: "attack"; attackTargetUid?: number; healTargetUid?: number; evolutionDeckCardIndex?: number; attackIndex?: number; discardHandIndex?: number; randomDiscardIndex?: number }
+  | { type: "attack"; attackTargetUid?: number; healTargetUid?: number; evolutionDeckCardIndex?: number; attackIndex?: number; discardHandIndex?: number; randomDiscardIndex?: number; switchTargetUid?: number }
   | { type: "retreat"; benchUmamusumeUid?: number; discardEnergyTypes?: EnergyType[] }
   | {
     type: "useAbility";
@@ -39,7 +39,7 @@ export function applyPlayerIntent(state: GameState, intent: PlayerIntent): GameS
     case "attachEnergy":
       return attachPlayerEnergy(state, intent.umamusumeUid);
     case "attack":
-      return playerAttack(state, intent.attackTargetUid, intent.healTargetUid, undefined, intent.evolutionDeckCardIndex, intent.attackIndex, intent.discardHandIndex, intent.randomDiscardIndex);
+      return playerAttack(state, intent.attackTargetUid, intent.healTargetUid, undefined, intent.evolutionDeckCardIndex, intent.attackIndex, intent.discardHandIndex, intent.randomDiscardIndex, intent.switchTargetUid);
     case "retreat":
       return playerRetreat(state, intent.benchUmamusumeUid, intent.discardEnergyTypes);
     case "useAbility":
