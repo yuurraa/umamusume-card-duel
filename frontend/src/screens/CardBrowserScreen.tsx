@@ -11,6 +11,7 @@ import { devUnlocksEnabled, isDevForcedUnowned } from "../config/devUnlocks";
 import { CARD_ASPECT_RATIO, CARD_INSPECT_IMAGE_RADIUS, borders, colors, glassPanelStyle, radius, transitions, uiTextColor, uiTextShadow } from "../styles/shared";
 import { readCloudCardCollection } from "../utils/cardCollectionApi";
 import { DEFAULT_CARD_SORT, sortCardsForCollection, type CardSortKey, type CardSortOption } from "../utils/cardSorting";
+import { preloadImage } from "../utils/imagePreload";
 
 type CategoryFilter = "umamusume" | "trainer" | "item" | "tool" | "stadium";
 type StageFilter = 0 | 1 | 2;
@@ -118,6 +119,7 @@ export function CardBrowserScreen({ onBack }: { onBack: () => void }) {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [inspectCard, setInspectCard] = useState<Card | null>(null);
   const [inspectPosition, setInspectPosition] = useState<{ left: number; top: number; width: number } | null>(null);
+  const [cardGridReady, setCardGridReady] = useState(false);
   const filterMenuWrapRef = useRef<HTMLDivElement | null>(null);
   const activeFilterCount = categoryFiltersSelected.size + energyFiltersSelected.size + stageFiltersSelected.size + artFiltersSelected.size + ownershipFiltersSelected.size + rarityFiltersSelected.size;
 
@@ -147,6 +149,24 @@ export function CardBrowserScreen({ onBack }: { onBack: () => void }) {
         if (!active) return;
         setOwnedCardCounts(null);
       });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    const criticalCards = cardEntries.slice(0, 32);
+    const criticalPreload = Promise.all(criticalCards.map((card) => preloadImage(getCardImage(card)))).then(() => undefined);
+    const timeout = new Promise<void>((resolve) => window.setTimeout(resolve, 1400));
+    void Promise.race([criticalPreload, timeout]).then(() => {
+      if (!active) return;
+      setCardGridReady(true);
+    });
+
+    // Continue warming the rest in the background.
+    void Promise.all(cardEntries.slice(32).map((card) => preloadImage(getCardImage(card))));
+
     return () => {
       active = false;
     };
@@ -385,7 +405,9 @@ export function CardBrowserScreen({ onBack }: { onBack: () => void }) {
       </section>
 
       <section style={cardTrayStyle}>
-        {visibleCards.length > 0 ? (
+        {!cardGridReady ? (
+          <div style={emptyStateStyle}>Loading card art…</div>
+        ) : visibleCards.length > 0 ? (
           <div style={cardGridStyle}>
             {visibleCards.map((card) => (
               <CardTile

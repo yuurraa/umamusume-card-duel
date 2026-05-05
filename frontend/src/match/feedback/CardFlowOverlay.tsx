@@ -1,7 +1,8 @@
-import { type CSSProperties, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { getCard } from "../../game/engine";
 import { HoloCardImage } from "../../components/cards/HoloCardImage";
 import { CARD_ASPECT_RATIO, CARD_INSPECT_IMAGE_RADIUS, colors, radius, shadows } from "../../styles/shared";
+import { isImagePreloaded, preloadImage } from "../../utils/imagePreload";
 
 export type CardFlowAnchor = "bottomLeft" | "bottomCenter" | "bottomRight" | "leftDeck" | "rightDiscard" | "rightHand" | "leftHand";
 export type CardFlowGroup = "drawn" | "retrieved" | "played" | "discarded";
@@ -88,20 +89,22 @@ export function CardFlowOverlay({
           <div key={group.key} style={groupShellStyle(groups.length)}>
             <div style={groupHeaderStyle(totalDurationMs)}>{group.title}</div>
             <div style={groupRowStyle(group.items.length)}>
-              {group.items.map(({ item, globalIndex }, localIndex) => renderFlowCard(
-                item,
-                globalIndex,
-                localIndex,
-                group.items.length,
-                totalRendered,
-                durationMs,
-                staggerMs,
-                endDeltaXByGlobalIndex,
-                (idx, node) => {
-                  if (!node) slotNodeByGlobalIndexRef.current.delete(idx);
-                  else slotNodeByGlobalIndexRef.current.set(idx, node);
-                },
-                onDone,
+              {group.items.map(({ item, globalIndex }) => (
+                <FlowCard
+                  key={`${item.cardId}-${group.key}-${globalIndex}`}
+                  item={item}
+                  index={globalIndex}
+                  groupCount={group.items.length}
+                  totalCount={totalRendered}
+                  durationMs={durationMs}
+                  staggerMs={staggerMs}
+                  endDeltaXByGlobalIndex={endDeltaXByGlobalIndex}
+                  registerNode={(idx, node) => {
+                    if (!node) slotNodeByGlobalIndexRef.current.delete(idx);
+                    else slotNodeByGlobalIndexRef.current.set(idx, node);
+                  }}
+                  onDone={onDone}
+                />
               ))}
             </div>
           </div>
@@ -369,40 +372,72 @@ function titleForCount(count: number, singular: string, plural: string): string 
   return count === 1 ? singular : plural;
 }
 
-function renderFlowCard(
-  item: CardFlowItem,
-  index: number,
-  localIndex: number,
-  groupCount: number,
-  totalCount: number,
-  durationMs: number,
-  staggerMs: number,
-  endDeltaXByGlobalIndex: Record<number, number>,
-  registerNode: (globalIndex: number, node: HTMLDivElement | null) => void,
-  onDone: () => void,
-) {
+function FlowCard({
+  item,
+  index,
+  groupCount,
+  totalCount,
+  durationMs,
+  staggerMs,
+  endDeltaXByGlobalIndex,
+  registerNode,
+  onDone,
+}: {
+  item: CardFlowItem;
+  index: number;
+  groupCount: number;
+  totalCount: number;
+  durationMs: number;
+  staggerMs: number;
+  endDeltaXByGlobalIndex: Record<number, number>;
+  registerNode: (globalIndex: number, node: HTMLDivElement | null) => void;
+  onDone: () => void;
+}) {
   const card = getCard(item.cardId);
   const image = card.kind === "umamusume" ? card.portrait : card.image;
+  const [ready, setReady] = useState(() => isImagePreloaded(image));
   const group = resolveGroup(item);
   const doneHandler = index === totalCount - 1 ? onDone : undefined;
   const baseEnd = anchorToTranslate(item.exitTo);
   const baseStart = anchorToTranslate(item.enterFrom);
+  const wrapStyle = cardWrapStyle(durationMs, item.enterFrom, item.exitTo, group);
+
+  useEffect(() => {
+    let active = true;
+    if (!ready) {
+      const timeoutId = window.setTimeout(() => {
+        if (active) setReady(true);
+      }, 900);
+      void preloadImage(image).then(() => {
+        if (active) setReady(true);
+        window.clearTimeout(timeoutId);
+      });
+      return () => {
+        active = false;
+        window.clearTimeout(timeoutId);
+      };
+    }
+    return () => {
+      active = false;
+    };
+  }, [image, ready]);
 
   const xToCenterPx = group === "drawn" ? (endDeltaXByGlobalIndex[index] ?? 0) : 0;
   return (
     <div
-      key={`${item.cardId}-${group}-${index}`}
       style={itemShellStyle(group, groupCount)}
       ref={(node) => registerNode(index, node)}
     >
       <div
         style={{
-          ...cardWrapStyle(durationMs, item.enterFrom, item.exitTo, group),
+          ...wrapStyle,
           ["--card-flow-start-x" as string]: baseStart.x,
           ["--card-flow-start-y" as string]: baseStart.y,
           ["--card-flow-end-x" as string]: group === "drawn" ? addPxToX(baseEnd.x, xToCenterPx) : baseEnd.x,
           ["--card-flow-end-y" as string]: baseEnd.y,
-          animationDelay: `${70 + index * staggerMs}ms`,
+          animationDelay: ready ? `${70 + index * staggerMs}ms` : undefined,
+          animation: ready ? wrapStyle.animation : undefined,
+          opacity: ready ? undefined : 0,
         }}
         onAnimationEnd={doneHandler}
       >

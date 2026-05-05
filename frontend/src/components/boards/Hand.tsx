@@ -5,6 +5,7 @@ import type { InspectTarget } from "../../inspect";
 import { HoloCardImage } from "../cards/HoloCardImage";
 import { applyDragPreview, writeDragPayload } from "../drag/dragData";
 import { CARD_ASPECT_RATIO, borders, colors, fontStacks, radius, shadows, transitions, uiTextColor, uiTextShadow } from "../../styles/shared";
+import { preloadImage } from "../../utils/imagePreload";
 
 type HandProps = {
   state: GameState;
@@ -54,6 +55,14 @@ export function Hand({
   useEffect(() => () => {
     if (drawRevealClearTimeoutRef.current !== null) window.clearTimeout(drawRevealClearTimeoutRef.current);
   }, []);
+
+  useEffect(() => {
+    player.hand.forEach((cardId) => {
+      const card = getCard(cardId);
+      const image = card.kind === "umamusume" ? card.portrait : card.image;
+      void preloadImage(image);
+    });
+  }, [player.hand]);
 
   useEffect(() => {
     const previousHand = previousHandRef.current;
