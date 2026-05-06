@@ -1026,7 +1026,6 @@
     },
     "twinTurboBasicEx": {
       "id": "twinTurboBasicEx",
-      "implemented": false,
       "owner": "player",
       "kind": "umamusume",
       "name": "Twin Turbo EX",
@@ -1040,13 +1039,22 @@
         "type": "Steel",
         "amount": 20
       },
-      "retreat": "Colorless",
+      "retreat": "Colorless x2",
+      "ability": {
+        "name": "Turbo Booooost!",
+        "text": "If this Umamusume has any Energy attached to her, she has no Retreat Cost.",
+        "retreatCostZeroIfHasEnergy": true
+      },
       "attacks": [
         {
-          "name": "TODO",
-          "cost": {},
-          "damage": 0,
-          "text": "TODO: Implement Twin Turbo EX's attack."
+          "name": "Engine, Full Throttle!",
+          "cost": {
+            "lightning": 1,
+            "colorless": 1
+          },
+          "damage": 40,
+          "inflictSpecialCondition": "paralysed",
+          "text": "Your opponent's Active Umamusume is now Paralysed."
         }
       ]
     },
@@ -1235,7 +1243,6 @@
     },
     "niceNatureBasicEx": {
       "id": "niceNatureBasicEx",
-      "implemented": false,
       "owner": "player",
       "kind": "umamusume",
       "name": "Nice Nature EX",
@@ -1250,18 +1257,26 @@
         "amount": 20
       },
       "retreat": "Colorless x2",
+      "ability": {
+        "name": "All-Seeing Eyes",
+        "text": "All of your Umamusume get +10 HP. This effect does not stack.",
+        "activeHpBonus": 10
+      },
       "attacks": [
         {
-          "name": "TODO",
-          "cost": {},
-          "damage": 0,
-          "text": "TODO: Implement Nice Nature EX's attack."
+          "name": "Mystifying Murmur",
+          "cost": {
+            "grass": 2,
+            "colorless": 1
+          },
+          "damage": 80,
+          "inflictSpecialCondition": "poisoned",
+          "text": "Your opponent's Active Umamusume is now Poisoned."
         }
       ]
     },
     "agnesTachyonStage1Ex": {
       "id": "agnesTachyonStage1Ex",
-      "implemented": false,
       "owner": "player",
       "kind": "umamusume",
       "name": "Agnes Tachyon EX",
@@ -1278,21 +1293,26 @@
       },
       "retreat": "Colorless x2",
       "ability": {
-        "name": "TODO",
-        "text": "TODO: Implement Agnes Tachyon EX's Ability."
+        "name": "U=ma2",
+        "text": "As long as this Umamusume is in the Active Spot, all other Umamusume Abilities are disabled.",
+        "disableOtherUmamusumeAbilitiesWhileActive": true
       },
       "attacks": [
         {
-          "name": "TODO",
-          "cost": {},
-          "damage": 0,
-          "text": "TODO: Implement Agnes Tachyon EX's attack."
+          "name": "Physiology Examination",
+          "cost": {
+            "fire": 2
+          },
+          "damage": 70,
+          "discardRandomOpponentHandOnHeads": {
+            "selfDamage": 10
+          },
+          "text": "Flip a coin. If heads, you may choose to discard 1 random card from your opponent's hand. If you do, put 1 damage counter on this Umamusume."
         }
       ]
     },
     "oguriCapStage1Ex": {
       "id": "oguriCapStage1Ex",
-      "implemented": false,
       "owner": "player",
       "kind": "umamusume",
       "name": "Oguri Cap EX",
@@ -1310,16 +1330,18 @@
       "retreat": "Colorless x3",
       "attacks": [
         {
-          "name": "TODO",
-          "cost": {},
-          "damage": 0,
-          "text": "TODO: Implement Oguri Cap EX's attack."
+          "name": "Voracious Appetite",
+          "cost": {
+            "colorless": 3
+          },
+          "damage": 20,
+          "damagePerUniqueAttachedEnergy": 30,
+          "text": "This attack does +30 damage for each unique Energy attached to this Umamusume."
         }
       ]
     },
     "mihonoBourbonStage2Ex": {
       "id": "mihonoBourbonStage2Ex",
-      "implemented": false,
       "owner": "player",
       "kind": "umamusume",
       "name": "Mihono Bourbon EX",
@@ -1328,7 +1350,7 @@
       "type": "Steel",
       "stage": 2,
       "evolvesFrom": "Mihono Bourbon",
-      "hp": 180,
+      "hp": 150,
       "portrait": "/assets/cards/umamusume/mihono-bourbon/stage2-ex.png",
       "weakness": {
         "type": "Fighting",
@@ -1336,21 +1358,25 @@
       },
       "retreat": "Colorless x3",
       "ability": {
-        "name": "TODO",
-        "text": "TODO: Implement Mihono Bourbon EX's Ability."
+        "name": "Cyborg Armor ex",
+        "text": "This Umamusume takes 20 less damage from attacks.",
+        "damageReduction": 20
       },
       "attacks": [
         {
-          "name": "TODO",
-          "cost": {},
-          "damage": 0,
-          "text": "TODO: Implement Mihono Bourbon EX's attack."
+          "name": "CODE: G00 1st. F∞",
+          "cost": {
+            "steel": 2,
+            "colorless": 1
+          },
+          "damage": 60,
+          "bonusIfTookDamageLastTurn": 30,
+          "text": "If this Umamusume took damage last turn, this attack does +30 damage."
         }
       ]
     },
     "riceShowerStage2Ex": {
       "id": "riceShowerStage2Ex",
-      "implemented": false,
       "owner": "player",
       "kind": "umamusume",
       "name": "Rice Shower EX",
@@ -1368,16 +1394,17 @@
       "retreat": "Colorless x2",
       "attacks": [
         {
-          "name": "TODO",
-          "cost": {},
-          "damage": 0,
-          "text": "TODO: Implement Rice Shower EX's attack."
+          "name": "Rosy Dreams",
+          "cost": {
+            "darkness": 2
+          },
+          "damage": 100,
+          "text": "Do 100 damage to the Active Umamusume."
         }
       ]
     },
     "symboliRudolfStage2Ex": {
       "id": "symboliRudolfStage2Ex",
-      "implemented": false,
       "owner": "player",
       "kind": "umamusume",
       "name": "Symboli Rudolf EX",
@@ -1393,12 +1420,26 @@
         "amount": 20
       },
       "retreat": "Colorless x2",
+      "ability": {
+        "name": "Behold Thine Emperor's Divine Might",
+        "text": "Once during the game, you may shuffle 4 random cards from your discard pile into your deck.",
+        "oncePerGame": true,
+        "shuffleRandomDiscardIntoDeck": 4
+      },
       "attacks": [
         {
-          "name": "TODO",
-          "cost": {},
-          "damage": 0,
-          "text": "TODO: Implement Symboli Rudolf EX's attack."
+          "name": "Emperor's Wrath",
+          "cost": {
+            "water": 1,
+            "dragon": 1,
+            "colorless": 1
+          },
+          "damage": 50,
+          "attackDamageBonusPerDiscardedHandCard": {
+            "maxDiscard": 5,
+            "bonusPerCard": 20
+          },
+          "text": "Discard up to 5 cards from your hand. This attack does +20 damage for each card discarded this way."
         }
       ]
     },

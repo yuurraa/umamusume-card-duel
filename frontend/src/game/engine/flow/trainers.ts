@@ -7,6 +7,7 @@ import { findMostDamagedUmamusume, findOwnUmamusumeByUid } from "../core/umamusu
 import { drawCards } from "./turn";
 import { rollEnergyFromPool, shuffle } from "../core/random";
 import type { PlayChoices } from "../core/playTypes";
+import { clearSpecialConditions } from "./specialConditions";
 
 export type SwitchAfterGustResume = Extract<PendingPlayerChoice, { kind: "switchAfterGust" }>["resume"];
 
@@ -201,8 +202,7 @@ function discardRandomOpponentActiveEnergy(state: GameState, side: SideState, tr
 function recoverActiveSpecialConditions(state: GameState, side: SideState, trainer: TrainerCard): void {
   const active = side.active;
   if (!active || active.specialConditions.length === 0) return;
-  active.specialConditions = [];
-  active.paralysedUntilOwnTurn = null;
+  clearSpecialConditions(active);
   log(state, `${trainer.name} cleared all Special Conditions from ${formatUmamusumeInstanceName(active)}.`);
 }
 

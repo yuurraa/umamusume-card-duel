@@ -47,12 +47,20 @@ export type Attack = {
     types: EnergyType[];
     amount: number;
   };
+  damagePerUniqueAttachedEnergy?: number;
   damagePerUmamusumeInPlay?: {
     side: "own" | "all";
     amount: number;
   };
   attackDamageBonusIfToolAttached?: number;
   attackDamageBonusIfDiscardHandCard?: number;
+  attackDamageBonusPerDiscardedHandCard?: {
+    maxDiscard: number;
+    bonusPerCard: number;
+  };
+  discardRandomOpponentHandOnHeads?: {
+    selfDamage: number;
+  };
   shuffleRandomDiscardIntoDeck?: number;
   guaranteeNextCoinFlipHeads?: number;
   knockOutActiveIfAllCoinHeads?: number;
@@ -76,6 +84,9 @@ export type Ability = {
     amount: number;
   };
   attackDamageBonusIfEvolvedLastTurn?: number;
+  disableOtherUmamusumeAbilitiesWhileActive?: boolean;
+  oncePerGame?: boolean;
+  shuffleRandomDiscardIntoDeck?: number;
   discardToDraw?: {
     discard: number;
     draw: number;
@@ -85,6 +96,7 @@ export type Ability = {
     damageOnTails: number;
   };
   retreatCostZeroIfTookDamageLastTurn?: boolean;
+  retreatCostZeroIfHasEnergy?: boolean;
 };
 
 export type UmamusumeCard = {
@@ -199,6 +211,7 @@ export type SideState = {
   usedRetreatThisTurn: boolean;
   usedStadiumThisTurn: boolean;
   usedAbilityNamesThisTurn: string[];
+  usedAbilityNamesThisGame: string[];
   guaranteedCoinFlipHeads: number;
 };
 

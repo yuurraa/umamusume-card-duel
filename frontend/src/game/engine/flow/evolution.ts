@@ -2,6 +2,7 @@ import type { GameState, SideId, SideState, UmamusumeCard, UmamusumeInstance } f
 import { formatUmamusumeCardName, formatUmamusumeInstanceName, actorName } from "../core/labels";
 import { getAllUmamusume } from "../core/umamusume";
 import { log } from "../core/log";
+import { clearSpecialConditions } from "./specialConditions";
 
 export function getEvolutionTargets(state: GameState, side: SideState, evolutionCard: UmamusumeCard): UmamusumeInstance[] {
   return [side.active, ...side.bench]
@@ -34,8 +35,7 @@ export function evolveUmamusume(state: GameState, side: SideState, umamusume: Um
   umamusume.evolvedTurn = state.turnNumber;
   umamusume.enteredTurn = Math.min(umamusume.enteredTurn, state.turnNumber - 1);
   // Evolution cures all special conditions.
-  umamusume.specialConditions = [];
-  umamusume.paralysedUntilOwnTurn = null;
+  clearSpecialConditions(umamusume);
   log(state, `${actorName(side)} evolved ${previousName} into ${formatUmamusumeCardName(evolutionCard)}.`);
 }
 

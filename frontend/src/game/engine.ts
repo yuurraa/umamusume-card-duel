@@ -41,6 +41,9 @@ import { knockOutUmamusume, performAttack } from "./engine/flow/combat";
 import { canUseStadium, useStadium } from "./engine/flow/trainers";
 import { chooseAiTurnGoal } from "./engine/flow/ai/turnPlan";
 import { clearAiTelemetry } from "./engine/flow/ai/telemetry";
+import { getUmamusumeAbility } from "./engine/flow/abilityRules";
+import { shuffle } from "./engine/core/random";
+import { clearSpecialConditions } from "./engine/flow/specialConditions";
 
 export type { PlayChoices };
 
@@ -404,6 +407,7 @@ export function playerRetreat(state: GameState, benchUmamusumeUid?: number, disc
   const targetIndex = benchUmamusumeUid ? side.bench.findIndex((umamusume) => umamusume.uid === benchUmamusumeUid) : 0;
   const promoted = targetIndex >= 0 ? side.bench.splice(targetIndex, 1)[0] : undefined;
   if (!promoted) return next;
+  clearSpecialConditions(side.active);
   side.bench.push(side.active);
   side.active = promoted;
   side.usedRetreatThisTurn = true;
@@ -427,7 +431,7 @@ export function usePlayerAbility(
   const abilityUmamusume = findOwnUmamusumeByUid(side, abilityUmamusumeUid);
   if (!abilityUmamusume) return next;
   const abilityCard = getUmamusumeCard(abilityUmamusume);
-  const ability = abilityCard.ability;
+  const ability = getUmamusumeAbility(next, side.id, abilityUmamusume);
   if (!ability) return next;
 
   if (ability.moveBenchedEnergyToActive) {
@@ -442,9 +446,7 @@ export function usePlayerAbility(
     if (!energyType) return next;
     source.energies[energyType] -= 1;
     side.active.energies[energyType] += 1;
-    abilityUmamusume.usedAbilityThisTurn = true;
-    side.usedAbilityNamesThisTurn ??= [];
-    if (!side.usedAbilityNamesThisTurn.includes(ability.name)) side.usedAbilityNamesThisTurn.push(ability.name);
+    markAbilityUsed(side, abilityUmamusume, ability);
     log(next, `${formatUmamusumeCardName(abilityCard)}'s ${ability.name} moved 1 ${energyLabel(energyType)} to the active spot.`);
     return next;
   }
@@ -453,9 +455,7 @@ export function usePlayerAbility(
     const active = side.active;
     if (!active) return next;
     const heads = flipCoin(side) === "heads";
-    abilityUmamusume.usedAbilityThisTurn = true;
-    side.usedAbilityNamesThisTurn ??= [];
-    if (!side.usedAbilityNamesThisTurn.includes(ability.name)) side.usedAbilityNamesThisTurn.push(ability.name);
+    markAbilityUsed(side, abilityUmamusume, ability);
     log(next, `${actorName(side)} used ${formatUmamusumeCardName(abilityCard)}'s ${ability.name}.`);
     if (heads) {
       const drawnCardIds = drawCards(next, side, ability.coinFlipDrawOrActiveDamageCounter.draw);
@@ -496,9 +496,7 @@ export function usePlayerAbility(
     side.discard.push(discardedCardId);
     const drawnCardIds = drawCards(next, side, ability.discardToDraw.draw);
     const drawn = drawnCardIds.length;
-    abilityUmamusume.usedAbilityThisTurn = true;
-    side.usedAbilityNamesThisTurn ??= [];
-    if (!side.usedAbilityNamesThisTurn.includes(ability.name)) side.usedAbilityNamesThisTurn.push(ability.name);
+    markAbilityUsed(side, abilityUmamusume, ability);
     if (side.id === "player") {
       const discardedCard = getCard(discardedCardId);
       const drawnText = drawn > 0 ? formatCardNameList(drawnCardIds) : `0 ${pluralize(0, "card")}`;
@@ -528,9 +526,7 @@ export function usePlayerAbility(
         if (amount) log(next, `${actorName(side)} discarded ${amount} ${energyLabel(energyType)}.`);
       });
     }
-    abilityUmamusume.usedAbilityThisTurn = true;
-    side.usedAbilityNamesThisTurn ??= [];
-    if (!side.usedAbilityNamesThisTurn.includes(ability.name)) side.usedAbilityNamesThisTurn.push(ability.name);
+    markAbilityUsed(side, abilityUmamusume, ability);
     log(next, `${formatUmamusumeCardName(abilityCard)}'s ${ability.name} did ${ability.damageOpponent} damage to ${formatUmamusumeInstanceName(target)}.`);
     if (target.hp <= 0) {
       if (knockOutUmamusume(next, "player", "opponent", target, choosePreferredActiveIndex, `${formatUmamusumeCardName(abilityCard)}'s ${ability.name}`)) {
@@ -540,7 +536,32 @@ export function usePlayerAbility(
     return next;
   }
 
+  if (ability.shuffleRandomDiscardIntoDeck) {
+    const count = Math.min(ability.shuffleRandomDiscardIntoDeck, side.discard.length);
+    if (count <= 0) return next;
+    const shuffledCardIds: string[] = [];
+    for (let picked = 0; picked < count; picked += 1) {
+      const randomIndex = Math.floor(Math.random() * side.discard.length);
+      const [cardId] = side.discard.splice(randomIndex, 1);
+      if (cardId) shuffledCardIds.push(cardId);
+    }
+    side.deck = shuffle([...side.deck, ...shuffledCardIds]);
+    markAbilityUsed(side, abilityUmamusume, ability);
+    log(next, `${formatUmamusumeCardName(abilityCard)}'s ${ability.name} shuffled ${shuffledCardIds.length} random ${pluralize(shuffledCardIds.length, "card")} from discard into ${actorLowerPossessive(side)} deck.`);
+    return next;
+  }
+
   return next;
+}
+
+function markAbilityUsed(side: SideState, abilityUmamusume: UmamusumeInstance, ability: NonNullable<ReturnType<typeof getUmamusumeAbility>>): void {
+  abilityUmamusume.usedAbilityThisTurn = true;
+  side.usedAbilityNamesThisTurn ??= [];
+  if (!side.usedAbilityNamesThisTurn.includes(ability.name)) side.usedAbilityNamesThisTurn.push(ability.name);
+  if (ability.oncePerGame) {
+    side.usedAbilityNamesThisGame ??= [];
+    if (!side.usedAbilityNamesThisGame.includes(ability.name)) side.usedAbilityNamesThisGame.push(ability.name);
+  }
 }
 
 function flipCoin(side: SideState): CoinFlipResult {
@@ -684,6 +705,7 @@ export function resolvePendingPlayerChoice(state: GameState, umamusumeUid: numbe
     const replacement = replacementIndex >= 0 ? player.bench.splice(replacementIndex, 1)[0] : undefined;
     if (!replacement) return next;
     const switchedOut = player.active;
+    clearSpecialConditions(switchedOut);
     player.bench.push(switchedOut);
     player.active = replacement;
     log(next, `You switched to ${formatUmamusumeInstanceName(replacement)}.`);
@@ -702,7 +724,7 @@ export function resolvePendingPlayerChoice(state: GameState, umamusumeUid: numbe
 
 function advanceToNextTurn(state: GameState): void {
   state.turnDeadlineMs = null;
-  endTurn(state, (turnState, sideId) => startTurn(turnState, sideId, refreshContinuousEffects));
+  endTurn(state, (turnState, sideId) => startTurn(turnState, sideId, refreshContinuousEffects), refreshContinuousEffects);
 }
 
 function refreshContinuousEffects(state: GameState): void {

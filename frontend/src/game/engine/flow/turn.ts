@@ -5,6 +5,7 @@ import { log } from "../core/log";
 import { getAllUmamusume } from "../core/umamusume";
 import { getCard, getUmamusumeCard } from "../core/catalog";
 import { rollEnergyFromPool } from "../core/random";
+import { getUmamusumeAbility } from "./abilityRules";
 
 export function prepareUmamusumeForTurn(side: SideState): void {
   getAllUmamusume(side).forEach((umamusume) => {
@@ -36,12 +37,12 @@ export function drawCards(state: GameState, side: SideState, amount: number): st
 export function applyStartAbilities(state: GameState, side: SideState): void {
   if (!side.active) return;
   const card = getUmamusumeCard(side.active);
-  if (!card.ability) return;
-  if (!card.ability.heal) return;
+  const ability = getUmamusumeAbility(state, side.id, side.active);
+  if (!ability?.heal) return;
   const before = side.active.hp;
-  side.active.hp = Math.min(side.active.maxHp, side.active.hp + card.ability.heal);
+  side.active.hp = Math.min(side.active.maxHp, side.active.hp + ability.heal);
   const healed = side.active.hp - before;
-  if (healed > 0) log(state, `${actorPossessive(side)} ${formatUmamusumeCardName(card)} healed ${healed} HP with ${card.ability.name}.`);
+  if (healed > 0) log(state, `${actorPossessive(side)} ${formatUmamusumeCardName(card)} healed ${healed} HP with ${ability.name}.`);
 }
 
 export function startTurn(
@@ -74,10 +75,23 @@ export function startTurn(
   if (!skipDraw) drawCards(state, side, 1);
 }
 
-export function endTurn(state: GameState, startTurnImpl: (state: GameState, sideId: SideId) => void): void {
+export function endTurn(
+  state: GameState,
+  startTurnImpl: (state: GameState, sideId: SideId) => void,
+  refreshContinuousEffects: (state: GameState) => void,
+): void {
   if (state.gameOver || state.currentSide === "done") return;
   applyEndTurnToolTriggers(state, state.currentSide);
   processEndTurnStatusConditions(state);
+  refreshContinuousEffects(state);
+  if (
+    state.pendingPlayerChoice
+    && state.pendingPlayerChoice.kind === "promoteAfterKnockout"
+    && state.pendingPlayerChoice.sideId === state.currentSide
+  ) {
+    state.pendingPlayerChoice.resume = "finishOpponentTurn";
+  }
+  if (state.gameOver || state.pendingPlayerChoice) return;
   const nextSide: SideId = state.currentSide === "player" ? "opponent" : "player";
   if (nextSide === state.firstPlayer) state.turnNumber += 1;
   startTurnImpl(state, nextSide);
@@ -107,6 +121,11 @@ function processEndTurnStatusConditions(state: GameState): void {
   (["player", "opponent"] as SideId[]).forEach((sideId) => {
     const side = state.sides[sideId];
     getAllUmamusume(side).forEach((umamusume) => {
+      if (umamusume.specialConditions.includes("poisoned")) {
+        umamusume.hp = Math.max(0, umamusume.hp - 10);
+        umamusume.tookDamageThisTurn = true;
+        log(state, `${formatUmamusumeInstanceName(umamusume)} took 10 damage from Poison.`);
+      }
       if (!umamusume.specialConditions.includes("paralysed")) return;
       const recoveryTurn = umamusume.paralysedUntilOwnTurn;
       if (recoveryTurn === null) return;

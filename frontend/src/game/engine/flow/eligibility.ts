@@ -3,6 +3,7 @@ import { getPrimaryAttack, getUmamusumeCard } from "../core/catalog";
 import { getAbilityMoveEnergyTypes, hasEnoughEnergy } from "./energy";
 import { effectiveRetreatCost } from "./retreat";
 import { attachedEnergyCount, findOwnUmamusumeByUid } from "../core/umamusume";
+import { getUmamusumeAbility } from "./abilityRules";
 
 export function isPlayerTurn(state: GameState): boolean {
   return state.phase === "play" && !state.gameOver && state.currentSide === "player";
@@ -40,9 +41,10 @@ export function canUseUmamusumeAbility(state: GameState, side: SideState, abilit
   if (state.phase !== "play" || state.pendingPlayerChoice || state.gameOver || state.currentSide !== side.id) return false;
   const abilityUmamusume = findOwnUmamusumeByUid(side, abilityUmamusumeUid);
   if (!abilityUmamusume || abilityUmamusume.usedAbilityThisTurn) return false;
-  const ability = getUmamusumeCard(abilityUmamusume).ability;
+  const ability = getUmamusumeAbility(state, side.id, abilityUmamusume);
   if (!ability) return false;
   if (side.usedAbilityNamesThisTurn?.includes(ability.name)) return false;
+  if (ability.oncePerGame && side.usedAbilityNamesThisGame?.includes(ability.name)) return false;
   if (ability.moveBenchedEnergyToActive) {
     if (!side.active) return false;
     const energyTypes = getAbilityMoveEnergyTypes(ability);
@@ -59,5 +61,6 @@ export function canUseUmamusumeAbility(state: GameState, side: SideState, abilit
     const opponent = state.sides[side.id === "player" ? "opponent" : "player"];
     return Boolean(opponent.active || opponent.bench.length > 0);
   }
+  if (ability.shuffleRandomDiscardIntoDeck) return side.discard.length > 0;
   return false;
 }

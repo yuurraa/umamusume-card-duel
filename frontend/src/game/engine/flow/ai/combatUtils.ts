@@ -116,10 +116,15 @@ export function predictAttackDamage(
     const bonusEnergyCount = attack.damagePerAttachedEnergy.types.reduce((sum, type) => sum + attacker.energies[type], 0);
     damage += bonusEnergyCount * attack.damagePerAttachedEnergy.amount;
   }
+  if (attack.damagePerUniqueAttachedEnergy) {
+    const uniqueEnergyCount = Object.values(attacker.energies).filter((count) => count > 0).length;
+    damage += uniqueEnergyCount * attack.damagePerUniqueAttachedEnergy;
+  }
   if (attack.damagePerUmamusumeInPlay) {
     damage += (attack.damagePerUmamusumeInPlay.side === "all" ? allInPlayCount : ownInPlayCount) * attack.damagePerUmamusumeInPlay.amount;
   }
   if (attack.attackDamageBonusIfToolAttached && attacker.toolCardId) damage += attack.attackDamageBonusIfToolAttached;
+  if (attack.attackDamageBonusPerDiscardedHandCard) damage += attack.attackDamageBonusPerDiscardedHandCard.maxDiscard * attack.attackDamageBonusPerDiscardedHandCard.bonusPerCard;
   const attackerCard = getUmamusumeCard(attacker);
   const defenderCard = getUmamusumeCard(defender);
   const conditionalBonus = attackerCard.ability?.attackDamageBonusIfAttachedEnergy;

@@ -1,6 +1,8 @@
 import type { EnergyType, GameState, SideState, UmamusumeInstance } from "../../../../../shared/src/types";
 import { ALL_ENERGY_TYPES } from "../core/constants";
 import { getCard, getUmamusumeCard } from "../core/catalog";
+import { attachedEnergyCount } from "../core/umamusume";
+import { getUmamusumeAbility } from "./abilityRules";
 
 export function retreatCost(retreat: string): number {
   if (retreat === "Empty") return 0;
@@ -17,8 +19,9 @@ export function getGlobalRetreatCostReduction(state: GameState): number {
 
 export function effectiveRetreatCost(state: GameState, side: SideState): number {
   if (!side.active) return 0;
-  const activeCard = getUmamusumeCard(side.active);
-  if (activeCard.ability?.retreatCostZeroIfTookDamageLastTurn && side.active.tookDamageLastTurn) return 0;
+  const ability = getUmamusumeAbility(state, side.id, side.active);
+  if (ability?.retreatCostZeroIfTookDamageLastTurn && side.active.tookDamageLastTurn) return 0;
+  if (ability?.retreatCostZeroIfHasEnergy && attachedEnergyCount(side.active) > 0) return 0;
   return Math.max(0, retreatCost(getUmamusumeCard(side.active).retreat) - side.retreatCostReduction - getGlobalRetreatCostReduction(state));
 }
 

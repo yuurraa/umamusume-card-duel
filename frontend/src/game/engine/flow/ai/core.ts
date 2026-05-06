@@ -11,6 +11,7 @@ import { getAllUmamusume } from "../../core/umamusume";
 import { createUmamusume } from "../setup";
 import { log, logPrimaryFirst } from "../../core/log";
 import { performAttack } from "../combat";
+import { shuffle } from "../../core/random";
 import {
   canImmediateOpponentKoConservative,
   pickCandidateByDifficulty,
@@ -375,6 +376,26 @@ export function aiUseOneAbility(
     if (ability.coinFlipDrawOrActiveDamageCounter) {
       if (turnGoal === "deny_opponent_lethal" || turnGoal === "secure_lethal_now") continue;
       if (aiUseCoinFlipDrawAbility(state, side, abilityUmamusume, random, deps, state.aiDifficulty)) return true;
+    }
+    if (ability.shuffleRandomDiscardIntoDeck) {
+      const count = Math.min(ability.shuffleRandomDiscardIntoDeck, side.discard.length);
+      if (count <= 0) continue;
+      const shuffledCardIds: string[] = [];
+      for (let picked = 0; picked < count; picked += 1) {
+        const randomIndex = Math.floor(random() * side.discard.length);
+        const [cardId] = side.discard.splice(randomIndex, 1);
+        if (cardId) shuffledCardIds.push(cardId);
+      }
+      side.deck = shuffle([...side.deck, ...shuffledCardIds]);
+      abilityUmamusume.usedAbilityThisTurn = true;
+      side.usedAbilityNamesThisTurn ??= [];
+      if (!side.usedAbilityNamesThisTurn.includes(ability.name)) side.usedAbilityNamesThisTurn.push(ability.name);
+      if (ability.oncePerGame) {
+        side.usedAbilityNamesThisGame ??= [];
+        if (!side.usedAbilityNamesThisGame.includes(ability.name)) side.usedAbilityNamesThisGame.push(ability.name);
+      }
+      log(state, `${formatUmamusumeCardName(abilityCard)}'s ${ability.name} shuffled ${shuffledCardIds.length} random cards from discard into ${actorName(side)}'s deck.`);
+      return true;
     }
   }
 

@@ -5,6 +5,8 @@ import { actorName, actorPossessive, formatUmamusumeInstanceName } from "../core
 import { log } from "../core/log";
 import { attachedEnergyCount, getAllUmamusume } from "../core/umamusume";
 import { retreatCost } from "./retreat";
+import { getUmamusumeAbility } from "./abilityRules";
+import { clearSpecialConditions } from "./specialConditions";
 
 export type SwitchAfterGustResume = Extract<PendingPlayerChoice, { kind: "switchAfterGust" }>["resume"];
 
@@ -46,6 +48,7 @@ export function switchOutOpponentActive(
   const replacement = opponent.bench.splice(replacementIndex, 1)[0];
   if (!replacement) return;
   const switchedOut = opponent.active;
+  clearSpecialConditions(switchedOut);
   opponent.bench.push(switchedOut);
   opponent.active = replacement;
   log(state, `${actorName(opponent)} switched to ${formatUmamusumeInstanceName(replacement)}.`);
@@ -103,7 +106,7 @@ function getStadiumBasicHpBonus(state: GameState): number {
 
 function refreshSideContinuousEffects(state: GameState, side: SideState, basicHpBonus: number): void {
   const activeHpBonus = getAllUmamusume(side).reduce((best, umamusume) => {
-    const bonus = getUmamusumeCard(umamusume).ability?.activeHpBonus ?? 0;
+    const bonus = getUmamusumeAbility(state, side.id, umamusume)?.activeHpBonus ?? 0;
     return Math.max(best, bonus);
   }, 0);
 

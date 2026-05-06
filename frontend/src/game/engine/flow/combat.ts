@@ -1,12 +1,14 @@
 import { MAX_POINTS } from "../../../../../shared/src/gameData";
 import type { CoinFlipResult, EnergyType, GameState, SideId, SideState, UmamusumeInstance } from "../../../../../shared/src/types";
 import { getCard, getPrimaryAttack, getUmamusumeCard } from "../core/catalog";
-import { actorName, actorPossessive, energyLabel, formatCardName, formatUmamusumeCardName, formatUmamusumeInstanceName, pluralize } from "../core/labels";
+import { actorLowerPossessive, actorName, actorPossessive, energyLabel, formatCardName, formatUmamusumeCardName, formatUmamusumeInstanceName, pluralize } from "../core/labels";
 import { log } from "../core/log";
 import { findMostDamagedUmamusume, findOwnUmamusumeByUid, getAllUmamusume } from "../core/umamusume";
 import { drawCards } from "./turn";
 import { shuffle } from "../core/random";
 import { evolveUmamusume } from "./evolution";
+import { getUmamusumeAbility } from "./abilityRules";
+import { clearSpecialConditions } from "./specialConditions";
 
 type CombatDeps = {
   refreshContinuousEffects: (state: GameState) => void;
@@ -82,15 +84,32 @@ export function performAttack(
       }
     }
   }
-  const conditionalAttackBonus = attackerCard.ability?.attackDamageBonusIfAttachedEnergy;
+  const attackerAbility = getUmamusumeAbility(state, attackerId, attacker.active);
+  const conditionalAttackBonus = attackerAbility?.attackDamageBonusIfAttachedEnergy;
   if (!nonDamagingAttack && conditionalAttackBonus && attacker.active.energies[conditionalAttackBonus.type] >= conditionalAttackBonus.min) {
     damage += conditionalAttackBonus.amount;
   }
-  const evolvedLastTurnBonus = attackerCard.ability?.attackDamageBonusIfEvolvedLastTurn ?? 0;
+  if (attack.damagePerUniqueAttachedEnergy) {
+    const uniqueEnergyCount = Object.values(attacker.active.energies).filter((count) => count > 0).length;
+    damage += uniqueEnergyCount * attack.damagePerUniqueAttachedEnergy;
+  }
+  if (attack.attackDamageBonusPerDiscardedHandCard && attacker.hand.length > 0) {
+    const discardCount = Math.min(attack.attackDamageBonusPerDiscardedHandCard.maxDiscard, attacker.hand.length);
+    for (let count = 0; count < discardCount; count += 1) {
+      const [discardedCardId] = attacker.hand.splice(0, 1);
+      if (!discardedCardId) break;
+      attacker.discard.push(discardedCardId);
+    }
+    if (discardCount > 0) {
+      damage += discardCount * attack.attackDamageBonusPerDiscardedHandCard.bonusPerCard;
+      log(state, `${actorName(attacker)} discarded ${discardCount} ${pluralize(discardCount, "card")} for ${attack.name}.`);
+    }
+  }
+  const evolvedLastTurnBonus = attackerAbility?.attackDamageBonusIfEvolvedLastTurn ?? 0;
   if (!nonDamagingAttack && evolvedLastTurnBonus > 0 && attacker.active.evolvedTurn === state.turnNumber - 1) {
     damage += evolvedLastTurnBonus;
   }
-  if (attack.coinBonus || attack.drawOnHeads) {
+  if (attack.coinBonus || attack.drawOnHeads || attack.discardRandomOpponentHandOnHeads) {
     const heads = flipCoin(attacker, forcedCoinResults) === "heads";
     coinFlipHeads = heads;
     if (heads && attack.coinBonus) damage += attack.coinBonus;
@@ -177,6 +196,20 @@ export function performAttack(
   if (attack.inflictSpecialCondition && attackTarget.hp > 0) {
     applySpecialCondition(state, defenderId, attackTarget, attack.inflictSpecialCondition);
   }
+  if (attack.discardRandomOpponentHandOnHeads && coinFlipHeads) {
+    const shouldUseOptionalDiscard = defender.hand.length > 0 && attacker.active.hp > attack.discardRandomOpponentHandOnHeads.selfDamage;
+    if (shouldUseOptionalDiscard) {
+      const randomHandIndex = Math.floor(Math.random() * defender.hand.length);
+      const [discardedCardId] = defender.hand.splice(randomHandIndex, 1);
+      if (discardedCardId) {
+        defender.discard.push(discardedCardId);
+        attacker.active.hp = Math.max(0, attacker.active.hp - attack.discardRandomOpponentHandOnHeads.selfDamage);
+        attacker.active.tookDamageThisTurn = true;
+        log(state, `${attack.name} discarded 1 random card from ${actorLowerPossessive(defender)} hand.`);
+        log(state, `${formatUmamusumeInstanceName(attacker.active)} took ${attack.discardRandomOpponentHandOnHeads.selfDamage} damage.`);
+      }
+    }
+  }
   if (attack.benchDamage && attack.benchDamage > 0) {
     defender.bench.forEach((benchedUmamusume) => {
       benchedUmamusume.hp = Math.max(0, benchedUmamusume.hp - attack.benchDamage!);
@@ -220,6 +253,7 @@ export function performAttack(
     if (switchIndex >= 0) {
       const promoted = attacker.bench.splice(switchIndex, 1)[0];
       if (promoted) {
+        clearSpecialConditions(attacker.active);
         attacker.bench.push(attacker.active);
         attacker.active = promoted;
         log(state, `${actorName(attacker)} switched to ${formatUmamusumeInstanceName(promoted)}.`);
@@ -310,8 +344,7 @@ function shuffleActiveIntoDeckIfPaid(
 
 function recoverSpecialConditions(state: GameState, umamusume: UmamusumeInstance, sourceName: string): void {
   if (umamusume.specialConditions.length === 0) return;
-  umamusume.specialConditions = [];
-  umamusume.paralysedUntilOwnTurn = null;
+  clearSpecialConditions(umamusume);
   log(state, `${sourceName} cleared all Special Conditions from ${formatUmamusumeInstanceName(umamusume)}.`);
 }
 
@@ -398,7 +431,8 @@ export function knockOutUmamusume(
 }
 
 function attackDamageReductionFor(state: GameState, umamusume: UmamusumeInstance): number {
-  return (getUmamusumeCard(umamusume).ability?.damageReduction ?? 0) + umamusume.nextTurnDamageReduction + activeToolDamageReduction(state, umamusume);
+  const ownerSideId: SideId = state.sides.player.active?.uid === umamusume.uid || state.sides.player.bench.some((entry) => entry.uid === umamusume.uid) ? "player" : "opponent";
+  return (getUmamusumeAbility(state, ownerSideId, umamusume)?.damageReduction ?? 0) + umamusume.nextTurnDamageReduction + activeToolDamageReduction(state, umamusume);
 }
 
 function activeToolDamageReduction(state: GameState, umamusume: UmamusumeInstance): number {
