@@ -782,14 +782,14 @@
             "lightning": 1,
             "colorless": 1
           },
-          "damage": 40,
+          "damage": 50,
           "shuffleSelfIntoDeck": {
             "discardEnergy": {
               "lightning": 3
             },
             "requiresBench": true
           },
-          "text": "You may discard 3 [L] Energy from this Umamusume. If you do, shuffle this card and all attached cards back into your deck. You must have at least 1 Benched Umamusume to do so."
+          "text": "You may discard 3 Lightning Energy from this Umamusume. If you do, shuffle this card and all attached cards back into your deck. You must have at least 1 Benched Umamusume to do so."
         }
       ]
     },
