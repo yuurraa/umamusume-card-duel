@@ -45,14 +45,18 @@ export function screenFadeOverlayStyle(opacity: number): CSSProperties {
   };
 }
 
-export function matchBackgroundLayerStyle(playmatImage: string | null | undefined, opacity: number): CSSProperties {
+export function matchBackgroundLayerStyle(
+  playmatImage: string | null | undefined,
+  opacity: number,
+  disableOpacityTransition = false,
+): CSSProperties {
   return {
     position: "fixed",
     inset: 0,
     zIndex: 0,
     pointerEvents: "none",
     opacity,
-    transition: `opacity ${transitions.backgroundFade}`,
+    transition: disableOpacityTransition ? "none" : `opacity ${transitions.backgroundFade}`,
     background: playmatImage ? `url("${playmatImage}") center / cover fixed no-repeat` : "none",
     backgroundAttachment: "fixed",
   };

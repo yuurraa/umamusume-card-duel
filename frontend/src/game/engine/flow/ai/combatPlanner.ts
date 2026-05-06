@@ -11,6 +11,7 @@ import { performAttack } from "../combat";
 import {
   buildAttackDecision,
   canImmediateOpponentKo,
+  canImmediateOpponentKoConservative,
   countDiscardedUmamusume,
   didCandidateKoTarget,
   getDamageDealt,
@@ -91,36 +92,40 @@ function buildAttackCandidates(
   const resolvedAttackTargets = attackTargetUids.length > 0 ? attackTargetUids : [undefined];
   const resolvedHealTargets = healTargetUids.length > 0 ? healTargetUids : [undefined];
   const usesCoinFlip = Boolean(attack.coinBonus || attack.drawOnHeads || attack.knockOutActiveIfAllCoinHeads);
+  const shuffleOptions = attack.shuffleSelfIntoDeck ? [false, true] : [undefined];
   const candidates: CombatCandidate[] = [];
 
   resolvedAttackTargets.forEach((attackTargetUid) => {
     resolvedHealTargets.forEach((healTargetUid) => {
-      if (!usesCoinFlip || forcedAttackCoinResult) {
-        const decision = buildAttackDecision(retreatTargetUid, attackTargetUid, healTargetUid, usesCoinFlip);
-        candidates.push(scoreCandidate(state, side.id, deps, decision, `${retreatTargetUid ?? "stay"}-${attackTargetUid ?? "active"}-${healTargetUid ?? "auto"}-${forcedAttackCoinResult ?? "none"}`));
-        return;
-      }
+      shuffleOptions.forEach((useShuffleSelfIntoDeck) => {
+        const shuffleTag = useShuffleSelfIntoDeck === undefined ? "auto" : (useShuffleSelfIntoDeck ? "shuffle" : "keep");
+        if (!usesCoinFlip || forcedAttackCoinResult) {
+          const decision = buildAttackDecision(retreatTargetUid, attackTargetUid, healTargetUid, usesCoinFlip, useShuffleSelfIntoDeck);
+          candidates.push(scoreCandidate(state, side.id, deps, decision, `${retreatTargetUid ?? "stay"}-${attackTargetUid ?? "active"}-${healTargetUid ?? "auto"}-${shuffleTag}-${forcedAttackCoinResult ?? "none"}`));
+          return;
+        }
 
-      const heads = scoreCandidate(
-        state,
-        side.id,
-        deps,
-        buildAttackDecision(retreatTargetUid, attackTargetUid, healTargetUid, true),
-        `${retreatTargetUid ?? "stay"}-${attackTargetUid ?? "active"}-${healTargetUid ?? "auto"}-heads`,
-        "heads",
-      );
-      const tails = scoreCandidate(
-        state,
-        side.id,
-        deps,
-        buildAttackDecision(retreatTargetUid, attackTargetUid, healTargetUid, true),
-        `${retreatTargetUid ?? "stay"}-${attackTargetUid ?? "active"}-${healTargetUid ?? "auto"}-tails`,
-        "tails",
-      );
-      candidates.push({
-        ...heads,
-        id: `${retreatTargetUid ?? "stay"}-${attackTargetUid ?? "active"}-${healTargetUid ?? "auto"}-expected`,
-        score: (heads.score + tails.score) / 2,
+        const heads = scoreCandidate(
+          state,
+          side.id,
+          deps,
+          buildAttackDecision(retreatTargetUid, attackTargetUid, healTargetUid, true, useShuffleSelfIntoDeck),
+          `${retreatTargetUid ?? "stay"}-${attackTargetUid ?? "active"}-${healTargetUid ?? "auto"}-${shuffleTag}-heads`,
+          "heads",
+        );
+        const tails = scoreCandidate(
+          state,
+          side.id,
+          deps,
+          buildAttackDecision(retreatTargetUid, attackTargetUid, healTargetUid, true, useShuffleSelfIntoDeck),
+          `${retreatTargetUid ?? "stay"}-${attackTargetUid ?? "active"}-${healTargetUid ?? "auto"}-${shuffleTag}-tails`,
+          "tails",
+        );
+        candidates.push({
+          ...heads,
+          id: `${retreatTargetUid ?? "stay"}-${attackTargetUid ?? "active"}-${healTargetUid ?? "auto"}-${shuffleTag}-expected`,
+          score: (heads.score + tails.score) / 2,
+        });
       });
     });
   });
@@ -147,7 +152,20 @@ function scoreCandidate(
     if (decision.retreatTargetUid !== undefined) {
       aiRetreatToTarget(simulated, actingAfter, decision.retreatTargetUid);
     }
-    performAttack(simulated, actingSideId, deps, decision.attackTargetUid, decision.healTargetUid, forcedCoinResult);
+    performAttack(
+      simulated,
+      actingSideId,
+      deps,
+      decision.attackTargetUid,
+      decision.healTargetUid,
+      forcedCoinResult,
+      undefined,
+      0,
+      undefined,
+      undefined,
+      undefined,
+      decision.useShuffleSelfIntoDeck,
+    );
   }
 
   const pointsGained = simulated.sides[actingSideId].points - actingBefore.points;
@@ -171,14 +189,94 @@ function scoreCandidate(
     + healingGained * BASE_HEAL_GAINED_WEIGHT
     - damageTakenByStartingActive * BASE_DAMAGE_TAKEN_WEIGHT
     + (activeKoed ? BASE_ACTIVE_KO_BONUS : 0);
+  const shuffleRiskPenalty = getOptionalSelfShuffleRiskPenalty(before, simulated, actingSideId, decision, lethalTarget);
+  const nextTurnLockPenalty = getCannotAttackNextTurnPenalty(before, simulated, actingSideId, decision, lethalTarget);
+  const benchSurvivalPenalty = getBenchSurvivalFloorPenalty(before, simulated, actingSideId, lethalTarget);
 
   return {
     id,
     decision,
-    score,
+    score: score - shuffleRiskPenalty - nextTurnLockPenalty - benchSurvivalPenalty,
     keepsSafe: !canImmediateOpponentKo(simulated, actingSideId),
     lethalTarget,
     targetValue,
     targetIsActive,
   };
+}
+
+function getBenchSurvivalFloorPenalty(
+  before: GameState,
+  after: GameState,
+  actingSideId: SideId,
+  lethalTarget: boolean,
+): number {
+  if (lethalTarget) return 0;
+  const beforeSide = before.sides[actingSideId];
+  const afterSide = after.sides[actingSideId];
+  const threatened = canImmediateOpponentKoConservative(after, actingSideId);
+  const benchCount = afterSide.bench.length;
+  if (benchCount >= 2 && !threatened) return 0;
+
+  let penalty = 0;
+  if (benchCount === 0) penalty += 260;
+  else if (benchCount === 1) penalty += threatened ? 180 : 90;
+  else if (threatened) penalty += 50;
+
+  if (benchCount > 0) {
+    const fragileBench = afterSide.bench.filter((u) => u.hp <= 40).length;
+    penalty += fragileBench * (threatened ? 46 : 22);
+  }
+
+  // If we reduced bench stability compared with before, tax that extra.
+  if (afterSide.bench.length < beforeSide.bench.length) {
+    penalty += (beforeSide.bench.length - afterSide.bench.length) * 35;
+  }
+  return penalty;
+}
+
+function getCannotAttackNextTurnPenalty(
+  before: GameState,
+  after: GameState,
+  actingSideId: SideId,
+  decision: AiCombatDecision,
+  lethalTarget: boolean,
+): number {
+  if (decision.kind !== "attack") return 0;
+  const beforeActive = before.sides[actingSideId].active;
+  const afterActive = after.sides[actingSideId].active;
+  if (!beforeActive || !afterActive || beforeActive.uid !== afterActive.uid) return 0;
+  const gainedLock = afterActive.attackBlockedUntilOwnTurn !== beforeActive.attackBlockedUntilOwnTurn;
+  if (!gainedLock) return 0;
+  if (lethalTarget) return 0;
+  return after.sides[actingSideId].bench.length === 0 ? 120 : 55;
+}
+
+function getOptionalSelfShuffleRiskPenalty(
+  before: GameState,
+  after: GameState,
+  actingSideId: SideId,
+  decision: AiCombatDecision,
+  lethalTarget: boolean,
+): number {
+  if (decision.kind !== "attack" || decision.useShuffleSelfIntoDeck !== true) return 0;
+
+  const beforeSide = before.sides[actingSideId];
+  const afterSide = after.sides[actingSideId];
+  const beforeActive = beforeSide.active;
+  const afterActive = afterSide.active;
+  if (!beforeActive || !afterActive) return 0;
+
+  let penalty = 0;
+  if (afterSide.bench.length === 0) penalty += 220;
+  else if (afterSide.bench.length === 1) penalty += 110;
+
+  const promotedHpLoss = Math.max(0, beforeActive.hp - afterActive.hp);
+  penalty += promotedHpLoss * 1.2;
+
+  const investedEnergy = attachedEnergyCount(beforeActive);
+  if (!lethalTarget) penalty += investedEnergy * 28;
+  else penalty += investedEnergy * 8;
+
+  if (beforeSide.points >= 2 && !lethalTarget) penalty += 160;
+  return penalty;
 }

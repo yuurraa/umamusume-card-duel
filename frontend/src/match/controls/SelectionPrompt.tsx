@@ -15,6 +15,8 @@ export function SelectionPrompt({ pending, onCancel, nextEnergyType, onRetreatDi
   onChooseAttackShuffleSelf?: (shouldShuffle: boolean) => void;
 }) {
   const isRetreatDiscard = pending.kind === "retreatDiscard";
+  const isAttackShuffleChoice = pending.kind === "attackShuffleSelfChoice";
+  const hasInlineActionRow = isRetreatDiscard || isAttackShuffleChoice;
   const retreatSelectedCount = isRetreatDiscard ? getSelectedEnergyCount(pending.selectedEnergyCounts) : 0;
   const retreatConfirmEnabled = isRetreatDiscard && retreatSelectedCount === pending.retreatCost;
 
@@ -63,7 +65,7 @@ export function SelectionPrompt({ pending, onCancel, nextEnergyType, onRetreatDi
           : "Choose your next action.";
 
   return (
-    <section style={selectionPromptStyle(isRetreatDiscard)}>
+    <section style={selectionPromptStyle(isRetreatDiscard, hasInlineActionRow)}>
       <strong style={selectionPromptTextStyle}>{copy}</strong>
       {isRetreatDiscard && (
         <RetreatDiscardSelector
@@ -82,10 +84,10 @@ export function SelectionPrompt({ pending, onCancel, nextEnergyType, onRetreatDi
             Confirm
           </NeutralButton>
         </div>
-      ) : pending.kind === "attackShuffleSelfChoice" ? (
+      ) : isAttackShuffleChoice ? (
         <div style={selectionPromptActionRowStyle}>
-          <NeutralButton style={selectionPromptInlineButtonStyle} onClick={() => onChooseAttackShuffleSelf?.(false)}>No</NeutralButton>
           <NeutralButton style={selectionPromptInlineButtonStyle} onClick={() => onChooseAttackShuffleSelf?.(true)}>Yes</NeutralButton>
+          <NeutralButton style={selectionPromptInlineButtonStyle} onClick={() => onChooseAttackShuffleSelf?.(false)}>No</NeutralButton>
         </div>
       ) : (
         pending.kind !== "replaceActive" && pending.kind !== "forceSwitchActive" && <NeutralButton style={selectionPromptButtonStyle} onClick={onCancel}>Cancel</NeutralButton>
@@ -179,7 +181,7 @@ function formatEnergyList(energyTypes: EnergyType[]): string {
 
 const RETREAT_ENERGY_ORDER: EnergyType[] = ["grass", "fire", "water", "lightning", "psychic", "fighting", "darkness", "steel", "colorless", "dragon"];
 
-function selectionPromptStyle(isRetreatDiscard: boolean): CSSProperties {
+function selectionPromptStyle(isRetreatDiscard: boolean, hasInlineActionRow: boolean): CSSProperties {
   return {
   position: "fixed",
   left: "50%",
@@ -189,7 +191,7 @@ function selectionPromptStyle(isRetreatDiscard: boolean): CSSProperties {
   display: "grid",
   gap: 12,
   transform: "translateX(-50%)",
-  padding: isRetreatDiscard ? "14px 18px" : "12px 86px 12px 18px",
+  padding: isRetreatDiscard || hasInlineActionRow ? "14px 18px" : "12px 86px 12px 18px",
   textAlign: "center",
   color: colors.black,
   textShadow: "none",
@@ -231,6 +233,7 @@ const selectionPromptInlineButtonStyle: CSSProperties = {
   position: "static",
   transform: "none",
 };
+
 
 const retreatDiscardGridStyle: CSSProperties = {
   display: "grid",

@@ -7,7 +7,7 @@ export type UmamusumeType = "Grass" | "Fire" | "Water" | "Lightning" | "Psychic"
 export type EnergyRequirement = EnergyType | "colorless";
 export type EnergyCost = Partial<Record<EnergyRequirement, number>>;
 export type TrainerType = "supporter" | "item" | "stadium" | "tool";
-export type SpecialCondition = "asleep" | "burned" | "confused" | "paralyzed" | "poisoned";
+export type SpecialCondition = "asleep" | "burned" | "frozen" | "paralysed" | "poisoned";
 export type CardRarity = "common" | "uncommon" | "uncommonPlus" | "rare" | "artRare" | "specialArtRare" | "secretRare" | "ultraRare";
 export type CardPrintVariant = "standard" | "holographic";
 export type OpponentTurnStep = "bench" | "trainerBefore" | "evolve" | "attach" | "trainerAfter" | "attack" | "finish";
@@ -56,6 +56,8 @@ export type Attack = {
   shuffleRandomDiscardIntoDeck?: number;
   guaranteeNextCoinFlipHeads?: number;
   knockOutActiveIfAllCoinHeads?: number;
+  cannotAttackNextTurn?: boolean;
+  inflictSpecialCondition?: SpecialCondition;
 };
 
 export type Ability = {
@@ -82,6 +84,7 @@ export type Ability = {
     draw: number;
     damageOnTails: number;
   };
+  retreatCostZeroIfTookDamageLastTurn?: boolean;
 };
 
 export type UmamusumeCard = {
@@ -158,6 +161,8 @@ export type UmamusumeInstance = {
   tookDamageThisTurn: boolean;
   nextTurnDamageReduction: number;
   usedAbilityThisTurn: boolean;
+  attackBlockedUntilOwnTurn: number | null;
+  paralysedUntilOwnTurn: number | null;
   toolCardId: string | null;
 };
 

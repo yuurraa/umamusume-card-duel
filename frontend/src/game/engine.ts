@@ -40,6 +40,7 @@ import { aiAttachOneEnergy, aiEvolveOne, aiPlayOneBasic, aiPlayOneTrainer, aiRes
 import { knockOutUmamusume, performAttack } from "./engine/flow/combat";
 import { canUseStadium, useStadium } from "./engine/flow/trainers";
 import { chooseAiTurnGoal } from "./engine/flow/ai/turnPlan";
+import { clearAiTelemetry } from "./engine/flow/ai/telemetry";
 
 export type { PlayChoices };
 
@@ -79,6 +80,7 @@ export function createGame(
   playerEnergyTypes?: EnergyType[],
   opponentEnergyTypes?: EnergyType[],
 ): GameState {
+  clearAiTelemetry();
   resetUmamusumeIdCounter();
   const playerOpening = buildDeferredOpeningSide("player", playerName, playerDeck, playerEnergyTypes);
   const opponentOpening = buildDeferredOpeningSide("opponent", opponentName, opponentDeck, opponentEnergyTypes);
@@ -236,7 +238,12 @@ export function playerAttack(
     switchTargetUid,
     useShuffleSelfIntoDeck,
   );
-  if (next.pendingPlayerChoice) return next;
+  if (next.pendingPlayerChoice) {
+    if (next.pendingPlayerChoice.kind === "promoteAfterKnockout") {
+      next.pendingPlayerChoice.resume = "finishOpponentTurn";
+    }
+    return next;
+  }
   if (!next.gameOver) advanceToNextTurn(next);
   return next;
 }

@@ -602,6 +602,25 @@ function getMiscEffectGroups(state: GameState, umamusume: NonNullable<InspectTar
     if (tool.kind === "trainer" && tool.effect.toolCounterDamage) buffs.push(`${tool.effect.toolCounterDamage} Counter Damage - ${tool.name}`);
     if (tool.kind === "trainer" && tool.effect.toolEndTurnHealActive) buffs.push(`${tool.effect.toolEndTurnHealActive} End Turn Healing - ${tool.name}`);
   }
+  umamusume.specialConditions.forEach((condition) => {
+    if (condition === "paralysed") {
+      debuffs.push("Paralysed - Cannot attack or retreat");
+      return;
+    }
+    if (condition === "burned") {
+      debuffs.push("Burned");
+      return;
+    }
+    if (condition === "poisoned") {
+      debuffs.push("Poisoned");
+      return;
+    }
+    if (condition === "asleep") {
+      debuffs.push("Asleep");
+      return;
+    }
+    debuffs.push("Frozen");
+  });
 
   return { buffs, debuffs };
 }

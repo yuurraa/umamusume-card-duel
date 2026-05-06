@@ -33,6 +33,9 @@ export function evolveUmamusume(state: GameState, side: SideState, umamusume: Um
   umamusume.hp = evolutionCard.hp - damage;
   umamusume.evolvedTurn = state.turnNumber;
   umamusume.enteredTurn = Math.min(umamusume.enteredTurn, state.turnNumber - 1);
+  // Evolution cures all special conditions.
+  umamusume.specialConditions = [];
+  umamusume.paralysedUntilOwnTurn = null;
   log(state, `${actorName(side)} evolved ${previousName} into ${formatUmamusumeCardName(evolutionCard)}.`);
 }
 

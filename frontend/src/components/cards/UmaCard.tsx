@@ -2,6 +2,7 @@ import { type CSSProperties, useEffect, useRef, useState } from "react";
 import { EnergyIcon } from "./EnergyIcon";
 import { AbilityReadyBadge } from "./AbilityReadyBadge";
 import { AttachedToolBadge } from "./AttachedToolBadge";
+import { SpecialConditionBadges } from "./SpecialConditionBadges";
 import { HoloCardImage } from "./HoloCardImage";
 import { getAttachedEnergy } from "../cards/attachedEnergy";
 import { applyDragPreview, writeDragPayload } from "../drag/dragData";
@@ -82,6 +83,7 @@ export function UmaCard({
           </div>
           <CardHpOverlay hp={umamusume.hp} maxHp={umamusume.maxHp} size="lg" />
           {abilityReady && <AbilityReadyBadge corner="topLeft" />}
+          <SpecialConditionBadges conditions={umamusume.specialConditions} size="md" />
           <AttachedToolBadge toolCardId={umamusume.toolCardId} onInspect={onToolInspect} />
           <AttachedEnergyPips energies={getAttachedEnergy(umamusume)} size="lg" />
         </>
@@ -234,8 +236,7 @@ function hpOverlayStyle(size: "sm" | "md" | "lg"): CSSProperties {
     top: size === "lg" ? "2%" : size === "md" ? "1.1%" : "1.8%",
     right: size === "lg" ? "3%" : size === "md" ? "2.5%" : "14.5%",
     zIndex: 3,
-    width: "fit-content",
-    minWidth: size === "lg" ? "74px" : size === "md" ? "39px" : "32px",
+    width: size === "lg" ? "86px" : size === "md" ? "48px" : "40px",
     gap: size === "lg" ? 2 : 1,
     pointerEvents: "none",
   };
@@ -246,6 +247,7 @@ function hpContentStyle(size: "sm" | "md" | "lg"): CSSProperties {
     position: "relative",
     zIndex: 1,
     display: "grid",
+    width: "100%",
     justifyItems: "end",
     gap: size === "sm" ? 2 : 5,
   };
@@ -253,6 +255,8 @@ function hpContentStyle(size: "sm" | "md" | "lg"): CSSProperties {
 
 function hpNumberStyle(size: "sm" | "md" | "lg"): CSSProperties {
   return {
+    width: "100%",
+    textAlign: "right",
     color: colors.white,
     fontSize: size === "lg" ? "clamp(34px, 13.2cqw, 52px)" : size === "md" ? "clamp(16px, 14.2cqw, 25px)" : "clamp(13px, 13.6cqw, 20px)",
     lineHeight: 0.86,
@@ -273,7 +277,7 @@ function hpNumberStyle(size: "sm" | "md" | "lg"): CSSProperties {
 
 function hpTrackStyle(size: "sm" | "md" | "lg"): CSSProperties {
   return {
-    width: size === "lg" ? "92%" : "88%",
+    width: "100%",
     height: size === "lg" ? "clamp(7px, 2.35cqw, 10px)" : size === "md" ? "clamp(4px, 2.3cqw, 6px)" : "clamp(3px, 2.1cqw, 5px)",
     marginTop: size === "sm" ? 2 : 0,
     overflow: "hidden",

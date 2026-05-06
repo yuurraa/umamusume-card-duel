@@ -77,6 +77,7 @@ export function startTurn(
 export function endTurn(state: GameState, startTurnImpl: (state: GameState, sideId: SideId) => void): void {
   if (state.gameOver || state.currentSide === "done") return;
   applyEndTurnToolTriggers(state, state.currentSide);
+  processEndTurnStatusConditions(state);
   const nextSide: SideId = state.currentSide === "player" ? "opponent" : "player";
   if (nextSide === state.firstPlayer) state.turnNumber += 1;
   startTurnImpl(state, nextSide);
@@ -100,4 +101,20 @@ function areToolsDisabled(state: GameState): boolean {
   if (!state.stadium) return false;
   const stadium = getCard(state.stadium.cardId);
   return stadium.kind === "trainer" && Boolean(stadium.effect.disableTools);
+}
+
+function processEndTurnStatusConditions(state: GameState): void {
+  (["player", "opponent"] as SideId[]).forEach((sideId) => {
+    const side = state.sides[sideId];
+    getAllUmamusume(side).forEach((umamusume) => {
+      if (!umamusume.specialConditions.includes("paralysed")) return;
+      const recoveryTurn = umamusume.paralysedUntilOwnTurn;
+      if (recoveryTurn === null) return;
+      const turnsTaken = state.turnsTakenBySide[sideId] ?? 0;
+      if (turnsTaken < recoveryTurn) return;
+      umamusume.specialConditions = umamusume.specialConditions.filter((condition) => condition !== "paralysed");
+      umamusume.paralysedUntilOwnTurn = null;
+      log(state, `${formatUmamusumeInstanceName(umamusume)} recovered from Paralysed.`);
+    });
+  });
 }

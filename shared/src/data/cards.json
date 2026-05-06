@@ -19,8 +19,11 @@
     "superCreekStage1",
     "symboliRudolfStage2",
     "tamamoCrossStage2",
+    "twinTurboBasic",
+    "etsukoOtonashi",
     "teamRigil",
     "teamSpica",
+    "daiwaScarletStage2",
     "vodkaStage2",
     "yayoiAkikawa"
   ],
@@ -598,12 +601,9 @@
       "retreat": "Colorless x2",
       "ability": {
         "name": "Chasing After You",
-        "text": "Once during your turn, you may do 20 damage to 1 of your opponent's Umamusume. If you do, discard 1 Darkness Energy from this Umamusume. You cannot use more than 1 Chasing After You Ability during your turn.",
+        "text": "Once during your turn, you may do 20 damage to 1 of your opponent's Umamusume. You cannot use more than 1 Chasing After You Ability during your turn.",
         "damageOpponent": 20,
-        "damageOpponentTarget": "any",
-        "discardEnergy": {
-          "darkness": 1
-        }
+        "damageOpponentTarget": "any"
       },
       "attacks": [
         {
@@ -976,7 +976,7 @@
       "type": "Colorless",
       "stage": 1,
       "evolvesFrom": "Oguri Cap",
-      "hp": 120,
+      "hp": 110,
       "portrait": "/assets/cards/umamusume/oguri-cap/stage1.png",
       "weakness": {
         "type": "Fighting",
@@ -990,8 +990,63 @@
             "colorless": 1
           },
           "damage": 40,
-          "attackDamageBonusIfToolAttached": 30,
-          "text": "If this Umamusume has an Umamusume Tool attached to her, this attack does +30 damage."
+          "attackDamageBonusIfToolAttached": 20,
+          "text": "If this Umamusume has an Umamusume Tool attached to her, this attack does +20 damage."
+        }
+      ]
+    },
+    "twinTurboBasic": {
+      "id": "twinTurboBasic",
+      "owner": "player",
+      "kind": "umamusume",
+      "name": "Twin Turbo",
+      "label": "Umamusume - Lightning - Basic",
+      "species": "Twin Turbo",
+      "type": "Lightning",
+      "stage": 0,
+      "hp": 80,
+      "portrait": "/assets/cards/umamusume/twin-turbo/basic.png",
+      "weakness": {
+        "type": "Steel",
+        "amount": 20
+      },
+      "retreat": "Colorless",
+      "attacks": [
+        {
+          "name": "Engine Ignition!",
+          "cost": {
+            "lightning": 1,
+            "colorless": 1
+          },
+          "damage": 30,
+          "inflictSpecialCondition": "paralysed",
+          "text": "Your opponent's Active Umamusume is now Paralysed."
+        }
+      ]
+    },
+    "twinTurboBasicEx": {
+      "id": "twinTurboBasicEx",
+      "implemented": false,
+      "owner": "player",
+      "kind": "umamusume",
+      "name": "Twin Turbo EX",
+      "label": "Umamusume - Lightning - Basic EX",
+      "species": "Twin Turbo",
+      "type": "Lightning",
+      "stage": 0,
+      "hp": 110,
+      "portrait": "/assets/cards/umamusume/twin-turbo/basic-ex.png",
+      "weakness": {
+        "type": "Steel",
+        "amount": 20
+      },
+      "retreat": "Colorless",
+      "attacks": [
+        {
+          "name": "TODO",
+          "cost": {},
+          "damage": 0,
+          "text": "TODO: Implement Twin Turbo EX's attack."
         }
       ]
     },
@@ -1084,6 +1139,100 @@
         }
       ]
     },
+    "daiwaScarletBasic": {
+      "id": "daiwaScarletBasic",
+      "owner": "player",
+      "kind": "umamusume",
+      "name": "Daiwa Scarlet",
+      "label": "Umamusume - Water - Basic",
+      "species": "Daiwa Scarlet",
+      "type": "Water",
+      "stage": 0,
+      "hp": 60,
+      "portrait": "/assets/cards/umamusume/daiwa-scarlet/basic.png",
+      "weakness": {
+        "type": "Lightning",
+        "amount": 20
+      },
+      "retreat": "Empty",
+      "attacks": [
+        {
+          "name": "Peak Blue",
+          "cost": {
+            "colorless": 1
+          },
+          "damage": 10,
+          "text": "Do 10 damage to the Active Umamusume."
+        }
+      ]
+    },
+    "daiwaScarletStage1": {
+      "id": "daiwaScarletStage1",
+      "owner": "player",
+      "kind": "umamusume",
+      "name": "Daiwa Scarlet",
+      "label": "Umamusume - Water - Stage 1",
+      "species": "Daiwa Scarlet",
+      "type": "Water",
+      "stage": 1,
+      "evolvesFrom": "Daiwa Scarlet",
+      "hp": 90,
+      "portrait": "/assets/cards/umamusume/daiwa-scarlet/stage1.png",
+      "weakness": {
+        "type": "Lightning",
+        "amount": 20
+      },
+      "retreat": "Colorless",
+      "ability": {
+        "name": "Red Ace",
+        "text": "If this Umamusume took damage during your opponent's last turn, she has no Retreat Cost.",
+        "retreatCostZeroIfTookDamageLastTurn": true
+      },
+      "attacks": [
+        {
+          "name": "Scarlet Streak",
+          "cost": {
+            "water": 1
+          },
+          "damage": 40,
+          "text": "Do 40 damage to the Active Umamusume."
+        }
+      ]
+    },
+    "daiwaScarletStage2": {
+      "id": "daiwaScarletStage2",
+      "owner": "player",
+      "kind": "umamusume",
+      "name": "Daiwa Scarlet",
+      "label": "Umamusume - Water - Stage 2",
+      "species": "Daiwa Scarlet",
+      "type": "Water",
+      "stage": 2,
+      "evolvesFrom": "Daiwa Scarlet",
+      "hp": 120,
+      "portrait": "/assets/cards/umamusume/daiwa-scarlet/stage2.png",
+      "weakness": {
+        "type": "Lightning",
+        "amount": 20
+      },
+      "retreat": "Colorless x2",
+      "ability": {
+        "name": "Red Ace",
+        "text": "If this Umamusume took damage during your opponent's last turn, she has no Retreat Cost.",
+        "retreatCostZeroIfTookDamageLastTurn": true
+      },
+      "attacks": [
+        {
+          "name": "Miss Perfect",
+          "cost": {
+            "water": 2
+          },
+          "damage": 100,
+          "cannotAttackNextTurn": true,
+          "text": "During your next turn, this Umamusume cannot attack."
+        }
+      ]
+    },
     "niceNatureBasicEx": {
       "id": "niceNatureBasicEx",
       "implemented": false,
@@ -1152,7 +1301,7 @@
       "type": "Colorless",
       "stage": 1,
       "evolvesFrom": "Oguri Cap",
-      "hp": 180,
+      "hp": 170,
       "portrait": "/assets/cards/umamusume/oguri-cap/stage1-ex.png",
       "weakness": {
         "type": "Fighting",

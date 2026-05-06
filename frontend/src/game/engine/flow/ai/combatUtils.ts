@@ -81,6 +81,14 @@ export function didCandidateKoTarget(beforeDefender: SideState, afterDefender: S
 }
 
 export function canImmediateOpponentKo(state: GameState, sideId: SideId): boolean {
+  return canImmediateOpponentKoByRisk(state, sideId, "expected");
+}
+
+export function canImmediateOpponentKoConservative(state: GameState, sideId: SideId): boolean {
+  return canImmediateOpponentKoByRisk(state, sideId, "max");
+}
+
+function canImmediateOpponentKoByRisk(state: GameState, sideId: SideId, riskMode: "min" | "expected" | "max"): boolean {
   const side = state.sides[sideId];
   const opponent = state.sides[sideId === "player" ? "opponent" : "player"];
   const active = side.active;
@@ -89,7 +97,7 @@ export function canImmediateOpponentKo(state: GameState, sideId: SideId): boolea
   if (!hasEnoughEnergy(attacker, getPrimaryAttack(getUmamusumeCard(attacker)).cost)) return false;
   const ownInPlayCount = 1 + opponent.bench.length;
   const allInPlayCount = ownInPlayCount + 1 + side.bench.length;
-  const predicted = predictAttackDamage(attacker, active, opponent.activeAttackDamageBonus, ownInPlayCount, allInPlayCount, state.turnNumber);
+  const predicted = predictAttackDamageWithRisk(attacker, active, opponent.activeAttackDamageBonus, ownInPlayCount, allInPlayCount, state.turnNumber, riskMode);
   return predicted >= active.hp;
 }
 
@@ -124,6 +132,30 @@ export function predictAttackDamage(
   return Math.max(0, damage);
 }
 
+export function predictAttackDamageWithRisk(
+  attacker: UmamusumeInstance,
+  defender: UmamusumeInstance,
+  bonusDamage: number,
+  ownInPlayCount: number,
+  allInPlayCount: number,
+  turnNumber: number | undefined,
+  riskMode: "min" | "expected" | "max",
+): number {
+  const base = predictAttackDamage(attacker, defender, bonusDamage, ownInPlayCount, allInPlayCount, turnNumber);
+  const attack = getPrimaryAttack(getUmamusumeCard(attacker));
+  let adjustment = 0;
+  if (attack.coinBonus) {
+    if (riskMode === "max") adjustment += Math.ceil(attack.coinBonus / 2);
+    if (riskMode === "min") adjustment -= Math.floor(attack.coinBonus / 2);
+  }
+  if (attack.knockOutActiveIfAllCoinHeads) {
+    const koChanceDamageProxy = Math.floor(defender.hp / Math.pow(2, attack.knockOutActiveIfAllCoinHeads));
+    if (riskMode === "max") adjustment += Math.max(0, defender.hp - base);
+    if (riskMode === "min") adjustment -= koChanceDamageProxy;
+  }
+  return Math.max(0, base + adjustment);
+}
+
 export function countDiscardedUmamusume(cardIds: string[]): number {
   return cardIds.reduce((count, cardId) => (getCard(cardId).kind === "umamusume" ? count + 1 : count), 0);
 }
@@ -133,10 +165,12 @@ export function buildAttackDecision(
   attackTargetUid: number | undefined,
   healTargetUid: number | undefined,
   usesCoinFlip: boolean,
+  useShuffleSelfIntoDeck?: boolean,
 ): Extract<AiCombatDecision, { kind: "attack" }> {
   const decision: Extract<AiCombatDecision, { kind: "attack" }> = { kind: "attack", usesCoinFlip };
   if (retreatTargetUid !== undefined) decision.retreatTargetUid = retreatTargetUid;
   if (attackTargetUid !== undefined) decision.attackTargetUid = attackTargetUid;
   if (healTargetUid !== undefined) decision.healTargetUid = healTargetUid;
+  if (useShuffleSelfIntoDeck !== undefined) decision.useShuffleSelfIntoDeck = useShuffleSelfIntoDeck;
   return decision;
 }

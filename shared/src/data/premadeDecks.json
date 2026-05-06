@@ -176,7 +176,7 @@
         "traineeScoutTicket",
         "traineeScoutTicket",
         "aoiKiryuinFullArt",
-        "etsukoOtonashi",
+        "etsukoOtonashiFullArt",
         "tazunaHayakawaFullArt",
         "teamCanopus",
         "teamCanopusFullArt",
@@ -235,7 +235,7 @@
         "takoyakiBox",
         "traineeScoutTicket",
         "traineeScoutTicket",
-        "etsukoOtonashi",
+        "etsukoOtonashiFullArt",
         "tazunaHayakawa",
         "teamRigilFullArt",
         "teamSpica",
@@ -254,13 +254,13 @@
         "lightning"
       ],
       "cardIds": [
-        "agnesTachyonBasic",
         "tamamoCrossBasic",
         "tamamoCrossBasic",
         "tamamoCrossStage1UncommonPlus",
         "tamamoCrossStage1",
         "tamamoCrossStage2",
         "tamamoCrossStage2FullArt",
+        "twinTurboBasicFullArt",
         "3starMakeDebutScout",
         "carrotHamburgerSteak",
         "rainbowUncapCrystalFullArtGold",
@@ -284,8 +284,8 @@
         "grass"
       ],
       "cardIds": [
-        "niceNatureBasic",
         "niceNatureBasicFullArt",
+        "nishinoFlowerBasicFullArt",
         "oguriCapBasic",
         "oguriCapBasic",
         "oguriCapStage1UncommonPlus",
@@ -366,6 +366,36 @@
         "teamSpicaFullArt",
         "nakayamaTurf",
         "tracenGym"
+      ]
+    },
+    {
+      "id": "daiwaScarlet",
+      "name": "Daiwa Scarlet",
+      "coverCardId": "daiwaScarletStage2FullArt",
+      "energyTypes": [
+        "water"
+      ],
+      "cardIds": [
+        "niceNatureBasicFullArt",
+        "superCreekBasic",
+        "superCreekStage1FullArt",
+        "daiwaScarletBasic",
+        "daiwaScarletBasic",
+        "daiwaScarletStage1UncommonPlus",
+        "daiwaScarletStage2",
+        "daiwaScarletStage2FullArt",
+        "3starMakeDebutScout",
+        "carrotHamburgerSteak",
+        "carrotJelly",
+        "rainbowUncapCrystal",
+        "traineeScoutTicket",
+        "traineeScoutTicket",
+        "aoiKiryuin",
+        "tazunaHayakawa",
+        "tazunaHayakawaFullArt",
+        "teamCanopusFullArt",
+        "teamSpicaFullArt",
+        "nakayamaTurf"
       ]
     }
   ]

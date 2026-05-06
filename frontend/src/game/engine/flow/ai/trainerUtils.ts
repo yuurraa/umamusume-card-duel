@@ -14,25 +14,48 @@ import {
   getOpponentActiveEnergyCountFromPublic,
   getYayoiAkikawaValueFromPublic,
 } from "./opponentHeuristics";
+import { countConsumedBasics, getKnownRemainingDeckCounts } from "./deckInference";
+import { scoreAttackEnergyPoolFit } from "./energyAwareness";
+import { canImmediateOpponentKoConservative } from "./combatUtils";
 import type { AiTurnGoal } from "./types";
+import type { EnergyType } from "../../../../../../shared/src/types";
+import { hasConsecutiveNoAttackTurns } from "./turnPlan";
 
 export function shouldAiPlayTrainer(state: GameState, side: SideState, card: Card, handIndex: number, turnGoal: AiTurnGoal = "maximize_progress"): boolean {
   if (card.kind !== "trainer") return false;
   if (!getPlayableAction(state, side, card.id).canPlay) return false;
-  if (card.trainerType === "stadium") return shouldAiPlayStadium(state, side, card, turnGoal);
+  const recoveryMode = hasConsecutiveNoAttackTurns(state, side.title, 2);
+  const benchFragile = side.bench.length <= 1;
+  const underThreat = canImmediateOpponentKoConservative(state, side.id);
+  if (card.trainerType === "stadium") return shouldAiPlayStadium(state, side, card, turnGoal, recoveryMode);
+  if (recoveryMode) {
+    if (card.effect.searchUmamusume || card.effect.searchRandomBasicUmamusume || card.effect.draw) {
+      return side.hand.length < MAX_HAND;
+    }
+    if (card.effect.retreatCostReduction || card.effect.activeAttackDamageBonus || card.effect.gustOpponent) {
+      return false;
+    }
+  }
   if (card.trainerType === "tool") return getToolTargets(side).length > 0;
   if (card.effect.gustOpponent) return getYayoiAkikawaValue(state, side) > 0;
   if (card.effect.activeAttackDamageBonus) return getAoiKiryuinBonusValue(state, side) > 0;
+  if (benchFragile && underThreat && (card.effect.activeAttackDamageBonus || card.effect.gustOpponent)) return false;
   if (card.effect.discardRandomOpponentActiveEnergy) return getOpponentActiveEnergyCount(state, side) > 0;
   if (card.effect.attachEnergyFromZoneToBench) return side.bench.length > 0;
   if (card.effect.extraEnergyAttach) return true;
   if (card.effect.retreatCostReduction) {
     const active = side.active;
     if (!active) return false;
+    if (side.bench.length === 0) return false;
+    const reduction = card.effect.retreatCostReduction;
+    if (!reduction) return false;
+    const retreatUnlocksNow = !canRetreat(state, side) && attachedEnergyCount(active) + reduction >= effectiveRetreatCost(state, side);
+    if (!retreatUnlocksNow) return false;
     if (turnGoal === "deny_opponent_lethal") {
-      return side.bench.length > 0;
+      if (!canImmediateOpponentKoConservative(state, side.id)) return false;
+      return isRetreatLikelyBeneficial(state, side);
     }
-    return side.bench.length > 0 && attachedEnergyCount(active) + card.effect.retreatCostReduction >= effectiveRetreatCost(state, side) && !canRetreat(state, side);
+    return isRetreatLikelyBeneficial(state, side);
   }
   if (card.effect.heal && !hasDamagedHealingTarget(side, card)) return Boolean(card.effect.draw && side.hand.length < MAX_HAND);
   if (card.effect.draw && side.hand.length >= MAX_HAND) return false;
@@ -57,9 +80,15 @@ export function shouldAiPlayTrainer(state: GameState, side: SideState, card: Car
   return true;
 }
 
-function shouldAiPlayStadium(state: GameState, side: SideState, card: Extract<Card, { kind: "trainer" }>, turnGoal: AiTurnGoal): boolean {
+function shouldAiPlayStadium(
+  state: GameState,
+  side: SideState,
+  card: Extract<Card, { kind: "trainer" }>,
+  turnGoal: AiTurnGoal,
+  recoveryMode: boolean,
+): boolean {
   if (card.trainerType !== "stadium") return false;
-  if (turnGoal === "stabilize_board" && card.effect.shuffleHandIntoDeckDraw) return true;
+  if ((turnGoal === "stabilize_board" || recoveryMode) && card.effect.shuffleHandIntoDeckDraw) return true;
   const candidateValue = evaluateStadiumNetValue(state, side.id, card);
 
   if (!state.stadium) {
@@ -150,12 +179,11 @@ function scoreShuffleHandIntoDeckDrawValue(state: GameState, side: SideState): n
     return card.kind === "umamusume" && card.stage === 0;
   });
   if (!hasBench && !hasBasicInHand) {
-    const basicsInDeck = side.deck.reduce((count, cardId) => {
-      const card = getCard(cardId);
-      return count + (card.kind === "umamusume" && card.stage === 0 ? 1 : 0);
-    }, 0);
+    const deckCounts = getKnownRemainingDeckCounts(side);
+    const basicsInDeck = deckCounts.basicUmamusume;
+    const consumedBasics = countConsumedBasics(side);
     if (basicsInDeck > 0) {
-      score += 44;
+      score += 44 + Math.min(22, consumedBasics * 1.5);
     }
   }
 
@@ -171,7 +199,7 @@ export function getAiTrainerChoices(
 ): PlayChoices {
   const choices: PlayChoices = {};
   if (card.effect.attachEnergyFromZoneToBench) {
-    const target = getAiBenchEnergyAttachTarget(side);
+    const target = getAiBenchEnergyAttachTarget(state, side);
     if (target) choices.umamusumeTargetUid = target.uid;
   }
   if (card.effect.discardOtherCard) {
@@ -208,6 +236,7 @@ export function scoreEvolutionTarget(state: GameState, side: SideState, target: 
   if (!beforeCanAttack && afterCanAttack) score += 90;
   score += attachedEnergyCount(target) * 12;
   score += evolutionCard.stage * 20;
+  score += scoreAttackEnergyPoolFit(side, afterAttack.cost);
   if (state.aiDeckStyleBySide[side.id] === "stall") score += hpGain * 0.5;
   return score;
 }
@@ -230,16 +259,35 @@ export function getAiRainbowUncapChoice(
   return { targetUid: best.target.uid, evolutionHandIndex: option.handIndex };
 }
 
-function getAiBenchEnergyAttachTarget(side: SideState): UmamusumeInstance | undefined {
+function getAiBenchEnergyAttachTarget(state: GameState, side: SideState): UmamusumeInstance | undefined {
+  const nextEnergyType = side.energyZone[0];
   const undercharged = [...side.bench]
-    .sort((left, right) => scoreBenchAttachTarget(right) - scoreBenchAttachTarget(left))
+    .sort((left, right) => scoreBenchAttachTarget(state, side, right, nextEnergyType) - scoreBenchAttachTarget(state, side, left, nextEnergyType))
     .find((umamusume) => !hasEnoughEnergy(umamusume, getPrimaryAttack(getUmamusumeCard(umamusume)).cost));
   return undercharged ?? side.bench[0];
 }
 
-function scoreBenchAttachTarget(umamusume: UmamusumeInstance): number {
+function scoreBenchAttachTarget(
+  state: GameState,
+  side: SideState,
+  umamusume: UmamusumeInstance,
+  nextEnergyType?: EnergyType,
+): number {
   const attack = getPrimaryAttack(getUmamusumeCard(umamusume));
-  return umamusume.stage * 24 + attack.damage + attachedEnergyCount(umamusume) * 12;
+  const beforeCanAttack = hasEnoughEnergy(umamusume, attack.cost);
+  let afterCanAttack = beforeCanAttack;
+  if (nextEnergyType) {
+    const simulated = {
+      ...umamusume,
+      energies: { ...umamusume.energies, [nextEnergyType]: umamusume.energies[nextEnergyType] + 1 },
+    };
+    afterCanAttack = hasEnoughEnergy(simulated, attack.cost);
+  }
+  let score = umamusume.stage * 24 + attack.damage + attachedEnergyCount(umamusume) * 12;
+  score += scoreAttackEnergyPoolFit(side, attack.cost);
+  if (!beforeCanAttack && afterCanAttack) score += 120;
+  if (side.active && !canAttack(state, side) && !beforeCanAttack && afterCanAttack) score += 80;
+  return score;
 }
 
 function chooseAiToolTarget(side: SideState): UmamusumeInstance | undefined {
@@ -303,6 +351,7 @@ function scoreCardFutureValue(state: GameState, side: SideState, cardId: string)
   }
 
   let value = 30 + card.stage * 18 + getPrimaryAttack(card).damage * 0.7;
+  value += scoreAttackEnergyPoolFit(side, getPrimaryAttack(card).cost);
   const evolutionTargets = getAllUmamusume(side).filter((umamusume) => umamusume.species === card.evolvesFrom && umamusume.stage === card.stage - 1);
   if (card.stage > 0 && evolutionTargets.length > 0) value += 70;
   if (side.active && card.evolvesFrom === side.active.species && card.stage === side.active.stage + 1) value += 45;
@@ -339,4 +388,19 @@ function getYayoiAkikawaValue(state: GameState, side: SideState): number {
     side.bench.length,
     state.turnNumber,
   );
+}
+
+function isRetreatLikelyBeneficial(state: GameState, side: SideState): boolean {
+  const active = side.active;
+  if (!active) return false;
+  const activeAttack = getPrimaryAttack(getUmamusumeCard(active));
+  const activeCanAttack = hasEnoughEnergy(active, activeAttack.cost);
+  return side.bench.some((bench) => {
+    const benchAttack = getPrimaryAttack(getUmamusumeCard(bench));
+    const benchCanAttack = hasEnoughEnergy(bench, benchAttack.cost);
+    if (!activeCanAttack && benchCanAttack) return true;
+    if (bench.maxHp - active.maxHp >= 20) return true;
+    if (bench.hp - active.hp >= 20) return true;
+    return bench.stage > active.stage && bench.hp >= active.hp;
+  });
 }

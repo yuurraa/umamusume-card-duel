@@ -202,6 +202,7 @@ function recoverActiveSpecialConditions(state: GameState, side: SideState, train
   const active = side.active;
   if (!active || active.specialConditions.length === 0) return;
   active.specialConditions = [];
+  active.paralysedUntilOwnTurn = null;
   log(state, `${trainer.name} cleared all Special Conditions from ${formatUmamusumeInstanceName(active)}.`);
 }
 

@@ -134,6 +134,10 @@ export function performAttack(
     attacker.active.nextTurnDamageReduction = Math.max(attacker.active.nextTurnDamageReduction, attack.preventDamageNextTurn);
     log(state, `${actorPossessive(attacker)} ${formatUmamusumeCardName(attackerCard)} braced for the next attack.`);
   }
+  if (attack.cannotAttackNextTurn) {
+    startingActive.attackBlockedUntilOwnTurn = (state.turnsTakenBySide[attackerId] ?? 0) + 1;
+    log(state, `${formatUmamusumeInstanceName(startingActive)} cannot attack during the next turn.`);
+  }
 
   if (attack.draw) {
     const drawnCardIds = drawCards(state, attacker, attack.draw);
@@ -169,6 +173,9 @@ export function performAttack(
     const healed = target.hp - before;
     if (healed > 0) log(state, `${attack.name} healed ${formatUmamusumeInstanceName(target)} for ${healed} HP.`);
     if (attack.recoverSpecialConditions) recoverSpecialConditions(state, target, attack.name);
+  }
+  if (attack.inflictSpecialCondition && attackTarget.hp > 0) {
+    applySpecialCondition(state, defenderId, attackTarget, attack.inflictSpecialCondition);
   }
   if (attack.benchDamage && attack.benchDamage > 0) {
     defender.bench.forEach((benchedUmamusume) => {
@@ -229,6 +236,13 @@ export function performAttack(
   }
   if (!state.gameOver && !preserveAttackerWin && attacker.active && attacker.active.hp <= 0) {
     if (knockOutUmamusume(state, defenderId, attackerId, attacker.active, deps.choosePreferredActiveIndex, "Boxing Gloves")) {
+      if (
+        state.pendingPlayerChoice
+        && state.pendingPlayerChoice.kind === "promoteAfterKnockout"
+        && state.pendingPlayerChoice.sideId === attackerId
+      ) {
+        state.pendingPlayerChoice.resume = "finishOpponentTurn";
+      }
       deps.refreshContinuousEffects(state);
     }
   }
@@ -297,7 +311,24 @@ function shuffleActiveIntoDeckIfPaid(
 function recoverSpecialConditions(state: GameState, umamusume: UmamusumeInstance, sourceName: string): void {
   if (umamusume.specialConditions.length === 0) return;
   umamusume.specialConditions = [];
+  umamusume.paralysedUntilOwnTurn = null;
   log(state, `${sourceName} cleared all Special Conditions from ${formatUmamusumeInstanceName(umamusume)}.`);
+}
+
+function applySpecialCondition(
+  state: GameState,
+  affectedSideId: SideId,
+  umamusume: UmamusumeInstance,
+  condition: "asleep" | "burned" | "frozen" | "paralysed" | "poisoned",
+): void {
+  if (umamusume.specialConditions.includes(condition)) return;
+  umamusume.specialConditions = [...umamusume.specialConditions, condition];
+  if (condition === "paralysed") {
+    umamusume.paralysedUntilOwnTurn = (state.turnsTakenBySide[affectedSideId] ?? 0) + 1;
+    log(state, `${formatUmamusumeInstanceName(umamusume)} is Paralysed and cannot attack or retreat until the end of ${affectedSideId === "player" ? "your" : "opponent's"} next turn.`);
+    return;
+  }
+  log(state, `${formatUmamusumeInstanceName(umamusume)} is ${condition}.`);
 }
 
 export function knockOutUmamusume(

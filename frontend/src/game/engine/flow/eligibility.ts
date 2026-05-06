@@ -24,11 +24,14 @@ export function canAttachEnergyToUmamusume(state: GameState, side: SideState, um
 
 export function canAttack(state: GameState, side: SideState): boolean {
   if (state.phase !== "play" || state.pendingPlayerChoice || state.gameOver || state.currentSide !== side.id || !side.active) return false;
+  if (side.active.specialConditions.includes("paralysed")) return false;
+  if (side.active.attackBlockedUntilOwnTurn === state.turnsTakenBySide[side.id]) return false;
   return hasEnoughEnergy(side.active, getPrimaryAttack(getUmamusumeCard(side.active)).cost);
 }
 
 export function canRetreat(state: GameState, side: SideState): boolean {
   if (state.phase !== "play" || state.pendingPlayerChoice || state.gameOver || state.currentSide !== side.id || side.usedRetreatThisTurn || !side.active) return false;
+  if (side.active.specialConditions.includes("paralysed")) return false;
   if (side.bench.length === 0) return false;
   return attachedEnergyCount(side.active) >= effectiveRetreatCost(state, side);
 }

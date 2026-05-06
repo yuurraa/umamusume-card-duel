@@ -5,7 +5,7 @@ import { attachedEnergyCount } from "../../core/umamusume";
 import { performAttack } from "../combat";
 import type { AiCombatDeps, AiCombatDecision, CombatCandidate, MidLevelDecision } from "./types";
 import { aiRetreatToTarget, buildCombatCandidates } from "./combatPlanner";
-import { canImmediateOpponentKo } from "./combatUtils";
+import { canImmediateOpponentKoConservative } from "./combatUtils";
 import { hasEnoughEnergy } from "../energy";
 
 export function chooseMidLevelCombatDecision(
@@ -25,7 +25,7 @@ export function chooseMidLevelCombatDecision(
     };
   }
 
-  if (canImmediateOpponentKo(state, side.id)) {
+  if (canImmediateOpponentKoConservative(state, side.id)) {
     const safeCandidates = candidates.filter((candidate) => candidate.keepsSafe);
     if (safeCandidates.length > 0) {
       return {
@@ -94,6 +94,11 @@ function applyDecision(
     decision.healTargetUid,
     decision.usesCoinFlip ? forcedAttackCoinResult : undefined,
     undefined,
+    0,
+    undefined,
+    undefined,
+    undefined,
+    decision.useShuffleSelfIntoDeck,
   );
 }
 
@@ -131,7 +136,7 @@ function estimateRetreatInvestmentPenalty(
   const targetEnergy = attachedEnergyCount(retreatTarget);
   const activeReady = hasEnoughEnergy(active, activeAttack.cost);
   const targetReady = hasEnoughEnergy(retreatTarget, targetAttack.cost);
-  const threatenedNow = canImmediateOpponentKo(state, side.id);
+  const threatenedNow = canImmediateOpponentKoConservative(state, side.id);
 
   // Guardrail for "loaded attacker retreats into fragile pivot" lines.
   let penalty = 0;

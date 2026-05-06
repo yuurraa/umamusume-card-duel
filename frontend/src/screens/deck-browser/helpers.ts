@@ -20,11 +20,12 @@ export type DeckJsonPayload = { name: string; cardIds: string[]; coverCardId: st
 export type CategoryFilter = "umamusume" | "trainer" | "item" | "tool" | "stadium";
 export type StageFilter = 0 | 1 | 2;
 export type ArtFilter = "normal" | "fullArt";
+export type OwnershipFilter = "owned" | "unowned";
 export type RarityFilter = CardRarity;
 
 export const categoryFilters: Array<{ id: CategoryFilter; label: string }> = [
   { id: "umamusume", label: "Umamusume" },
-  { id: "trainer", label: "Trainer" },
+  { id: "trainer", label: "Supporter" },
   { id: "item", label: "Item" },
   { id: "tool", label: "Tool" },
   { id: "stadium", label: "Stadium" },
@@ -56,15 +57,20 @@ export const artFilters: Array<{ id: ArtFilter; label: string }> = [
   { id: "fullArt", label: "Full Art" },
 ];
 
+export const ownershipFilters: Array<{ id: OwnershipFilter; label: string }> = [
+  { id: "owned", label: "Owned" },
+  { id: "unowned", label: "Unowned" },
+];
+
 export const rarityFilters: Array<{ id: RarityFilter; label: string }> = [
   { id: "common", label: CARD_RARITY_LABELS.common },
   { id: "uncommon", label: CARD_RARITY_LABELS.uncommon },
   { id: "uncommonPlus", label: CARD_RARITY_LABELS.uncommonPlus },
   { id: "rare", label: CARD_RARITY_LABELS.rare },
+  { id: "ultraRare", label: CARD_RARITY_LABELS.ultraRare },
   { id: "artRare", label: CARD_RARITY_LABELS.artRare },
   { id: "specialArtRare", label: CARD_RARITY_LABELS.specialArtRare },
   { id: "secretRare", label: CARD_RARITY_LABELS.secretRare },
-  { id: "ultraRare", label: CARD_RARITY_LABELS.ultraRare },
 ];
 
 export const cardEntries = Object.values(cards).sort((left, right) => {
@@ -180,7 +186,7 @@ export function matchesAnyCategoryFilter(card: Card, filters: Set<CategoryFilter
 
 function matchesCategoryFilter(card: Card, filter: CategoryFilter): boolean {
   if (filter === "umamusume") return card.kind === "umamusume";
-  if (filter === "trainer") return card.kind === "trainer";
+  if (filter === "trainer") return card.kind === "trainer" && card.trainerType === "supporter";
   return card.kind === "trainer" && card.trainerType === filter;
 }
 
@@ -196,6 +202,14 @@ export function matchesAnyStageFilter(card: Card, filters: Set<StageFilter>): bo
 
 export function matchesAnyArtFilter(card: Card, filters: Set<ArtFilter>): boolean {
   return filters.has(isFullArtCard(card) ? "fullArt" : "normal");
+}
+
+export function matchesAnyOwnershipFilter(
+  card: Card,
+  filters: Set<OwnershipFilter>,
+  isOwned: (cardId: string) => boolean,
+): boolean {
+  return filters.has(isOwned(card.id) ? "owned" : "unowned");
 }
 
 export function matchesAnyRarityFilter(card: Card, filters: Set<RarityFilter>): boolean {

@@ -623,6 +623,7 @@ export const deckSelectorModalStyle: CSSProperties = {
   position: "relative",
   // Match Card Browser width so 10 columns don't shrink tiles.
   width: "min(1760px, calc(100vw - 48px))",
+  height: "calc(100dvh - 48px)",
   maxHeight: "calc(100dvh - 48px)",
   gridTemplateRows: "auto auto minmax(0, 1fr)",
 };

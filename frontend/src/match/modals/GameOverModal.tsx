@@ -7,20 +7,23 @@ export function GameOverModal({
   game,
   playerName,
   opponentName,
-  latest,
   onPlayAgain,
   onMainMenu,
 }: {
   game: GameState;
   playerName: string;
   opponentName: string;
-  latest?: string | undefined;
   onPlayAgain: () => void;
   onMainMenu: () => void;
 }) {
   const playerWon = game.winner === "player";
   const title = playerWon ? formatWinTitle(playerName) : formatWinTitle(opponentName);
-  const body = latest ?? (playerWon ? "First to three points." : "The duel is over.");
+  const winnerLabel = playerWon ? playerName : opponentName;
+  const loserLabel = playerWon ? opponentName : playerName;
+  const winnerPoints = game.winner ? game.sides[game.winner].points : 0;
+  const body = winnerPoints >= 3
+    ? `${winnerLabel} reached three points.`
+    : `${loserLabel} has no benched Umamusume remaining.`;
 
   return (
     <div style={gameOverBackdropStyle}>

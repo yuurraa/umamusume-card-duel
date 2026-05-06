@@ -17,6 +17,8 @@ export function getGlobalRetreatCostReduction(state: GameState): number {
 
 export function effectiveRetreatCost(state: GameState, side: SideState): number {
   if (!side.active) return 0;
+  const activeCard = getUmamusumeCard(side.active);
+  if (activeCard.ability?.retreatCostZeroIfTookDamageLastTurn && side.active.tookDamageLastTurn) return 0;
   return Math.max(0, retreatCost(getUmamusumeCard(side.active).retreat) - side.retreatCostReduction - getGlobalRetreatCostReduction(state));
 }
 

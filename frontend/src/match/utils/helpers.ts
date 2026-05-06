@@ -50,6 +50,8 @@ function createSetupPreviewUmamusume(cardId: string, uid: number): UmamusumeInst
     tookDamageThisTurn: false,
     nextTurnDamageReduction: 0,
     usedAbilityThisTurn: false,
+    attackBlockedUntilOwnTurn: null,
+    paralysedUntilOwnTurn: null,
     toolCardId: null,
   };
 }

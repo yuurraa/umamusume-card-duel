@@ -127,6 +127,8 @@ function scoreAttachTarget(
   const typedDeficitBefore = getTypedEnergyDeficit(target, attack.cost);
   const typedDeficitAfter = getTypedEnergyDeficit(simulated, attack.cost);
   const targetNeedsThisType = (attack.cost[energyType] ?? 0) > target.energies[energyType];
+  const attackUsesThisType = (attack.cost[energyType] ?? 0) > 0;
+  const supportsScaling = shouldAttachForDamageScaling(target, energyType);
   const targetTypeDemand = targetNeedsThisType ? 1 : 0;
   const futureDemandWeight = futureDemand[energyType] ?? 0;
   let score = 0;
@@ -137,7 +139,13 @@ function scoreAttachTarget(
   score += Math.min(40, futureDemandWeight * 4);
   if (isActive) score += 20;
   if (target.stage > 0) score += target.stage * 8;
-  if (beforeCanAttack && afterDamage <= beforeDamage && !shouldAttachForDamageScaling(target, energyType)) score -= 80;
+  if (beforeCanAttack && afterDamage <= beforeDamage && !supportsScaling) score -= 80;
+  // Strongly discourage dumping energy onto a target that cannot use that type
+  // for attack progression in this deck plan (common offender: off-type bench units).
+  if (!attackUsesThisType && !supportsScaling) {
+    score -= isActive ? 42 : 120;
+    if (beforeCanAttack && afterCanAttack && afterDamage <= beforeDamage) score -= 60;
+  }
   if (totalEnergyBefore < usefulCap) score += 28;
   if (totalEnergyAfter > usefulCap) score -= (totalEnergyAfter - usefulCap) * 140;
   if (hasUnderchargedAlternative && totalEnergyAfter > usefulCap) score -= 180;
@@ -170,6 +178,12 @@ function scoreTurnGoalAttachPreference(
   if (turnGoal === "secure_lethal_now") {
     let score = isActive ? 26 : -8;
     if (!beforeCanAttack && afterCanAttack && isActive) score += 84;
+    return score;
+  }
+  if (turnGoal === "set_up_two_turn_lethal") {
+    let score = isActive ? 34 : 6;
+    if (!beforeCanAttack && afterCanAttack && isActive) score += 96;
+    if (target.stage >= 1 && isActive) score += 12;
     return score;
   }
   return 0;
@@ -277,6 +291,7 @@ function scoreDeckStyleAttachPreference(
 }
 
 function buildFutureEnergyDemand(side: SideState): Record<EnergyType, number> {
+  const availableEnergyTypes = new Set(side.energyPool);
   const demand = ENERGY_TYPES.reduce<Record<EnergyType, number>>((acc, energyType) => {
     acc[energyType] = 0;
     return acc;
@@ -291,21 +306,27 @@ function buildFutureEnergyDemand(side: SideState): Record<EnergyType, number> {
       const required = amount ?? 0;
       if (required <= 0) return;
       const typedEnergy = type as EnergyType;
+      if (!availableEnergyTypes.has(typedEnergy)) return;
       demand[typedEnergy] += required * weight;
     });
     const threshold = card.ability?.attackDamageBonusIfAttachedEnergy;
-    if (threshold) demand[threshold.type] += threshold.min * weight * 0.4;
+    if (threshold && availableEnergyTypes.has(threshold.type)) demand[threshold.type] += threshold.min * weight * 0.4;
     if (attack.damagePerAttachedEnergy) {
       attack.damagePerAttachedEnergy.types.forEach((typedEnergy) => {
+        if (!availableEnergyTypes.has(typedEnergy)) return;
         demand[typedEnergy] += weight * 0.9;
       });
     }
   };
 
+  // Confidence model:
+  // - in play / hand / discard are high-confidence known zones
+  // - deck composition is known only as a low-confidence prior for planning
   if (side.active) addCostDemand(side.active.cardId, 1.8);
   side.bench.forEach((umamusume) => addCostDemand(umamusume.cardId, 1.4));
   side.hand.forEach((cardId) => addCostDemand(cardId, 1.0));
-  side.deck.forEach((cardId) => addCostDemand(cardId, 0.55));
+  side.discard.forEach((cardId) => addCostDemand(cardId, 0.45));
+  side.deck.forEach((cardId) => addCostDemand(cardId, 0.2));
   return demand;
 }
 

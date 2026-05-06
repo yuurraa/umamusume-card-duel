@@ -21,7 +21,7 @@ type RarityFilter = CardRarity;
 
 const categoryFilters: Array<{ id: CategoryFilter; label: string }> = [
   { id: "umamusume", label: "Umamusume" },
-  { id: "trainer", label: "Trainer" },
+  { id: "trainer", label: "Supporter" },
   { id: "item", label: "Item" },
   { id: "tool", label: "Tool" },
   { id: "stadium", label: "Stadium" },
@@ -61,10 +61,10 @@ const rarityFilters: Array<{ id: RarityFilter; label: string }> = [
   { id: "uncommon", label: CARD_RARITY_LABELS.uncommon },
   { id: "uncommonPlus", label: CARD_RARITY_LABELS.uncommonPlus },
   { id: "rare", label: CARD_RARITY_LABELS.rare },
+  { id: "ultraRare", label: CARD_RARITY_LABELS.ultraRare },
   { id: "artRare", label: CARD_RARITY_LABELS.artRare },
   { id: "specialArtRare", label: CARD_RARITY_LABELS.specialArtRare },
   { id: "secretRare", label: CARD_RARITY_LABELS.secretRare },
-  { id: "ultraRare", label: CARD_RARITY_LABELS.ultraRare },
 ];
 
 const cardEntries = Object.values(allCards).sort((left, right) => {
@@ -532,7 +532,7 @@ function matchesAnyCategoryFilter(card: Card, filters: Set<CategoryFilter>): boo
 
 function matchesCategoryFilter(card: Card, filter: CategoryFilter): boolean {
   if (filter === "umamusume") return card.kind === "umamusume";
-  if (filter === "trainer") return card.kind === "trainer";
+  if (filter === "trainer") return card.kind === "trainer" && card.trainerType === "supporter";
   return card.kind === "trainer" && card.trainerType === filter;
 }
 

@@ -12,7 +12,7 @@ import { createUmamusume } from "../setup";
 import { log, logPrimaryFirst } from "../../core/log";
 import { performAttack } from "../combat";
 import {
-  canImmediateOpponentKo,
+  canImmediateOpponentKoConservative,
   pickCandidateByDifficulty,
 } from "./combatUtils";
 import { getAiRainbowUncapChoice, getAiTrainerChoices, scoreEvolutionTarget, shouldAiPlayTrainer } from "./trainerUtils";
@@ -20,7 +20,12 @@ import { aiUseCoinFlipDrawAbility, aiUseDamageAbility, aiUseMoveBenchedEnergyAbi
 import { aiAttachOneEnergy as executeAiAttachOneEnergy, estimateAttackDamageOutput, markAbilityUsed, withEnergyShift } from "./attachUtils";
 import { aiRetreatToTarget, buildCombatCandidates } from "./combatPlanner";
 import { chooseMidLevelCombatDecision } from "./midLevel";
-import { chooseAiTurnGoal } from "./turnPlan";
+import { chooseAiTurnGoal, explainAiTurnGoal, hasConsecutiveNoAttackTurns } from "./turnPlan";
+import { cloneGame } from "../../core/stateClone";
+import { canUseStadium } from "../trainers";
+import { choosePreferredActiveIndex } from "../board";
+import { emitAiTelemetry } from "./telemetry";
+import { scoreAttackEnergyPoolFit } from "./energyAwareness";
 
 const BASE_THREAT_PENALTY = 120;
 
@@ -70,6 +75,13 @@ export function aiEvolveOne(state: GameState, side: SideState): boolean {
 export function aiAttachOneEnergy(state: GameState, side: SideState): boolean {
   if (!side.active || !canAttachEnergy(state, side)) return false;
   const turnGoal = chooseAiTurnGoal(state, side);
+  emitAiTelemetry("turn_goal", {
+    phase: "attach",
+    side: side.id,
+    goal: turnGoal,
+    reasonTags: explainAiTurnGoal(state, side),
+    turn: state.turnNumber,
+  });
   return executeAiAttachOneEnergy(state, side, turnGoal);
 }
 
@@ -80,10 +92,24 @@ export function aiPlayOneTrainer(
   deps: AiTrainerDeps,
 ): boolean {
   const turnGoal = chooseAiTurnGoal(state, side);
-  const index = side.hand.findIndex((cardId, handIndex) => {
-    const card = getCard(cardId);
-    return shouldAiPlayTrainer(state, side, card, handIndex, turnGoal);
+  emitAiTelemetry("turn_goal", {
+    phase: "trainer",
+    side: side.id,
+    goal: turnGoal,
+    reasonTags: explainAiTurnGoal(state, side),
+    turn: state.turnNumber,
   });
+  const trainerIndexes = side.hand
+    .map((cardId, handIndex) => ({ cardId, handIndex }))
+    .filter(({ cardId, handIndex }) => {
+      const card = getCard(cardId);
+      return shouldAiPlayTrainer(state, side, card, handIndex, turnGoal);
+    })
+    .map(({ handIndex }) => handIndex);
+  const fallbackIndex = trainerIndexes[0] ?? -1;
+  const index = turnGoal === "set_up_two_turn_lethal"
+    ? chooseTrainerIndexForTwoTurnBundle(state, side, trainerIndexes, pendingChoiceResume, deps, turnGoal) ?? fallbackIndex
+    : fallbackIndex;
   if (index === -1) return false;
   const cardId = side.hand[index];
   if (!cardId) return false;
@@ -136,6 +162,120 @@ export function aiPlayOneTrainer(
   return true;
 }
 
+function chooseTrainerIndexForTwoTurnBundle(
+  state: GameState,
+  side: SideState,
+  trainerIndexes: number[],
+  pendingChoiceResume: PendingSwitchAfterGustResume,
+  deps: AiTrainerDeps,
+  turnGoal: AiTurnGoal,
+): number | undefined {
+  if (trainerIndexes.length === 0) return undefined;
+  const topCandidates = trainerIndexes
+    .map((handIndex) => ({ handIndex, priority: scoreTwoTurnTrainerPriority(side.hand[handIndex] ?? "") }))
+    .sort((left, right) => right.priority - left.priority)
+    .slice(0, 3);
+
+  let bestIndex: number | undefined;
+  let bestScore = Number.NEGATIVE_INFINITY;
+  const scoredCandidates: Array<{ handIndex: number; cardId: string | null; score: number }> = [];
+  for (const { handIndex } of topCandidates) {
+    const score = simulateTrainerAttachCombatBundle(state, side, handIndex, pendingChoiceResume, deps, turnGoal);
+    scoredCandidates.push({
+      handIndex,
+      cardId: side.hand[handIndex] ?? null,
+      score: Number(score.toFixed(2)),
+    });
+    if (score > bestScore) {
+      bestScore = score;
+      bestIndex = handIndex;
+    }
+  }
+  emitAiTelemetry("trainer_bundle_scores", {
+    side: side.id,
+    turn: state.turnNumber,
+    goal: turnGoal,
+    candidates: scoredCandidates,
+    selectedHandIndex: bestIndex ?? trainerIndexes[0] ?? null,
+  });
+  return bestIndex ?? trainerIndexes[0];
+}
+
+function scoreTwoTurnTrainerPriority(cardId: string): number {
+  const card = getCard(cardId);
+  if (card.kind !== "trainer") return Number.NEGATIVE_INFINITY;
+  let score = 0;
+  if (card.effect.activeAttackDamageBonus) score += 60;
+  if (card.effect.extraEnergyAttach) score += 54;
+  if (card.effect.attachEnergyFromZoneToBench) score += 42;
+  if (card.effect.searchEvolutionUmamusume) score += 36;
+  if (card.effect.searchUmamusume) score += 32;
+  if (card.effect.retreatCostReduction) score += 14;
+  if (card.effect.draw) score += 8;
+  return score;
+}
+
+function simulateTrainerAttachCombatBundle(
+  state: GameState,
+  side: SideState,
+  trainerHandIndex: number,
+  pendingChoiceResume: PendingSwitchAfterGustResume,
+  deps: AiTrainerDeps,
+  turnGoal: AiTurnGoal,
+): number {
+  const simulated = cloneGame(state);
+  const simulatedSide = simulated.sides[side.id];
+  const cardId = simulatedSide.hand[trainerHandIndex];
+  if (!cardId) return Number.NEGATIVE_INFINITY;
+  const card = getCard(cardId);
+  if (card.kind !== "trainer") return Number.NEGATIVE_INFINITY;
+  const choices = getAiTrainerChoices(simulated, simulatedSide, card, trainerHandIndex, turnGoal);
+
+  if (card.effect.rainbowUncapCrystal) {
+    const rainbowChoice = getAiRainbowUncapChoice(simulated, simulatedSide);
+    if (rainbowChoice) {
+      simulatedSide.hand.splice(trainerHandIndex, 1);
+      const shiftedEvolutionHandIndex = rainbowChoice.evolutionHandIndex > trainerHandIndex
+        ? rainbowChoice.evolutionHandIndex - 1
+        : rainbowChoice.evolutionHandIndex;
+      const resolved = useRainbowUncapCrystal(simulated, simulatedSide, rainbowChoice.targetUid, shiftedEvolutionHandIndex)
+        || useRainbowUncapCrystal(simulated, simulatedSide, rainbowChoice.targetUid);
+      if (resolved) simulatedSide.discard.push(card.id);
+    }
+  } else {
+    simulatedSide.hand.splice(trainerHandIndex, 1);
+    if (card.trainerType === "stadium") {
+      playStadium(simulated, simulatedSide, card);
+      deps.refreshContinuousEffects(simulated);
+      if (card.effect.shuffleHandIntoDeckDraw && canUseStadium(simulated, simulatedSide)) {
+        return -250;
+      }
+    } else if (card.trainerType === "tool") {
+      const target = choices.umamusumeTargetUid !== undefined
+        ? getAllUmamusume(simulatedSide).find((umamusume) => umamusume.uid === choices.umamusumeTargetUid)
+        : getToolTargets(simulatedSide)[0];
+      if (target) target.toolCardId = card.id;
+    } else {
+      applyTrainer(simulated, simulatedSide, card, choices, deps.switchOutOpponentActive, pendingChoiceResume);
+      if (card.trainerType === "supporter") simulatedSide.usedSupporterThisTurn = true;
+      simulatedSide.discard.push(card.id);
+    }
+  }
+
+  if (canAttachEnergy(simulated, simulatedSide)) {
+    executeAiAttachOneEnergy(simulated, simulatedSide, "set_up_two_turn_lethal");
+  }
+
+  const combatCandidates = buildCombatCandidates(simulated, simulatedSide, {
+    refreshContinuousEffects: deps.refreshContinuousEffects,
+    choosePreferredActiveIndex,
+  });
+  const bestCandidate = [...combatCandidates].sort((left, right) => right.score - left.score)[0];
+  if (!bestCandidate) return 0;
+  const noAttackPenalty = bestCandidate.decision.kind === "endTurn" ? 220 : 0;
+  return bestCandidate.score + (bestCandidate.lethalTarget ? 300 : 0) - noAttackPenalty;
+}
+
 export function aiResolveCombatDecision(
   state: GameState,
   side: SideState,
@@ -156,7 +296,23 @@ export function aiResolveCombatDecision(
 
   const tacticalChoice = chooseMidLevelCombatDecision(state, side, candidates, deps, forcedAttackCoinResult);
   const selected = tacticalChoice?.candidate
-    ?? pickCandidateByDifficulty(candidates, state.aiDifficulty, random, canImmediateOpponentKo(state, side.id));
+    ?? pickCandidateByDifficulty(candidates, state.aiDifficulty, random, canImmediateOpponentKoConservative(state, side.id));
+  emitAiTelemetry("combat_candidates", {
+    side: side.id,
+    turn: state.turnNumber,
+    tacticalGoal: tacticalChoice?.goal ?? null,
+    selectedId: selected?.id ?? null,
+    top3: [...candidates]
+      .sort((left, right) => right.score - left.score)
+      .slice(0, 3)
+      .map((candidate) => ({
+        id: candidate.id,
+        score: Number(candidate.score.toFixed(2)),
+        keepsSafe: candidate.keepsSafe,
+        lethalTarget: candidate.lethalTarget,
+        decision: candidate.decision.kind,
+      })),
+  });
   if (!selected || selected.decision.kind === "endTurn") return { resolved: true, usedAttack: false, didRetreat: false };
 
   if (selected.decision.retreatTargetUid !== undefined) {
@@ -178,6 +334,11 @@ export function aiResolveCombatDecision(
     selected.decision.healTargetUid,
     forcedAttackCoinResult,
     undefined,
+    0,
+    undefined,
+    undefined,
+    undefined,
+    selected.decision.useShuffleSelfIntoDeck,
   );
   return { resolved: true, usedAttack: true, didRetreat: false };
 }
@@ -189,6 +350,13 @@ export function aiUseOneAbility(
   random: () => number = Math.random,
   turnGoal: AiTurnGoal = "maximize_progress",
 ): boolean {
+  emitAiTelemetry("turn_goal", {
+    phase: "ability",
+    side: side.id,
+    goal: turnGoal,
+    reasonTags: explainAiTurnGoal(state, side),
+    turn: state.turnNumber,
+  });
   const priorities = getAllUmamusume(side)
     .filter((umamusume) => canUseUmamusumeAbility(state, side, umamusume.uid))
     .sort((left, right) => right.stage - left.stage);
@@ -236,6 +404,7 @@ function scoreBasicBenchCandidate(
   }, 0);
   const sameSpeciesAlreadyInPlay = getAllUmamusume(side).some((umamusume) => umamusume.species === card.species);
   let score = card.hp * 0.5 + attack.damage;
+  score += scoreAttackEnergyPoolFit(side, attack.cost);
   score += Math.min(84, evolutionInHand * 36 + evolutionInDeck * 12);
   if (immediateEvolutionInHand) score += sameSpeciesAlreadyInPlay ? 22 : 64;
   if (side.bench.length < MAX_BENCH) score += 20;
@@ -243,5 +412,10 @@ function scoreBasicBenchCandidate(
   if (deckStyle === "scaleBench" && card.species === "Agnes Digital") score += 95;
   if (deckStyle === "blitz" && attack.damage >= 30) score += 18;
   if (deckStyle === "stall") score += card.hp * 0.25;
+  if (hasConsecutiveNoAttackTurns(state, side.title, 2)) {
+    score += 34;
+    if (!sameSpeciesAlreadyInPlay) score += 20;
+    if (card.hp >= 80) score += 12;
+  }
   return score;
 }

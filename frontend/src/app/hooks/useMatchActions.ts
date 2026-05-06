@@ -30,6 +30,7 @@ type UseMatchActionsArgs = {
   player: GameState["sides"]["player"];
   isAiVsAi: boolean;
   pendingSelection: PendingSelection | null;
+  activePendingSelection: PendingSelection | null;
   selectableHandIndexes: Set<number> | undefined;
   isTurnFlowBlocked: boolean;
   setupActiveIndex: number | null;
@@ -53,6 +54,7 @@ export function useMatchActions(args: UseMatchActionsArgs) {
     player,
     isAiVsAi,
     pendingSelection,
+    activePendingSelection,
     selectableHandIndexes,
     isTurnFlowBlocked,
     setupActiveIndex,
@@ -320,10 +322,11 @@ export function useMatchActions(args: UseMatchActionsArgs) {
       setPreviewTarget(null);
       return;
     }
-    if (!pendingSelection) return;
-    if (pendingSelection.kind === "attachEnergy") {
+    const effectivePendingSelection = activePendingSelection ?? pendingSelection;
+    if (!effectivePendingSelection) return;
+    if (effectivePendingSelection.kind === "attachEnergy") {
       submitPlayerIntent({ type: "attachEnergy", umamusumeUid: umamusume.uid });
-    } else if (pendingSelection.kind === "attackHealTarget") {
+    } else if (effectivePendingSelection.kind === "attackHealTarget") {
       if (isNetworkMatch) {
         submitPlayerIntent({ type: "attack", healTargetUid: umamusume.uid });
       } else {
@@ -345,7 +348,7 @@ export function useMatchActions(args: UseMatchActionsArgs) {
           setGame((current) => playerAttack(current, undefined, umamusume.uid));
         }
       }
-    } else if (pendingSelection.kind === "attackDamageTarget") {
+    } else if (effectivePendingSelection.kind === "attackDamageTarget") {
       if (isNetworkMatch) {
         submitPlayerIntent({ type: "attack", attackTargetUid: umamusume.uid });
       } else {
@@ -357,42 +360,44 @@ export function useMatchActions(args: UseMatchActionsArgs) {
           setGame((current) => playerAttack(current, umamusume.uid));
         }
       }
-    } else if (pendingSelection.kind === "attackSwitchTarget") {
+    } else if (effectivePendingSelection.kind === "attackSwitchTarget") {
       if (isNetworkMatch) {
-        submitPlayerIntent({ type: "attack", attackIndex: pendingSelection.attackIndex, switchTargetUid: umamusume.uid });
+        submitPlayerIntent({ type: "attack", attackIndex: effectivePendingSelection.attackIndex, switchTargetUid: umamusume.uid });
       } else {
         const active = player.active;
         const activeCard = active ? getUmamusumeCard(active) : null;
-        const attack = activeCard ? (activeCard.attacks[pendingSelection.attackIndex] ?? getPrimaryAttack(activeCard)) : null;
+        const attack = activeCard ? (activeCard.attacks[effectivePendingSelection.attackIndex] ?? getPrimaryAttack(activeCard)) : null;
         if (attack?.draw) {
           applyPlayerGameUpdate(
-            (current) => playerAttack(current, undefined, undefined, undefined, undefined, pendingSelection.attackIndex, undefined, undefined, umamusume.uid),
+            (current) => playerAttack(current, undefined, undefined, undefined, undefined, effectivePendingSelection.attackIndex, undefined, undefined, umamusume.uid),
             { kind: "genericGain" },
           );
         } else {
-          setGame((current) => playerAttack(current, undefined, undefined, undefined, undefined, pendingSelection.attackIndex, undefined, undefined, umamusume.uid));
+          setGame((current) => playerAttack(current, undefined, undefined, undefined, undefined, effectivePendingSelection.attackIndex, undefined, undefined, umamusume.uid));
         }
       }
-    } else if (pendingSelection.kind === "abilityDamageTarget") {
+    } else if (effectivePendingSelection.kind === "abilityDamageTarget") {
       submitPlayerIntent({
         type: "useAbility",
-        abilityUmamusumeUid: pendingSelection.abilityUmamusumeUid,
-        sourceUmamusumeUid: pendingSelection.abilityUmamusumeUid,
+        abilityUmamusumeUid: effectivePendingSelection.abilityUmamusumeUid,
+        sourceUmamusumeUid: effectivePendingSelection.abilityUmamusumeUid,
         opponentTargetUmamusumeUid: umamusume.uid,
       });
-    } else if (pendingSelection.kind === "retreatTarget") {
-      submitPlayerIntent({ type: "retreat", benchUmamusumeUid: umamusume.uid, discardEnergyTypes: pendingSelection.discardEnergyTypes });
-    } else if (pendingSelection.kind === "rainbowUncapTarget") {
-      setPendingSelection({ kind: "rainbowUncapEvolution", handIndex: pendingSelection.handIndex, umamusumeUid: umamusume.uid });
+    } else if (effectivePendingSelection.kind === "retreatTarget") {
+      submitPlayerIntent({ type: "retreat", benchUmamusumeUid: umamusume.uid, discardEnergyTypes: effectivePendingSelection.discardEnergyTypes });
+    } else if (effectivePendingSelection.kind === "forceSwitchActive" || effectivePendingSelection.kind === "replaceActive") {
+      submitPlayerIntent({ type: "resolvePendingChoice", umamusumeUid: umamusume.uid });
+    } else if (effectivePendingSelection.kind === "rainbowUncapTarget") {
+      setPendingSelection({ kind: "rainbowUncapEvolution", handIndex: effectivePendingSelection.handIndex, umamusumeUid: umamusume.uid });
       setPreviewTarget(null);
       return;
     } else if (
-      pendingSelection.kind === "healTarget"
-      || pendingSelection.kind === "evolveTarget"
-      || pendingSelection.kind === "zoneBenchAttachTarget"
-      || pendingSelection.kind === "toolTarget"
+      effectivePendingSelection.kind === "healTarget"
+      || effectivePendingSelection.kind === "evolveTarget"
+      || effectivePendingSelection.kind === "zoneBenchAttachTarget"
+      || effectivePendingSelection.kind === "toolTarget"
     ) {
-      submitPlayerIntent({ type: "playHandCard", handIndex: pendingSelection.handIndex, choices: { umamusumeTargetUid: umamusume.uid } });
+      submitPlayerIntent({ type: "playHandCard", handIndex: effectivePendingSelection.handIndex, choices: { umamusumeTargetUid: umamusume.uid } });
     }
     setPendingSelection(null);
     setPreviewTarget(null);

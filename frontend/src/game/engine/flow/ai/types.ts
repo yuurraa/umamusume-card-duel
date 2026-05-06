@@ -13,7 +13,14 @@ export type AiCombatDeps = {
 
 export type AiCombatDecision =
   | { kind: "endTurn" }
-  | { kind: "attack"; retreatTargetUid?: number; attackTargetUid?: number; healTargetUid?: number; usesCoinFlip: boolean };
+  | {
+    kind: "attack";
+    retreatTargetUid?: number;
+    attackTargetUid?: number;
+    healTargetUid?: number;
+    usesCoinFlip: boolean;
+    useShuffleSelfIntoDeck?: boolean;
+  };
 
 export type AiCombatDecisionResult = {
   resolved: boolean;
@@ -38,6 +45,7 @@ export type AiTacticalGoal =
 
 export type AiTurnGoal =
   | "secure_lethal_now"
+  | "set_up_two_turn_lethal"
   | "deny_opponent_lethal"
   | "stabilize_board"
   | "maximize_progress";

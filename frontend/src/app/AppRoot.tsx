@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   canAttachEnergy,
   chooseOpeningCoin,
@@ -46,6 +46,7 @@ import { useAppNavigation } from "./hooks/useAppNavigation";
 import { useAppRuntimeEffects } from "./hooks/useAppRuntimeEffects";
 import { useMatchUiActions } from "./hooks/useMatchUiActions";
 import { useMatchModalActions } from "./hooks/useMatchModalActions";
+import { AiTelemetryPanel } from "./AiTelemetryPanel";
 import { applyPlayerIntent, type PlayerIntent } from "../pvp/playerIntent";
 import { createGuestSyncState, mirrorGameState, mirrorGameStateForGuest } from "../pvp/stateMirror";
 import { DEFAULT_ICE_SERVERS, PeerRuntime } from "../pvp/peer";
@@ -217,6 +218,7 @@ export function App() {
   const [screenFadeOverlayOpacity, setScreenFadeOverlayOpacity] = useState(0);
   const [equippedDeckId, setEquippedDeckId] = useState(() => readEquippedDeckId());
   const [matchMode, setMatchMode] = useState<MatchMode>("playerVsAi");
+  const showAiTelemetryPanel = import.meta.env.DEV && matchMode !== "playerVsPlayer";
   const [aiPerspective, setAiPerspective] = useState<SideId>("player");
   const [pvpRole, setPvpRole] = useState<PvpRole | null>(null);
   const [pvpStatusDetail, setPvpStatusDetail] = useState("Pick Host or Join to begin.");
@@ -247,10 +249,18 @@ export function App() {
   const [setupActiveIndex, setSetupActiveIndex] = useState<number | null>(null);
   const [setupBenchIndexes, setSetupBenchIndexes] = useState<number[]>([]);
   const [menuOpen, setMenuOpen] = useState(false);
+
+  useEffect(() => {
+    const telemetryFlag = globalThis as typeof globalThis & { __UMA_AI_TELEMETRY__?: boolean };
+    if (telemetryFlag.__UMA_AI_TELEMETRY__ === undefined) {
+      telemetryFlag.__UMA_AI_TELEMETRY__ = import.meta.env.DEV;
+    }
+  }, []);
   const [opponentSetupRevealToken, setOpponentSetupRevealToken] = useState(0);
   const [povSwitchAnimationToken, setPovSwitchAnimationToken] = useState(0);
   const [pvpTimerNowMs, setPvpTimerNowMs] = useState(() => Date.now());
   const [suppressOpponentPlaymatLayer, setSuppressOpponentPlaymatLayer] = useState(true);
+  const [hasSeenMatchSetupPhase, setHasSeenMatchSetupPhase] = useState(false);
   const pvpDeadlineTurnKeyRef = useRef<string | null>(null);
   const previousLogRef = useRef<string[]>([]);
   const previousPlayerZonesRef = useRef<{
@@ -394,21 +404,29 @@ export function App() {
     gameRef.current = game;
   }, [game]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     // Prevent a one-frame flash of the opponent playmat when entering the match screen
     // while the game state is being replaced (e.g. starting a new game).
     if (screen !== "match") {
       setSuppressOpponentPlaymatLayer(true);
+      setHasSeenMatchSetupPhase(false);
       return;
     }
     setSuppressOpponentPlaymatLayer(true);
+    setHasSeenMatchSetupPhase(false);
   }, [screen]);
 
   useEffect(() => {
     if (screen !== "match") return;
-    if (game.phase === "setup") setSuppressOpponentPlaymatLayer(true);
-    if (game.phase === "play") setSuppressOpponentPlaymatLayer(false);
-  }, [game.phase, screen]);
+    if (game.phase === "setup") {
+      setHasSeenMatchSetupPhase(true);
+      setSuppressOpponentPlaymatLayer(true);
+      return;
+    }
+    if (game.phase === "play" && (!isAiVsAi || hasSeenMatchSetupPhase)) {
+      setSuppressOpponentPlaymatLayer(false);
+    }
+  }, [game.phase, hasSeenMatchSetupPhase, isAiVsAi, screen]);
 
   useEffect(() => {
     if (!game.gameOver) return;
@@ -1345,6 +1363,7 @@ export function App() {
     player,
     isAiVsAi,
     pendingSelection,
+    activePendingSelection,
     selectableHandIndexes,
     isTurnFlowBlocked,
     setupActiveIndex,
@@ -1436,7 +1455,6 @@ export function App() {
   const showOpponentPlaymat = isPlayPhase
     ? game.currentSide === "opponent" && !suppressOpponentPlaymatLayer
     : displayPerspective === "opponent";
-  const renderOpponentPlaymatLayer = !suppressOpponentPlaymatLayer;
 
   const nonMatchScreen = renderNonMatchScreen({
     screen,
@@ -1494,7 +1512,7 @@ export function App() {
   return (
     <main style={appStyle(false, undefined, uiTextTone)}>
       <div style={matchBackgroundLayerStyle(selectedPlaymat.image, showSelectedPlaymat ? 1 : 0)} />
-      {renderOpponentPlaymatLayer && <div style={matchBackgroundLayerStyle(opponentPlaymat.image, showOpponentPlaymat ? 1 : 0)} />}
+      <div style={matchBackgroundLayerStyle(opponentPlaymat.image, showOpponentPlaymat ? 1 : 0, suppressOpponentPlaymatLayer)} />
       <Suspense fallback={matchFallback}>
         <MatchBoardLayout
           game={displayGame}
@@ -1657,13 +1675,13 @@ export function App() {
             game={displayGame}
             playerName="You"
             opponentName="Opponent"
-            latest={displayLog[0]}
             onPlayAgain={isNetworkMatch ? returnToPvpLobbyForRematch : onPlayAgain}
             onMainMenu={returnToMainMenu}
           />
         )}
       </Suspense>
       <div style={screenFadeOverlayStyle(screenFadeOverlayOpacity)} />
+      {showAiTelemetryPanel && <AiTelemetryPanel />}
     </main>
   );
 }
@@ -1730,6 +1748,12 @@ function swapSideId(sideId: SideId | "done"): SideId | "done" {
 
 function swapBattlePerspectiveText(text: string): string {
   const replacements: Array<[string, string]> = [
+    ["Opponent is", "§YOU_CAP§ are"],
+    ["opponent is", "§YOU_LOW§ are"],
+    ["Opponent was", "§YOU_CAP§ were"],
+    ["opponent was", "§YOU_LOW§ were"],
+    ["Opponent has", "§YOU_CAP§ have"],
+    ["opponent has", "§YOU_LOW§ have"],
     ["Opponent's", "§YOU_POS_CAP§"],
     ["opponent's", "§YOU_POS_LOW§"],
     ["Your", "§OPP_POS_CAP§"],

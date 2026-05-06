@@ -2,6 +2,7 @@ import { type CSSProperties, type DragEvent, useEffect, useRef, useState } from 
 import { AttachedEnergyPips, CardHpOverlay, FaceDownCard } from "../cards/UmaCard";
 import { AbilityReadyBadge } from "../cards/AbilityReadyBadge";
 import { AttachedToolBadge } from "../cards/AttachedToolBadge";
+import { SpecialConditionBadges } from "../cards/SpecialConditionBadges";
 import { HoloCardImage } from "../cards/HoloCardImage";
 import { getAttachedEnergy } from "../cards/attachedEnergy";
 import { applyDragPreview, hasTextDragPayload, readDragPayload, writeDragPayload } from "../drag/dragData";
@@ -399,6 +400,7 @@ function BenchSlot({ card, umamusume, side, hidden, setupMode, setupInteractions
             <div style={benchHpCornerBlurStyle} aria-hidden="true" />
             <CardHpOverlay hp={umamusume.hp} maxHp={umamusume.maxHp} size="sm" />
             {abilityReady && <AbilityReadyBadge corner="topLeft" size="xs" nudgeX={14} />}
+            <SpecialConditionBadges conditions={umamusume.specialConditions} size="sm" />
             <AttachedToolBadge
               toolCardId={umamusume.toolCardId}
               size="sm"

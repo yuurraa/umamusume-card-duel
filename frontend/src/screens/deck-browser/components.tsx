@@ -16,6 +16,7 @@ import { DEFAULT_CARD_SORT, sortCardsForCollection, type CardSortKey, type CardS
 import {
   ArtFilter,
   CategoryFilter,
+  OwnershipFilter,
   RarityFilter,
   StageFilter,
   DeckEntity,
@@ -29,8 +30,10 @@ import {
   matchesAnyArtFilter,
   matchesAnyCategoryFilter,
   matchesAnyEnergyFilter,
+  matchesAnyOwnershipFilter,
   matchesAnyRarityFilter,
   matchesAnyStageFilter,
+  ownershipFilters,
   rarityFilters,
   stageFilters,
   toDeckCountKey,
@@ -870,10 +873,11 @@ export function DeckCardSelectorModal({
   const [energyFiltersSelected, setEnergyFiltersSelected] = useState<Set<EnergyType>>(() => new Set());
   const [stageFiltersSelected, setStageFiltersSelected] = useState<Set<StageFilter>>(() => new Set());
   const [artFiltersSelected, setArtFiltersSelected] = useState<Set<ArtFilter>>(() => new Set());
+  const [ownershipFiltersSelected, setOwnershipFiltersSelected] = useState<Set<OwnershipFilter>>(() => new Set());
   const [rarityFiltersSelected, setRarityFiltersSelected] = useState<Set<RarityFilter>>(() => new Set());
   const [sortOption, setSortOption] = useState<CardSortOption>(DEFAULT_CARD_SORT);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const activeFilterCount = categoryFiltersSelected.size + energyFiltersSelected.size + stageFiltersSelected.size + artFiltersSelected.size + rarityFiltersSelected.size;
+  const activeFilterCount = categoryFiltersSelected.size + energyFiltersSelected.size + stageFiltersSelected.size + artFiltersSelected.size + ownershipFiltersSelected.size + rarityFiltersSelected.size;
 
   const getOwnedCount = (cardId: string): number => {
     if (isDevForcedUnowned(cardId)) return 0;
@@ -882,6 +886,7 @@ export function DeckCardSelectorModal({
     if (devUnlocksEnabled) return 2;
     return ownedStarterCardIds.has(cardId) ? 2 : 0;
   };
+  const isOwned = (cardId: string): boolean => getOwnedCount(cardId) > 0;
 
   useEffect(() => {
     let active = true;
@@ -906,12 +911,13 @@ export function DeckCardSelectorModal({
       if (energyFiltersSelected.size > 0 && !matchesAnyEnergyFilter(card, energyFiltersSelected)) return false;
       if (stageFiltersSelected.size > 0 && !matchesAnyStageFilter(card, stageFiltersSelected)) return false;
       if (artFiltersSelected.size > 0 && !matchesAnyArtFilter(card, artFiltersSelected)) return false;
+      if (ownershipFiltersSelected.size > 0 && !matchesAnyOwnershipFilter(card, ownershipFiltersSelected, isOwned)) return false;
       if (rarityFiltersSelected.size > 0 && !matchesAnyRarityFilter(card, rarityFiltersSelected)) return false;
       if (!normalizedQuery) return true;
       return getSearchText(card).includes(normalizedQuery);
     });
     return sortCardsForCollection(filtered, sortOption, (card) => getOwnedCount(card.id) > 0);
-  }, [artFiltersSelected, categoryFiltersSelected, energyFiltersSelected, query, rarityFiltersSelected, sortOption, stageFiltersSelected]);
+  }, [artFiltersSelected, categoryFiltersSelected, energyFiltersSelected, ownershipFiltersSelected, query, rarityFiltersSelected, sortOption, stageFiltersSelected]);
 
   const cardCounts = useMemo(() => {
     const counts = new Map<string, number>();
@@ -928,6 +934,7 @@ export function DeckCardSelectorModal({
     setEnergyFiltersSelected(new Set());
     setStageFiltersSelected(new Set());
     setArtFiltersSelected(new Set());
+    setOwnershipFiltersSelected(new Set());
     setRarityFiltersSelected(new Set());
   };
 
@@ -1047,13 +1054,13 @@ export function DeckCardSelectorModal({
                     </button>
                   </div>
                   <div style={filterGroupStyle}>
-                    <div style={filterGroupLabelStyle}>Card Type</div>
+                    <div style={filterGroupLabelStyle}>Ownership</div>
                     <div style={filterOptionGridStyle}>
-                      {categoryFilters.map((filter) => (
+                      {ownershipFilters.map((filter) => (
                         <FilterChip
                           key={filter.id}
-                          active={categoryFiltersSelected.has(filter.id)}
-                          onClick={() => setCategoryFiltersSelected((selected) => toggleSetValue(selected, filter.id))}
+                          active={ownershipFiltersSelected.has(filter.id)}
+                          onClick={() => setOwnershipFiltersSelected((selected) => toggleSetValue(selected, filter.id))}
                         >
                           {filter.label}
                         </FilterChip>
@@ -1068,6 +1075,20 @@ export function DeckCardSelectorModal({
                           key={filter.id}
                           active={rarityFiltersSelected.has(filter.id)}
                           onClick={() => setRarityFiltersSelected((selected) => toggleSetValue(selected, filter.id))}
+                        >
+                          {filter.label}
+                        </FilterChip>
+                      ))}
+                    </div>
+                  </div>
+                  <div style={filterGroupStyle}>
+                    <div style={filterGroupLabelStyle}>Card Type</div>
+                    <div style={filterOptionGridStyle}>
+                      {categoryFilters.map((filter) => (
+                        <FilterChip
+                          key={filter.id}
+                          active={categoryFiltersSelected.has(filter.id)}
+                          onClick={() => setCategoryFiltersSelected((selected) => toggleSetValue(selected, filter.id))}
                         >
                           {filter.label}
                         </FilterChip>
