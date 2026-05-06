@@ -321,13 +321,15 @@ function applySpecialCondition(
   umamusume: UmamusumeInstance,
   condition: "asleep" | "burned" | "frozen" | "paralysed" | "poisoned",
 ): void {
-  if (umamusume.specialConditions.includes(condition)) return;
-  umamusume.specialConditions = [...umamusume.specialConditions, condition];
+  if (umamusume.specialConditions.length === 1 && umamusume.specialConditions[0] === condition) return;
+  // Rule: a Umamusume can only have one Special Condition at a time.
+  umamusume.specialConditions = [condition];
   if (condition === "paralysed") {
     umamusume.paralysedUntilOwnTurn = (state.turnsTakenBySide[affectedSideId] ?? 0) + 1;
     log(state, `${formatUmamusumeInstanceName(umamusume)} is Paralysed and cannot attack or retreat until the end of ${affectedSideId === "player" ? "your" : "opponent's"} next turn.`);
     return;
   }
+  umamusume.paralysedUntilOwnTurn = null;
   log(state, `${formatUmamusumeInstanceName(umamusume)} is ${condition}.`);
 }
 
