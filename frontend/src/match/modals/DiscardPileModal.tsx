@@ -7,10 +7,12 @@ import { borders, colors, overlayBackdropStyle, overlayButtonStyle, overlaySurfa
 
 export function DiscardPileModal({
   cardIds,
+  pileLabel = "Discard Pile",
   onInspect,
   onClose,
 }: {
   cardIds: string[];
+  pileLabel?: string;
   onInspect: (card: Card) => void;
   onClose: () => void;
 }) {
@@ -61,10 +63,10 @@ export function DiscardPileModal({
         <style>{`.${discardScrollerClassName}{scrollbar-width:none;-ms-overflow-style:none;}.${discardScrollerClassName}::-webkit-scrollbar{display:none;width:0;height:0;}`}</style>
         <header style={discardHeaderStyle}>
           <div>
-            <div style={discardKickerStyle}>Discard Pile</div>
+            <div style={discardKickerStyle}>{pileLabel}</div>
             <h2 style={discardTitleStyle}>{cardIds.length} {cardIds.length === 1 ? "card" : "cards"}</h2>
           </div>
-          <NeutralButton style={closeButtonStyle} onClick={onClose}>Close</NeutralButton>
+          <NeutralButton style={closeButtonStyle} onClick={onClose}>Back</NeutralButton>
         </header>
         {cards.length === 0 ? (
           <div style={emptyDiscardStyle}>No cards have been discarded yet.</div>

@@ -10,6 +10,7 @@ type UseEscapeHotkeyArgs = {
   endTurnWarningActions: string[] | null;
   previewTarget: InspectTarget | null;
   discardOpen: boolean;
+  opponentZonesOpen: boolean;
   pendingSelection: PendingSelection | null;
   actionNotice: string | null;
   menuOpen: boolean;
@@ -18,6 +19,7 @@ type UseEscapeHotkeyArgs = {
   setEndTurnWarningActions: Dispatch<SetStateAction<string[] | null>>;
   setPreviewTarget: Dispatch<SetStateAction<InspectTarget | null>>;
   setDiscardOpen: Dispatch<SetStateAction<boolean>>;
+  setOpponentZonesOpen: Dispatch<SetStateAction<boolean>>;
   setPendingSelection: Dispatch<SetStateAction<PendingSelection | null>>;
   setActionNotice: Dispatch<SetStateAction<string | null>>;
   setMenuOpen: Dispatch<SetStateAction<boolean>>;
@@ -32,6 +34,7 @@ export function useEscapeHotkey({
   endTurnWarningActions,
   previewTarget,
   discardOpen,
+  opponentZonesOpen,
   pendingSelection,
   actionNotice,
   menuOpen,
@@ -40,6 +43,7 @@ export function useEscapeHotkey({
   setEndTurnWarningActions,
   setPreviewTarget,
   setDiscardOpen,
+  setOpponentZonesOpen,
   setPendingSelection,
   setActionNotice,
   setMenuOpen,
@@ -72,6 +76,10 @@ export function useEscapeHotkey({
       }
       if (discardOpen) {
         setDiscardOpen(false);
+        return;
+      }
+      if (opponentZonesOpen) {
+        setOpponentZonesOpen(false);
         return;
       }
       if (pendingSelection?.kind === "discardForScout") {
@@ -111,6 +119,7 @@ export function useEscapeHotkey({
     endTurnWarningActions,
     previewTarget,
     discardOpen,
+    opponentZonesOpen,
     pendingSelection,
     actionNotice,
     menuOpen,
@@ -119,6 +128,7 @@ export function useEscapeHotkey({
     setEndTurnWarningActions,
     setPreviewTarget,
     setDiscardOpen,
+    setOpponentZonesOpen,
     setPendingSelection,
     setActionNotice,
     setMenuOpen,

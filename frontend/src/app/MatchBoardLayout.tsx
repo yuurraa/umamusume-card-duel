@@ -60,6 +60,7 @@ type MatchBoardLayoutProps = {
   selectableHandIndexes: Set<number> | undefined;
   onChooseHandCard: (handIndex: number) => void;
   onOpenDiscard: () => void;
+  onOpenOpponentZones: () => void;
   displayLog: string[];
 };
 
@@ -115,6 +116,7 @@ export function MatchBoardLayout(props: MatchBoardLayoutProps) {
     selectableHandIndexes,
     onChooseHandCard,
     onOpenDiscard,
+    onOpenOpponentZones,
     displayLog,
   } = props;
 
@@ -177,7 +179,6 @@ export function MatchBoardLayout(props: MatchBoardLayoutProps) {
           )}
         </section>
       </div>
-
       <section style={handPanelStyle}>
         {game.phase === "setup" ? (
           <PregameSetupPanel
@@ -189,6 +190,7 @@ export function MatchBoardLayout(props: MatchBoardLayoutProps) {
             canSurrender={canSurrender}
             onToggleMenu={onToggleMenu}
             onSurrender={onSurrender}
+            onOpenOpponentZones={onOpenOpponentZones}
             onSetActive={onSetupDropActive}
             onReady={onSetupReady}
             canReady={canSetupReady}
@@ -216,6 +218,7 @@ export function MatchBoardLayout(props: MatchBoardLayoutProps) {
               log={displayLog}
               canSurrender={canSurrender}
               onToggleMenu={onToggleMenu}
+              onOpenOpponentZones={onOpenOpponentZones}
               onSurrender={onSurrender}
             />
             <Hand

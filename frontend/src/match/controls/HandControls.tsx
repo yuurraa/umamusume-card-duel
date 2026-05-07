@@ -22,6 +22,7 @@ export function PlayHandHeader({
   onEndTurn,
   onSwitchPov,
   onToggleMenu,
+  onOpenOpponentZones,
   onSurrender,
 }: {
   canAttach: boolean;
@@ -38,8 +39,10 @@ export function PlayHandHeader({
   onEndTurn: () => void;
   onSwitchPov?: (() => void) | undefined;
   onToggleMenu: () => void;
+  onOpenOpponentZones: () => void;
   onSurrender: () => void;
 }) {
+  const [opponentHovered, setOpponentHovered] = useState(false);
   return (
     <div style={playHandHeaderStyle}>
       <EnergyDragToken canDrag={canAttach} refreshNonce={energyRefreshKey} energyType={energyType} extraCount={extraCount} />
@@ -53,6 +56,19 @@ export function PlayHandHeader({
         <NeutralButton style={endTurnButtonStyle(canEndTurn)} disabled={!canEndTurn} onClick={onEndTurn}>
           End Turn
         </NeutralButton>
+        <button
+          type="button"
+          style={opponentZonesButtonStyle(opponentHovered)}
+          onClick={onOpenOpponentZones}
+          onMouseEnter={() => setOpponentHovered(true)}
+          onMouseLeave={() => setOpponentHovered(false)}
+          onFocus={() => setOpponentHovered(true)}
+          onBlur={() => setOpponentHovered(false)}
+          aria-label="Open opponent zones"
+          title="Opponent zones"
+        >
+          <img src="/assets/opponent.png" alt="" draggable={false} style={opponentZonesImageStyle} />
+        </button>
         <MatchMenuControl
           menuOpen={menuOpen}
           log={log}
@@ -276,6 +292,32 @@ const hamburgerLineStyle: CSSProperties = {
   borderRadius: radius.pill,
   background: "currentColor",
   color: "inherit",
+  display: "block",
+};
+
+function opponentZonesButtonStyle(hovered: boolean): CSSProperties {
+  return {
+    width: 42,
+    height: 42,
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: "50%",
+    border: hovered ? "1px solid rgba(0, 0, 0, 0.36)" : "1px solid rgba(217, 225, 218, 0.82)",
+    background: hovered ? "rgba(238, 243, 238, 0.9)" : "rgba(238, 243, 238, 0.82)",
+    color: colors.black,
+    cursor: "pointer",
+    boxShadow: hovered ? "0 12px 24px rgba(17, 24, 39, 0.14)" : "0 8px 18px rgba(17, 24, 39, 0.08)",
+    transform: hovered ? "translateY(-1px)" : undefined,
+    transition: `background ${transitions.base}, border-color ${transitions.base}, box-shadow ${transitions.base}, transform ${transitions.base}`,
+    padding: 0,
+  };
+}
+
+const opponentZonesImageStyle: CSSProperties = {
+  width: 20,
+  height: 20,
+  objectFit: "contain",
   display: "block",
 };
 

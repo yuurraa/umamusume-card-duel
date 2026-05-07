@@ -4,7 +4,7 @@ import type { InspectTarget } from "../../inspect";
 import { Hand } from "../../components/boards/Hand";
 import { NeutralButton } from "../../components/buttons/NeutralButton";
 import { MatchMenuControl, TurnPill } from "../controls/HandControls";
-import { attackButtonStyle, uiTextColor, uiTextShadow } from "../../styles/shared";
+import { attackButtonStyle, colors, transitions, uiTextColor, uiTextShadow } from "../../styles/shared";
 
 export function PregameSetupPanel({
   game,
@@ -15,6 +15,7 @@ export function PregameSetupPanel({
   canSurrender,
   onToggleMenu,
   onSurrender,
+  onOpenOpponentZones,
   onSetActive,
   onReady,
   canReady,
@@ -33,6 +34,7 @@ export function PregameSetupPanel({
   canSurrender: boolean;
   onToggleMenu: () => void;
   onSurrender: () => void;
+  onOpenOpponentZones: () => void;
   onSetActive: (index: number) => void;
   onReady: () => void;
   canReady: boolean;
@@ -70,6 +72,15 @@ export function PregameSetupPanel({
             </NeutralButton>
           )}
           <NeutralButton style={attackButtonStyle(activeIndex !== null && canReady)} disabled={activeIndex === null || !canReady} onClick={onReady}>Ready</NeutralButton>
+          <button
+            type="button"
+            style={opponentZonesButtonStyle}
+            onClick={onOpenOpponentZones}
+            aria-label="Open opponent zones"
+            title="Opponent zones"
+          >
+            <img src="/assets/opponent.png" alt="" draggable={false} style={opponentZonesImageStyle} />
+          </button>
           <MatchMenuControl
             menuOpen={menuOpen}
             log={log}
@@ -124,4 +135,27 @@ const pregameActionRowStyle: CSSProperties = {
   display: "flex",
   gap: 8,
   alignItems: "center",
+};
+
+const opponentZonesButtonStyle: CSSProperties = {
+  width: 42,
+  height: 42,
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  borderRadius: "50%",
+  border: "1px solid rgba(217, 225, 218, 0.82)",
+  background: "rgba(238, 243, 238, 0.82)",
+  color: colors.black,
+  cursor: "pointer",
+  boxShadow: "0 8px 18px rgba(17, 24, 39, 0.08)",
+  transition: `background ${transitions.base}, border-color ${transitions.base}, box-shadow ${transitions.base}, transform ${transitions.base}`,
+  padding: 0,
+};
+
+const opponentZonesImageStyle: CSSProperties = {
+  width: 20,
+  height: 20,
+  objectFit: "contain",
+  display: "block",
 };

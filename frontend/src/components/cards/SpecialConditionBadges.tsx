@@ -81,12 +81,12 @@ function wrapStyle(size: "sm" | "md"): CSSProperties {
 function badgeStyle(size: "sm" | "md"): CSSProperties {
   return {
     position: "relative",
-    width: size === "md" ? 95 : 40,
-    aspectRatio: "148 / 46",
-    overflow: "visible",
+    width: size === "md" ? 90 : 40,
+    aspectRatio: "145 / 46",
+    overflow: "hidden",
     display: "inline-block",
     flex: "0 0 auto",
-    borderRadius: radius.sm,
+    borderRadius: size === "md" ? 7 : 5,
     border: "2px solid rgba(255, 255, 255, 0.9)",
     background: "rgba(255, 255, 255, 0.06)",
     boxShadow: "0 4px 10px rgba(17, 24, 39, 0.22)",

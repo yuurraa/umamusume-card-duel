@@ -64,6 +64,8 @@ import {
 import { getFirebaseAccountSnapshot, linkFirebaseAccountWithGoogle, signOutFirebaseAccount, type FirebaseAccountSnapshot } from "../utils/firebaseAuth";
 import { getAccountPlayerName } from "../utils/playerNames";
 import type { CoinFlipResult, EnergyType, GameState, SideId, SideState } from "../../../shared/src/types";
+import { DiscardPileModal } from "../match/modals/DiscardPileModal";
+import { OpponentZonesModal } from "../match/modals/OpponentZonesModal";
 
 const EMPTY_FIREBASE_ACCOUNT: FirebaseAccountSnapshot = {
   configured: false,
@@ -76,14 +78,13 @@ const EMPTY_FIREBASE_ACCOUNT: FirebaseAccountSnapshot = {
 
 const TURN_RELAY_UNAVAILABLE_TEXT = "TURN relay candidate was not available.";
 
-const MatchBoardLayout = lazy(() => import("./MatchBoardLayout").then((module) => ({
+const loadMatchBoardLayout = () => import("./MatchBoardLayout");
+
+const MatchBoardLayout = lazy(() => loadMatchBoardLayout().then((module) => ({
   default: module.MatchBoardLayout,
 })));
 const CardPreview = lazy(() => import("../match/modals/CardPreview").then((module) => ({
   default: module.CardPreview,
-})));
-const DiscardPileModal = lazy(() => import("../match/modals/DiscardPileModal").then((module) => ({
-  default: module.DiscardPileModal,
 })));
 const DeckChoiceModal = lazy(() => import("../match/modals/DeckChoiceModal").then((module) => ({
   default: module.DeckChoiceModal,
@@ -240,6 +241,8 @@ export function App() {
   const [suppressEndTurnWarningForGame, setSuppressEndTurnWarningForGame] = useState(false);
   const [actionNotice, setActionNotice] = useState<string | null>(null);
   const [discardOpen, setDiscardOpen] = useState(false);
+  const [opponentZonesOpen, setOpponentZonesOpen] = useState(false);
+  const [discardViewSide, setDiscardViewSide] = useState<SideId>("player");
   const [coinFlipQueue, setCoinFlipQueue] = useState<CoinFlipEvent[]>([]);
   const [activeCoinFlip, setActiveCoinFlip] = useState<CoinFlipEvent | null>(null);
   const [acknowledgedCoinLogMessage, setAcknowledgedCoinLogMessage] = useState<string | null>(null);
@@ -1065,6 +1068,19 @@ export function App() {
     setActionNotice,
     submitPlayerIntent,
   });
+  const onOpenPlayerDiscard = () => {
+    setDiscardViewSide("player");
+    onOpenDiscard();
+  };
+  const onOpenOpponentDiscard = () => {
+    setDiscardViewSide("opponent");
+    setOpponentZonesOpen(false);
+    setDiscardOpen(true);
+  };
+  const onOpenOpponentZones = () => {
+    setMenuOpen(false);
+    setOpponentZonesOpen(true);
+  };
   const onChooseAttackShuffleSelf = (shouldShuffle: boolean) => {
     if (!pendingSelection || pendingSelection.kind !== "attackShuffleSelfChoice") return;
     if (isNetworkMatch) {
@@ -1199,6 +1215,7 @@ export function App() {
     endTurnWarningActions,
     previewTarget,
     discardOpen,
+    opponentZonesOpen,
     pendingSelection,
     actionNotice,
     menuOpen,
@@ -1207,6 +1224,7 @@ export function App() {
     setEndTurnWarningActions,
     setPreviewTarget,
     setDiscardOpen,
+    setOpponentZonesOpen,
     setPendingSelection,
     setActionNotice,
     setMenuOpen,
@@ -1270,6 +1288,7 @@ export function App() {
       const previousSide = previous[sideId];
       const currentSide = current[sideId];
       const isPovSide = sideId === povSideId;
+      const actor = isPovSide ? "You" : "Opponent";
       const sideOnRight = sideId === "player";
       const discardedFromHandCards = allCardsMoved(
         previousSide.hand,
@@ -1291,7 +1310,7 @@ export function App() {
         obtainedFromDeckCards = currentSide.hand.slice(-shuffleDrawCount);
       }
       if (obtainedFromDeckCards.length > 0 && isPovSide) {
-        const label = "Card drawn";
+        const label = `${actor} Drew`;
         obtainedFromDeckCards.slice(0, 5).forEach((cardId) => {
           nextFlow.push({
             cardId,
@@ -1306,7 +1325,7 @@ export function App() {
         retrievedIntoDeckCards.slice(0, 8).forEach((cardId) => {
           nextFlow.push({
             cardId,
-            label: "Card retrieved",
+            label: `${actor} Retrieved`,
             group: "retrieved",
             enterFrom: sideOnRight ? "bottomRight" : "bottomLeft",
             exitTo: "leftDeck",
@@ -1321,7 +1340,7 @@ export function App() {
 
         nextFlow.push({
           cardId: discardedFromHand,
-          label: played ? "Card played" : "Card discarded",
+          label: played ? `${actor} Played` : `${actor} Discarded`,
           group: played ? "played" : "discarded",
           enterFrom: sideOnRight ? "rightHand" : "leftHand",
           exitTo: isPovSide ? "rightDiscard" : sideOnRight ? "rightHand" : "leftHand",
@@ -1339,7 +1358,7 @@ export function App() {
       ...queue,
       [{
         cardId,
-        label: "Card retrieved",
+        label: "You Retrieved",
         group: "retrieved",
         enterFrom: "rightDiscard",
         exitTo: "leftDeck",
@@ -1571,7 +1590,8 @@ export function App() {
           onEndTurn={handleEndTurn}
           selectableHandIndexes={selectableHandIndexes}
           onChooseHandCard={chooseHandCard}
-          onOpenDiscard={onOpenDiscard}
+          onOpenDiscard={onOpenPlayerDiscard}
+          onOpenOpponentZones={onOpenOpponentZones}
           displayLog={displayLog}
         />
         {displayTopBanner && <OpponentActionBanner title={displayTopBanner.title} message={displayTopBanner.message} paused={displayTopBanner.paused} />}
@@ -1646,9 +1666,19 @@ export function App() {
         />
         {discardOpen && (
           <DiscardPileModal
-            cardIds={displayPlayer.discard}
+            cardIds={displayGame.sides[discardViewSide].discard}
+            pileLabel={discardViewSide === "opponent" ? "Opponent Discard Pile" : "Your Discard Pile"}
             onInspect={onDiscardInspect}
             onClose={onCloseDiscard}
+          />
+        )}
+        {opponentZonesOpen && (
+          <OpponentZonesModal
+            handCount={displayGame.sides.opponent.hand.length}
+            deckCount={displayGame.sides.opponent.deck.length}
+            discardCount={displayGame.sides.opponent.discard.length}
+            onOpenDiscard={onOpenOpponentDiscard}
+            onClose={() => setOpponentZonesOpen(false)}
           />
         )}
         {(pendingSelection?.kind === "deckForScout" || pendingSelection?.kind === "deckForEvolutionSearch" || pendingSelection?.kind === "deckForAttackEvolution") && (

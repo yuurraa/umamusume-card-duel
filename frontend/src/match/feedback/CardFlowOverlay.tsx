@@ -38,10 +38,10 @@ export function CardFlowOverlay({
   const playedItems = items.filter((item) => resolveGroup(item) === "played").slice(0, 10);
   const discardedItems = items.filter((item) => resolveGroup(item) === "discarded").slice(0, 10);
   const groups = [
-    { key: "drawn", title: titleForCount(drawnItems.length, "Card Drawn", "Cards Drawn"), items: drawnItems },
-    { key: "retrieved", title: titleForCount(retrievedItems.length, "Card Retrieved", "Cards Retrieved"), items: retrievedItems },
-    { key: "played", title: titleForCount(playedItems.length, "Card Played", "Cards Played"), items: playedItems },
-    { key: "discarded", title: titleForCount(discardedItems.length, "Card Discarded", "Cards Discarded"), items: discardedItems },
+    { key: "drawn", title: titleForGroup(drawnItems, "Card Drawn", "Cards Drawn"), items: drawnItems },
+    { key: "retrieved", title: titleForGroup(retrievedItems, "Card Retrieved", "Cards Retrieved"), items: retrievedItems },
+    { key: "played", title: titleForGroup(playedItems, "Card Played", "Cards Played"), items: playedItems },
+    { key: "discarded", title: titleForGroup(discardedItems, "Card Discarded", "Cards Discarded"), items: discardedItems },
   ].filter((group) => group.items.length > 0);
   const totalRendered = groups.reduce((count, group) => count + group.items.length, 0);
   const staggerMs = 90;
@@ -185,7 +185,7 @@ function groupHeaderStyle(durationMs: number): CSSProperties {
     fontSize: "clamp(20px, 2.35vw, 34px)",
     fontWeight: 900,
     letterSpacing: 0,
-    textTransform: "uppercase",
+    textTransform: "none",
     textShadow: "0 4px 18px rgba(0, 0, 0, 0.8)",
     whiteSpace: "nowrap",
     animation: `card-flow-label ${durationMs}ms ease both`,
@@ -372,6 +372,16 @@ function resolveGroup(item: CardFlowItem): CardFlowGroup {
 
 function titleForCount(count: number, singular: string, plural: string): string {
   return count === 1 ? singular : plural;
+}
+
+function titleForGroup(groupItems: CardFlowItem[], fallbackSingular: string, fallbackPlural: string): string {
+  if (groupItems.length === 0) return fallbackSingular;
+  const firstLabel = groupItems[0]?.label?.trim();
+  if (firstLabel) {
+    const allSame = groupItems.every((item) => (item.label?.trim() ?? "") === firstLabel);
+    if (allSame) return groupItems.length > 1 ? `${firstLabel} x${groupItems.length}` : firstLabel;
+  }
+  return titleForCount(groupItems.length, fallbackSingular, fallbackPlural);
 }
 
 function FlowCard({

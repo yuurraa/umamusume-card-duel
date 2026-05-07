@@ -26,9 +26,12 @@ export function appStyle(isMenu = false, playmatImage?: string | null, textTone:
     "--ui-text-color": uiTextColor,
     "--ui-text-shadow": uiTextShadow,
     "--ui-muted-text-color": uiMutedTextColor,
-    background: playmatImage
-      ? `url("${playmatImage}") center / cover fixed no-repeat`
+    backgroundImage: playmatImage
+      ? `url("${playmatImage}")`
       : `radial-gradient(circle at 18% 8%, rgba(214, 81, 157, 0.2), transparent 28%), radial-gradient(circle at 84% 20%, rgba(63, 159, 92, 0.16), transparent 30%), linear-gradient(135deg, ${APP_BACKGROUND_FALLBACK} 0%, #223733 54%, #4a2647 100%)`,
+    backgroundPosition: "center",
+    backgroundRepeat: "no-repeat",
+    backgroundSize: "cover",
     backgroundAttachment: "fixed",
   } as CSSProperties;
 }
@@ -57,7 +60,10 @@ export function matchBackgroundLayerStyle(
     pointerEvents: "none",
     opacity,
     transition: disableOpacityTransition ? "none" : `opacity ${transitions.backgroundFade}`,
-    background: playmatImage ? `url("${playmatImage}") center / cover fixed no-repeat` : "none",
+    backgroundImage: playmatImage ? `url("${playmatImage}")` : "none",
+    backgroundPosition: "center",
+    backgroundRepeat: "no-repeat",
+    backgroundSize: "cover",
     backgroundAttachment: "fixed",
   };
 }

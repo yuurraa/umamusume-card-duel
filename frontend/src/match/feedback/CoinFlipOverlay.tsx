@@ -26,6 +26,7 @@ export function CoinFlipOverlay({
   const [isSettled, setIsSettled] = useState(false);
   const [countdown, setCountdown] = useState(5);
   const onContinueRef = useRef(onContinue ?? (() => undefined));
+  const continuedRef = useRef(false);
   const activeResult = flipResults[activeIndex] ?? result;
   const finalAngle = 2160 + (activeResult === "heads" ? 0 : 180);
   const hasMoreFlips = activeIndex < flipResults.length - 1;
@@ -59,25 +60,26 @@ export function CoinFlipOverlay({
     if (isPrompt) return undefined;
     if (!isSettled) return undefined;
     if (hasMoreFlips) {
+      continuedRef.current = false;
       const timeoutId = window.setTimeout(() => {
         setActiveIndex((current) => Math.min(current + 1, flipResults.length - 1));
       }, 720);
       return () => window.clearTimeout(timeoutId);
     }
+    continuedRef.current = false;
     setCountdown(3);
     const intervalId = window.setInterval(() => {
-      setCountdown((current) => {
-        if (current <= 1) {
-          window.clearInterval(intervalId);
-          onContinueRef.current();
-          return 0;
-        }
-        return current - 1;
-      });
+      setCountdown((current) => Math.max(0, current - 1));
     }, 1000);
 
     return () => window.clearInterval(intervalId);
   }, [isSettled, hasMoreFlips, flipResults.length, isPrompt]);
+
+  useEffect(() => {
+    if (isPrompt || !isSettled || hasMoreFlips || countdown > 0 || continuedRef.current) return;
+    continuedRef.current = true;
+    onContinueRef.current();
+  }, [countdown, isPrompt, isSettled, hasMoreFlips]);
 
   if (isPrompt) {
     const promptTitle = canChoose ? "Choose Heads or Tails" : "Preparing coin flip";
