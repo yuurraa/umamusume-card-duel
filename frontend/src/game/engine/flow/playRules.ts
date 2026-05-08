@@ -31,8 +31,23 @@ export function getPlayableAction(state: GameState, side: SideState, cardId: str
     if (card.effect.attachEnergyFromZoneToBench && side.bench.length === 0) {
       return { canPlay: false, reason: "You need a benched Umamusume." };
     }
+    if (card.effect.moveEnergyFromBenchToActive && !side.active) {
+      return { canPlay: false, reason: "You need an Active Umamusume." };
+    }
+    if (card.effect.moveEnergyFromBenchToActive && !hasBenchedEnergy(side)) {
+      return { canPlay: false, reason: "You need a benched Umamusume with Energy." };
+    }
     if (card.effect.randomBasicUmamusumeFromDiscard && !hasBasicUmamusumeInDiscard(side)) {
       return { canPlay: false, reason: "You need a Basic Umamusume in discard." };
+    }
+    if (card.effect.swapHandUmamusumeWithRandomDeckUmamusume && !hasUmamusumeInHand(side)) {
+      return { canPlay: false, reason: "You need an Umamusume in your hand." };
+    }
+    if (card.effect.swapHandUmamusumeWithRandomDeckUmamusume && !hasUmamusumeInDeck(side)) {
+      return { canPlay: false, reason: "You need an Umamusume in your deck." };
+    }
+    if (card.effect.discardToolOrStadium && !hasToolOrStadiumTarget(state)) {
+      return { canPlay: false, reason: "There is no Tool or Stadium to discard." };
     }
     if (card.effect.randomBasicUmamusumeFromDiscard && side.hand.length >= MAX_HAND) {
       return { canPlay: false, reason: "Your hand is full." };
@@ -175,6 +190,32 @@ function opponentActiveHasEnergy(state: GameState, side: SideState): boolean {
   const opponent = state.sides[side.id === "player" ? "opponent" : "player"];
   if (!opponent.active) return false;
   return Object.values(opponent.active.energies).some((amount) => amount > 0);
+}
+
+function hasBenchedEnergy(side: SideState): boolean {
+  return side.bench.some((umamusume) => (Object.values(umamusume.energies) as number[]).some((count) => count > 0));
+}
+
+function hasUmamusumeInHand(side: SideState): boolean {
+  return side.hand.some((cardId) => {
+    const card = getCard(cardId);
+    return card.kind === "umamusume";
+  });
+}
+
+function hasUmamusumeInDeck(side: SideState): boolean {
+  return side.deck.some((cardId) => {
+    const card = getCard(cardId);
+    return card.kind === "umamusume";
+  });
+}
+
+function hasToolOrStadiumTarget(state: GameState): boolean {
+  if (state.stadium) return true;
+  return (["player", "opponent"] as const).some((sideId) => {
+    const side = state.sides[sideId];
+    return getAllUmamusume(side).some((umamusume) => Boolean(umamusume.toolCardId));
+  });
 }
 
 function isSideFirstTurn(state: GameState, sideId: SideState["id"]): boolean {

@@ -21,6 +21,7 @@
     "tamamoCrossStage2",
     "twinTurboBasic",
     "etsukoOtonashi",
+    "rikoKashimoto",
     "teamRigil",
     "teamSpica",
     "daiwaScarletStage2",
@@ -1516,6 +1517,42 @@
         "retreatCostReduction": 1
       }
     },
+    "resetWhistle": {
+      "id": "resetWhistle",
+      "kind": "trainer",
+      "trainerType": "item",
+      "name": "Reset Whistle",
+      "label": "Trainer - Item",
+      "image": "/assets/cards/trainer/item/reset-whistle.png",
+      "text": "Choose a Umamusume in your hand and switch her with a random Umamusume in your deck.",
+      "effect": {
+        "swapHandUmamusumeWithRandomDeckUmamusume": true
+      }
+    },
+    "masterCleatHammer": {
+      "id": "masterCleatHammer",
+      "kind": "trainer",
+      "trainerType": "item",
+      "name": "Master Cleat Hammer",
+      "label": "Trainer - Item",
+      "image": "/assets/cards/trainer/item/master-cleat-hammer.png",
+      "text": "Discard an Umamusume Tool card from a Umamusume (yours or your opponent's), or discard a Stadium card in play.",
+      "effect": {
+        "discardToolOrStadium": true
+      }
+    },
+    "reportersBinoculars": {
+      "id": "reportersBinoculars",
+      "kind": "trainer",
+      "trainerType": "item",
+      "name": "Reporter's Binoculars",
+      "label": "Trainer - Item",
+      "image": "/assets/cards/trainer/item/reporters-binoculars.png",
+      "text": "Your opponent reveals their hand.",
+      "effect": {
+        "revealOpponentHand": true
+      }
+    },
     "3starMakeDebutScout": {
       "id": "3starMakeDebutScout",
       "kind": "trainer",
@@ -1577,6 +1614,18 @@
         "toolCounterDamage": 20
       }
     },
+    "miracleCure": {
+      "id": "miracleCure",
+      "kind": "trainer",
+      "trainerType": "tool",
+      "name": "Miracle Cure",
+      "label": "Trainer - Tool",
+      "image": "/assets/cards/trainer/tool/miracle-cure.png",
+      "text": "At the end of each turn, if the Umamusume this card is attached to is affected by any Special Conditions, she recovers from all of them, and discard this card.",
+      "effect": {
+        "toolEndTurnRecoverSpecialConditionsDiscardSelf": true
+      }
+    },
     "yayoiAkikawa": {
       "id": "yayoiAkikawa",
       "kind": "trainer",
@@ -1623,6 +1672,30 @@
       "text": "Put 1 random Basic Umamusume from your discard pile into your hand.",
       "effect": {
         "randomBasicUmamusumeFromDiscard": true
+      }
+    },
+    "sparkResearchReport": {
+      "id": "sparkResearchReport",
+      "kind": "trainer",
+      "trainerType": "item",
+      "name": "Spark Research Report",
+      "label": "Trainer - Item",
+      "image": "/assets/cards/trainer/item/spark-research-report.png",
+      "text": "Your opponent shuffles their hand into their deck and draws 3 cards.",
+      "effect": {
+        "shuffleOpponentHandIntoDeckDraw": 3
+      }
+    },
+    "rikoKashimoto": {
+      "id": "rikoKashimoto",
+      "kind": "trainer",
+      "trainerType": "supporter",
+      "name": "Riko Kashimoto",
+      "label": "Trainer - Supporter",
+      "image": "/assets/cards/trainer/supporter/riko-kashimoto.png",
+      "text": "Move an Energy from 1 of your Benched Umamusume to your Active Umamusume.",
+      "effect": {
+        "moveEnergyFromBenchToActive": true
       }
     },
     "nakayamaTurf": {

@@ -42,6 +42,7 @@ export function shouldAiPlayTrainer(state: GameState, side: SideState, card: Car
   if (benchFragile && underThreat && (card.effect.activeAttackDamageBonus || card.effect.gustOpponent)) return false;
   if (card.effect.discardRandomOpponentActiveEnergy) return getOpponentActiveEnergyCount(state, side) > 0;
   if (card.effect.attachEnergyFromZoneToBench) return side.bench.length > 0;
+  if (card.effect.moveEnergyFromBenchToActive) return hasBenchedEnergyForSupporter(side);
   if (card.effect.extraEnergyAttach) return true;
   if (card.effect.retreatCostReduction) {
     const active = side.active;
@@ -78,6 +79,11 @@ export function shouldAiPlayTrainer(state: GameState, side: SideState, card: Car
   if (card.effect.rainbowUncapCrystal) return Boolean(getAiRainbowUncapChoice(state, side));
   if (card.effect.recoverActiveSpecialConditions) return Boolean(side.active && side.active.specialConditions.length > 0);
   return true;
+}
+
+function hasBenchedEnergyForSupporter(side: SideState): boolean {
+  if (!side.active) return false;
+  return side.bench.some((umamusume) => (Object.values(umamusume.energies) as number[]).some((count) => count > 0));
 }
 
 function shouldAiPlayStadium(

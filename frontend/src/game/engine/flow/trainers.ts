@@ -74,6 +74,21 @@ export function applyTrainer(
   if (trainer.effect.attachEnergyFromZoneToBench) {
     attachEnergyFromZoneToBench(state, side, trainer, trainer.effect.attachEnergyFromZoneToBench, choices.umamusumeTargetUid);
   }
+  if (trainer.effect.moveEnergyFromBenchToActive) {
+    moveEnergyFromBenchToActive(state, side, trainer);
+  }
+  if (trainer.effect.shuffleOpponentHandIntoDeckDraw) {
+    shuffleOpponentHandIntoDeckDraw(state, side, trainer, trainer.effect.shuffleOpponentHandIntoDeckDraw);
+  }
+  if (trainer.effect.swapHandUmamusumeWithRandomDeckUmamusume) {
+    swapHandUmamusumeWithRandomDeckUmamusume(state, side, trainer);
+  }
+  if (trainer.effect.discardToolOrStadium) {
+    discardToolOrStadium(state, side, trainer);
+  }
+  if (trainer.effect.revealOpponentHand) {
+    revealOpponentHand(state, side, trainer);
+  }
   if (trainer.effect.gustOpponent) switchOutOpponentActive(state, side.id, pendingChoiceResume);
   if (trainer.effect.heal) {
     const chosenTarget = choices.umamusumeTargetUid ? findOwnUmamusumeByUid(side, choices.umamusumeTargetUid) : undefined;
@@ -204,6 +219,101 @@ function recoverActiveSpecialConditions(state: GameState, side: SideState, train
   if (!active || active.specialConditions.length === 0) return;
   clearSpecialConditions(active);
   log(state, `${trainer.name} cleared all Special Conditions from ${formatUmamusumeInstanceName(active)}.`);
+}
+
+function moveEnergyFromBenchToActive(state: GameState, side: SideState, trainer: TrainerCard): void {
+  const active = side.active;
+  if (!active) return;
+  const source = side.bench.find((umamusume) => {
+    return (Object.values(umamusume.energies) as number[]).some((count) => count > 0);
+  });
+  if (!source) return;
+  const energyType = (Object.entries(source.energies) as [EnergyType, number][])
+    .find(([, count]) => count > 0)?.[0];
+  if (!energyType) return;
+  source.energies[energyType] -= 1;
+  active.energies[energyType] += 1;
+  log(
+    state,
+    `${trainer.name} moved 1 ${energyLabel(energyType)} from ${formatUmamusumeInstanceName(source)} to ${formatUmamusumeInstanceName(active)}.`,
+  );
+}
+
+function shuffleOpponentHandIntoDeckDraw(state: GameState, side: SideState, trainer: TrainerCard, drawAmount: number): void {
+  if (drawAmount <= 0) return;
+  const opponent = state.sides[side.id === "player" ? "opponent" : "player"];
+  const shuffledFromHand = opponent.hand.length;
+  opponent.deck = shuffle([...opponent.deck, ...opponent.hand]);
+  opponent.hand = [];
+  const drawnCardIds = drawCards(state, opponent, drawAmount);
+  log(
+    state,
+    `${trainer.name} made ${actorName(opponent)} shuffle ${shuffledFromHand} ${pluralize(shuffledFromHand, "card")} into deck and draw ${drawnCardIds.length} ${pluralize(drawnCardIds.length, "card")}.`,
+  );
+}
+
+function swapHandUmamusumeWithRandomDeckUmamusume(
+  state: GameState,
+  side: SideState,
+  trainer: TrainerCard,
+): void {
+  const handOptions = side.hand
+    .map((cardId, index) => ({ cardId, index }))
+    .filter(({ cardId }) => getCard(cardId).kind === "umamusume");
+  if (handOptions.length === 0) return;
+  const deckOptions = side.deck
+    .map((cardId, index) => ({ cardId, index }))
+    .filter(({ cardId }) => getCard(cardId).kind === "umamusume");
+  if (deckOptions.length === 0) return;
+  const handChoice = handOptions[0];
+  if (!handChoice) return;
+  const [sentToDeck] = side.hand.splice(handChoice.index, 1);
+  if (!sentToDeck) return;
+  side.deck = shuffle([...side.deck, sentToDeck]);
+  const drawFromDeck = deckOptions[Math.floor(Math.random() * deckOptions.length)];
+  if (!drawFromDeck) return;
+  const resolvedDeckIndex = side.deck.findIndex((cardId) => cardId === drawFromDeck.cardId);
+  if (resolvedDeckIndex < 0) return;
+  const [receivedCardId] = side.deck.splice(resolvedDeckIndex, 1);
+  if (!receivedCardId) return;
+  side.hand.push(receivedCardId);
+  if (side.id === "player") {
+    log(
+      state,
+      `${trainer.name} switched ${formatCardName(getCard(sentToDeck))} from your hand with ${formatCardName(getCard(receivedCardId))} from your deck.`,
+    );
+    return;
+  }
+  log(state, `${trainer.name} switched 1 hand Umamusume with 1 random Umamusume from ${actorLowerPossessive(side)} deck.`);
+}
+
+function discardToolOrStadium(state: GameState, side: SideState, trainer: TrainerCard): void {
+  if (state.stadium) {
+    const stadiumCard = getCard(state.stadium.cardId);
+    state.sides[state.stadium.owner].discard.push(state.stadium.cardId);
+    state.stadium = null;
+    log(state, `${trainer.name} discarded Stadium card ${formatCardName(stadiumCard)}.`);
+    return;
+  }
+  const sideOrder = side.id === "player" ? (["opponent", "player"] as const) : (["player", "opponent"] as const);
+  for (const sideId of sideOrder) {
+    const holder = getAllUmamusume(state.sides[sideId]).find((umamusume) => Boolean(umamusume.toolCardId));
+    if (!holder || !holder.toolCardId) continue;
+    const discardedToolCardId = holder.toolCardId;
+    holder.toolCardId = null;
+    state.sides[sideId].discard.push(discardedToolCardId);
+    log(state, `${trainer.name} discarded Tool card ${formatCardName(getCard(discardedToolCardId))}.`);
+    return;
+  }
+}
+
+function revealOpponentHand(state: GameState, side: SideState, trainer: TrainerCard): void {
+  const opponent = state.sides[side.id === "player" ? "opponent" : "player"];
+  if (side.id === "player") {
+    log(state, `${trainer.name} revealed opponent's hand: ${formatCardNameList(opponent.hand)}.`);
+    return;
+  }
+  log(state, `${trainer.name} revealed ${actorLowerPossessive(opponent)} hand (${opponent.hand.length} ${pluralize(opponent.hand.length, "card")}).`);
 }
 
 function moveDeckCardToHand(state: GameState, side: SideState, deckIndex: number, reveal = false): void {

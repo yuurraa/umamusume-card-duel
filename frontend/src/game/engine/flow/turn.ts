@@ -6,6 +6,7 @@ import { getAllUmamusume } from "../core/umamusume";
 import { getCard, getUmamusumeCard } from "../core/catalog";
 import { rollEnergyFromPool } from "../core/random";
 import { getUmamusumeAbility } from "./abilityRules";
+import { clearSpecialConditions } from "./specialConditions";
 
 export function prepareUmamusumeForTurn(side: SideState): void {
   getAllUmamusume(side).forEach((umamusume) => {
@@ -98,17 +99,31 @@ export function endTurn(
 }
 
 function applyEndTurnToolTriggers(state: GameState, sideId: SideId): void {
-  const side = state.sides[sideId];
-  const active = side.active;
-  if (!active || !active.toolCardId || areToolsDisabled(state)) return;
-  const tool = getCard(active.toolCardId);
-  if (tool.kind !== "trainer") return;
-  const heal = tool.effect.toolEndTurnHealActive ?? 0;
-  if (heal <= 0) return;
-  const before = active.hp;
-  active.hp = Math.min(active.maxHp, active.hp + heal);
-  const healed = active.hp - before;
-  if (healed > 0) log(state, `${tool.name} healed ${formatUmamusumeInstanceName(active)} for ${healed} HP.`);
+  if (areToolsDisabled(state)) return;
+  const sides: SideId[] = sideId === "player" ? ["player", "opponent"] : ["opponent", "player"];
+  sides.forEach((ownerSideId) => {
+    const ownerSide = state.sides[ownerSideId];
+    getAllUmamusume(ownerSide).forEach((umamusume) => {
+      if (!umamusume.toolCardId) return;
+      const toolCardId = umamusume.toolCardId;
+      const tool = getCard(toolCardId);
+      if (tool.kind !== "trainer") return;
+      const heal = tool.effect.toolEndTurnHealActive ?? 0;
+      const isActive = ownerSide.active?.uid === umamusume.uid;
+      if (heal > 0 && isActive) {
+        const before = umamusume.hp;
+        umamusume.hp = Math.min(umamusume.maxHp, umamusume.hp + heal);
+        const healed = umamusume.hp - before;
+        if (healed > 0) log(state, `${tool.name} healed ${formatUmamusumeInstanceName(umamusume)} for ${healed} HP.`);
+      }
+      if (tool.effect.toolEndTurnRecoverSpecialConditionsDiscardSelf && umamusume.specialConditions.length > 0) {
+        clearSpecialConditions(umamusume);
+        ownerSide.discard.push(toolCardId);
+        umamusume.toolCardId = null;
+        log(state, `${tool.name} cleared all Special Conditions from ${formatUmamusumeInstanceName(umamusume)} and was discarded.`);
+      }
+    });
+  });
 }
 
 function areToolsDisabled(state: GameState): boolean {

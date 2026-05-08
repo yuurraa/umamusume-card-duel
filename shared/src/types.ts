@@ -141,6 +141,11 @@ export type TrainerCard = {
     activeAttackDamageBonus?: number;
     extraEnergyAttach?: number;
     attachEnergyFromZoneToBench?: number;
+    moveEnergyFromBenchToActive?: boolean;
+    shuffleOpponentHandIntoDeckDraw?: number;
+    swapHandUmamusumeWithRandomDeckUmamusume?: boolean;
+    discardToolOrStadium?: boolean;
+    revealOpponentHand?: boolean;
     globalRetreatCostReduction?: number;
     basicHpBonus?: number;
     shuffleHandIntoDeckDraw?: number;
@@ -151,6 +156,7 @@ export type TrainerCard = {
     toolDamageReduction?: number;
     toolCounterDamage?: number;
     toolEndTurnHealActive?: number;
+    toolEndTurnRecoverSpecialConditionsDiscardSelf?: boolean;
     disableTools?: boolean;
   };
 };
