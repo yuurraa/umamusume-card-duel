@@ -7,11 +7,13 @@ import { HoloCardImage } from "../../components/cards/HoloCardImage";
 import { hasTextDragPayload, readDragPayload } from "../../components/drag/dragData";
 import { CARD_ASPECT_RATIO, colors, radius, transitions, uiTextColor, uiTextShadow } from "../../styles/shared";
 
-export function StadiumSpot({ state, abilityReady = false, onDropHandCard, onInspect }: {
+export function StadiumSpot({ state, abilityReady = false, onDropHandCard, onInspect, selectable = false, onSelect }: {
   state: GameState;
   abilityReady?: boolean;
   onDropHandCard: (handIndex: number) => void;
   onInspect: (target: InspectTarget) => void;
+  selectable?: boolean;
+  onSelect?: () => void;
 }) {
   const [hovered, setHovered] = useState(false);
   const [opponentStadiumRevealToken, setOpponentStadiumRevealToken] = useState(0);
@@ -44,6 +46,10 @@ export function StadiumSpot({ state, abilityReady = false, onDropHandCard, onIns
       style={StadiumSpotStyle(hovered, Boolean(stadiumImage), abilityReady)}
       onClick={() => {
         if (!stadium || stadium.kind !== "trainer") return;
+        if (selectable && onSelect) {
+          onSelect();
+          return;
+        }
         onInspect({ card: stadium });
       }}
       onMouseEnter={() => setHovered(true)}
@@ -105,7 +111,7 @@ function StadiumSpotStyle(hovered: boolean, hasCard: boolean, abilityReady: bool
     padding: hasCard ? 0 : "clamp(6px, 0.417vw, 8px)",
     fontSize: "clamp(10px, 0.625vw, 12px)",
     fontWeight: 950,
-    cursor: hasCard ? "pointer" : "default",
+      cursor: hasCard ? "pointer" : "default",
     boxShadow: hovered
       ? "0 0 0 5px rgba(100, 113, 104, 0.12), 0 18px 42px rgba(17, 24, 39, 0.18)"
       : "0 10px 30px rgba(17, 24, 39, 0.1)",

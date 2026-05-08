@@ -241,6 +241,8 @@ export function App() {
   const [suppressEndTurnWarningForGame, setSuppressEndTurnWarningForGame] = useState(false);
   const [actionNotice, setActionNotice] = useState<string | null>(null);
   const [discardOpen, setDiscardOpen] = useState(false);
+  const [revealedOpponentHandOpen, setRevealedOpponentHandOpen] = useState(false);
+  const [revealedOpponentHandCardIds, setRevealedOpponentHandCardIds] = useState<string[]>([]);
   const [opponentZonesOpen, setOpponentZonesOpen] = useState(false);
   const [discardViewSide, setDiscardViewSide] = useState<SideId>("player");
   const [coinFlipQueue, setCoinFlipQueue] = useState<CoinFlipEvent[]>([]);
@@ -1376,6 +1378,8 @@ export function App() {
     chooseHandCard,
     chooseScoutDeckCard,
     selectUmamusume,
+    selectStadiumForTrainerTarget,
+    selectAttachedToolForTrainerTarget,
     handleSetupReady,
   } = useMatchActions({
     game,
@@ -1398,6 +1402,10 @@ export function App() {
     submitPlayerIntent,
     isNetworkMatch,
     showShuffleReveal,
+    onRevealOpponentHandSnapshot: (cardIds) => {
+      setRevealedOpponentHandCardIds(cardIds);
+      setRevealedOpponentHandOpen(true);
+    },
   });
   const cardPreviewActions = useCardPreviewActions({
     game,
@@ -1549,6 +1557,7 @@ export function App() {
           setupDragHandIndexByUid={setupDragHandIndexByUid}
           onInspect={openPreview}
           onUmamusumeSelect={selectUmamusume}
+          onAttachedToolSelect={pendingSelection?.kind === "masterCleatHammerTarget" ? selectAttachedToolForTrainerTarget : undefined}
           onSetupDropActive={applySetupActive}
           onSetupDropBench={applySetupBench}
           onSetupPromoteToActive={promoteSetupBenchToActive}
@@ -1559,6 +1568,8 @@ export function App() {
           opponentSleeveImage={displayOpponentSleeveImage}
           stadiumAbilityReady={stadiumAbilityReady}
           onDropHandCardOnStadium={playHandCardOnStadiumSpot}
+          onSelectStadiumTarget={selectStadiumForTrainerTarget}
+          stadiumSelectable={pendingSelection?.kind === "masterCleatHammerTarget"}
           onDropHandCardOnCenter={playHandCardOnCenter}
           setupActiveIndex={setupActiveIndex}
           setupBenchIndexes={setupBenchIndexes}
@@ -1670,6 +1681,14 @@ export function App() {
             pileLabel={discardViewSide === "opponent" ? "Opponent Discard Pile" : "Your Discard Pile"}
             onInspect={onDiscardInspect}
             onClose={onCloseDiscard}
+          />
+        )}
+        {revealedOpponentHandOpen && (
+          <DiscardPileModal
+            cardIds={revealedOpponentHandCardIds}
+            pileLabel="Opponent Hand (Revealed)"
+            onInspect={(card) => setPreviewTarget({ card })}
+            onClose={() => setRevealedOpponentHandOpen(false)}
           />
         )}
         {opponentZonesOpen && (

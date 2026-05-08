@@ -46,6 +46,7 @@ type UseMatchActionsArgs = {
   submitPlayerIntent: (intent: PlayerIntent) => void;
   isNetworkMatch: boolean;
   showShuffleReveal: (cardId: string) => void;
+  onRevealOpponentHandSnapshot: (cardIds: string[]) => void;
 };
 
 export function useMatchActions(args: UseMatchActionsArgs) {
@@ -70,6 +71,7 @@ export function useMatchActions(args: UseMatchActionsArgs) {
     submitPlayerIntent,
     isNetworkMatch,
     showShuffleReveal,
+    onRevealOpponentHandSnapshot,
   } = args;
 
   const playCard = (handIndex: number) => {
@@ -90,6 +92,16 @@ export function useMatchActions(args: UseMatchActionsArgs) {
     }
     if (card.kind === "trainer" && card.effect.discardOtherCard) {
       setPendingSelection({ kind: "discardForScout", handIndex });
+      setPreviewTarget(null);
+      return;
+    }
+    if (card.kind === "trainer" && card.effect.swapHandUmamusumeWithRandomDeckUmamusume) {
+      setPendingSelection({ kind: "resetWhistleHandChoice", handIndex });
+      setPreviewTarget(null);
+      return;
+    }
+    if (card.kind === "trainer" && card.effect.discardToolOrStadium) {
+      setPendingSelection({ kind: "masterCleatHammerTarget", handIndex });
       setPreviewTarget(null);
       return;
     }
@@ -131,6 +143,11 @@ export function useMatchActions(args: UseMatchActionsArgs) {
       return;
     }
     if (card.kind === "trainer" && card.effect.draw) {
+      submitPlayerIntent({ type: "playHandCard", handIndex });
+      return;
+    }
+    if (card.kind === "trainer" && card.effect.revealOpponentHand) {
+      onRevealOpponentHandSnapshot([...game.sides.opponent.hand]);
       submitPlayerIntent({ type: "playHandCard", handIndex });
       return;
     }
@@ -276,7 +293,41 @@ export function useMatchActions(args: UseMatchActionsArgs) {
         discardedCardName,
       });
       setPreviewTarget(null);
+      return;
     }
+    if (pendingSelection.kind === "resetWhistleHandChoice") {
+      submitPlayerIntent({
+        type: "playHandCard",
+        handIndex: pendingSelection.handIndex,
+        choices: { swapHandCardIndex: handIndex },
+      });
+      setPendingSelection(null);
+      setPreviewTarget(null);
+    }
+  };
+
+  const selectStadiumForTrainerTarget = () => {
+    if (isTurnFlowBlocked) return;
+    if (!pendingSelection || pendingSelection.kind !== "masterCleatHammerTarget") return;
+    submitPlayerIntent({
+      type: "playHandCard",
+      handIndex: pendingSelection.handIndex,
+      choices: { discardStadiumInPlay: true },
+    });
+    setPendingSelection(null);
+    setPreviewTarget(null);
+  };
+
+  const selectAttachedToolForTrainerTarget = (umamusumeUid: number) => {
+    if (isTurnFlowBlocked) return;
+    if (!pendingSelection || pendingSelection.kind !== "masterCleatHammerTarget") return;
+    submitPlayerIntent({
+      type: "playHandCard",
+      handIndex: pendingSelection.handIndex,
+      choices: { discardToolHolderUmamusumeUid: umamusumeUid },
+    });
+    setPendingSelection(null);
+    setPreviewTarget(null);
   };
 
   const chooseScoutDeckCard = (deckCardIndex: number) => {
@@ -419,6 +470,8 @@ export function useMatchActions(args: UseMatchActionsArgs) {
     chooseHandCard,
     chooseScoutDeckCard,
     selectUmamusume,
+    selectStadiumForTrainerTarget,
+    selectAttachedToolForTrainerTarget,
     handleSetupReady,
   };
 }

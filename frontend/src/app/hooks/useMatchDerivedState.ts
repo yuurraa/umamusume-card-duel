@@ -1,4 +1,4 @@
-import { getAllUmamusume, canUseStadium, canUseUmamusumeAbility, getRainbowUncapEvolutionHandOptions } from "../../game/engine";
+import { getAllUmamusume, getCard, canUseStadium, canUseUmamusumeAbility, getRainbowUncapEvolutionHandOptions } from "../../game/engine";
 import {
   createSetupEmptyOpponentSide,
   createSetupHiddenOpponentSide,
@@ -59,6 +59,17 @@ export function useMatchDerivedState({
         ? new Set(player.hand.map((_, index) => index))
       : pendingSelection?.kind === "discardForScout"
         ? new Set(player.hand.map((_, index) => index).filter((index) => index !== pendingSelection.handIndex))
+      : pendingSelection?.kind === "resetWhistleHandChoice"
+        ? new Set(
+            player.hand
+              .map((cardId, index) => ({ cardId, index }))
+              .filter(({ index }) => index !== pendingSelection.handIndex)
+              .filter(({ cardId }) => {
+                const card = getCard(cardId);
+                return card.kind === "umamusume";
+              })
+              .map(({ index }) => index),
+          )
       : undefined;
   const abilityEnergyTypes = pendingSelection?.kind === "moveEnergyAbility" ? new Set(pendingSelection.energyTypes) : undefined;
   const hiddenOpponent = game.phase === "setup" && !game.setup?.opponentRevealed;

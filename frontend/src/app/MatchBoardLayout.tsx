@@ -25,6 +25,7 @@ type MatchBoardLayoutProps = {
   setupDragHandIndexByUid: Record<number, number>;
   onInspect: (target: InspectTarget) => void;
   onUmamusumeSelect: (umamusume: UmamusumeInstance) => void;
+  onAttachedToolSelect?: ((umamusumeUid: number) => void) | undefined;
   onSetupDropActive: (index: number) => void;
   onSetupDropBench: (index: number) => void;
   onSetupPromoteToActive: (index: number) => void;
@@ -35,6 +36,8 @@ type MatchBoardLayoutProps = {
   opponentSleeveImage: string | null;
   stadiumAbilityReady: boolean;
   onDropHandCardOnStadium: (handIndex: number) => void;
+  onSelectStadiumTarget: () => void;
+  stadiumSelectable: boolean;
   onDropHandCardOnCenter: (handIndex: number) => void;
   setupActiveIndex: number | null;
   setupBenchIndexes: number[];
@@ -81,6 +84,7 @@ export function MatchBoardLayout(props: MatchBoardLayoutProps) {
     setupDragHandIndexByUid,
     onInspect,
     onUmamusumeSelect,
+    onAttachedToolSelect,
     onSetupDropActive,
     onSetupDropBench,
     onSetupPromoteToActive,
@@ -91,6 +95,8 @@ export function MatchBoardLayout(props: MatchBoardLayoutProps) {
     opponentSleeveImage,
     stadiumAbilityReady,
     onDropHandCardOnStadium,
+    onSelectStadiumTarget,
+    stadiumSelectable,
     onDropHandCardOnCenter,
     setupActiveIndex,
     setupBenchIndexes,
@@ -142,6 +148,7 @@ export function MatchBoardLayout(props: MatchBoardLayoutProps) {
               selectableUmamusumeUids={game.phase === "play" ? playerSelectableUmamusumeUids : undefined}
               abilityEnergyTypes={abilityEnergyTypes}
               onUmamusumeSelect={onUmamusumeSelect}
+              onAttachedToolSelect={onAttachedToolSelect}
               onSetupDropActive={onSetupDropActive}
               onSetupDropBench={onSetupDropBench}
               onSetupPromoteToActive={onSetupPromoteToActive}
@@ -165,6 +172,7 @@ export function MatchBoardLayout(props: MatchBoardLayoutProps) {
               onInspect={onInspect}
               selectableUmamusumeUids={game.phase === "play" ? opponentSelectableUmamusumeUids : undefined}
               onUmamusumeSelect={onUmamusumeSelect}
+              onAttachedToolSelect={onAttachedToolSelect}
               sleeveImage={opponentSleeveImage}
               animateSetupReveal={(!game.gameOver && game.phase === "setup" && opponentBoardHidden && opponentSetupRevealToken > 0) || povSwitchAnimationToken > 0}
               setupRevealToken={povSwitchAnimationToken > 0 ? povSwitchAnimationToken : opponentSetupRevealToken}
@@ -173,7 +181,14 @@ export function MatchBoardLayout(props: MatchBoardLayoutProps) {
           </div>
           {game.phase === "play" && (
             <>
-              <StadiumSpot state={game} abilityReady={stadiumAbilityReady} onDropHandCard={onDropHandCardOnStadium} onInspect={onInspect} />
+              <StadiumSpot
+                state={game}
+                abilityReady={stadiumAbilityReady}
+                onDropHandCard={onDropHandCardOnStadium}
+                onInspect={onInspect}
+                selectable={stadiumSelectable}
+                onSelect={onSelectStadiumTarget}
+              />
               <PlayDropZone onDropHandCard={onDropHandCardOnCenter} />
             </>
           )}

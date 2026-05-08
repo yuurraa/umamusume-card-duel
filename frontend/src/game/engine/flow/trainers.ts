@@ -3,7 +3,7 @@ import type { EnergyType, GameState, PendingPlayerChoice, SideId, SideState, Tra
 import { getCard, isUmamusumeInDeck } from "../core/catalog";
 import { actorLowerPossessive, actorName, actorPossessive, energyLabel, formatCardName, formatUmamusumeInstanceName, pluralize } from "../core/labels";
 import { log, logPrimaryFirst } from "../core/log";
-import { findMostDamagedUmamusume, findOwnUmamusumeByUid } from "../core/umamusume";
+import { findMostDamagedUmamusume, findOwnUmamusumeByUid, getAllUmamusume } from "../core/umamusume";
 import { drawCards } from "./turn";
 import { rollEnergyFromPool, shuffle } from "../core/random";
 import type { PlayChoices } from "../core/playTypes";
@@ -81,10 +81,10 @@ export function applyTrainer(
     shuffleOpponentHandIntoDeckDraw(state, side, trainer, trainer.effect.shuffleOpponentHandIntoDeckDraw);
   }
   if (trainer.effect.swapHandUmamusumeWithRandomDeckUmamusume) {
-    swapHandUmamusumeWithRandomDeckUmamusume(state, side, trainer);
+    swapHandUmamusumeWithRandomDeckUmamusume(state, side, trainer, choices.swapHandCardIndex);
   }
   if (trainer.effect.discardToolOrStadium) {
-    discardToolOrStadium(state, side, trainer);
+    discardToolOrStadium(state, side, trainer, choices.discardToolHolderUmamusumeUid, choices.discardStadiumInPlay);
   }
   if (trainer.effect.revealOpponentHand) {
     revealOpponentHand(state, side, trainer);
@@ -256,6 +256,7 @@ function swapHandUmamusumeWithRandomDeckUmamusume(
   state: GameState,
   side: SideState,
   trainer: TrainerCard,
+  preferredHandIndex?: number,
 ): void {
   const handOptions = side.hand
     .map((cardId, index) => ({ cardId, index }))
@@ -265,7 +266,9 @@ function swapHandUmamusumeWithRandomDeckUmamusume(
     .map((cardId, index) => ({ cardId, index }))
     .filter(({ cardId }) => getCard(cardId).kind === "umamusume");
   if (deckOptions.length === 0) return;
-  const handChoice = handOptions[0];
+  const handChoice = preferredHandIndex !== undefined
+    ? handOptions.find((entry) => entry.index === preferredHandIndex) ?? handOptions[0]
+    : handOptions[0];
   if (!handChoice) return;
   const [sentToDeck] = side.hand.splice(handChoice.index, 1);
   if (!sentToDeck) return;
@@ -287,24 +290,35 @@ function swapHandUmamusumeWithRandomDeckUmamusume(
   log(state, `${trainer.name} switched 1 hand Umamusume with 1 random Umamusume from ${actorLowerPossessive(side)} deck.`);
 }
 
-function discardToolOrStadium(state: GameState, side: SideState, trainer: TrainerCard): void {
-  if (state.stadium) {
+function discardToolOrStadium(
+  state: GameState,
+  side: SideState,
+  trainer: TrainerCard,
+  targetToolHolderUid?: number,
+  discardStadiumInPlay?: boolean,
+): void {
+  if (discardStadiumInPlay && state.stadium) {
     const stadiumCard = getCard(state.stadium.cardId);
     state.sides[state.stadium.owner].discard.push(state.stadium.cardId);
     state.stadium = null;
     log(state, `${trainer.name} discarded Stadium card ${formatCardName(stadiumCard)}.`);
     return;
   }
-  const sideOrder = side.id === "player" ? (["opponent", "player"] as const) : (["player", "opponent"] as const);
-  for (const sideId of sideOrder) {
-    const holder = getAllUmamusume(state.sides[sideId]).find((umamusume) => Boolean(umamusume.toolCardId));
-    if (!holder || !holder.toolCardId) continue;
-    const discardedToolCardId = holder.toolCardId;
-    holder.toolCardId = null;
-    state.sides[sideId].discard.push(discardedToolCardId);
-    log(state, `${trainer.name} discarded Tool card ${formatCardName(getCard(discardedToolCardId))}.`);
-    return;
-  }
+  const holders = (["player", "opponent"] as const).flatMap((sideId) => {
+    return getAllUmamusume(state.sides[sideId])
+      .filter((umamusume) => Boolean(umamusume.toolCardId))
+      .map((umamusume) => ({ sideId, umamusume }));
+  });
+  const targeted = targetToolHolderUid !== undefined
+    ? holders.find(({ umamusume }) => umamusume.uid === targetToolHolderUid)
+    : undefined;
+  const fallback = holders[0];
+  const chosen = targeted ?? fallback;
+  if (!chosen || !chosen.umamusume.toolCardId) return;
+  const discardedToolCardId = chosen.umamusume.toolCardId;
+  chosen.umamusume.toolCardId = null;
+  state.sides[chosen.sideId].discard.push(discardedToolCardId);
+  log(state, `${trainer.name} discarded Tool card ${formatCardName(getCard(discardedToolCardId))}.`);
 }
 
 function revealOpponentHand(state: GameState, side: SideState, trainer: TrainerCard): void {

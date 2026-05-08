@@ -21,6 +21,7 @@ type SideBoardProps = {
   selectableUmamusumeUids?: Set<number> | undefined;
   abilityEnergyTypes?: Set<EnergyType> | undefined;
   onUmamusumeSelect?: ((umamusume: UmamusumeInstance) => void) | undefined;
+  onAttachedToolSelect?: ((umamusumeUid: number) => void) | undefined;
   onSetupDropActive?: ((handIndex: number) => void) | undefined;
   onSetupDropBench?: ((handIndex: number) => void) | undefined;
   onSetupPromoteToActive?: ((handIndex: number) => void) | undefined;
@@ -60,6 +61,7 @@ export function SideBoard({
   selectableUmamusumeUids,
   abilityEnergyTypes,
   onUmamusumeSelect,
+  onAttachedToolSelect,
   onSetupDropActive,
   onSetupDropBench,
   onSetupPromoteToActive,
@@ -186,6 +188,10 @@ export function SideBoard({
           onInspect({ card: activeCard!, umamusume: side.active!, sideId, isActive: true });
         }}
         onToolInspect={(toolCardId) => {
+          if (onAttachedToolSelect) {
+            onAttachedToolSelect(side.active!.uid);
+            return;
+          }
           const tool = getCard(toolCardId);
           if (tool.kind === "trainer") onInspect({ card: tool });
         }}
@@ -243,6 +249,7 @@ export function SideBoard({
         selectableUmamusumeUids={selectableUmamusumeUids}
         abilityEnergyTypes={abilityEnergyTypes}
         onUmamusumeSelect={onUmamusumeSelect}
+        onAttachedToolSelect={onAttachedToolSelect}
         onSetupDropBench={onSetupDropBench}
         onSetupPromoteToActive={onSetupPromoteToActive}
         activeSetupHandIndex={activeSetupHandIndex}

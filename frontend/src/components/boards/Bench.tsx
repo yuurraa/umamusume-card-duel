@@ -23,6 +23,7 @@ type BenchProps = {
   selectableUmamusumeUids?: Set<number> | undefined;
   abilityEnergyTypes?: Set<EnergyType> | undefined;
   onUmamusumeSelect?: ((umamusume: UmamusumeInstance) => void) | undefined;
+  onAttachedToolSelect?: ((umamusumeUid: number) => void) | undefined;
   onSetupDropBench?: ((handIndex: number) => void) | undefined;
   onSetupPromoteToActive?: ((handIndex: number) => void) | undefined;
   activeSetupHandIndex?: number | undefined;
@@ -59,6 +60,7 @@ export function Bench({
   selectableUmamusumeUids,
   abilityEnergyTypes,
   onUmamusumeSelect,
+  onAttachedToolSelect,
   onSetupDropBench,
   onSetupPromoteToActive,
   activeSetupHandIndex,
@@ -269,6 +271,7 @@ export function Bench({
             shiftOffset={benchShiftOffsetByUid[umamusume.uid]}
             onInspect={onInspect}
             onUmamusumeSelect={onUmamusumeSelect}
+            onAttachedToolSelect={onAttachedToolSelect}
           />
         );
       })}
@@ -276,7 +279,7 @@ export function Bench({
   );
 }
 
-function BenchSlot({ card, umamusume, side, hidden, setupMode, setupInteractionsEnabled, activeSetupHandIndex, setupDragHandIndex, onSetupPromoteToActive, onHandCardDropOnUmamusume, onEnergyDropOnUmamusume, abilityReady, hoverBorderColor, hoverBackground, hoverRingColor, hoverGlowColor, isSelectable, isDimmed, abilityEnergyTypes, sleeveImage, revealOrder, shiftOffset, onInspect, onUmamusumeSelect }: { card: ReturnType<typeof getUmamusumeCard>; umamusume: UmamusumeInstance; side: SideState; hidden: boolean; setupMode: boolean; setupInteractionsEnabled: boolean; activeSetupHandIndex: number | undefined; setupDragHandIndex: number | undefined; onSetupPromoteToActive?: ((handIndex: number) => void) | undefined; onHandCardDropOnUmamusume?: ((handIndex: number, umamusumeUid: number) => void) | undefined; onEnergyDropOnUmamusume?: ((umamusumeUid: number) => void) | undefined; abilityReady: boolean; hoverBorderColor: string; hoverBackground: string; hoverRingColor: string; hoverGlowColor: string; isSelectable: boolean; isDimmed: boolean; abilityEnergyTypes?: Set<EnergyType> | undefined; sleeveImage?: string | null | undefined; revealOrder?: number | undefined; shiftOffset?: number | undefined; onInspect: (target: InspectTarget) => void; onUmamusumeSelect?: ((umamusume: UmamusumeInstance) => void) | undefined }) {
+function BenchSlot({ card, umamusume, side, hidden, setupMode, setupInteractionsEnabled, activeSetupHandIndex, setupDragHandIndex, onSetupPromoteToActive, onHandCardDropOnUmamusume, onEnergyDropOnUmamusume, abilityReady, hoverBorderColor, hoverBackground, hoverRingColor, hoverGlowColor, isSelectable, isDimmed, abilityEnergyTypes, sleeveImage, revealOrder, shiftOffset, onInspect, onUmamusumeSelect, onAttachedToolSelect }: { card: ReturnType<typeof getUmamusumeCard>; umamusume: UmamusumeInstance; side: SideState; hidden: boolean; setupMode: boolean; setupInteractionsEnabled: boolean; activeSetupHandIndex: number | undefined; setupDragHandIndex: number | undefined; onSetupPromoteToActive?: ((handIndex: number) => void) | undefined; onHandCardDropOnUmamusume?: ((handIndex: number, umamusumeUid: number) => void) | undefined; onEnergyDropOnUmamusume?: ((umamusumeUid: number) => void) | undefined; abilityReady: boolean; hoverBorderColor: string; hoverBackground: string; hoverRingColor: string; hoverGlowColor: string; isSelectable: boolean; isDimmed: boolean; abilityEnergyTypes?: Set<EnergyType> | undefined; sleeveImage?: string | null | undefined; revealOrder?: number | undefined; shiftOffset?: number | undefined; onInspect: (target: InspectTarget) => void; onUmamusumeSelect?: ((umamusume: UmamusumeInstance) => void) | undefined; onAttachedToolSelect?: ((umamusumeUid: number) => void) | undefined }) {
   const [hovered, setHovered] = useState(false);
   const [dropHovered, setDropHovered] = useState(false);
   const activeHover = hovered && !isDimmed;
@@ -405,6 +408,10 @@ function BenchSlot({ card, umamusume, side, hidden, setupMode, setupInteractions
               toolCardId={umamusume.toolCardId}
               size="sm"
               onInspect={(toolCardId) => {
+                if (onAttachedToolSelect) {
+                  onAttachedToolSelect(umamusume.uid);
+                  return;
+                }
                 const tool = getCard(toolCardId);
                 if (tool.kind === "trainer") onInspect({ card: tool });
               }}

@@ -23,6 +23,8 @@ export type PendingSelection =
   | { kind: "discardForAbility"; abilityUmamusumeUid: number }
   | { kind: "discardForAttackBonus"; attackIndex: number; randomDiscardIndex?: number | undefined }
   | { kind: "discardForScout"; handIndex: number }
+  | { kind: "resetWhistleHandChoice"; handIndex: number }
+  | { kind: "masterCleatHammerTarget"; handIndex: number }
   | { kind: "deckForScout"; handIndex: number; discardHandIndex: number; discardedCardName: string }
   | { kind: "deckForEvolutionSearch"; handIndex: number }
   | { kind: "deckForAttackEvolution"; evolvesFrom: string; stage: number };
