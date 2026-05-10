@@ -6,4 +6,6 @@ export type PlayChoices = {
   swapHandCardIndex?: number;
   discardToolHolderUmamusumeUid?: number;
   discardStadiumInPlay?: boolean;
+  maxDiscardCount?: number;
+  discardHandIndexes?: number[];
 };

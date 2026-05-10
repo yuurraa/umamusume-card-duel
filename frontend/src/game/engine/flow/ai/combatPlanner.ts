@@ -18,6 +18,7 @@ import {
   getHealingGained,
   getTargetValue,
 } from "./combatUtils";
+import { scoreCardFutureValue } from "./trainerUtils";
 
 const BASE_POINTS_WEIGHT = 1000;
 const BASE_KO_WEIGHT = 260;
@@ -93,38 +94,42 @@ function buildAttackCandidates(
   const resolvedHealTargets = healTargetUids.length > 0 ? healTargetUids : [undefined];
   const usesCoinFlip = Boolean(attack.coinBonus || attack.drawOnHeads || attack.knockOutActiveIfAllCoinHeads);
   const shuffleOptions = attack.shuffleSelfIntoDeck ? [false, true] : [undefined];
+  const discardOptions = buildDiscardOptions(state, side);
   const candidates: CombatCandidate[] = [];
 
   resolvedAttackTargets.forEach((attackTargetUid) => {
     resolvedHealTargets.forEach((healTargetUid) => {
       shuffleOptions.forEach((useShuffleSelfIntoDeck) => {
-        const shuffleTag = useShuffleSelfIntoDeck === undefined ? "auto" : (useShuffleSelfIntoDeck ? "shuffle" : "keep");
-        if (!usesCoinFlip || forcedAttackCoinResult) {
-          const decision = buildAttackDecision(retreatTargetUid, attackTargetUid, healTargetUid, usesCoinFlip, useShuffleSelfIntoDeck);
-          candidates.push(scoreCandidate(state, side.id, deps, decision, `${retreatTargetUid ?? "stay"}-${attackTargetUid ?? "active"}-${healTargetUid ?? "auto"}-${shuffleTag}-${forcedAttackCoinResult ?? "none"}`));
-          return;
-        }
+        discardOptions.forEach((discardOption) => {
+          const shuffleTag = useShuffleSelfIntoDeck === undefined ? "auto" : (useShuffleSelfIntoDeck ? "shuffle" : "keep");
+          const discardTag = `${discardOption.discardHandIndex ?? "auto"}-${discardOption.maxDiscardCount ?? "auto"}-${discardOption.discardHandIndexes?.join(".") ?? "auto"}`;
+          if (!usesCoinFlip || forcedAttackCoinResult) {
+            const decision = buildAttackDecision(retreatTargetUid, attackTargetUid, healTargetUid, usesCoinFlip, useShuffleSelfIntoDeck, discardOption.discardHandIndex, discardOption.maxDiscardCount, discardOption.discardHandIndexes);
+            candidates.push(scoreCandidate(state, side.id, deps, decision, `${retreatTargetUid ?? "stay"}-${attackTargetUid ?? "active"}-${healTargetUid ?? "auto"}-${shuffleTag}-${discardTag}-${forcedAttackCoinResult ?? "none"}`));
+            return;
+          }
 
-        const heads = scoreCandidate(
-          state,
-          side.id,
-          deps,
-          buildAttackDecision(retreatTargetUid, attackTargetUid, healTargetUid, true, useShuffleSelfIntoDeck),
-          `${retreatTargetUid ?? "stay"}-${attackTargetUid ?? "active"}-${healTargetUid ?? "auto"}-${shuffleTag}-heads`,
-          "heads",
-        );
-        const tails = scoreCandidate(
-          state,
-          side.id,
-          deps,
-          buildAttackDecision(retreatTargetUid, attackTargetUid, healTargetUid, true, useShuffleSelfIntoDeck),
-          `${retreatTargetUid ?? "stay"}-${attackTargetUid ?? "active"}-${healTargetUid ?? "auto"}-${shuffleTag}-tails`,
-          "tails",
-        );
-        candidates.push({
-          ...heads,
-          id: `${retreatTargetUid ?? "stay"}-${attackTargetUid ?? "active"}-${healTargetUid ?? "auto"}-${shuffleTag}-expected`,
-          score: (heads.score + tails.score) / 2,
+          const heads = scoreCandidate(
+            state,
+            side.id,
+            deps,
+            buildAttackDecision(retreatTargetUid, attackTargetUid, healTargetUid, true, useShuffleSelfIntoDeck, discardOption.discardHandIndex, discardOption.maxDiscardCount, discardOption.discardHandIndexes),
+            `${retreatTargetUid ?? "stay"}-${attackTargetUid ?? "active"}-${healTargetUid ?? "auto"}-${shuffleTag}-${discardTag}-heads`,
+            "heads",
+          );
+          const tails = scoreCandidate(
+            state,
+            side.id,
+            deps,
+            buildAttackDecision(retreatTargetUid, attackTargetUid, healTargetUid, true, useShuffleSelfIntoDeck, discardOption.discardHandIndex, discardOption.maxDiscardCount, discardOption.discardHandIndexes),
+            `${retreatTargetUid ?? "stay"}-${attackTargetUid ?? "active"}-${healTargetUid ?? "auto"}-${shuffleTag}-${discardTag}-tails`,
+            "tails",
+          );
+          candidates.push({
+            ...heads,
+            id: `${retreatTargetUid ?? "stay"}-${attackTargetUid ?? "active"}-${healTargetUid ?? "auto"}-${shuffleTag}-${discardTag}-expected`,
+            score: (heads.score + tails.score) / 2,
+          });
         });
       });
     });
@@ -161,10 +166,12 @@ function scoreCandidate(
       forcedCoinResult,
       undefined,
       0,
-      undefined,
+      decision.discardHandIndex,
       undefined,
       undefined,
       decision.useShuffleSelfIntoDeck,
+      decision.maxDiscardCount,
+      decision.discardHandIndexes,
     );
   }
 
@@ -192,16 +199,95 @@ function scoreCandidate(
   const shuffleRiskPenalty = getOptionalSelfShuffleRiskPenalty(before, simulated, actingSideId, decision, lethalTarget);
   const nextTurnLockPenalty = getCannotAttackNextTurnPenalty(before, simulated, actingSideId, decision, lethalTarget);
   const benchSurvivalPenalty = getBenchSurvivalFloorPenalty(before, simulated, actingSideId, lethalTarget);
+  const statusValue = getStatusPressureValue(before, simulated, actingSideId, decision);
+  const handValueSpent = getDiscardedHandValue(before, simulated, actingSideId);
 
   return {
     id,
     decision,
-    score: score - shuffleRiskPenalty - nextTurnLockPenalty - benchSurvivalPenalty,
+    score: score + statusValue - shuffleRiskPenalty - nextTurnLockPenalty - benchSurvivalPenalty - handValueSpent,
     keepsSafe: !canImmediateOpponentKo(simulated, actingSideId),
     lethalTarget,
     targetValue,
     targetIsActive,
   };
+}
+
+function buildDiscardOptions(
+  state: GameState,
+  side: SideState,
+): Array<{ discardHandIndex?: number; maxDiscardCount?: number; discardHandIndexes?: number[] }> {
+  const active = side.active;
+  if (!active) return [{}];
+  const attack = getPrimaryAttack(getUmamusumeCard(active));
+  const handOptions = side.hand
+    .map((cardId, handIndex) => ({ cardId, handIndex, value: scoreCardFutureValue(state, side, cardId) }))
+    .sort((left, right) => left.value - right.value);
+
+  if (attack.attackDamageBonusIfDiscardHandCard) {
+    const cheapest = handOptions[0];
+    return cheapest ? [{ discardHandIndex: cheapest.handIndex }, {}] : [{}];
+  }
+
+  if (attack.attackDamageBonusPerDiscardedHandCard) {
+    const max = Math.min(attack.attackDamageBonusPerDiscardedHandCard.maxDiscard, side.hand.length);
+    const options = new Set<number>([0, max]);
+    const opponent = state.sides[side.id === "player" ? "opponent" : "player"];
+    const defenderHp = opponent.active?.hp ?? 0;
+    const baseDamage = attack.damage + side.activeAttackDamageBonus;
+    const perCard = attack.attackDamageBonusPerDiscardedHandCard.bonusPerCard;
+    const enoughForActiveKo = defenderHp > 0 ? Math.ceil(Math.max(0, defenderHp - baseDamage) / perCard) : max;
+    options.add(Math.max(0, Math.min(max, enoughForActiveKo)));
+    if (max > 1) options.add(Math.max(1, Math.ceil(max / 2)));
+    return [...options].sort((left, right) => left - right).map((maxDiscardCount) => ({
+      maxDiscardCount,
+      discardHandIndexes: handOptions.slice(0, maxDiscardCount).map((option) => option.handIndex),
+    }));
+  }
+
+  return [{}];
+}
+
+function getDiscardedHandValue(before: GameState, after: GameState, actingSideId: SideId): number {
+  const beforeSide = before.sides[actingSideId];
+  const afterSide = after.sides[actingSideId];
+  const afterHandCounts = new Map<string, number>();
+  afterSide.hand.forEach((cardId) => afterHandCounts.set(cardId, (afterHandCounts.get(cardId) ?? 0) + 1));
+  let penalty = 0;
+  beforeSide.hand.forEach((cardId) => {
+    const remaining = afterHandCounts.get(cardId) ?? 0;
+    if (remaining > 0) {
+      afterHandCounts.set(cardId, remaining - 1);
+      return;
+    }
+    penalty += Math.min(90, scoreCardFutureValue(before, beforeSide, cardId) * 0.45);
+  });
+  return penalty;
+}
+
+function getStatusPressureValue(
+  before: GameState,
+  after: GameState,
+  actingSideId: SideId,
+  decision: AiCombatDecision,
+): number {
+  if (decision.kind !== "attack") return 0;
+  const defenderId: SideId = actingSideId === "player" ? "opponent" : "player";
+  const beforeDefender = before.sides[defenderId];
+  const afterDefender = after.sides[defenderId];
+  const beforeActive = beforeDefender.active;
+  const afterActive = afterDefender.active;
+  if (!beforeActive || !afterActive || beforeActive.uid !== afterActive.uid) return 0;
+
+  let score = 0;
+  if (!beforeActive.specialConditions.includes("paralysed") && afterActive.specialConditions.includes("paralysed")) {
+    const preventedLethal = canImmediateOpponentKoConservative(before, actingSideId) && !canImmediateOpponentKoConservative(after, actingSideId);
+    score += preventedLethal ? 180 : 70;
+  }
+  if (!beforeActive.specialConditions.includes("poisoned") && afterActive.specialConditions.includes("poisoned")) {
+    score += afterActive.hp <= 10 ? 150 : 34;
+  }
+  return score;
 }
 
 function getBenchSurvivalFloorPenalty(

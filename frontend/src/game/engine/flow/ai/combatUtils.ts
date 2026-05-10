@@ -94,6 +94,8 @@ function canImmediateOpponentKoByRisk(state: GameState, sideId: SideId, riskMode
   const active = side.active;
   const attacker = opponent.active;
   if (!active || !attacker) return false;
+  if (attacker.specialConditions.includes("paralysed")) return false;
+  if (attacker.attackBlockedUntilOwnTurn === state.turnsTakenBySide[opponent.id]) return false;
   if (!hasEnoughEnergy(attacker, getPrimaryAttack(getUmamusumeCard(attacker)).cost)) return false;
   const ownInPlayCount = 1 + opponent.bench.length;
   const allInPlayCount = ownInPlayCount + 1 + side.bench.length;
@@ -124,6 +126,8 @@ export function predictAttackDamage(
     damage += (attack.damagePerUmamusumeInPlay.side === "all" ? allInPlayCount : ownInPlayCount) * attack.damagePerUmamusumeInPlay.amount;
   }
   if (attack.attackDamageBonusIfToolAttached && attacker.toolCardId) damage += attack.attackDamageBonusIfToolAttached;
+  if (attack.attackDamageBonusIfDiscardHandCard) damage += attack.attackDamageBonusIfDiscardHandCard;
+  if (attack.switchSelfAfterAttack?.bonusDamage) damage += attack.switchSelfAfterAttack.bonusDamage;
   if (attack.attackDamageBonusPerDiscardedHandCard) damage += attack.attackDamageBonusPerDiscardedHandCard.maxDiscard * attack.attackDamageBonusPerDiscardedHandCard.bonusPerCard;
   const attackerCard = getUmamusumeCard(attacker);
   const defenderCard = getUmamusumeCard(defender);
@@ -171,11 +175,17 @@ export function buildAttackDecision(
   healTargetUid: number | undefined,
   usesCoinFlip: boolean,
   useShuffleSelfIntoDeck?: boolean,
+  discardHandIndex?: number,
+  maxDiscardCount?: number,
+  discardHandIndexes?: number[],
 ): Extract<AiCombatDecision, { kind: "attack" }> {
   const decision: Extract<AiCombatDecision, { kind: "attack" }> = { kind: "attack", usesCoinFlip };
   if (retreatTargetUid !== undefined) decision.retreatTargetUid = retreatTargetUid;
   if (attackTargetUid !== undefined) decision.attackTargetUid = attackTargetUid;
   if (healTargetUid !== undefined) decision.healTargetUid = healTargetUid;
   if (useShuffleSelfIntoDeck !== undefined) decision.useShuffleSelfIntoDeck = useShuffleSelfIntoDeck;
+  if (discardHandIndex !== undefined) decision.discardHandIndex = discardHandIndex;
+  if (maxDiscardCount !== undefined) decision.maxDiscardCount = maxDiscardCount;
+  if (discardHandIndexes !== undefined) decision.discardHandIndexes = discardHandIndexes;
   return decision;
 }

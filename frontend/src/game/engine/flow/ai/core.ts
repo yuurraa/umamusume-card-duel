@@ -336,10 +336,12 @@ export function aiResolveCombatDecision(
     forcedAttackCoinResult,
     undefined,
     0,
-    undefined,
+    selected.decision.discardHandIndex,
     undefined,
     undefined,
     selected.decision.useShuffleSelfIntoDeck,
+    selected.decision.maxDiscardCount,
+    selected.decision.discardHandIndexes,
   );
   return { resolved: true, usedAttack: true, didRetreat: false };
 }
@@ -378,6 +380,7 @@ export function aiUseOneAbility(
       if (aiUseCoinFlipDrawAbility(state, side, abilityUmamusume, random, deps, state.aiDifficulty)) return true;
     }
     if (ability.shuffleRandomDiscardIntoDeck) {
+      if (!shouldUseShuffleDiscardAbility(state, side, abilityUmamusume)) continue;
       const count = Math.min(ability.shuffleRandomDiscardIntoDeck, side.discard.length);
       if (count <= 0) continue;
       const shuffledCardIds: string[] = [];
@@ -400,6 +403,28 @@ export function aiUseOneAbility(
   }
 
   return false;
+}
+
+function shouldUseShuffleDiscardAbility(
+  state: GameState,
+  side: SideState,
+  abilityUmamusume: ReturnType<typeof getAllUmamusume>[number],
+): boolean {
+  const ability = getUmamusumeCard(abilityUmamusume).ability;
+  if (!ability?.shuffleRandomDiscardIntoDeck) return false;
+  if (side.discard.length === 0) return false;
+  if (!ability.oncePerGame) return true;
+
+  const deckLow = side.deck.length <= 8;
+  const discardRich = side.discard.length >= ability.shuffleRandomDiscardIntoDeck + 2;
+  const valuableDiscardCount = side.discard.reduce((count, cardId) => {
+    const card = getCard(cardId);
+    if (card.kind === "trainer" && (card.effect.draw || card.effect.searchUmamusume || card.effect.searchEvolutionUmamusume)) return count + 1;
+    if (card.kind === "umamusume" && card.stage >= 1) return count + 1;
+    return count;
+  }, 0);
+  const underThreat = canImmediateOpponentKoConservative(state, side.id);
+  return deckLow || (discardRich && valuableDiscardCount >= 2 && !underThreat);
 }
 
 function scoreBasicBenchCandidate(

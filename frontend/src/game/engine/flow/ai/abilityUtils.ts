@@ -54,17 +54,18 @@ export function aiUseMoveBenchedEnergyAbility(
       const sourceAfterDamage = heuristicDeps.estimateAttackDamageOutput(state, side.id, simulatedSource, source);
       let score = 0;
       if (afterCanAttack && !beforeCanAttack) score += 220;
-      score += Math.max(0, afterActiveDamage - beforeActiveDamage) * 3;
+      const activeDamageGain = Math.max(0, afterActiveDamage - beforeActiveDamage);
+      score += activeDamageGain * 5;
       if (activeAttack.damagePerAttachedEnergy?.types.includes(energyType)) score += 18;
       const threshold = getUmamusumeCard(active).ability?.attackDamageBonusIfAttachedEnergy;
       if (threshold && threshold.type === energyType && active.energies[energyType] < threshold.min && simulatedActive.energies[energyType] >= threshold.min) {
         score += 60;
       }
       if (sourceBeforeDamage > sourceAfterDamage) {
-        score -= (sourceBeforeDamage - sourceAfterDamage) * 2.2;
+        score -= (sourceBeforeDamage - sourceAfterDamage) * 0.8;
       }
       if (hasEnoughEnergy(source, getPrimaryAttack(getUmamusumeCard(source)).cost) && !hasEnoughEnergy(simulatedSource, getPrimaryAttack(getUmamusumeCard(source)).cost)) {
-        score -= 120;
+        score -= activeDamageGain > 0 ? 10 : 40;
       }
       if (!opponent.active) score -= 20;
       return { source, energyType, score };

@@ -95,10 +95,12 @@ function applyDecision(
     decision.usesCoinFlip ? forcedAttackCoinResult : undefined,
     undefined,
     0,
-    undefined,
+    decision.discardHandIndex,
     undefined,
     undefined,
     decision.useShuffleSelfIntoDeck,
+    decision.maxDiscardCount,
+    decision.discardHandIndexes,
   );
 }
 

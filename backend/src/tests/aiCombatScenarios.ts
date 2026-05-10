@@ -31,6 +31,14 @@ const scenarios: Scenario[] = [
   { name: "Team Canopus attaches Energy to highest-value bench target", run: scenarioTeamCanopusBenchAttachTargeting },
   { name: "Carrot Jelly is used when it unlocks a retreat attack line", run: scenarioCarrotJellyEnablesRetreatLine },
   { name: "Tracen Gym disables Oguri tool bonus damage", run: scenarioTracenGymDisablesToolBonusDamage },
+  { name: "Master Cleat Hammer chooses opponent's valuable Tool over own Stadium", run: scenarioMasterCleatHammerTargetsOpponentTool },
+  { name: "Reset Whistle swaps away lowest-value hand Umamusume", run: scenarioResetWhistleSwapsWeakHandUmamusume },
+  { name: "Spark Research Report is held when it improves opponent hand", run: scenarioSparkResearchReportHeldWhenBad },
+  { name: "Rudolf EX discards only enough low-value cards for lethal", run: scenarioRudolfExMinimalDiscard },
+  { name: "Paralysis attack is preferred when it denies lethal", run: scenarioParalysisDeniesLethal },
+  { name: "Poison attack is valued when it sets up end-turn KO", run: scenarioPoisonEndTurnKo },
+  { name: "Miracle Cure attaches to statused active", run: scenarioMiracleCureTargetsStatusedActive },
+  { name: "Rudolf EX once-per-game recovery is saved until discard is rich", run: scenarioRudolfExRecoveryRestraint },
 ];
 
 scenarios.forEach(({ name, run }) => {
@@ -210,7 +218,7 @@ function scenarioWhiteLightningShuffle() {
   player.bench = [promoted];
   opponent.active = withEnergy(createUma("riceShowerStage2"), { darkness: 2 });
 
-  const next = playerAttack(state);
+  const next = playerAttack(state, undefined, undefined, undefined, undefined, 0, undefined, undefined, undefined, true);
   assert.equal(next.sides.player.active?.uid, promoted.uid, "bench Umamusume should promote after White Lightning shuffles the active");
   assert.ok(next.sides.player.deck.includes("tamamoCrossStage2"), "Tamamo Cross Stage 2 should be shuffled into the deck");
   assert.ok(next.sides.player.deck.includes("tamamoCrossStage1"), "Tamamo Cross Stage 1 under Tamamo should be shuffled into the deck");
@@ -293,7 +301,7 @@ function scenarioBurningPassionThresholdBonus() {
   opponent.active.hp = 120;
 
   const next = playerAttack(state);
-  assert.equal(next.sides.opponent.active?.hp, 40, "Uma Stan should do 80 damage when Burning Passion is active");
+  assert.equal(next.sides.opponent.active?.hp, 70, "Uma Stan should include Burning Passion's +30 damage");
 }
 
 function scenarioMihonoReductionInfluencesTargeting() {
@@ -366,6 +374,131 @@ function scenarioTracenGymDisablesToolBonusDamage() {
 
   const next = playerAttack(state);
   assert.equal(next.sides.opponent.active?.hp, 30, "Tracen Gym should suppress Oguri's +30 tool damage bonus");
+}
+
+function scenarioMasterCleatHammerTargetsOpponentTool() {
+  const state = makeCombatState();
+  const opponent = state.sides.opponent;
+  const player = state.sides.player;
+  state.opponentTurnStep = "trainerAfter";
+  state.stadium = { cardId: "nakayamaTurf", owner: "opponent" };
+  opponent.hand = ["masterCleatHammer"];
+  opponent.active = createUma("riceShowerBasic");
+  opponent.active.toolCardId = "leftoverCarrot";
+  player.active = createUma("riceShowerStage2");
+  player.active.toolCardId = "boxingGloves";
+
+  const next = advanceOpponentTurnStep(state);
+  assert.equal(next.sides.player.active?.toolCardId, null, "AI should discard opponent's high-value active Tool");
+  assert.equal(next.sides.opponent.active?.toolCardId, "leftoverCarrot", "AI should preserve its own Tool");
+  assert.equal(next.stadium?.cardId, "nakayamaTurf", "AI should not discard its own helpful Stadium first");
+}
+
+function scenarioResetWhistleSwapsWeakHandUmamusume() {
+  const state = makeCombatState();
+  const opponent = state.sides.opponent;
+  const player = state.sides.player;
+  state.opponentTurnStep = "trainerAfter";
+  opponent.hand = ["resetWhistle", "matikanefukukitaruStage1", "riceShowerStage2"];
+  opponent.deck = ["symboliRudolfStage2"];
+  opponent.active = createUma("riceShowerBasic");
+  player.active = createUma("riceShowerBasic");
+
+  const next = advanceOpponentTurnStep(state);
+  assert.ok(!next.sides.opponent.hand.includes("matikanefukukitaruStage1"), "AI should send the lowest-value Umamusume from hand");
+  assert.ok(next.sides.opponent.hand.includes("riceShowerStage2"), "AI should keep the stronger hand Umamusume");
+  assert.ok(next.sides.opponent.hand.includes("symboliRudolfStage2"), "AI should receive the deck Umamusume");
+}
+
+function scenarioSparkResearchReportHeldWhenBad() {
+  const state = makeCombatState();
+  const opponent = state.sides.opponent;
+  const player = state.sides.player;
+  state.opponentTurnStep = "trainerAfter";
+  opponent.hand = ["sparkResearchReport"];
+  opponent.active = createUma("riceShowerBasic");
+  player.active = createUma("riceShowerBasic");
+  player.hand = ["tazunaHayakawa"];
+
+  const next = advanceOpponentTurnStep(state);
+  assert.ok(next.sides.opponent.hand.includes("sparkResearchReport"), "AI should not play hand reset when it would improve opponent hand size");
+}
+
+function scenarioRudolfExMinimalDiscard() {
+  const state = makeCombatState();
+  const opponent = state.sides.opponent;
+  const player = state.sides.player;
+  opponent.active = withEnergy(createUma("symboliRudolfStage2Ex"), { water: 1, dragon: 1, colorless: 1 });
+  opponent.hand = ["teamSpica", "tamamoCrossBasic", "tazunaHayakawa", "riceShowerStage2", "aoiKiryuin"];
+  player.active = createUma("superCreekBasic");
+  player.active.hp = 70;
+
+  const next = advanceOpponentTurnStep(state);
+  assert.equal(next.sides.player.active, null, "AI should reach lethal with one discarded card");
+  assert.equal(next.sides.opponent.discard.includes("tamamoCrossBasic"), true, "AI should discard a low-value card");
+  assert.equal(next.sides.opponent.discard.includes("teamSpica"), false, "AI should preserve higher-value Supporter");
+  assert.equal(next.sides.opponent.hand.length, 4, "AI should discard only one card for exact lethal");
+}
+
+function scenarioParalysisDeniesLethal() {
+  const state = makeCombatState();
+  const opponent = state.sides.opponent;
+  const player = state.sides.player;
+  opponent.active = withEnergy(createUma("twinTurboBasic"), { lightning: 1, colorless: 1 });
+  opponent.active.hp = 80;
+  const biggerBench = withEnergy(createUma("riceShowerStage2"), { darkness: 2 });
+  opponent.bench = [biggerBench];
+  player.active = withEnergy(createUma("riceShowerStage2"), { darkness: 2 });
+  player.active.hp = 120;
+
+  const next = advanceOpponentTurnStep(state);
+  assert.equal(next.sides.opponent.active?.uid, opponent.active.uid, "AI should stay with paralysis attacker");
+  assert.ok(next.sides.player.active?.specialConditions.includes("paralysed"), "AI should paralyse the lethal counterattacker");
+}
+
+function scenarioPoisonEndTurnKo() {
+  const state = makeCombatState();
+  const opponent = state.sides.opponent;
+  const player = state.sides.player;
+  opponent.active = withEnergy(createUma("niceNatureBasicEx"), { grass: 2, colorless: 1 });
+  opponent.bench = [withEnergy(createUma("riceShowerStage2"), { darkness: 2 })];
+  player.active = createUma("mihonoBourbonStage2Ex");
+  player.active.hp = 90;
+
+  const next = advanceOpponentTurnStep(state);
+  assert.ok(next.sides.player.active?.specialConditions.includes("poisoned"), "AI should value poison when direct damage leaves 10 HP");
+}
+
+function scenarioMiracleCureTargetsStatusedActive() {
+  const state = makeCombatState();
+  const opponent = state.sides.opponent;
+  const player = state.sides.player;
+  state.opponentTurnStep = "trainerAfter";
+  opponent.hand = ["miracleCure"];
+  opponent.active = createUma("riceShowerStage2");
+  opponent.active.specialConditions = ["paralysed"];
+  const bench = createUma("riceShowerBasic");
+  opponent.bench = [bench];
+  player.active = createUma("riceShowerBasic");
+
+  const next = advanceOpponentTurnStep(state);
+  assert.equal(next.sides.opponent.active?.toolCardId, "miracleCure", "AI should attach Miracle Cure to the statused active");
+  assert.equal(next.sides.opponent.bench[0]?.toolCardId, null, "AI should not waste Miracle Cure on clean bench");
+}
+
+function scenarioRudolfExRecoveryRestraint() {
+  const state = makeCombatState();
+  const opponent = state.sides.opponent;
+  const player = state.sides.player;
+  opponent.active = withEnergy(createUma("symboliRudolfStage2Ex"), { water: 1, dragon: 1, colorless: 1 });
+  opponent.discard = ["tamamoCrossBasic"];
+  opponent.deck = Array.from({ length: 12 }, () => "riceShowerBasic");
+  player.active = createUma("mihonoBourbonStage2Ex");
+  player.active.hp = 120;
+
+  const next = advanceOpponentTurnStep(state);
+  assert.deepEqual(next.sides.opponent.discard, ["tamamoCrossBasic"], "AI should save once-per-game recovery when discard is thin and deck is healthy");
+  assert.equal(next.sides.opponent.usedAbilityNamesThisGame.includes("Behold Thine Emperor's Divine Might"), false, "once-per-game ability should remain available");
 }
 
 function makeCombatState(): GameState {

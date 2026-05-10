@@ -43,6 +43,11 @@ export function shouldAiPlayTrainer(state: GameState, side: SideState, card: Car
   if (card.effect.discardRandomOpponentActiveEnergy) return getOpponentActiveEnergyCount(state, side) > 0;
   if (card.effect.attachEnergyFromZoneToBench) return side.bench.length > 0;
   if (card.effect.moveEnergyFromBenchToActive) return hasBenchedEnergyForSupporter(side);
+  if (card.effect.shuffleOpponentHandIntoDeckDraw) return getShuffleOpponentHandValue(state, side, card.effect.shuffleOpponentHandIntoDeckDraw) > 10;
+  if (card.effect.swapHandUmamusumeWithRandomDeckUmamusume) return getResetWhistleValue(state, side) > 8;
+  if (card.effect.discardToolOrStadium) return Boolean(getBestDiscardToolOrStadiumChoice(state, side));
+  if (card.effect.revealOpponentHand) return getRevealOpponentHandValue(state, side) > 0;
+  if (card.effect.randomBasicUmamusumeFromDiscard) return side.hand.length < MAX_HAND && getRandomBasicFromDiscardValue(state, side) > 0;
   if (card.effect.extraEnergyAttach) return true;
   if (card.effect.retreatCostReduction) {
     const active = side.active;
@@ -221,8 +226,21 @@ export function getAiTrainerChoices(
     if (deckCardIndex !== undefined) choices.deckCardIndex = deckCardIndex;
   }
   if (card.trainerType === "tool") {
-    const toolTarget = chooseAiToolTarget(side);
+    const toolTarget = chooseAiToolTarget(state, side, card);
     if (toolTarget) choices.umamusumeTargetUid = toolTarget.uid;
+  }
+  if (card.effect.swapHandUmamusumeWithRandomDeckUmamusume) {
+    const swapHandCardIndex = chooseResetWhistleHandIndex(state, side);
+    if (swapHandCardIndex !== undefined) choices.swapHandCardIndex = swapHandCardIndex;
+  }
+  if (card.effect.discardToolOrStadium) {
+    const discardChoice = getBestDiscardToolOrStadiumChoice(state, side);
+    if (discardChoice?.discardStadiumInPlay) choices.discardStadiumInPlay = true;
+    if (discardChoice?.discardToolHolderUmamusumeUid !== undefined) choices.discardToolHolderUmamusumeUid = discardChoice.discardToolHolderUmamusumeUid;
+  }
+  if (card.effect.heal && card.effect.healTarget === "any") {
+    const target = getBestHealTrainerTarget(state, side, card);
+    if (target) choices.umamusumeTargetUid = target.uid;
   }
   return choices;
 }
@@ -296,12 +314,12 @@ function scoreBenchAttachTarget(
   return score;
 }
 
-function chooseAiToolTarget(side: SideState): UmamusumeInstance | undefined {
+function chooseAiToolTarget(state: GameState, side: SideState, tool: TrainerCard): UmamusumeInstance | undefined {
   const targets = getToolTargets(side);
   return [...targets].sort((left, right) => {
-    const leftActive = left.uid === side.active?.uid ? 1 : 0;
-    const rightActive = right.uid === side.active?.uid ? 1 : 0;
-    if (rightActive !== leftActive) return rightActive - leftActive;
+    const leftScore = scoreToolTarget(state, side, left, tool);
+    const rightScore = scoreToolTarget(state, side, right, tool);
+    if (rightScore !== leftScore) return rightScore - leftScore;
     if (right.stage !== left.stage) return right.stage - left.stage;
     return attachedEnergyCount(right) - attachedEnergyCount(left);
   })[0];
@@ -343,7 +361,7 @@ function chooseAiSearchDeckIndex(
   return sorted[0]?.deckCardIndex;
 }
 
-function scoreCardFutureValue(state: GameState, side: SideState, cardId: string): number {
+export function scoreCardFutureValue(state: GameState, side: SideState, cardId: string): number {
   const deckStyle = state.aiDeckStyleBySide[side.id] ?? "balanced";
   const card = getCard(cardId);
   if (card.kind === "trainer") {
@@ -365,6 +383,151 @@ function scoreCardFutureValue(state: GameState, side: SideState, cardId: string)
   if (deckStyle === "scaleBench" && card.species === "Agnes Digital") value += 85;
   if (deckStyle === "scaleBench" && card.stage === 0) value += 24;
   return value;
+}
+
+function scoreToolTarget(state: GameState, side: SideState, target: UmamusumeInstance, tool: TrainerCard): number {
+  const active = side.active;
+  const isActive = target.uid === active?.uid;
+  const card = getUmamusumeCard(target);
+  const attack = getPrimaryAttack(card);
+  const ready = hasEnoughEnergy(target, attack.cost);
+  let score = target.stage * 16 + attachedEnergyCount(target) * 10 + attack.damage * 0.6;
+  if (isActive) score += 38;
+  if (ready) score += 18;
+  if (tool.effect.toolDamageReduction) {
+    score += target.maxHp >= 100 ? 22 : 8;
+    if (isActive && canImmediateOpponentKoConservative(state, side.id)) score += 60;
+    if (target.hp <= tool.effect.toolDamageReduction + 30) score += 18;
+  }
+  if (tool.effect.toolCounterDamage) {
+    if (isActive) score += 54;
+    if (target.hp >= 40) score += 16;
+  }
+  if (tool.effect.toolEndTurnHealActive) {
+    if (isActive) score += Math.min(tool.effect.toolEndTurnHealActive, target.maxHp - target.hp) * 6 + 24;
+    else score -= 20;
+  }
+  if (tool.effect.toolEndTurnRecoverSpecialConditionsDiscardSelf) {
+    score += target.specialConditions.length * 70;
+    if (isActive) score += 12;
+  }
+  return score;
+}
+
+function getShuffleOpponentHandValue(state: GameState, side: SideState, drawAmount: number): number {
+  const opponent = state.sides[side.id === "player" ? "opponent" : "player"];
+  const handDelta = opponent.hand.length - drawAmount;
+  let score = handDelta * 18;
+  if (opponent.hand.length >= 5) score += 24;
+  if (opponent.hand.length <= drawAmount) score -= 30;
+  if (canAttack(state, side)) score -= 10;
+  return score;
+}
+
+function getRevealOpponentHandValue(state: GameState, side: SideState): number {
+  const opponent = state.sides[side.id === "player" ? "opponent" : "player"];
+  if (opponent.hand.length === 0) return 0;
+  const tacticalFollowUp = side.hand.some((cardId) => {
+    const card = getCard(cardId);
+    return card.kind === "trainer" && (card.effect.gustOpponent || card.effect.discardRandomOpponentActiveEnergy || card.effect.shuffleOpponentHandIntoDeckDraw);
+  });
+  if (tacticalFollowUp) return 18 + opponent.hand.length * 3;
+  return opponent.hand.length >= 4 ? 8 : 0;
+}
+
+function getRandomBasicFromDiscardValue(state: GameState, side: SideState): number {
+  const basics = side.discard.filter((cardId) => {
+    const card = getCard(cardId);
+    return card.kind === "umamusume" && card.stage === 0;
+  });
+  if (basics.length === 0) return 0;
+  if (side.bench.length === 0) return 80;
+  if (side.bench.length < MAX_BENCH) return 28;
+  return state.aiDeckStyleBySide[side.id] === "scaleBench" ? 18 : 4;
+}
+
+function getResetWhistleValue(state: GameState, side: SideState): number {
+  const handIndex = chooseResetWhistleHandIndex(state, side);
+  if (handIndex === undefined) return 0;
+  const handCardId = side.hand[handIndex];
+  if (!handCardId) return 0;
+  const handValue = scoreCardFutureValue(state, side, handCardId);
+  const deckValues = side.deck
+    .filter((cardId) => getCard(cardId).kind === "umamusume")
+    .map((cardId) => scoreCardFutureValue(state, side, cardId));
+  if (deckValues.length === 0) return 0;
+  const averageDeckValue = deckValues.reduce((sum, value) => sum + value, 0) / deckValues.length;
+  return averageDeckValue - handValue;
+}
+
+function chooseResetWhistleHandIndex(state: GameState, side: SideState): number | undefined {
+  const options = side.hand
+    .map((cardId, handIndex) => ({ cardId, handIndex }))
+    .filter(({ cardId }) => getCard(cardId).kind === "umamusume");
+  if (options.length === 0) return undefined;
+  return [...options].sort((left, right) => scoreCardFutureValue(state, side, left.cardId) - scoreCardFutureValue(state, side, right.cardId))[0]?.handIndex;
+}
+
+function getBestDiscardToolOrStadiumChoice(
+  state: GameState,
+  side: SideState,
+): { discardStadiumInPlay?: boolean; discardToolHolderUmamusumeUid?: number; score: number } | null {
+  const candidates: Array<{ discardStadiumInPlay?: boolean; discardToolHolderUmamusumeUid?: number; score: number }> = [];
+  if (state.stadium) {
+    const stadium = getCard(state.stadium.cardId);
+    if (stadium.kind === "trainer" && stadium.trainerType === "stadium") {
+      const value = evaluateStadiumNetValue(state, side.id, stadium);
+      candidates.push({ discardStadiumInPlay: true, score: -value + (state.stadium.owner === side.id ? -12 : 10) });
+    }
+  }
+  (["player", "opponent"] as SideId[]).forEach((sideId) => {
+    const owner = state.sides[sideId];
+    getAllUmamusume(owner).forEach((umamusume) => {
+      if (!umamusume.toolCardId) return;
+      const tool = getCard(umamusume.toolCardId);
+      if (tool.kind !== "trainer") return;
+      const ownTool = sideId === side.id;
+      const toolValue = scoreAttachedToolValue(state, owner, umamusume, tool);
+      candidates.push({
+        discardToolHolderUmamusumeUid: umamusume.uid,
+        score: ownTool ? -toolValue - 16 : toolValue + 12,
+      });
+    });
+  });
+  const best = candidates.sort((left, right) => right.score - left.score)[0];
+  return best && best.score > 10 ? best : null;
+}
+
+function scoreAttachedToolValue(state: GameState, owner: SideState, holder: UmamusumeInstance, tool: TrainerCard): number {
+  let score = 0;
+  const isActive = owner.active?.uid === holder.uid;
+  if (isActive) score += 18;
+  if (tool.effect.toolDamageReduction) score += 24 + (isActive && canImmediateOpponentKoConservative(state, owner.id) ? 32 : 0);
+  if (tool.effect.toolCounterDamage) score += isActive ? 42 : 12;
+  if (tool.effect.toolEndTurnHealActive) score += isActive ? 22 + Math.max(0, holder.maxHp - holder.hp) * 0.5 : 4;
+  if (tool.effect.toolEndTurnRecoverSpecialConditionsDiscardSelf) score += holder.specialConditions.length * 50 + 8;
+  return score;
+}
+
+function getBestHealTrainerTarget(state: GameState, side: SideState, trainer: TrainerCard): UmamusumeInstance | undefined {
+  if (!trainer.effect.heal) return undefined;
+  return getAllUmamusume(side)
+    .filter((umamusume) => umamusume.hp < umamusume.maxHp)
+    .sort((left, right) => {
+      const leftScore = scoreHealTarget(state, side, left, trainer.effect.heal ?? 0);
+      const rightScore = scoreHealTarget(state, side, right, trainer.effect.heal ?? 0);
+      return rightScore - leftScore;
+    })[0];
+}
+
+function scoreHealTarget(state: GameState, side: SideState, target: UmamusumeInstance, heal: number): number {
+  const missing = target.maxHp - target.hp;
+  let score = Math.min(missing, heal) * 2;
+  if (target.uid === side.active?.uid) score += 20;
+  if (target.hp <= 30) score += 18;
+  if (canImmediateOpponentKoConservative(state, side.id) && target.uid === side.active?.uid) score += 28;
+  score += target.stage * 8 + attachedEnergyCount(target) * 4;
+  return score;
 }
 
 function getOpponentActiveEnergyCount(state: GameState, side: SideState): number {

@@ -28,6 +28,8 @@ export function performAttack(
   randomDiscardIndex?: number,
   switchTargetUid?: number,
   useShuffleSelfIntoDeck?: boolean,
+  maxDiscardCount?: number,
+  discardHandIndexes?: number[],
 ): void {
   const defenderId = attackerId === "player" ? "opponent" : "player";
   const pointsBeforeAttack = {
@@ -64,7 +66,7 @@ export function performAttack(
       : getAllUmamusume(attacker).length;
     damage += inPlayCount * attack.damagePerUmamusumeInPlay.amount;
   }
-  if (attack.attackDamageBonusIfToolAttached && attacker.active.toolCardId) {
+  if (attack.attackDamageBonusIfToolAttached && attacker.active.toolCardId && !areToolsDisabled(state)) {
     damage += attack.attackDamageBonusIfToolAttached;
   }
   if (switchTarget && attack.switchSelfAfterAttack?.bonusDamage) {
@@ -94,15 +96,22 @@ export function performAttack(
     damage += uniqueEnergyCount * attack.damagePerUniqueAttachedEnergy;
   }
   if (attack.attackDamageBonusPerDiscardedHandCard && attacker.hand.length > 0) {
-    const discardCount = Math.min(attack.attackDamageBonusPerDiscardedHandCard.maxDiscard, attacker.hand.length);
-    for (let count = 0; count < discardCount; count += 1) {
-      const [discardedCardId] = attacker.hand.splice(0, 1);
+    const requestedDiscardCount = maxDiscardCount ?? attack.attackDamageBonusPerDiscardedHandCard.maxDiscard;
+    const discardCount = Math.max(0, Math.min(requestedDiscardCount, attack.attackDamageBonusPerDiscardedHandCard.maxDiscard, attacker.hand.length));
+    const indexes = discardHandIndexes?.length
+      ? [...discardHandIndexes].filter((index) => index >= 0 && index < attacker.hand.length).slice(0, discardCount)
+      : Array.from({ length: discardCount }, (_, index) => index);
+    const uniqueIndexes = [...new Set(indexes)].sort((left, right) => right - left);
+    let actualDiscardCount = 0;
+    for (const index of uniqueIndexes) {
+      const [discardedCardId] = attacker.hand.splice(index, 1);
       if (!discardedCardId) break;
       attacker.discard.push(discardedCardId);
+      actualDiscardCount += 1;
     }
-    if (discardCount > 0) {
-      damage += discardCount * attack.attackDamageBonusPerDiscardedHandCard.bonusPerCard;
-      log(state, `${actorName(attacker)} discarded ${discardCount} ${pluralize(discardCount, "card")} for ${attack.name}.`);
+    if (actualDiscardCount > 0) {
+      damage += actualDiscardCount * attack.attackDamageBonusPerDiscardedHandCard.bonusPerCard;
+      log(state, `${actorName(attacker)} discarded ${actualDiscardCount} ${pluralize(actualDiscardCount, "card")} for ${attack.name}.`);
     }
   }
   const evolvedLastTurnBonus = attackerAbility?.attackDamageBonusIfEvolvedLastTurn ?? 0;

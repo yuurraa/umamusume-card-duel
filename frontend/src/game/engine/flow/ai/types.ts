@@ -20,6 +20,9 @@ export type AiCombatDecision =
     healTargetUid?: number;
     usesCoinFlip: boolean;
     useShuffleSelfIntoDeck?: boolean;
+    discardHandIndex?: number;
+    maxDiscardCount?: number;
+    discardHandIndexes?: number[];
   };
 
 export type AiCombatDecisionResult = {
