@@ -76,6 +76,7 @@ export type Ability = {
   damageOpponentTarget?: "active" | "any";
   discardEnergy?: Partial<Record<EnergyType, number>>;
   activeHpBonus?: number;
+  allHpBonus?: number;
   damageReduction?: number;
   moveBenchedEnergyToActive?: EnergyType | EnergyType[];
   attackDamageBonusIfAttachedEnergy?: {

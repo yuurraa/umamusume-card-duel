@@ -109,6 +109,10 @@ function refreshSideContinuousEffects(state: GameState, side: SideState, basicHp
     const bonus = getUmamusumeAbility(state, side.id, umamusume)?.activeHpBonus ?? 0;
     return Math.max(best, bonus);
   }, 0);
+  const allHpBonus = getAllUmamusume(side).reduce((best, umamusume) => {
+    const bonus = getUmamusumeAbility(state, side.id, umamusume)?.allHpBonus ?? 0;
+    return Math.max(best, bonus);
+  }, 0);
 
   getAllUmamusume(side).forEach((umamusume) => {
     const card = getUmamusumeCard(umamusume);
@@ -116,7 +120,7 @@ function refreshSideContinuousEffects(state: GameState, side: SideState, basicHp
     const previousMaxHp = umamusume.maxHp;
     const previousHp = umamusume.hp;
     const stadiumHpBonus = card.stage === 0 ? basicHpBonus : 0;
-    const targetMaxHp = printedHp + stadiumHpBonus + (umamusume.uid === side.active?.uid ? activeHpBonus : 0);
+    const targetMaxHp = printedHp + stadiumHpBonus + allHpBonus + (umamusume.uid === side.active?.uid ? activeHpBonus : 0);
     const damage = umamusume.maxHp - umamusume.hp;
     const nextHp = Math.max(0, Math.min(targetMaxHp, targetMaxHp - damage));
     umamusume.maxHp = targetMaxHp;

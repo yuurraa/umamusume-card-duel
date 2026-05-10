@@ -1261,7 +1261,7 @@
       "ability": {
         "name": "All-Seeing Eyes",
         "text": "All of your Umamusume get +10 HP. This effect does not stack.",
-        "activeHpBonus": 10
+        "allHpBonus": 10
       },
       "attacks": [
         {

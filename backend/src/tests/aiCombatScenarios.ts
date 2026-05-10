@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { opponentDeckList, playerDeckList } from "../../../shared/src/gameData";
 import type { EnergyType, GameState, SideState, UmamusumeInstance } from "../../../shared/src/types";
 import { advanceOpponentTurnStep, createGame, getCard, playHandCard, playerAttack, playerEndTurn } from "../../../frontend/src/game/engine";
+import { refreshContinuousHp } from "../../../frontend/src/game/engine/flow/board";
 import { createUmamusume, resetUmamusumeIdCounter } from "../../../frontend/src/game/engine/flow/setup";
 
 type Scenario = {
@@ -39,6 +40,7 @@ const scenarios: Scenario[] = [
   { name: "Poison attack is valued when it sets up end-turn KO", run: scenarioPoisonEndTurnKo },
   { name: "Miracle Cure attaches to statused active", run: scenarioMiracleCureTargetsStatusedActive },
   { name: "Rudolf EX once-per-game recovery is saved until discard is rich", run: scenarioRudolfExRecoveryRestraint },
+  { name: "Nice Nature EX grants non-stacking HP bonus to all own Umamusume", run: scenarioNiceNatureExAllHpBonus },
 ];
 
 scenarios.forEach(({ name, run }) => {
@@ -499,6 +501,23 @@ function scenarioRudolfExRecoveryRestraint() {
   const next = advanceOpponentTurnStep(state);
   assert.deepEqual(next.sides.opponent.discard, ["tamamoCrossBasic"], "AI should save once-per-game recovery when discard is thin and deck is healthy");
   assert.equal(next.sides.opponent.usedAbilityNamesThisGame.includes("Behold Thine Emperor's Divine Might"), false, "once-per-game ability should remain available");
+}
+
+function scenarioNiceNatureExAllHpBonus() {
+  const state = makeCombatState();
+  const player = state.sides.player;
+  const opponent = state.sides.opponent;
+  player.active = createUma("riceShowerBasic");
+  player.bench = [createUma("niceNatureBasicEx"), createUma("superCreekBasic"), createUma("niceNatureBasicEx")];
+  opponent.active = createUma("riceShowerBasic");
+
+  refreshContinuousHp(state);
+
+  assert.equal(player.active?.maxHp, 60, "Nice Nature EX should buff the active even from bench");
+  assert.equal(player.bench[0]?.maxHp, 120, "Nice Nature EX should buff itself");
+  assert.equal(player.bench[1]?.maxHp, 80, "Nice Nature EX should buff other benched Umamusume");
+  assert.equal(player.bench[2]?.maxHp, 120, "Nice Nature EX should not stack with another Nice Nature EX");
+  assert.equal(opponent.active?.maxHp, 50, "Nice Nature EX should not buff opponent Umamusume");
 }
 
 function makeCombatState(): GameState {
