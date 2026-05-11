@@ -425,8 +425,9 @@ const boardMetricVars = {
 
 const SETUP_REVEAL_KEYFRAMES = `
 @keyframes setup-reveal-slide-up {
-  from { opacity: 0; transform: translateY(26px) scale(0.96); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
+  0% { opacity: 0; transform: perspective(900px) translateY(18px) rotateY(-68deg) scale(0.92); filter: brightness(0.92) saturate(0.88); }
+  54% { opacity: 1; transform: perspective(900px) translateY(-3px) rotateY(8deg) scale(1.025); filter: brightness(1.08) saturate(1.06); }
+  100% { opacity: 1; transform: perspective(900px) translateY(0) rotateY(0deg) scale(1); filter: brightness(1) saturate(1); }
 }
 @keyframes hp-bar-appear {
   from { opacity: 0; transform: translateY(8px); }

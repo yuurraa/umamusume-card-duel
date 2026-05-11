@@ -294,6 +294,7 @@ function BenchSlot({ card, umamusume, side, hidden, setupMode, setupInteractions
     >
       <button
         type="button"
+        data-battle-effect-card={umamusume.uid}
         style={{
           position: "relative",
           height: "var(--board-bench-card-height)",

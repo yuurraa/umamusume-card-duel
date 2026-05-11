@@ -14,6 +14,7 @@ import type { InspectTarget } from "../inspect";
 import type { AppScreen, MatchMode, PendingSelection } from "../types/ui";
 import { getDeckById, getDeckEnergyTypes, readEquippedDeckId, pickRandomOpponentDeck } from "../utils/deck";
 import type { CardFlowItem } from "../match/feedback/CardFlowOverlay";
+import type { BattleEffectEvent, BattleEffectSlot } from "../match/feedback/BattleEffectOverlay";
 import {
   getPlaymatTextTone,
   getSelectedPlaymat,
@@ -110,6 +111,9 @@ const CoinFlipOverlay = lazy(() => import("../match/feedback/CoinFlipOverlay").t
 const CardFlowOverlay = lazy(() => import("../match/feedback/CardFlowOverlay").then((module) => ({
   default: module.CardFlowOverlay,
 })));
+const BattleEffectOverlay = lazy(() => import("../match/feedback/BattleEffectOverlay").then((module) => ({
+  default: module.BattleEffectOverlay,
+})));
 
 function isTurnRelayUnavailableError(error: unknown): error is Error {
   return error instanceof Error && error.message.includes(TURN_RELAY_UNAVAILABLE_TEXT);
@@ -171,6 +175,200 @@ function getInPlayCardIds(side: SideState): string[] {
     ...collectFromUmamusume(side.active),
     ...side.bench.flatMap((umamusume) => collectFromUmamusume(umamusume)),
   ];
+}
+
+type BattleSnapshotEntry = {
+  uid: number;
+  sideId: SideId;
+  slot: BattleEffectSlot;
+  cardId: string;
+  hp: number;
+  maxHp: number;
+  energyCount: number;
+  specialConditions: string;
+};
+
+type BattleSnapshot = {
+  player: BattleSnapshotEntry[];
+  opponent: BattleSnapshotEntry[];
+  log: string[];
+  phase: GameState["phase"];
+  gameOver: boolean;
+};
+
+function createBattleSnapshot(state: GameState): BattleSnapshot {
+  const collect = (sideId: SideId): BattleSnapshotEntry[] => {
+    const side = state.sides[sideId];
+    const active = side.active ? [{ umamusume: side.active, slot: { zone: "active" } satisfies BattleEffectSlot }] : [];
+    const bench = side.bench.map((umamusume, index) => ({ umamusume, slot: { zone: "bench", index } satisfies BattleEffectSlot }));
+    return [...active, ...bench].map(({ umamusume: entry, slot }) => ({
+      uid: entry.uid,
+      sideId,
+      slot,
+      cardId: entry.cardId,
+      hp: entry.hp,
+      maxHp: entry.maxHp,
+      energyCount: Object.values(entry.energies).reduce((sum, amount) => sum + amount, 0),
+      specialConditions: [...entry.specialConditions].sort().join("|"),
+    }));
+  };
+
+  return {
+    player: collect("player"),
+    opponent: collect("opponent"),
+    log: [...state.log],
+    phase: state.phase,
+    gameOver: state.gameOver,
+  };
+}
+
+function getBattleEntries(snapshot: BattleSnapshot): BattleSnapshotEntry[] {
+  return [...snapshot.player, ...snapshot.opponent];
+}
+
+function getActorSideFromLog(entry: string): SideId | null {
+  if (entry.startsWith("You ") || entry.startsWith("Your ")) return "player";
+  if (entry.startsWith("Opponent ") || entry.startsWith("Opponent's ")) return "opponent";
+  return null;
+}
+
+function getBattleEntryCardName(entry: BattleSnapshotEntry): string | null {
+  try {
+    return getCard(entry.cardId).name;
+  } catch {
+    return null;
+  }
+}
+
+function logMentionsBattleEntry(logEntry: string, entry: BattleSnapshotEntry): boolean {
+  const cardName = getBattleEntryCardName(entry);
+  if (cardName && logEntry.includes(cardName)) return true;
+  return entry.slot.zone === "active" && /\bactive\b/i.test(logEntry);
+}
+
+function findSupportingLogEntry(
+  newEntries: string[],
+  entry: BattleSnapshotEntry,
+  kind: "damage" | "heal" | "energy" | "status" | "evolve",
+  claimedLogIndexes: Set<number>,
+  before?: BattleSnapshotEntry,
+): number | null {
+  for (let index = 0; index < newEntries.length; index += 1) {
+    if (claimedLogIndexes.has(index)) continue;
+    const logEntry = newEntries[index] ?? "";
+    const lowered = logEntry.toLowerCase();
+    if (kind === "damage" && !lowered.includes("damage")) continue;
+    if (kind === "heal" && !lowered.includes("healed")) continue;
+    if (kind === "energy" && !lowered.includes("attached 1") && !lowered.includes("moved 1")) continue;
+    if (kind === "status" && !lowered.includes(" is ") && !lowered.includes("special condition")) continue;
+    if (kind === "evolve") {
+      const previousName = before ? getBattleEntryCardName(before) : null;
+      const currentName = getBattleEntryCardName(entry);
+      if (!lowered.includes("evolved") && !lowered.includes("skipped stage")) continue;
+      if ((currentName && logEntry.includes(currentName)) || (previousName && logEntry.includes(previousName))) return index;
+      continue;
+    }
+    if (logMentionsBattleEntry(logEntry, entry)) return index;
+  }
+  return null;
+}
+
+function buildBattleEffects(
+  previous: BattleSnapshot,
+  current: BattleSnapshot,
+  nextId: () => number,
+): BattleEffectEvent[] {
+  if (current.phase !== "play" || (current.gameOver && previous.gameOver)) return [];
+  const previousByUid = new Map(getBattleEntries(previous).map((entry) => [entry.uid, entry]));
+  const effects: BattleEffectEvent[] = [];
+  const newEntries = getNewLogHeadEntries(previous.log, current.log);
+  const attackEntry = newEntries.find((entry) => entry.includes(" attacked with "));
+  const koEntry = newEntries.find((entry) => entry.includes(" was knocked out"));
+  const claimedLogIndexes = new Set<number>();
+  const hpDrops = getBattleEntries(current)
+    .map((entry) => ({ entry, before: previousByUid.get(entry.uid) }))
+    .filter((change): change is { entry: BattleSnapshotEntry; before: BattleSnapshotEntry } => Boolean(change.before && change.entry.hp < change.before.hp));
+
+  if (attackEntry) {
+    const actorSide = getActorSideFromLog(attackEntry) ?? (current.log[0] ? getActorSideFromLog(current.log[0]) : null);
+    const sourceSide = actorSide ?? "player";
+    const defendingSide = sourceSide === "player" ? "opponent" : "player";
+    const source = current[sourceSide].find((entry) => entry.slot.zone === "active");
+    const target = hpDrops[0]?.entry ?? current[defendingSide].find((entry) => entry.slot.zone === "active");
+    effects.push({
+      id: nextId(),
+      kind: "attack",
+      sourceUid: source?.uid,
+      targetUid: target?.uid,
+      sourceSide,
+      sourceSlot: { zone: "active" },
+      side: target?.sideId ?? defendingSide,
+      targetSlot: target?.slot ?? { zone: "active" },
+      label: "Attack",
+    });
+  }
+
+  for (const entry of getBattleEntries(current)) {
+    const before = previousByUid.get(entry.uid);
+    if (!before) continue;
+    if (entry.cardId !== before.cardId) {
+      const logIndex = findSupportingLogEntry(newEntries, entry, "evolve", claimedLogIndexes, before);
+      if (logIndex !== null) {
+        claimedLogIndexes.add(logIndex);
+        effects.push({ id: nextId(), kind: "evolve", side: entry.sideId, targetUid: entry.uid, targetSlot: entry.slot, label: "Evolve" });
+      }
+    }
+    if (entry.energyCount > before.energyCount) {
+      const logIndex = findSupportingLogEntry(newEntries, entry, "energy", claimedLogIndexes);
+      if (logIndex !== null) {
+        claimedLogIndexes.add(logIndex);
+        effects.push({ id: nextId(), kind: "energy", side: entry.sideId, targetUid: entry.uid, targetSlot: entry.slot, label: "Energy" });
+      }
+    }
+    if (entry.specialConditions !== before.specialConditions && entry.specialConditions) {
+      const logIndex = findSupportingLogEntry(newEntries, entry, "status", claimedLogIndexes);
+      if (logIndex !== null) {
+        claimedLogIndexes.add(logIndex);
+        effects.push({ id: nextId(), kind: "status", side: entry.sideId, targetUid: entry.uid, targetSlot: entry.slot, label: "Status" });
+      }
+    }
+    if (entry.hp < before.hp) {
+      const amount = before.hp - entry.hp;
+      const sourceSide = attackEntry ? getActorSideFromLog(attackEntry) ?? undefined : undefined;
+      const source = sourceSide ? current[sourceSide].find((sourceEntry) => sourceEntry.slot.zone === "active") : undefined;
+      if (!attackEntry || koEntry || sourceSide === undefined) {
+        const logIndex = findSupportingLogEntry(newEntries, entry, "damage", claimedLogIndexes);
+        if (koEntry || logIndex !== null) {
+          if (logIndex !== null) claimedLogIndexes.add(logIndex);
+          effects.push({
+            id: nextId(),
+            kind: koEntry && entry.hp === 0 ? "ko" : "damage",
+            side: entry.sideId,
+            targetUid: entry.uid,
+            sourceUid: source?.uid,
+            sourceSide,
+            sourceSlot: attackEntry ? { zone: "active" } : undefined,
+            targetSlot: entry.slot,
+            amount,
+            label: "Damage",
+          });
+        }
+      }
+    } else if (entry.hp > before.hp) {
+      const logIndex = findSupportingLogEntry(newEntries, entry, "heal", claimedLogIndexes);
+      if (logIndex !== null) {
+        claimedLogIndexes.add(logIndex);
+        effects.push({ id: nextId(), kind: "heal", side: entry.sideId, targetUid: entry.uid, targetSlot: entry.slot, amount: entry.hp - before.hp, label: "Heal" });
+      }
+    }
+  }
+
+  if (koEntry && !effects.some((effect) => effect.kind === "ko")) {
+    const knockedSide = koEntry.startsWith("Opponent's") ? "opponent" : "player";
+    effects.push({ id: nextId(), kind: "ko", side: knockedSide, targetSlot: { zone: "active" }, label: "KO" });
+  }
+
+  return effects.slice(0, 5);
 }
 
 function getNewLogHeadEntries(previousLog: string[], currentLog: string[]): string[] {
@@ -250,6 +448,7 @@ export function App() {
   const [acknowledgedCoinLogMessage, setAcknowledgedCoinLogMessage] = useState<string | null>(null);
   const [pendingCoinAttack, setPendingCoinAttack] = useState<PendingCoinAttack | null>(null);
   const [cardFlowQueue, setCardFlowQueue] = useState<CardFlowItem[][]>([]);
+  const [battleEffectQueue, setBattleEffectQueue] = useState<BattleEffectEvent[]>([]);
   const [openingCoinChoicePending, setOpeningCoinChoicePending] = useState(false);
   const [setupActiveIndex, setSetupActiveIndex] = useState<number | null>(null);
   const [setupBenchIndexes, setSetupBenchIndexes] = useState<number[]>([]);
@@ -268,6 +467,8 @@ export function App() {
   const [hasSeenMatchSetupPhase, setHasSeenMatchSetupPhase] = useState(false);
   const pvpDeadlineTurnKeyRef = useRef<string | null>(null);
   const previousLogRef = useRef<string[]>([]);
+  const previousBattleSnapshotRef = useRef<BattleSnapshot | null>(null);
+  const battleEffectIdRef = useRef(1);
   const previousPlayerZonesRef = useRef<{
     player: { hand: string[]; deck: string[]; discard: string[]; inPlay: string[] };
     opponent: { hand: string[]; deck: string[]; discard: string[]; inPlay: string[] };
@@ -447,12 +648,14 @@ export function App() {
 
   const resetTransientMatchUi = () => {
     previousLogRef.current = [];
+    previousBattleSnapshotRef.current = null;
     previousPlayerZonesRef.current = null;
     setCoinFlipQueue([]);
     setActiveCoinFlip(null);
     setAcknowledgedCoinLogMessage(null);
     setPendingCoinAttack(null);
     setCardFlowQueue([]);
+    setBattleEffectQueue([]);
     skipNextCoinLogMessageRef.current = null;
     setSetupActiveIndex(null);
     setSetupBenchIndexes([]);
@@ -1251,6 +1454,21 @@ export function App() {
   });
 
   useEffect(() => {
+    const current = createBattleSnapshot(displayGame);
+    const previous = previousBattleSnapshotRef.current;
+    if (!previous) {
+      previousBattleSnapshotRef.current = current;
+      return;
+    }
+
+    if (current.phase !== "play" || isCoinFlipBlocking) return;
+
+    const effects = buildBattleEffects(previous, current, () => battleEffectIdRef.current++);
+    if (effects.length > 0) setBattleEffectQueue((queue) => [...queue, ...effects]);
+    previousBattleSnapshotRef.current = current;
+  }, [displayGame, isCoinFlipBlocking]);
+
+  useEffect(() => {
     const previous = previousPlayerZonesRef.current;
     const current = {
       player: {
@@ -1606,6 +1824,13 @@ export function App() {
           displayLog={displayLog}
         />
         {displayTopBanner && <OpponentActionBanner title={displayTopBanner.title} message={displayTopBanner.message} paused={displayTopBanner.paused} />}
+        {battleEffectQueue[0] && !activeCoinFlip && (
+          <BattleEffectOverlay
+            key={battleEffectQueue[0].id}
+            event={battleEffectQueue[0]}
+            onDone={() => setBattleEffectQueue((queue) => queue.slice(1))}
+          />
+        )}
         {game.phase === "setup" && (!game.setup?.coinFlipResult || (openingCoinChoicePending && !activeCoinFlip)) && (
           <CoinFlipOverlay
             key="opening-coin-choice"

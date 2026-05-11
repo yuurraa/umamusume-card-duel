@@ -40,6 +40,7 @@ export function UmaCard({
   return (
     <button
       type="button"
+      data-battle-effect-card={umamusume.uid}
       style={{
         position: "relative",
         width: "100%",
@@ -93,16 +94,57 @@ export function UmaCard({
 }
 
 export function CardHpOverlay({ hp, maxHp, size = "md" }: { hp: number; maxHp: number; size?: "sm" | "md" | "lg" }) {
+  const previousHpRef = useRef(hp);
+  const clearDeltaTimeoutRef = useRef<number | null>(null);
+  const [hpDelta, setHpDelta] = useState<number | null>(null);
   const percent = maxHp > 0 ? Math.max(0, Math.min(100, Math.round((hp / maxHp) * 100))) : 0;
   const fillColor = percent <= 25 ? "#f59e0b" : percent <= 50 ? "#facc15" : "#29e6bd";
+
+  useEffect(() => {
+    const previousHp = previousHpRef.current;
+    previousHpRef.current = hp;
+    if (previousHp === hp) return;
+    setHpDelta(hp - previousHp);
+    if (clearDeltaTimeoutRef.current !== null) window.clearTimeout(clearDeltaTimeoutRef.current);
+    clearDeltaTimeoutRef.current = window.setTimeout(() => {
+      setHpDelta(null);
+      clearDeltaTimeoutRef.current = null;
+    }, 760);
+  }, [hp]);
+
+  useEffect(() => () => {
+    if (clearDeltaTimeoutRef.current !== null) window.clearTimeout(clearDeltaTimeoutRef.current);
+  }, []);
+
   return (
     <div style={hpOverlayStyle(size)} aria-label={`${hp} of ${maxHp} HP`}>
+      <style>{HP_DELTA_KEYFRAMES}</style>
       <div style={hpContentStyle(size)}>
-        <div style={hpNumberStyle(size)}>{hp}</div>
+        <div
+          key={`${hp}-${maxHp}`}
+          style={{
+            ...hpNumberStyle(size),
+            animation: hpDelta !== null ? `hp-number-tick 300ms ${transitions.spring} both` : undefined,
+          }}
+        >
+          {hp}
+        </div>
         <div style={hpTrackStyle(size)}>
-          <div style={{ ...hpFillStyle, width: `${percent}%`, background: fillColor }} />
+          <div
+            style={{
+              ...hpFillStyle,
+              width: `${percent}%`,
+              background: fillColor,
+              animation: hpDelta !== null ? `hp-fill-${hpDelta > 0 ? "gain" : "loss"} 520ms ease both` : undefined,
+            }}
+          />
         </div>
       </div>
+      {hpDelta !== null && hpDelta !== 0 && (
+        <span style={hpDeltaBadgeStyle(size, hpDelta)}>
+          {hpDelta > 0 ? `+${hpDelta}` : hpDelta}
+        </span>
+      )}
     </div>
   );
 }
@@ -230,6 +272,27 @@ const ENERGY_APPEAR_KEYFRAMES = `
 }
 `;
 
+const HP_DELTA_KEYFRAMES = `
+@keyframes hp-number-tick {
+  0% { transform: translateY(0) scale(1); filter: brightness(1); }
+  45% { transform: translateY(-2px) scale(1.08); filter: brightness(1.18); }
+  100% { transform: translateY(0) scale(1); filter: brightness(1); }
+}
+@keyframes hp-fill-loss {
+  0% { filter: brightness(1.4) saturate(1.25); }
+  100% { filter: brightness(1) saturate(1); }
+}
+@keyframes hp-fill-gain {
+  0% { filter: brightness(1.45) saturate(1.2); box-shadow: 0 0 12px rgba(34, 197, 94, 0.75), inset 0 1px 1px rgba(255, 255, 255, 0.42); }
+  100% { filter: brightness(1) saturate(1); box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.42); }
+}
+@keyframes hp-delta-float {
+  0% { opacity: 0; transform: translate(12px, 8px) scale(0.78); }
+  16% { opacity: 1; transform: translate(0, -2px) scale(1.06); }
+  100% { opacity: 0; transform: translate(0, -26px) scale(0.94); }
+}
+`;
+
 function hpOverlayStyle(size: "sm" | "md" | "lg"): CSSProperties {
   return {
     position: "absolute",
@@ -239,6 +302,7 @@ function hpOverlayStyle(size: "sm" | "md" | "lg"): CSSProperties {
     width: size === "lg" ? "86px" : size === "md" ? "48px" : "40px",
     gap: size === "lg" ? 2 : 1,
     pointerEvents: "none",
+    overflow: "visible",
   };
 }
 
@@ -294,6 +358,32 @@ const hpFillStyle: CSSProperties = {
   transition: `width ${transitions.slow}, background ${transitions.slow}`,
   boxShadow: "inset 0 1px 1px rgba(255, 255, 255, 0.42)",
 };
+
+function hpDeltaBadgeStyle(size: "sm" | "md" | "lg", delta: number): CSSProperties {
+  const isGain = delta > 0;
+  return {
+    position: "absolute",
+    top: size === "lg" ? -4 : size === "md" ? -6 : -8,
+    right: size === "lg" ? -14 : size === "md" ? -10 : -8,
+    minWidth: size === "lg" ? 48 : 34,
+    padding: size === "lg" ? "5px 8px" : "3px 6px",
+    borderRadius: radius.pill,
+    border: "1px solid rgba(255, 255, 255, 0.55)",
+    background: isGain
+      ? "linear-gradient(135deg, #22c55e 0%, #bbf7d0 100%)"
+      : "linear-gradient(135deg, #f43f5e 0%, #fb923c 100%)",
+    color: isGain ? "#052e16" : colors.white,
+    textAlign: "center",
+    fontSize: size === "lg" ? 18 : size === "md" ? 12 : 10,
+    lineHeight: 1,
+    fontWeight: 950,
+    letterSpacing: 0,
+    textShadow: isGain ? "none" : "0 2px 5px rgba(15, 23, 42, 0.48)",
+    boxShadow: isGain ? "0 8px 18px rgba(34, 197, 94, 0.28)" : "0 8px 18px rgba(244, 63, 94, 0.32)",
+    animation: "hp-delta-float 760ms cubic-bezier(0.2, 0.8, 0.2, 1) both",
+    whiteSpace: "nowrap",
+  };
+}
 
 function hiddenCardStyle(fontSize: number): CSSProperties {
   return {
