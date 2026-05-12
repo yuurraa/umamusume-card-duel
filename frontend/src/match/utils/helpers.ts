@@ -96,8 +96,8 @@ export function getSelectableUmamusumeUids(game: GameState, pending: PendingSele
 }
 
 export function getOpponentStepDelay(game: GameState): number {
-  if (game.opponentTurnStep === "attack" || game.opponentTurnStep === "finish") return 1820;
-  return 1620;
+  if (game.opponentTurnStep === "attack" || game.opponentTurnStep === "finish") return 900;
+  return 650;
 }
 
 export function getOpponentBannerMessage(game: GameState): string {

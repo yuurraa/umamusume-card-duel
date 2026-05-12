@@ -1,5 +1,5 @@
 import { type CSSProperties, type DragEvent, useEffect, useRef, useState } from "react";
-import { AttachedEnergyPips, CardHpOverlay, FaceDownCard } from "../cards/UmaCard";
+import { AttachedEnergyPips, CardHpOverlay, ENERGY_APPEAR_KEYFRAMES, FaceDownCard, KO_CRUMBLE_KEYFRAMES } from "../cards/UmaCard";
 import { AbilityReadyBadge } from "../cards/AbilityReadyBadge";
 import { AttachedToolBadge } from "../cards/AttachedToolBadge";
 import { SpecialConditionBadges } from "../cards/SpecialConditionBadges";
@@ -37,8 +37,10 @@ type BenchProps = {
   hoverGlowColor?: string;
   sleeveImage?: string | null | undefined;
   animateSetupReveal?: boolean;
-  setupRevealToken?: number;
   animateOnNewCards?: boolean;
+  visualHpByUid?: Record<number, number> | undefined;
+  visualAttachedEnergyByUid?: Record<number, EnergyType[]> | undefined;
+  koAnimatingUids?: Set<number> | undefined;
 };
 
 const slotStyle: CSSProperties = {
@@ -74,8 +76,10 @@ export function Bench({
   hoverGlowColor = "rgba(196, 125, 164, 0.32)",
   sleeveImage = null,
   animateSetupReveal = false,
-  setupRevealToken = 0,
   animateOnNewCards = false,
+  visualHpByUid,
+  visualAttachedEnergyByUid,
+  koAnimatingUids,
 }: BenchProps) {
   const [hoveredSlot, setHoveredSlot] = useState<number | null>(null);
   const [playedBenchRevealOrderByUid, setPlayedBenchRevealOrderByUid] = useState<Record<number, number>>({});
@@ -86,11 +90,19 @@ export function Bench({
   const previousBenchUidsRef = useRef<Set<number>>(new Set(side.bench.map((umamusume) => umamusume.uid)));
   const previousActiveUidRef = useRef<number | null>(side.active?.uid ?? null);
   const previousBenchOrderRef = useRef<number[]>(side.bench.map((umamusume) => umamusume.uid));
+  const wasAnimateOnNewCardsRef = useRef(animateOnNewCards);
   const isChoosingUmamusume = Boolean(selectableUmamusumeUids);
   const visibleBenchCount = hidden ? (hiddenBenchCount ?? side.bench.length) : side.bench.length;
 
   useEffect(() => {
     if (!animateOnNewCards) {
+      wasAnimateOnNewCardsRef.current = false;
+      previousBenchUidsRef.current = new Set(side.bench.map((umamusume) => umamusume.uid));
+      previousActiveUidRef.current = side.active?.uid ?? null;
+      return;
+    }
+    if (!wasAnimateOnNewCardsRef.current) {
+      wasAnimateOnNewCardsRef.current = true;
       previousBenchUidsRef.current = new Set(side.bench.map((umamusume) => umamusume.uid));
       previousActiveUidRef.current = side.active?.uid ?? null;
       return;
@@ -166,7 +178,7 @@ export function Bench({
         if (hidden && index < visibleBenchCount) {
           return (
             <div
-              key={`bench-hidden-${index}-${animateSetupReveal ? setupRevealToken : 0}`}
+              key={`bench-hidden-${index}`}
               style={{
                 ...slotStyle,
                 animation: animateSetupReveal ? `setup-reveal-slide-up 320ms cubic-bezier(0.2, 0.8, 0.2, 1) ${180 + index * 120}ms both` : undefined,
@@ -188,15 +200,20 @@ export function Bench({
                 style={{
                   display: "grid",
                   placeItems: "center",
-                  border: hoveredSlot === index ? `2px solid ${hoverBorderColor}` : borders.neutralDashed,
+                  border: hoveredSlot === index ? `2px solid ${hoverBorderColor}` : "2px dashed rgba(226, 232, 240, 0.68)",
                   borderRadius: radius.md,
-                  background: hoveredSlot === index ? hoverBackground : colors.glassSoft,
+                  background: hoveredSlot === index ? hoverBackground : "rgba(226, 232, 240, 0.1)",
                   color: uiTextColor,
                   textShadow: uiTextShadow,
                   fontSize: "clamp(10px, 0.625vw, 12px)",
                   fontWeight: 900,
                   boxShadow: hoveredSlot === index ? `0 0 0 4px ${hoverRingColor}, 0 0 22px ${hoverGlowColor}` : shadows.none,
                   transition: `border-color ${transitions.fast}, background ${transitions.fast}, box-shadow ${transitions.fast}`,
+                  position: "relative",
+                  justifySelf: "center",
+                  height: "100%",
+                  width: "auto",
+                  aspectRatio: CARD_ASPECT_RATIO,
                 }}
                 onDragOver={(event) => {
                   if (setupMode) {
@@ -246,7 +263,7 @@ export function Bench({
         const card = getUmamusumeCard(umamusume);
         return (
           <BenchSlot
-            key={`bench-umamusume-${umamusume.uid}-${animateSetupReveal ? setupRevealToken : 0}`}
+            key={`bench-umamusume-${umamusume.uid}`}
             card={card}
             umamusume={umamusume}
             side={side}
@@ -267,6 +284,9 @@ export function Bench({
             isDimmed={isChoosingUmamusume && !selectableUmamusumeUids?.has(umamusume.uid)}
             abilityEnergyTypes={abilityEnergyTypes}
             sleeveImage={sleeveImage}
+            visualHpByUid={visualHpByUid}
+            displayAttachedEnergiesOverride={visualAttachedEnergyByUid?.[umamusume.uid]}
+            koCrumbling={Boolean(koAnimatingUids?.has(umamusume.uid))}
             revealOrder={animateSetupReveal ? index : playedBenchRevealOrderByUid[umamusume.uid]}
             shiftOffset={benchShiftOffsetByUid[umamusume.uid]}
             onInspect={onInspect}
@@ -279,7 +299,7 @@ export function Bench({
   );
 }
 
-function BenchSlot({ card, umamusume, side, hidden, setupMode, setupInteractionsEnabled, activeSetupHandIndex, setupDragHandIndex, onSetupPromoteToActive, onHandCardDropOnUmamusume, onEnergyDropOnUmamusume, abilityReady, hoverBorderColor, hoverBackground, hoverRingColor, hoverGlowColor, isSelectable, isDimmed, abilityEnergyTypes, sleeveImage, revealOrder, shiftOffset, onInspect, onUmamusumeSelect, onAttachedToolSelect }: { card: ReturnType<typeof getUmamusumeCard>; umamusume: UmamusumeInstance; side: SideState; hidden: boolean; setupMode: boolean; setupInteractionsEnabled: boolean; activeSetupHandIndex: number | undefined; setupDragHandIndex: number | undefined; onSetupPromoteToActive?: ((handIndex: number) => void) | undefined; onHandCardDropOnUmamusume?: ((handIndex: number, umamusumeUid: number) => void) | undefined; onEnergyDropOnUmamusume?: ((umamusumeUid: number) => void) | undefined; abilityReady: boolean; hoverBorderColor: string; hoverBackground: string; hoverRingColor: string; hoverGlowColor: string; isSelectable: boolean; isDimmed: boolean; abilityEnergyTypes?: Set<EnergyType> | undefined; sleeveImage?: string | null | undefined; revealOrder?: number | undefined; shiftOffset?: number | undefined; onInspect: (target: InspectTarget) => void; onUmamusumeSelect?: ((umamusume: UmamusumeInstance) => void) | undefined; onAttachedToolSelect?: ((umamusumeUid: number) => void) | undefined }) {
+function BenchSlot({ card, umamusume, side, hidden, setupMode, setupInteractionsEnabled, activeSetupHandIndex, setupDragHandIndex, onSetupPromoteToActive, onHandCardDropOnUmamusume, onEnergyDropOnUmamusume, abilityReady, hoverBorderColor, hoverBackground, hoverRingColor, hoverGlowColor, isSelectable, isDimmed, abilityEnergyTypes, sleeveImage, visualHpByUid, displayAttachedEnergiesOverride, koCrumbling, revealOrder, shiftOffset, onInspect, onUmamusumeSelect, onAttachedToolSelect }: { card: ReturnType<typeof getUmamusumeCard>; umamusume: UmamusumeInstance; side: SideState; hidden: boolean; setupMode: boolean; setupInteractionsEnabled: boolean; activeSetupHandIndex: number | undefined; setupDragHandIndex: number | undefined; onSetupPromoteToActive?: ((handIndex: number) => void) | undefined; onHandCardDropOnUmamusume?: ((handIndex: number, umamusumeUid: number) => void) | undefined; onEnergyDropOnUmamusume?: ((umamusumeUid: number) => void) | undefined; abilityReady: boolean; hoverBorderColor: string; hoverBackground: string; hoverRingColor: string; hoverGlowColor: string; isSelectable: boolean; isDimmed: boolean; abilityEnergyTypes?: Set<EnergyType> | undefined; sleeveImage?: string | null | undefined; visualHpByUid?: Record<number, number> | undefined; displayAttachedEnergiesOverride?: EnergyType[] | undefined; koCrumbling?: boolean | undefined; revealOrder?: number | undefined; shiftOffset?: number | undefined; onInspect: (target: InspectTarget) => void; onUmamusumeSelect?: ((umamusume: UmamusumeInstance) => void) | undefined; onAttachedToolSelect?: ((umamusumeUid: number) => void) | undefined }) {
   const [hovered, setHovered] = useState(false);
   const [dropHovered, setDropHovered] = useState(false);
   const activeHover = hovered && !isDimmed;
@@ -287,19 +307,23 @@ function BenchSlot({ card, umamusume, side, hidden, setupMode, setupInteractions
     <div
       style={{
         ...slotStyle,
+        position: "relative",
         transform: shiftOffset !== undefined ? `translateY(${shiftOffset}px)` : undefined,
         transition: shiftOffset !== undefined ? `transform 280ms ${transitions.spring}` : undefined,
-        animation: revealOrder !== undefined ? `setup-reveal-slide-up 320ms ${transitions.spring} ${revealOrder * 120}ms both` : undefined,
       }}
     >
+      <div style={benchSlotBackdropStyle} aria-hidden="true" />
       <button
         type="button"
         data-battle-effect-card={umamusume.uid}
         style={{
           position: "relative",
           height: "var(--board-bench-card-height)",
-          width: "100%",
+          width: "auto",
+          aspectRatio: CARD_ASPECT_RATIO,
           containerType: "inline-size",
+          justifySelf: "center",
+          zIndex: 1,
           padding: 0,
           border: dropHovered ? `2px solid ${hoverBorderColor}` : 0,
           borderRadius: radius.md,
@@ -309,6 +333,12 @@ function BenchSlot({ card, umamusume, side, hidden, setupMode, setupInteractions
           overflow: "visible",
           filter: activeHover ? "drop-shadow(0 18px 24px rgba(17, 24, 39, 0.22)) saturate(1.06)" : "drop-shadow(0 14px 18px rgba(17, 24, 39, 0.18))",
           transform: activeHover ? "translateY(-6px) rotate(0.8deg) scale(1.035)" : "translateY(0) rotate(0deg) scale(1)",
+          willChange: koCrumbling ? "transform, opacity, filter" : undefined,
+          animation: koCrumbling
+            ? "uma-ko-dissolve 860ms cubic-bezier(0.2, 0.72, 0.2, 1) both"
+            : revealOrder !== undefined
+              ? `setup-reveal-slide-up 320ms ${transitions.spring} ${revealOrder * 120}ms both`
+              : undefined,
           boxShadow: dropHovered ? `0 0 0 4px ${hoverRingColor}, 0 0 24px ${hoverGlowColor}` : shadows.none,
           transition: `opacity ${transitions.board}, transform ${transitions.board}, filter ${transitions.board}, box-shadow ${transitions.fast}, border-color ${transitions.fast}`,
         }}
@@ -384,6 +414,8 @@ function BenchSlot({ card, umamusume, side, hidden, setupMode, setupInteractions
         }}
         aria-label={`Inspect benched ${card.name}`}
       >
+        <style>{ENERGY_APPEAR_KEYFRAMES}</style>
+        <style>{KO_CRUMBLE_KEYFRAMES}</style>
         {hidden ? (
           <div style={hiddenBenchCardWrapStyle}>
             <div style={hiddenBenchCardFrameStyle}>
@@ -402,7 +434,13 @@ function BenchSlot({ card, umamusume, side, hidden, setupMode, setupInteractions
               wrapperStyle={benchHoloImageWrapStyle}
             />
             <div style={benchHpCornerBlurStyle} aria-hidden="true" />
-            <CardHpOverlay hp={umamusume.hp} maxHp={umamusume.maxHp} size="sm" />
+            <CardHpOverlay
+              hp={visualHpByUid?.[umamusume.uid] ?? umamusume.hp}
+              maxHp={umamusume.maxHp}
+              size="sm"
+              identityKey={`${umamusume.uid}:${umamusume.cardId}`}
+              sourceKey={visualHpByUid?.[umamusume.uid] === undefined ? "state" : "visual"}
+            />
             {abilityReady && <AbilityReadyBadge corner="topLeft" size="xs" nudgeX={14} />}
             <SpecialConditionBadges conditions={umamusume.specialConditions} size="sm" />
             <AttachedToolBadge
@@ -417,7 +455,7 @@ function BenchSlot({ card, umamusume, side, hidden, setupMode, setupInteractions
                 if (tool.kind === "trainer") onInspect({ card: tool });
               }}
             />
-            <AttachedEnergyPips energies={getAttachedEnergy(umamusume)} draggableEnergyTypes={abilityEnergyTypes} sourceUmamusumeUid={umamusume.uid} />
+            <AttachedEnergyPips energies={displayAttachedEnergiesOverride ?? getAttachedEnergy(umamusume)} draggableEnergyTypes={abilityEnergyTypes} sourceUmamusumeUid={umamusume.uid} />
           </>
         )}
       </button>
@@ -436,6 +474,19 @@ const hiddenBenchCardFrameStyle: CSSProperties = {
   height: "100%",
   width: "auto",
   aspectRatio: CARD_ASPECT_RATIO,
+};
+
+const benchSlotBackdropStyle: CSSProperties = {
+  position: "absolute",
+  top: "-1%",
+  bottom: "-1%",
+  left: "14.5%",
+  right: "14.5%",
+  borderRadius: radius.md,
+  border: "2px dashed rgba(226, 232, 240, 0.68)",
+  background: "rgba(226, 232, 240, 0.1)",
+  boxShadow: "inset 0 0 0 1px rgba(15, 23, 42, 0.14)",
+  pointerEvents: "none",
 };
 
 const benchCardImageStyle: CSSProperties = {

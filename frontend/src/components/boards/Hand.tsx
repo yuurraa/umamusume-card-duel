@@ -201,7 +201,7 @@ export function Hand({
 
   return (
     <div style={handShellStyle}>
-      <style>{`.${handScrollerClassName}{scrollbar-width:none;-ms-overflow-style:none;}.${handScrollerClassName}::-webkit-scrollbar{display:none;width:0;height:0;}`}</style>
+      <style>{`${HAND_REVEAL_KEYFRAMES}.${handScrollerClassName}{scrollbar-width:none;-ms-overflow-style:none;}.${handScrollerClassName}::-webkit-scrollbar{display:none;width:0;height:0;}`}</style>
       <PileSlot
         label="Deck"
         count={player.deck.length}
@@ -312,7 +312,7 @@ function HandCard({
         height: 258,
         flex: "0 0 auto",
         opacity: 1,
-        animation: revealOrder !== undefined ? `setup-reveal-slide-up 280ms ${transitions.spring} ${revealOrder * 70}ms both` : undefined,
+        animation: revealOrder !== undefined ? `hand-card-reveal 280ms ${transitions.spring} ${revealOrder * 70}ms both` : undefined,
         filter: isDimmed
           ? "grayscale(0.92) brightness(0.86)"
           : canDrag || isSelectable
@@ -617,3 +617,11 @@ const handImageStyle: CSSProperties = {
   objectFit: "contain",
   display: "block",
 };
+
+const HAND_REVEAL_KEYFRAMES = `
+@keyframes hand-card-reveal {
+  0% { opacity: 0; transform: perspective(900px) translateY(18px) rotateY(-62deg) scale(0.92); }
+  54% { opacity: 1; transform: perspective(900px) translateY(-3px) rotateY(7deg) scale(1.025); }
+  100% { opacity: 1; transform: perspective(900px) translateY(0) rotateY(0deg) scale(1); }
+}
+`;

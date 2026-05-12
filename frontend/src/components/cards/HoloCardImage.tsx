@@ -70,6 +70,7 @@ export function HoloCardImage({
   return (
     <span
       className={`pokemon-card-foil${foilEffect ? " pokemon-card-foil--active-effect" : ""}${compact ? " pokemon-card-foil--compact" : ""}${inspectMotion ? " pokemon-card-foil--inspect" : ""}`}
+      data-battle-effect-visual="true"
       data-foil-effect={foilEffect ?? "none"}
       data-rarity={pokemonData.rarity}
       data-supertype={pokemonData.supertype}

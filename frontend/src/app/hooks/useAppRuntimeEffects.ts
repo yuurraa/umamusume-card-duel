@@ -37,6 +37,7 @@ type UseAppRuntimeEffectsArgs = {
   shouldDriveSetupCountdown: boolean;
   advanceSetupCountdown: () => void;
   isTurnFlowBlocked: boolean;
+  isBattleAnimationBlocking: boolean;
   isCoinFlipBlocking: boolean;
   hiddenOpponent: boolean;
   equippedDeckId: string;
@@ -79,6 +80,7 @@ export function useAppRuntimeEffects({
   shouldDriveSetupCountdown,
   advanceSetupCountdown,
   isTurnFlowBlocked,
+  isBattleAnimationBlocking,
   isCoinFlipBlocking,
   hiddenOpponent,
   equippedDeckId,
@@ -257,11 +259,13 @@ export function useAppRuntimeEffects({
   ]);
 
   useEffect(() => {
-    if (!isAiVsAi || !game.pendingPlayerChoice || game.pendingPlayerChoice.sideId !== "player" || game.gameOver) return;
-    const preferredBenchUid = choosePreferredBenchUid(game.sides.player);
+    const pendingChoice = game.pendingPlayerChoice;
+    if (!pendingChoice || game.gameOver || isBattleAnimationBlocking) return;
+    if (game.humanBySide[pendingChoice.sideId] && !isAiVsAi) return;
+    const preferredBenchUid = choosePreferredBenchUid(game.sides[pendingChoice.sideId]);
     if (preferredBenchUid === undefined) return;
     setGame((current) => resolvePendingPlayerChoice(current, preferredBenchUid));
-  }, [game, isAiVsAi, setGame]);
+  }, [game, isAiVsAi, isBattleAnimationBlocking, setGame]);
 
   useEffect(() => {
     if (isNetworkMatch || isTurnFlowBlocked || game.phase !== "play" || game.currentSide !== "opponent" || game.gameOver || game.pendingPlayerChoice) return undefined;

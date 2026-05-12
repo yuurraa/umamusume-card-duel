@@ -685,30 +685,29 @@ export function tickSetupCountdown(state: GameState): GameState {
 export function resolvePendingPlayerChoice(state: GameState, umamusumeUid: number): GameState {
   const next = cloneGame(state);
   const pending = next.pendingPlayerChoice;
-  if (pending?.sideId !== "player") return next;
-  const player = next.sides.player;
   if (!pending) return next;
+  const side = next.sides[pending.sideId];
 
-  player.bench = player.bench.filter((umamusume, index, bench) => umamusume.hp > 0 && bench.findIndex((entry) => entry.uid === umamusume.uid) === index);
-  const requiresPromotion = pending.kind === "promoteAfterKnockout" || !player.active || player.active.hp <= 0;
+  side.bench = side.bench.filter((umamusume, index, bench) => umamusume.hp > 0 && bench.findIndex((entry) => entry.uid === umamusume.uid) === index);
+  const requiresPromotion = pending.kind === "promoteAfterKnockout" || !side.active || side.active.hp <= 0;
 
   if (requiresPromotion) {
-    if (player.active && player.active.hp <= 0) player.active = null;
-    const replacementIndex = player.bench.findIndex((umamusume) => umamusume.uid === umamusumeUid);
-    const replacement = replacementIndex >= 0 ? player.bench.splice(replacementIndex, 1)[0] : undefined;
+    if (side.active && side.active.hp <= 0) side.active = null;
+    const replacementIndex = side.bench.findIndex((umamusume) => umamusume.uid === umamusumeUid);
+    const replacement = replacementIndex >= 0 ? side.bench.splice(replacementIndex, 1)[0] : undefined;
     if (!replacement) return next;
-    player.active = replacement;
-    log(next, `You promoted ${formatUmamusumeInstanceName(replacement)}.`);
+    side.active = replacement;
+    log(next, `${actorName(side)} promoted ${formatUmamusumeInstanceName(replacement)}.`);
   } else {
-    if (!player.active) return next;
-    const replacementIndex = player.bench.findIndex((umamusume) => umamusume.uid === umamusumeUid);
-    const replacement = replacementIndex >= 0 ? player.bench.splice(replacementIndex, 1)[0] : undefined;
+    if (!side.active) return next;
+    const replacementIndex = side.bench.findIndex((umamusume) => umamusume.uid === umamusumeUid);
+    const replacement = replacementIndex >= 0 ? side.bench.splice(replacementIndex, 1)[0] : undefined;
     if (!replacement) return next;
-    const switchedOut = player.active;
+    const switchedOut = side.active;
     clearSpecialConditions(switchedOut);
-    player.bench.push(switchedOut);
-    player.active = replacement;
-    log(next, `You switched to ${formatUmamusumeInstanceName(replacement)}.`);
+    side.bench.push(switchedOut);
+    side.active = replacement;
+    log(next, `${actorName(side)} switched to ${formatUmamusumeInstanceName(replacement)}.`);
   }
 
   next.pendingPlayerChoice = null;

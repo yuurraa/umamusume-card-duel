@@ -29,11 +29,12 @@ export function SpecialConditionBadges({ conditions, size = "md" }: SpecialCondi
   if (!visibleConditions.length) return null;
   return (
     <div style={wrapStyle(size)}>
+      <style>{STATUS_BADGE_KEYFRAMES}</style>
       {visibleConditions.map((condition) => {
         const icon = CONDITION_ICON_BY_KIND[condition];
         const label = formatConditionLabel(condition);
         return (
-          <span key={condition} style={badgeStyle(size)}>
+          <span key={condition} style={badgeStyle(size, visibleConditions.indexOf(condition))}>
             {icon ? (
               <img src={icon} alt={label} title={label} draggable={false} style={iconStyle(size)} />
             ) : (
@@ -69,8 +70,8 @@ function formatConditionLabel(condition: SpecialCondition): string {
 function wrapStyle(size: "sm" | "md"): CSSProperties {
   return {
     position: "absolute",
-    left: size === "md" ? "-3%" : "-2%",
-    bottom: size === "md" ? "26px" : "14px",
+    left: size === "md" ? "-3%" : "-3%",
+    bottom: size === "md" ? "26px" : "17px",
     zIndex: 4,
     display: "flex",
     gap: 3,
@@ -78,11 +79,11 @@ function wrapStyle(size: "sm" | "md"): CSSProperties {
   };
 }
 
-function badgeStyle(size: "sm" | "md"): CSSProperties {
+function badgeStyle(size: "sm" | "md", index: number): CSSProperties {
   return {
     position: "relative",
-    width: size === "md" ? 90 : 40,
-    aspectRatio: "145 / 46",
+    width: size === "md" ? 100 : 40,
+    aspectRatio: "108 / 34",
     overflow: "hidden",
     display: "inline-block",
     flex: "0 0 auto",
@@ -90,6 +91,7 @@ function badgeStyle(size: "sm" | "md"): CSSProperties {
     border: "2px solid rgba(255, 255, 255, 0.9)",
     background: "rgba(255, 255, 255, 0.06)",
     boxShadow: "0 4px 10px rgba(17, 24, 39, 0.22)",
+    animation: `status-badge-appear 500ms cubic-bezier(0.2, 0.8, 0.2, 1) ${index * 42}ms both`,
   };
 }
 
@@ -111,3 +113,11 @@ const textStyle: CSSProperties = {
   fontWeight: 900,
   color: colors.black,
 };
+
+const STATUS_BADGE_KEYFRAMES = `
+@keyframes status-badge-appear {
+  0% { opacity: 0; transform: translateY(8px) scale(0.72) rotate(-5deg); filter: saturate(0.72); box-shadow: 0 0 0 rgba(168, 85, 247, 0); }
+  44% { opacity: 1; transform: translateY(-3px) scale(1.14) rotate(2deg); filter: saturate(1.2); box-shadow: 0 0 0 7px rgba(168, 85, 247, 0.2), 0 10px 20px rgba(17, 24, 39, 0.26); }
+  100% { opacity: 1; transform: translateY(0) scale(1) rotate(0deg); filter: saturate(1); }
+}
+`;

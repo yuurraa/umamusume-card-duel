@@ -82,8 +82,8 @@ export function endTurn(
   refreshContinuousEffects: (state: GameState) => void,
 ): void {
   if (state.gameOver || state.currentSide === "done") return;
-  applyEndTurnToolTriggers(state, state.currentSide);
   processEndTurnStatusConditions(state);
+  applyEndTurnToolTriggers(state, state.currentSide);
   refreshContinuousEffects(state);
   if (
     state.pendingPlayerChoice
@@ -100,29 +100,26 @@ export function endTurn(
 
 function applyEndTurnToolTriggers(state: GameState, sideId: SideId): void {
   if (areToolsDisabled(state)) return;
-  const sides: SideId[] = sideId === "player" ? ["player", "opponent"] : ["opponent", "player"];
-  sides.forEach((ownerSideId) => {
-    const ownerSide = state.sides[ownerSideId];
-    getAllUmamusume(ownerSide).forEach((umamusume) => {
-      if (!umamusume.toolCardId) return;
-      const toolCardId = umamusume.toolCardId;
-      const tool = getCard(toolCardId);
-      if (tool.kind !== "trainer") return;
-      const heal = tool.effect.toolEndTurnHealActive ?? 0;
-      const isActive = ownerSide.active?.uid === umamusume.uid;
-      if (heal > 0 && isActive) {
-        const before = umamusume.hp;
-        umamusume.hp = Math.min(umamusume.maxHp, umamusume.hp + heal);
-        const healed = umamusume.hp - before;
-        if (healed > 0) log(state, `${tool.name} healed ${formatUmamusumeInstanceName(umamusume)} for ${healed} HP.`);
-      }
-      if (tool.effect.toolEndTurnRecoverSpecialConditionsDiscardSelf && umamusume.specialConditions.length > 0) {
-        clearSpecialConditions(umamusume);
-        ownerSide.discard.push(toolCardId);
-        umamusume.toolCardId = null;
-        log(state, `${tool.name} cleared all Special Conditions from ${formatUmamusumeInstanceName(umamusume)} and was discarded.`);
-      }
-    });
+  const ownerSide = state.sides[sideId];
+  getAllUmamusume(ownerSide).forEach((umamusume) => {
+    if (!umamusume.toolCardId) return;
+    const toolCardId = umamusume.toolCardId;
+    const tool = getCard(toolCardId);
+    if (tool.kind !== "trainer") return;
+    const heal = tool.effect.toolEndTurnHealActive ?? 0;
+    const isActive = ownerSide.active?.uid === umamusume.uid;
+    if (heal > 0 && isActive) {
+      const before = umamusume.hp;
+      umamusume.hp = Math.min(umamusume.maxHp, umamusume.hp + heal);
+      const healed = umamusume.hp - before;
+      if (healed > 0) log(state, `${tool.name} healed ${formatUmamusumeInstanceName(umamusume)} for ${healed} HP.`);
+    }
+    if (tool.effect.toolEndTurnRecoverSpecialConditionsDiscardSelf && umamusume.specialConditions.length > 0) {
+      clearSpecialConditions(umamusume);
+      ownerSide.discard.push(toolCardId);
+      umamusume.toolCardId = null;
+      log(state, `${tool.name} cleared all Special Conditions from ${formatUmamusumeInstanceName(umamusume)} and was discarded.`);
+    }
   });
 }
 

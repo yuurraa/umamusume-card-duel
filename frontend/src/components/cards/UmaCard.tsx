@@ -20,6 +20,10 @@ type UmaCardProps = {
   isDimmed?: boolean;
   abilityReady?: boolean;
   sleeveImage?: string | null | undefined;
+  displayHpOverride?: number | undefined;
+  displayAttachedEnergiesOverride?: EnergyType[] | undefined;
+  koImpacting?: boolean;
+  koCrumbling?: boolean;
 };
 
 export function UmaCard({
@@ -31,6 +35,10 @@ export function UmaCard({
   isDimmed = false,
   abilityReady = false,
   sleeveImage = null,
+  displayHpOverride,
+  displayAttachedEnergiesOverride,
+  koImpacting = false,
+  koCrumbling = false,
 }: UmaCardProps) {
   const [hovered, setHovered] = useState(false);
   const card = getUmamusumeCard(umamusume);
@@ -60,7 +68,12 @@ export function UmaCard({
         transformStyle: "flat",
         backfaceVisibility: "hidden",
         WebkitBackfaceVisibility: "hidden",
-        willChange: hidden ? undefined : "transform",
+        willChange: hidden ? undefined : koCrumbling || koImpacting ? "transform, opacity, filter" : "transform",
+        animation: koCrumbling
+          ? "uma-ko-dissolve 860ms cubic-bezier(0.2, 0.72, 0.2, 1) both"
+          : koImpacting
+            ? "uma-ko-impact 1360ms cubic-bezier(0.2, 0.8, 0.2, 1) both"
+            : undefined,
         transition: `opacity ${transitions.board}, transform ${transitions.slow}, box-shadow ${transitions.slow}`,
       }}
       onMouseEnter={() => {
@@ -74,6 +87,8 @@ export function UmaCard({
       onClick={hidden ? undefined : onInspect}
       aria-label={hidden ? "Face-down card" : `Inspect ${card.name}`}
     >
+      <style>{ENERGY_APPEAR_KEYFRAMES}</style>
+      <style>{KO_CRUMBLE_KEYFRAMES}</style>
       {hidden ? (
         <FaceDownCard sleeveImage={sleeveImage} fontSize={18} />
       ) : (
@@ -82,25 +97,56 @@ export function UmaCard({
             <HoloCardImage card={card} src={card.portrait} alt={card.name} imageStyle={umaCardImageStyle} radiusOverride={CARD_INSPECT_IMAGE_RADIUS} />
             <div style={cardHpCornerBlurStyle} aria-hidden="true" />
           </div>
-          <CardHpOverlay hp={umamusume.hp} maxHp={umamusume.maxHp} size="lg" />
+          <CardHpOverlay
+            hp={displayHpOverride ?? umamusume.hp}
+            maxHp={umamusume.maxHp}
+            size="lg"
+            identityKey={`${umamusume.uid}:${umamusume.cardId}`}
+            sourceKey={displayHpOverride === undefined ? "state" : "visual"}
+          />
           {abilityReady && <AbilityReadyBadge corner="topLeft" />}
           <SpecialConditionBadges conditions={umamusume.specialConditions} size="md" />
           <AttachedToolBadge toolCardId={umamusume.toolCardId} onInspect={onToolInspect} />
-          <AttachedEnergyPips energies={getAttachedEnergy(umamusume)} size="lg" />
+          <AttachedEnergyPips energies={displayAttachedEnergiesOverride ?? getAttachedEnergy(umamusume)} size="lg" />
         </>
       )}
     </button>
   );
 }
 
-export function CardHpOverlay({ hp, maxHp, size = "md" }: { hp: number; maxHp: number; size?: "sm" | "md" | "lg" }) {
+export function CardHpOverlay({
+  hp,
+  maxHp,
+  size = "md",
+  identityKey,
+  sourceKey = "state",
+}: {
+  hp: number;
+  maxHp: number;
+  size?: "sm" | "md" | "lg";
+  identityKey?: string | number | undefined;
+  sourceKey?: string | number | undefined;
+}) {
   const previousHpRef = useRef(hp);
+  const previousIdentityRef = useRef(identityKey);
+  const previousSourceRef = useRef(sourceKey);
   const clearDeltaTimeoutRef = useRef<number | null>(null);
   const [hpDelta, setHpDelta] = useState<number | null>(null);
   const percent = maxHp > 0 ? Math.max(0, Math.min(100, Math.round((hp / maxHp) * 100))) : 0;
   const fillColor = percent <= 25 ? "#f59e0b" : percent <= 50 ? "#facc15" : "#29e6bd";
 
   useEffect(() => {
+    if (previousIdentityRef.current !== identityKey || previousSourceRef.current !== sourceKey) {
+      previousIdentityRef.current = identityKey;
+      previousSourceRef.current = sourceKey;
+      previousHpRef.current = hp;
+      setHpDelta(null);
+      if (clearDeltaTimeoutRef.current !== null) {
+        window.clearTimeout(clearDeltaTimeoutRef.current);
+        clearDeltaTimeoutRef.current = null;
+      }
+      return;
+    }
     const previousHp = previousHpRef.current;
     previousHpRef.current = hp;
     if (previousHp === hp) return;
@@ -110,7 +156,7 @@ export function CardHpOverlay({ hp, maxHp, size = "md" }: { hp: number; maxHp: n
       setHpDelta(null);
       clearDeltaTimeoutRef.current = null;
     }, 760);
-  }, [hp]);
+  }, [hp, identityKey, sourceKey]);
 
   useEffect(() => () => {
     if (clearDeltaTimeoutRef.current !== null) window.clearTimeout(clearDeltaTimeoutRef.current);
@@ -128,6 +174,7 @@ export function CardHpOverlay({ hp, maxHp, size = "md" }: { hp: number; maxHp: n
           }}
         >
           {hp}
+          {hpDelta !== null && hpDelta < 0 && <span style={hpStrikeStyle(size)} />}
         </div>
         <div style={hpTrackStyle(size)}>
           <div
@@ -223,7 +270,6 @@ export function AttachedEnergyPips({
 
   return (
     <div style={style}>
-      <style>{ENERGY_APPEAR_KEYFRAMES}</style>
       {energies.map((type, index) => {
         const occurrenceIndex = occurrenceByType[type] ?? 0;
         occurrenceByType[type] = occurrenceIndex + 1;
@@ -264,11 +310,86 @@ export function AttachedEnergyPips({
   );
 }
 
-const ENERGY_APPEAR_KEYFRAMES = `
+export const ENERGY_APPEAR_KEYFRAMES = `
 @keyframes energy-pip-appear {
   0% { opacity: 0; transform: translateY(6px) scale(0.78); filter: saturate(0.8); }
   55% { opacity: 1; transform: translateY(-2px) scale(1.08); filter: saturate(1.06); }
   100% { opacity: 1; transform: translateY(0) scale(1); filter: saturate(1); }
+}
+`;
+
+export const KO_CRUMBLE_KEYFRAMES = `
+@keyframes uma-ko-impact {
+  0% { transform: translate3d(0, 0, 0) rotate(0deg) scale(1); filter: brightness(1) saturate(1); }
+  12% { transform: translate3d(-1.4%, -0.8%, 0) rotate(-1.8deg) scale(1.018); filter: brightness(1.1) saturate(1.04); }
+  24% { transform: translate3d(1.2%, 0.6%, 0) rotate(1.25deg) scale(1.01); filter: brightness(1.04) saturate(1.02); }
+  40% { transform: translate3d(-0.6%, 0, 0) rotate(-0.65deg) scale(1.004); filter: brightness(1) saturate(1); }
+  62% { transform: translate3d(0, 0, 0) rotate(0deg) scale(1); filter: brightness(1) saturate(1); }
+  100% { transform: translate3d(0, 0, 0) rotate(0deg) scale(1); filter: brightness(1) saturate(1); }
+}
+
+@keyframes uma-ko-dissolve {
+  0% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+    filter: grayscale(0) brightness(1) saturate(1) blur(0);
+  }
+  24% {
+    opacity: 1;
+    transform: translate3d(0, -2.5%, 0) scale(1.018);
+    filter: grayscale(0) brightness(1.08) saturate(1) blur(0);
+  }
+  52% {
+    opacity: 0.72;
+    transform: translate3d(0, -1%, 0) scale(0.985);
+    filter: grayscale(0.82) brightness(1.02) saturate(0.5) blur(1.2px);
+  }
+  76% {
+    opacity: 0.32;
+    transform: translate3d(0, 1.5%, 0) scale(0.94);
+    filter: grayscale(1) brightness(0.9) saturate(0.22) blur(2.4px);
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(0, 5%, 0) scale(0.86);
+    filter: grayscale(1) brightness(0.72) saturate(0) blur(4px);
+  }
+}
+
+@keyframes uma-ko-exit {
+  0% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+    filter: grayscale(0) brightness(1) saturate(1) blur(0);
+  }
+  24% {
+    opacity: 1;
+    transform: translate3d(0, -2.5%, 0) scale(1.018);
+    filter: grayscale(0) brightness(1.08) saturate(1) blur(0);
+  }
+  52% {
+    opacity: 0.72;
+    transform: translate3d(0, -1%, 0) scale(0.985);
+    filter: grayscale(0.82) brightness(1.02) saturate(0.5) blur(1.2px);
+  }
+  76% {
+    opacity: 0.32;
+    transform: translate3d(0, 1.5%, 0) scale(0.94);
+    filter: grayscale(1) brightness(0.9) saturate(0.22) blur(2.4px);
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(0, 5%, 0) scale(0.86);
+    filter: grayscale(1) brightness(0.72) saturate(0) blur(4px);
+  }
+}
+
+@keyframes uma-ko-crumble {
+  0% { opacity: 1; transform: translate3d(0, 0, 0) scale(1); filter: grayscale(0) brightness(1) saturate(1) blur(0); }
+  24% { opacity: 1; transform: translate3d(0, -2.5%, 0) scale(1.018); filter: grayscale(0) brightness(1.08) saturate(1) blur(0); }
+  52% { opacity: 0.72; transform: translate3d(0, -1%, 0) scale(0.985); filter: grayscale(0.82) brightness(1.02) saturate(0.5) blur(1.2px); }
+  76% { opacity: 0.32; transform: translate3d(0, 1.5%, 0) scale(0.94); filter: grayscale(1) brightness(0.9) saturate(0.22) blur(2.4px); }
+  100% { opacity: 0; transform: translate3d(0, 5%, 0) scale(0.86); filter: grayscale(1) brightness(0.72) saturate(0) blur(4px); }
 }
 `;
 
@@ -287,9 +408,16 @@ const HP_DELTA_KEYFRAMES = `
   100% { filter: brightness(1) saturate(1); box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.42); }
 }
 @keyframes hp-delta-float {
-  0% { opacity: 0; transform: translate(12px, 8px) scale(0.78); }
-  16% { opacity: 1; transform: translate(0, -2px) scale(1.06); }
-  100% { opacity: 0; transform: translate(0, -26px) scale(0.94); }
+  0% { opacity: 0; transform: translate(10px, 10px) scale(0.72); }
+  16% { opacity: 1; transform: translate(0, -3px) scale(1.14); }
+  56% { opacity: 1; transform: translate(0, -8px) scale(1); }
+  100% { opacity: 0; transform: translate(0, -36px) scale(0.94); }
+}
+@keyframes hp-damage-strike {
+  0% { opacity: 0; transform: scaleX(0) rotate(-9deg); }
+  24% { opacity: 1; transform: scaleX(1) rotate(-9deg); }
+  70% { opacity: 1; transform: scaleX(1) rotate(-9deg); }
+  100% { opacity: 0; transform: scaleX(0.96) rotate(-9deg); }
 }
 `;
 
@@ -297,9 +425,9 @@ function hpOverlayStyle(size: "sm" | "md" | "lg"): CSSProperties {
   return {
     position: "absolute",
     top: size === "lg" ? "2%" : size === "md" ? "1.1%" : "1.8%",
-    right: size === "lg" ? "3%" : size === "md" ? "2.5%" : "14.5%",
+    right: size === "lg" ? "3%" : size === "md" ? "2.5%" : "3.5%",
     zIndex: 3,
-    width: size === "lg" ? "86px" : size === "md" ? "48px" : "40px",
+    width: size === "lg" ? "86px" : size === "md" ? "48px" : "28px",
     gap: size === "lg" ? 2 : 1,
     pointerEvents: "none",
     overflow: "visible",
@@ -319,6 +447,7 @@ function hpContentStyle(size: "sm" | "md" | "lg"): CSSProperties {
 
 function hpNumberStyle(size: "sm" | "md" | "lg"): CSSProperties {
   return {
+    position: "relative",
     width: "100%",
     textAlign: "right",
     color: colors.white,
@@ -363,25 +492,42 @@ function hpDeltaBadgeStyle(size: "sm" | "md" | "lg", delta: number): CSSProperti
   const isGain = delta > 0;
   return {
     position: "absolute",
-    top: size === "lg" ? -4 : size === "md" ? -6 : -8,
-    right: size === "lg" ? -14 : size === "md" ? -10 : -8,
-    minWidth: size === "lg" ? 48 : 34,
-    padding: size === "lg" ? "5px 8px" : "3px 6px",
+    top: size === "lg" ? -30 : size === "md" ? -22 : -19,
+    right: size === "lg" ? -8 : size === "md" ? -8 : -6,
+    minWidth: size === "lg" ? 62 : 42,
+    padding: size === "lg" ? "7px 10px" : "4px 7px",
     borderRadius: radius.pill,
-    border: "1px solid rgba(255, 255, 255, 0.55)",
+    border: "2px solid rgba(255, 255, 255, 0.7)",
     background: isGain
       ? "linear-gradient(135deg, #22c55e 0%, #bbf7d0 100%)"
       : "linear-gradient(135deg, #f43f5e 0%, #fb923c 100%)",
     color: isGain ? "#052e16" : colors.white,
     textAlign: "center",
-    fontSize: size === "lg" ? 18 : size === "md" ? 12 : 10,
+    fontSize: size === "lg" ? 24 : size === "md" ? 15 : 12,
     lineHeight: 1,
     fontWeight: 950,
     letterSpacing: 0,
     textShadow: isGain ? "none" : "0 2px 5px rgba(15, 23, 42, 0.48)",
-    boxShadow: isGain ? "0 8px 18px rgba(34, 197, 94, 0.28)" : "0 8px 18px rgba(244, 63, 94, 0.32)",
+    boxShadow: isGain ? "0 10px 22px rgba(34, 197, 94, 0.34)" : "0 10px 22px rgba(244, 63, 94, 0.42)",
     animation: "hp-delta-float 760ms cubic-bezier(0.2, 0.8, 0.2, 1) both",
     whiteSpace: "nowrap",
+    zIndex: 4,
+  };
+}
+
+function hpStrikeStyle(size: "sm" | "md" | "lg"): CSSProperties {
+  return {
+    position: "absolute",
+    left: size === "lg" ? "-6%" : "-4%",
+    right: size === "lg" ? "-10%" : "-8%",
+    top: "52%",
+    height: size === "lg" ? 7 : size === "md" ? 4 : 3,
+    borderRadius: radius.pill,
+    background: "linear-gradient(90deg, transparent 0%, #fef2f2 10%, #ef4444 46%, #fb923c 78%, transparent 100%)",
+    boxShadow: "0 0 12px rgba(239, 68, 68, 0.75), 0 2px 4px rgba(15, 23, 42, 0.35)",
+    transformOrigin: "left center",
+    animation: "hp-damage-strike 520ms cubic-bezier(0.18, 0.8, 0.22, 1) both",
+    pointerEvents: "none",
   };
 }
 

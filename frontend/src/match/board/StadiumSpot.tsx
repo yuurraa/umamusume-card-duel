@@ -5,7 +5,7 @@ import { getCard } from "../../game/engine";
 import { AbilityReadyBadge } from "../../components/cards/AbilityReadyBadge";
 import { HoloCardImage } from "../../components/cards/HoloCardImage";
 import { hasTextDragPayload, readDragPayload } from "../../components/drag/dragData";
-import { CARD_ASPECT_RATIO, colors, radius, transitions, uiTextColor, uiTextShadow } from "../../styles/shared";
+import { radius, transitions, uiTextColor, uiTextShadow } from "../../styles/shared";
 
 export function StadiumSpot({ state, abilityReady = false, onDropHandCard, onInspect, selectable = false, onSelect }: {
   state: GameState;
@@ -82,7 +82,7 @@ export function StadiumSpot({ state, abilityReady = false, onDropHandCard, onIns
               imageStyle={stadiumImageStyle(hovered, animationsEnabled && Boolean(opponentStadiumRevealToken > 0))}
               draggable={false}
             />
-            {abilityReady && <AbilityReadyBadge corner="topLeft" size="xs" nudgeX={0} />}
+            {abilityReady && <AbilityReadyBadge corner="topLeft" size="xs" nudgeX={-3} />}
           </>
         )
         : <span style={stadiumEmptyTextStyle}>Stadium Spot</span>}
@@ -91,21 +91,24 @@ export function StadiumSpot({ state, abilityReady = false, onDropHandCard, onIns
 }
 
 function StadiumSpotStyle(hovered: boolean, hasCard: boolean, abilityReady: boolean): CSSProperties {
-  const width = "clamp(118px, 7.708vw, 148px)";
+  // Match the *visible* bench frame, not the raw bench slot box.
+  // Bench frame is inset horizontally (~11% each side) and extended vertically (~106%).
+  const width = "clamp(111px, 7.232vw, 139px)";
+  const height = "clamp(190px, 9.44vw, 214px)";
   return {
     position: "absolute",
     left: "50%",
-    top: "calc(52% - clamp(150px, 9.792vw, 188px))",
+    top: "calc(52% - clamp(140px, 8.75vw, 168px))",
     transform: "translate(-50%, -50%)",
     zIndex: 4,
     width,
-    aspectRatio: CARD_ASPECT_RATIO,
+    height,
     display: "grid",
     placeItems: "center",
     overflow: "visible",
     borderRadius: radius.md,
-    border: hovered ? "2px dashed rgba(148, 163, 184, 0.72)" : "2px dashed rgba(185, 198, 188, 0.88)",
-    background: hasCard ? colors.glass : colors.glassSoft,
+    border: hovered ? "2px dashed rgba(226, 232, 240, 0.9)" : "2px dashed rgba(226, 232, 240, 0.68)",
+    background: "rgba(226, 232, 240, 0.1)",
     color: uiTextColor,
     textShadow: uiTextShadow,
     padding: hasCard ? 0 : "clamp(6px, 0.417vw, 8px)",
@@ -113,8 +116,8 @@ function StadiumSpotStyle(hovered: boolean, hasCard: boolean, abilityReady: bool
     fontWeight: 950,
       cursor: hasCard ? "pointer" : "default",
     boxShadow: hovered
-      ? "0 0 0 5px rgba(100, 113, 104, 0.12), 0 18px 42px rgba(17, 24, 39, 0.18)"
-      : "0 10px 30px rgba(17, 24, 39, 0.1)",
+      ? "inset 0 0 0 1px rgba(15, 23, 42, 0.14), 0 0 0 5px rgba(100, 113, 104, 0.12), 0 18px 42px rgba(17, 24, 39, 0.18)"
+      : "inset 0 0 0 1px rgba(15, 23, 42, 0.14), 0 10px 30px rgba(17, 24, 39, 0.1)",
     boxSizing: "border-box",
     transition: `border-color ${transitions.base}, box-shadow ${transitions.base}, transform ${transitions.base}`,
   };

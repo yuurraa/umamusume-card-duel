@@ -420,22 +420,13 @@ export function knockOutUmamusume(
 
   if (!activeKnockout) return true;
 
-  if (state.humanBySide[knockedSideId]) {
-    const shouldAdvanceTurnAfterChoice = knockedSideId !== state.currentSide;
-    state.pendingPlayerChoice = {
-      kind: "promoteAfterKnockout",
-      sideId: knockedSideId,
-      resume: shouldAdvanceTurnAfterChoice ? "finishOpponentTurn" : "none",
-    };
-    log(state, `${actorName(defender)} must choose the next Active Umamusume.`);
-    return true;
-  }
-
-  const promotedIndex = choosePreferredActiveIndex(defender);
-  const promoted = promotedIndex >= 0 ? defender.bench.splice(promotedIndex, 1)[0] : defender.bench.shift();
-  if (!promoted) return true;
-  defender.active = promoted;
-  log(state, `${actorName(defender)} promoted ${formatUmamusumeInstanceName(promoted)}.`);
+  const shouldAdvanceTurnAfterChoice = knockedSideId !== state.currentSide;
+  state.pendingPlayerChoice = {
+    kind: "promoteAfterKnockout",
+    sideId: knockedSideId,
+    resume: shouldAdvanceTurnAfterChoice ? "finishOpponentTurn" : "none",
+  };
+  log(state, `${actorName(defender)} must choose the next Active Umamusume.`);
   return true;
 }
 

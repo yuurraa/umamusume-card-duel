@@ -1,4 +1,4 @@
-import { type CSSProperties, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { type AnimationEvent, type CSSProperties, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { getCard } from "../../game/engine";
 import { HoloCardImage } from "../../components/cards/HoloCardImage";
 import { CARD_ASPECT_RATIO, CARD_INSPECT_IMAGE_RADIUS, colors, radius, shadows } from "../../styles/shared";
@@ -409,7 +409,13 @@ function FlowCard({
   const image = card.kind === "umamusume" ? card.portrait : card.image;
   const [ready, setReady] = useState(() => isImagePreloaded(image));
   const group = resolveGroup(item);
-  const doneHandler = index === totalCount - 1 ? onDone : undefined;
+  const handleAnimationEnd = (event: AnimationEvent<HTMLDivElement>) => {
+    if (index !== totalCount - 1) return;
+    // Holo/card internals can animate too; only the travel wrapper decides when
+    // the flow group is truly settled and the AI may continue.
+    if (event.currentTarget !== event.target) return;
+    onDone();
+  };
   const baseEnd = anchorToTranslate(item.exitTo);
   const baseStart = anchorToTranslate(item.enterFrom);
   const wrapStyle = cardWrapStyle(durationMs, item.enterFrom, item.exitTo, group);
@@ -451,7 +457,7 @@ function FlowCard({
           animation: ready ? wrapStyle.animation : undefined,
           opacity: ready ? undefined : 0,
         }}
-        onAnimationEnd={doneHandler}
+        onAnimationEnd={handleAnimationEnd}
       >
         <HoloCardImage
           card={card}

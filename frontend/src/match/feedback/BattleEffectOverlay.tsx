@@ -1,12 +1,20 @@
 import { type CSSProperties, useEffect, useLayoutEffect, useMemo, useState } from "react";
-import type { SideId } from "../../../../shared/src/types";
-import { colors, radius, shadows } from "../../styles/shared";
+import { createPortal } from "react-dom";
+import type { EnergyType, SideId, SpecialCondition, UmamusumeInstance } from "../../../../shared/src/types";
+import { colors, fontStacks, radius, shadows } from "../../styles/shared";
 
-export type BattleEffectKind = "attack" | "damage" | "heal" | "energy" | "status" | "evolve" | "ko";
+export type BattleEffectKind = "attack" | "damage" | "heal" | "energy" | "status" | "tool" | "evolve" | "ko";
 export type BattleEffectSlot = { zone: "active" } | { zone: "bench"; index: number };
+export type BattleEffectRect = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
 
 export type BattleEffectEvent = {
   id: number;
+  batchKey?: string | undefined;
   kind: BattleEffectKind;
   side: SideId;
   targetUid?: number | undefined;
@@ -14,16 +22,20 @@ export type BattleEffectEvent = {
   sourceSide?: SideId | undefined;
   sourceSlot?: BattleEffectSlot | undefined;
   targetSlot?: BattleEffectSlot | undefined;
+  sourceRect?: BattleEffectRect | undefined;
+  targetRect?: BattleEffectRect | undefined;
+  targetCardId?: string | undefined;
+  targetUmamusume?: UmamusumeInstance | undefined;
+  statusCondition?: SpecialCondition | undefined;
+  hpBefore?: number | undefined;
+  hpAfter?: number | undefined;
   amount?: number | undefined;
+  attachedEnergyBefore?: EnergyType[] | undefined;
+  attachedEnergyAfter?: EnergyType[] | undefined;
   label: string;
 };
 
-type EffectRect = {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-};
+type EffectRect = BattleEffectRect;
 
 type EffectTone = {
   primary: string;
@@ -36,19 +48,20 @@ type EffectTone = {
 export function BattleEffectOverlay({
   event,
   onDone,
-  durationMs = 920,
+  durationMs: requestedDurationMs,
 }: {
   event: BattleEffectEvent;
   onDone: () => void;
   durationMs?: number;
 }) {
+  const durationMs = requestedDurationMs ?? durationForEvent(event.kind);
   const [viewportSize, setViewportSize] = useState(() => getViewportSize());
   const [measuredRects, setMeasuredRects] = useState<{ source?: EffectRect; target?: EffectRect }>({});
-  const tone = toneForEvent(event.kind);
+  const tone = toneForEvent(event.kind, event.statusCondition);
   const fallbackSourceRect = resolveSlotRect(event.sourceSide ?? (event.side === "player" ? "opponent" : "player"), event.sourceSlot, viewportSize);
   const fallbackTargetRect = resolveSlotRect(event.side, event.targetSlot, viewportSize);
-  const sourceRect = measuredRects.source ?? fallbackSourceRect;
-  const targetRect = measuredRects.target ?? fallbackTargetRect;
+  const sourceRect = measuredRects.source ?? event.sourceRect ?? fallbackSourceRect;
+  const targetRect = measuredRects.target ?? event.targetRect ?? fallbackTargetRect;
   const particles = useMemo(() => Array.from({ length: particleCountForKind(event.kind) }, (_, index) => index), [event.kind]);
 
   useEffect(() => {
@@ -76,16 +89,18 @@ export function BattleEffectOverlay({
     };
   }, [event.sourceUid, event.targetUid]);
 
-  return (
+  const overlay = (
     <div style={rootStyle} aria-live="polite">
       <style>{KEYFRAMES}</style>
       {event.kind === "attack" && <AttackTrace sourceRect={sourceRect} targetRect={targetRect} tone={tone} durationMs={durationMs} />}
       {event.kind === "energy" && <EnergyTrace targetRect={targetRect} tone={tone} durationMs={durationMs} />}
-      {(event.kind === "damage" || event.kind === "heal" || event.kind === "status" || event.kind === "evolve" || event.kind === "ko") && (
+      {(event.kind === "damage" || event.kind === "heal" || event.kind === "status" || event.kind === "tool" || event.kind === "evolve" || event.kind === "ko") && (
         <TargetFrame event={event} targetRect={targetRect} tone={tone} durationMs={durationMs} particles={particles} />
       )}
     </div>
   );
+
+  return typeof document === "undefined" ? overlay : createPortal(overlay, document.body);
 }
 
 function AttackTrace({
@@ -133,6 +148,9 @@ function EnergyTrace({ targetRect, tone, durationMs }: { targetRect: EffectRect;
         }}
       />
       <div style={{ ...cardPulseStyle(targetRect, tone, "target"), ["--battle-effect-duration" as string]: `${durationMs}ms` }} />
+      <strong style={{ ...floatingLabelStyle(target, targetRect, tone, "energy", false), ["--battle-effect-duration" as string]: `${durationMs}ms` }}>
+        Energy
+      </strong>
     </>
   );
 }
@@ -152,12 +170,12 @@ function TargetFrame({
 }) {
   const target = centerOf(targetRect);
   const label = formatLabel(event);
-  const isNumber = event.amount !== undefined;
+  const isNumber = event.kind !== "damage" && event.kind !== "heal" && event.amount !== undefined;
 
   return (
     <>
       <div style={{ ...cardPulseStyle(targetRect, tone, "target", event.kind), ["--battle-effect-duration" as string]: `${durationMs}ms` }} />
-      {(event.kind === "evolve" || event.kind === "ko") && (
+      {event.kind === "evolve" && (
         <div style={{ ...cardSweepStyle(targetRect, tone, event.kind), ["--battle-effect-duration" as string]: `${durationMs}ms` }}>
           <span style={sweepLineStyle(tone, event.kind)} />
         </div>
@@ -180,7 +198,7 @@ function TargetFrame({
           />
         ))}
       </div>
-      {(event.kind === "damage" || event.kind === "heal" || event.kind === "ko" || event.kind === "status" || event.kind === "evolve") && (
+      {(event.kind === "damage" || event.kind === "heal" || event.kind === "ko" || event.kind === "status" || event.kind === "tool" || event.kind === "evolve") && (
         <strong
           style={{
             ...floatingLabelStyle(target, targetRect, tone, event.kind, isNumber),
@@ -204,7 +222,8 @@ function getViewportSize(): { width: number; height: number } {
 function getCardRect(uid: number): EffectRect | undefined {
   const node = document.querySelector<HTMLElement>(`[data-battle-effect-card="${uid}"]`);
   if (!node) return undefined;
-  const rect = node.getBoundingClientRect();
+  const visualNode = node.querySelector<HTMLElement>("[data-battle-effect-visual='true']") ?? node.querySelector<HTMLElement>(".pokemon-card-foil") ?? node;
+  const rect = visualNode.getBoundingClientRect();
   return {
     x: rect.left,
     y: rect.top,
@@ -240,15 +259,14 @@ function resolveSlotRect(side: SideId, slot: BattleEffectSlot | undefined, viewp
 }
 
 function formatLabel(event: BattleEffectEvent): string {
-  if (event.amount !== undefined) {
-    const sign = event.kind === "heal" ? "+" : event.kind === "damage" || event.kind === "ko" ? "-" : "";
-    return `${sign}${event.amount}`;
-  }
+  if (event.kind === "damage") return "Damage";
+  if (event.kind === "heal") return "Heal";
   if (event.kind === "ko") return "KO";
+  if (event.amount !== undefined) return `${event.amount}`;
   return event.label;
 }
 
-function toneForEvent(kind: BattleEffectKind): EffectTone {
+function toneForEvent(kind: BattleEffectKind, statusCondition?: SpecialCondition | undefined): EffectTone {
   switch (kind) {
     case "damage":
       return { primary: "#f43f5e", secondary: "#fb923c", soft: "rgba(244, 63, 94, 0.16)", strong: "rgba(244, 63, 94, 0.46)", text: colors.white };
@@ -257,7 +275,9 @@ function toneForEvent(kind: BattleEffectKind): EffectTone {
     case "energy":
       return { primary: "#38bdf8", secondary: "#facc15", soft: "rgba(56, 189, 248, 0.14)", strong: "rgba(56, 189, 248, 0.46)", text: colors.white };
     case "status":
-      return { primary: "#a855f7", secondary: "#f0abfc", soft: "rgba(168, 85, 247, 0.16)", strong: "rgba(168, 85, 247, 0.44)", text: colors.white };
+      return toneForStatusCondition(statusCondition);
+    case "tool":
+      return { primary: "#facc15", secondary: "#ffffff", soft: "rgba(250, 204, 21, 0.16)", strong: "rgba(250, 204, 21, 0.44)", text: "#451a03" };
     case "evolve":
       return { primary: "#facc15", secondary: "#ffffff", soft: "rgba(250, 204, 21, 0.18)", strong: "rgba(250, 204, 21, 0.52)", text: "#451a03" };
     case "ko":
@@ -267,11 +287,37 @@ function toneForEvent(kind: BattleEffectKind): EffectTone {
   }
 }
 
+function toneForStatusCondition(condition: SpecialCondition | undefined): EffectTone {
+  switch (condition) {
+    case "paralysed":
+      return { primary: "#facc15", secondary: "#fef9c3", soft: "rgba(250, 204, 21, 0.18)", strong: "rgba(202, 138, 4, 0.48)", text: "#422006" };
+    case "burned":
+      return { primary: "#fb923c", secondary: "#fed7aa", soft: "rgba(251, 146, 60, 0.18)", strong: "rgba(234, 88, 12, 0.48)", text: "#431407" };
+    case "poisoned":
+      return { primary: "#a855f7", secondary: "#f0abfc", soft: "rgba(168, 85, 247, 0.16)", strong: "rgba(168, 85, 247, 0.44)", text: colors.white };
+    case "frozen":
+      return { primary: "#22d3ee", secondary: "#cffafe", soft: "rgba(34, 211, 238, 0.18)", strong: "rgba(8, 145, 178, 0.46)", text: "#083344" };
+    case "asleep":
+      return { primary: "#94a3b8", secondary: "#e2e8f0", soft: "rgba(148, 163, 184, 0.18)", strong: "rgba(71, 85, 105, 0.42)", text: "#0f172a" };
+    default:
+      return { primary: "#a855f7", secondary: "#f0abfc", soft: "rgba(168, 85, 247, 0.16)", strong: "rgba(168, 85, 247, 0.44)", text: colors.white };
+  }
+}
+
 function particleCountForKind(kind: BattleEffectKind): number {
-  if (kind === "ko") return 18;
-  if (kind === "evolve") return 16;
-  if (kind === "heal" || kind === "status") return 10;
-  return 12;
+  if (kind === "ko") return 24;
+  if (kind === "evolve") return 22;
+  if (kind === "heal" || kind === "status" || kind === "tool") return 12;
+  return 14;
+}
+
+function durationForEvent(kind: BattleEffectKind): number {
+  if (kind === "ko") return 1360;
+  if (kind === "evolve") return 980;
+  if (kind === "damage" || kind === "heal") return 840;
+  if (kind === "attack") return 780;
+  if (kind === "status" || kind === "tool") return 860;
+  return 760;
 }
 
 const rootStyle: CSSProperties = {
@@ -316,7 +362,7 @@ function attackLineStyle(source: { x: number; y: number }, length: number, angle
     left: source.x,
     top: source.y,
     width: Math.max(1, length),
-    height: 34,
+    height: 44,
     borderRadius: radius.pill,
     transform: `translateY(-50%) rotate(${angle}rad)`,
     transformOrigin: "left center",
@@ -330,7 +376,7 @@ function attackLineStyle(source: { x: number; y: number }, length: number, angle
 function attackCoreStyle(tone: EffectTone): CSSProperties {
   return {
     position: "absolute",
-    inset: "8px 0",
+    inset: "10px 0",
     borderRadius: radius.pill,
     background: `linear-gradient(90deg, transparent 0%, ${tone.secondary} 26%, ${tone.primary} 50%, ${tone.secondary} 72%, transparent 100%)`,
     boxShadow: `0 0 24px ${tone.strong}`,
@@ -339,7 +385,7 @@ function attackCoreStyle(tone: EffectTone): CSSProperties {
 
 function targetHitStyle(rect: EffectRect, tone: EffectTone): CSSProperties {
   const center = centerOf(rect);
-  const size = Math.max(72, Math.min(rect.width, rect.height) * 0.48);
+  const size = Math.max(92, Math.min(rect.width, rect.height) * 0.58);
   return {
     position: "absolute",
     left: center.x,
@@ -383,11 +429,11 @@ function burstFieldStyle(rect: EffectRect): CSSProperties {
 
 function particleStyle(index: number, total: number, tone: EffectTone, kind: BattleEffectKind): CSSProperties {
   const angle = (index / total) * Math.PI * 2;
-  const distance = kind === "heal" ? 58 + (index % 4) * 9 : kind === "evolve" ? 82 + (index % 3) * 12 : kind === "ko" ? 94 + (index % 5) * 10 : 70 + (index % 4) * 9;
+  const distance = kind === "heal" ? 68 + (index % 4) * 10 : kind === "evolve" ? 98 + (index % 3) * 14 : kind === "ko" ? 112 + (index % 5) * 12 : kind === "status" || kind === "tool" ? 86 + (index % 4) * 10 : 78 + (index % 4) * 10;
   const x = `${Math.round(Math.cos(angle) * distance)}px`;
   const y = `${Math.round(Math.sin(angle) * distance)}px`;
-  const width = kind === "heal" ? 7 : kind === "evolve" ? 6 : 8;
-  const height = kind === "heal" ? 14 : kind === "evolve" ? 22 : 24;
+  const width = kind === "heal" ? 8 : kind === "evolve" ? 7 : 9;
+  const height = kind === "heal" ? 16 : kind === "evolve" ? 27 : 28;
 
   return {
     position: "absolute",
@@ -412,10 +458,10 @@ function floatingLabelStyle(
   kind: BattleEffectKind,
   isNumber: boolean,
 ): CSSProperties {
-  const labelWidth = isNumber ? Math.max(64, Math.min(96, rect.width * 0.28)) : Math.max(86, Math.min(136, rect.width * 0.34));
-  const x = kind === "evolve" || kind === "status" ? center.x : rect.x + rect.width * 0.76;
-  const y = kind === "ko" ? center.y : kind === "heal" ? rect.y + rect.height * 0.22 : rect.y + rect.height * 0.28;
-  const fontSize = isNumber ? Math.max(28, Math.min(56, rect.width * 0.15)) : Math.max(18, Math.min(34, rect.width * 0.09));
+  const labelWidth = isNumber ? Math.max(58, Math.min(94, rect.width * 0.28)) : Math.max(70, Math.min(112, rect.width * 0.3));
+  const x = center.x;
+  const y = center.y;
+  const fontSize = isNumber ? Math.max(20, Math.min(42, rect.width * 0.11)) : Math.max(16, Math.min(28, rect.width * 0.075));
 
   return {
     position: "absolute",
@@ -423,11 +469,12 @@ function floatingLabelStyle(
     top: y,
     zIndex: 2,
     minWidth: labelWidth,
-    padding: isNumber ? "7px 12px" : "7px 14px",
+    padding: isNumber ? "9px 14px" : "8px 16px",
     borderRadius: radius.md,
     border: "1px solid rgba(255, 255, 255, 0.44)",
     background: `linear-gradient(135deg, ${tone.primary} 0%, ${tone.secondary} 100%)`,
     color: tone.text,
+    fontFamily: fontStacks.ui,
     textAlign: "center",
     fontSize,
     lineHeight: 0.95,
@@ -474,8 +521,8 @@ function sweepLineStyle(tone: EffectTone, kind: BattleEffectKind): CSSProperties
 const KEYFRAMES = `
 @keyframes battle-source-lean {
   0% { opacity: 0; transform: translateX(0) scale(1); }
-  12% { opacity: 1; transform: translateX(0) scale(1.018); filter: saturate(1.1); }
-  38% { opacity: 0.92; transform: translateX(8px) scale(1.026); }
+  12% { opacity: 1; transform: translateX(0) scale(1.024); filter: saturate(1.16); }
+  38% { opacity: 0.96; transform: translateX(11px) scale(1.038); }
   100% { opacity: 0; transform: translateX(0) scale(1); }
 }
 
@@ -535,10 +582,11 @@ const KEYFRAMES = `
 }
 
 @keyframes battle-float-label {
-  0% { opacity: 0; transform: translate(-50%, calc(-50% + 16px)) scale(0.78); }
-  18% { opacity: 1; transform: translate(-50%, calc(-50% - 8px)) scale(1.06); }
-  44% { transform: translate(-50%, -50%) scale(1); }
-  100% { opacity: 0; transform: translate(-50%, calc(-50% - 34px)) scale(0.96); }
+  0% { opacity: 0; transform: translate(-50%, calc(-50% + 14px)) rotate(-8deg) scale(0.68); }
+  16% { opacity: 1; transform: translate(-50%, calc(-50% - 6px)) rotate(-8deg) scale(1.12); }
+  42% { transform: translate(-50%, -50%) rotate(-8deg) scale(1); }
+  76% { opacity: 1; transform: translate(-50%, -50%) rotate(-8deg) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, calc(-50% - 26px)) rotate(-8deg) scale(0.92); }
 }
 
 @keyframes battle-ko-label {

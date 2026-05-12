@@ -1,4 +1,4 @@
-import type { CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import type { EnergyType, GameState, SideState, UmamusumeInstance } from "../../../shared/src/types";
 import type { InspectTarget } from "../inspect";
 import { Hand } from "../components/boards/Hand";
@@ -65,6 +65,12 @@ type MatchBoardLayoutProps = {
   onOpenDiscard: () => void;
   onOpenOpponentZones: () => void;
   displayLog: string[];
+  visualHpByUid?: Record<number, number> | undefined;
+  visualAttachedEnergyByUid?: Record<number, EnergyType[]> | undefined;
+  koAnimatingUids?: Set<number> | undefined;
+  suppressActiveReplacementBySide?: Partial<Record<"player" | "opponent", boolean>> | undefined;
+  activeKoImpactUidBySide?: Partial<Record<"player" | "opponent", number>> | undefined;
+  activeKoAnimatingUidBySide?: Partial<Record<"player" | "opponent", number>> | undefined;
 };
 
 export function MatchBoardLayout(props: MatchBoardLayoutProps) {
@@ -124,15 +130,74 @@ export function MatchBoardLayout(props: MatchBoardLayoutProps) {
     onOpenDiscard,
     onOpenOpponentZones,
     displayLog,
+    visualHpByUid,
+    visualAttachedEnergyByUid,
+    koAnimatingUids,
+    suppressActiveReplacementBySide,
+    activeKoImpactUidBySide,
+    activeKoAnimatingUidBySide,
   } = props;
 
-  const playerSetupRevealToken = (() => {
-    // Stable across "Ready" toggles; only changes when the selected setup cards change.
-    // Keeps setup animations from replaying when pressing Ready.
-    let token = (setupActiveIndex ?? -1) + 2;
-    for (const benchIndex of setupBenchIndexes) token = (token * 31 + (benchIndex + 2)) % 1000000007;
-    return token;
-  })();
+  const [opponentPlayRevealActive, setOpponentPlayRevealActive] = useState(false);
+  const [playerSetupActiveRevealActive, setPlayerSetupActiveRevealActive] = useState(false);
+  const [playerSetupBenchRevealActive, setPlayerSetupBenchRevealActive] = useState(false);
+  const [povSwitchRevealActive, setPovSwitchRevealActive] = useState(false);
+  const previousPhaseRef = useRef(game.phase);
+  const previousPlayerSetupActiveIndexRef = useRef<number | null>(setupActiveIndex);
+  const previousPlayerSetupBenchSignatureRef = useRef<string>(setupBenchIndexes.join(","));
+  useEffect(() => {
+    const previousPhase = previousPhaseRef.current;
+    previousPhaseRef.current = game.phase;
+    if (game.gameOver) return;
+    if (previousPhase === "setup" && game.phase === "play") {
+      setOpponentPlayRevealActive(true);
+      const timeoutId = window.setTimeout(() => setOpponentPlayRevealActive(false), 380);
+      return () => window.clearTimeout(timeoutId);
+    }
+  }, [game.phase, game.gameOver]);
+
+  useEffect(() => {
+    if (povSwitchAnimationToken <= 0) return;
+    setPovSwitchRevealActive(true);
+    const timeoutId = window.setTimeout(() => setPovSwitchRevealActive(false), 380);
+    return () => window.clearTimeout(timeoutId);
+  }, [povSwitchAnimationToken]);
+
+  useEffect(() => {
+    if (game.gameOver || game.phase !== "setup") {
+      previousPlayerSetupActiveIndexRef.current = setupActiveIndex;
+      setPlayerSetupActiveRevealActive(false);
+      return;
+    }
+    const activeChanged = previousPlayerSetupActiveIndexRef.current !== setupActiveIndex;
+    previousPlayerSetupActiveIndexRef.current = setupActiveIndex;
+    if (!activeChanged) return;
+
+    setPlayerSetupActiveRevealActive(true);
+    const timeoutId = window.setTimeout(() => setPlayerSetupActiveRevealActive(false), 380);
+    return () => window.clearTimeout(timeoutId);
+  }, [game.gameOver, game.phase, setupActiveIndex]);
+
+  useEffect(() => {
+    const benchSignature = setupBenchIndexes.join(",");
+    if (game.gameOver || game.phase !== "setup") {
+      previousPlayerSetupBenchSignatureRef.current = benchSignature;
+      setPlayerSetupBenchRevealActive(false);
+      return;
+    }
+    const benchChanged = previousPlayerSetupBenchSignatureRef.current !== benchSignature;
+    previousPlayerSetupBenchSignatureRef.current = benchSignature;
+    if (!benchChanged) return;
+
+    setPlayerSetupBenchRevealActive(true);
+    const timeoutId = window.setTimeout(() => setPlayerSetupBenchRevealActive(false), 380);
+    return () => window.clearTimeout(timeoutId);
+  }, [game.gameOver, game.phase, setupBenchIndexes]);
+
+  const opponentSetupRevealActive = !game.gameOver
+    && opponentSetupRevealToken > 0
+    && game.phase === "setup"
+    && opponentBoardHidden;
 
   return (
     <div style={contentStyle}>
@@ -159,8 +224,14 @@ export function MatchBoardLayout(props: MatchBoardLayoutProps) {
               onEnergyDropOnUmamusume={onEnergyDropOnUmamusume}
               onAbilityEnergyDropOnActive={onAbilityEnergyDropOnActive}
               setupDragHandIndexByUid={setupDragHandIndexByUid}
-              animateSetupReveal={(!game.gameOver && game.phase === "setup" && displayedPlayerSide.active !== null) || povSwitchAnimationToken > 0}
-              setupRevealToken={povSwitchAnimationToken > 0 ? povSwitchAnimationToken : playerSetupRevealToken}
+              animateSetupReveal={game.phase === "setup" && (playerSetupBenchRevealActive || povSwitchRevealActive)}
+              animateActiveReveal={game.phase === "setup" && (playerSetupActiveRevealActive || povSwitchRevealActive)}
+              visualHpByUid={visualHpByUid}
+              visualAttachedEnergyByUid={visualAttachedEnergyByUid}
+              suppressActiveReplacement={suppressActiveReplacementBySide?.player}
+              activeKoImpactUid={activeKoImpactUidBySide?.player}
+              activeKoAnimatingUid={activeKoAnimatingUidBySide?.player}
+              koAnimatingUids={koAnimatingUids}
             />
           </div>
           <div style={opponentBoardSlotStyle}>
@@ -169,13 +240,20 @@ export function MatchBoardLayout(props: MatchBoardLayoutProps) {
               side={displayedOpponentSide}
               sideId="opponent"
               hidden={opponentBoardHidden}
+              setupMode={game.phase === "setup"}
               onInspect={onInspect}
               selectableUmamusumeUids={game.phase === "play" ? opponentSelectableUmamusumeUids : undefined}
               onUmamusumeSelect={onUmamusumeSelect}
               onAttachedToolSelect={onAttachedToolSelect}
               sleeveImage={opponentSleeveImage}
-              animateSetupReveal={(!game.gameOver && game.phase === "setup" && opponentBoardHidden && opponentSetupRevealToken > 0) || povSwitchAnimationToken > 0}
-              setupRevealToken={povSwitchAnimationToken > 0 ? povSwitchAnimationToken : opponentSetupRevealToken}
+              animateSetupReveal={opponentSetupRevealActive || opponentPlayRevealActive || povSwitchRevealActive}
+              animateActiveReveal={opponentSetupRevealActive || opponentPlayRevealActive || povSwitchRevealActive}
+              visualHpByUid={visualHpByUid}
+              visualAttachedEnergyByUid={visualAttachedEnergyByUid}
+              suppressActiveReplacement={suppressActiveReplacementBySide?.opponent}
+              activeKoImpactUid={activeKoImpactUidBySide?.opponent}
+              activeKoAnimatingUid={activeKoAnimatingUidBySide?.opponent}
+              koAnimatingUids={koAnimatingUids}
               {...(hiddenOpponentBenchCount !== undefined ? { hiddenBenchCount: hiddenOpponentBenchCount } : {})}
             />
           </div>

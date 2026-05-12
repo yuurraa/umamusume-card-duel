@@ -14,7 +14,7 @@ import type { InspectTarget } from "../inspect";
 import type { AppScreen, MatchMode, PendingSelection } from "../types/ui";
 import { getDeckById, getDeckEnergyTypes, readEquippedDeckId, pickRandomOpponentDeck } from "../utils/deck";
 import type { CardFlowItem } from "../match/feedback/CardFlowOverlay";
-import type { BattleEffectEvent, BattleEffectSlot } from "../match/feedback/BattleEffectOverlay";
+import type { BattleEffectEvent, BattleEffectRect, BattleEffectSlot } from "../match/feedback/BattleEffectOverlay";
 import {
   getPlaymatTextTone,
   getSelectedPlaymat,
@@ -64,7 +64,7 @@ import {
 } from "../pvp/signalApi";
 import { getFirebaseAccountSnapshot, linkFirebaseAccountWithGoogle, signOutFirebaseAccount, type FirebaseAccountSnapshot } from "../utils/firebaseAuth";
 import { getAccountPlayerName } from "../utils/playerNames";
-import type { CoinFlipResult, EnergyType, GameState, SideId, SideState } from "../../../shared/src/types";
+import type { CoinFlipResult, EnergyType, GameState, SideId, SideState, SpecialCondition, UmamusumeInstance } from "../../../shared/src/types";
 import { DiscardPileModal } from "../match/modals/DiscardPileModal";
 import { OpponentZonesModal } from "../match/modals/OpponentZonesModal";
 
@@ -114,6 +114,9 @@ const CardFlowOverlay = lazy(() => import("../match/feedback/CardFlowOverlay").t
 const BattleEffectOverlay = lazy(() => import("../match/feedback/BattleEffectOverlay").then((module) => ({
   default: module.BattleEffectOverlay,
 })));
+
+const KO_DISSOLVE_MS = 860;
+const KO_ACTIVE_VACANCY_MS = 3900;
 
 function isTurnRelayUnavailableError(error: unknown): error is Error {
   return error instanceof Error && error.message.includes(TURN_RELAY_UNAVAILABLE_TEXT);
@@ -181,11 +184,14 @@ type BattleSnapshotEntry = {
   uid: number;
   sideId: SideId;
   slot: BattleEffectSlot;
+  rect?: BattleEffectRect | undefined;
   cardId: string;
   hp: number;
   maxHp: number;
   energyCount: number;
   specialConditions: string;
+  toolCardId: string | null;
+  umamusume: UmamusumeInstance;
 };
 
 type BattleSnapshot = {
@@ -196,6 +202,9 @@ type BattleSnapshot = {
   gameOver: boolean;
 };
 
+type VisualHpByUid = Record<number, number>;
+type VisualAttachedEnergyByUid = Record<number, EnergyType[]>;
+
 function createBattleSnapshot(state: GameState): BattleSnapshot {
   const collect = (sideId: SideId): BattleSnapshotEntry[] => {
     const side = state.sides[sideId];
@@ -205,11 +214,14 @@ function createBattleSnapshot(state: GameState): BattleSnapshot {
       uid: entry.uid,
       sideId,
       slot,
+      rect: readBattleEffectCardRect(entry.uid),
       cardId: entry.cardId,
       hp: entry.hp,
       maxHp: entry.maxHp,
       energyCount: Object.values(entry.energies).reduce((sum, amount) => sum + amount, 0),
       specialConditions: [...entry.specialConditions].sort().join("|"),
+      toolCardId: entry.toolCardId,
+      umamusume: cloneBattleSnapshotUmamusume(entry),
     }));
   };
 
@@ -222,8 +234,83 @@ function createBattleSnapshot(state: GameState): BattleSnapshot {
   };
 }
 
+function cloneBattleSnapshotUmamusume(umamusume: UmamusumeInstance): UmamusumeInstance {
+  return {
+    ...umamusume,
+    energies: { ...umamusume.energies },
+    specialConditions: [...umamusume.specialConditions],
+    evolutionCardIds: [...(umamusume.evolutionCardIds ?? [])],
+  };
+}
+
+function getAttachedEnergyFromUmamusume(umamusume: UmamusumeInstance): EnergyType[] {
+  const energies = Object.entries(umamusume.energies) as [EnergyType, number][];
+  return energies.flatMap(([type, amount]) => Array.from({ length: amount }, () => type)).reverse();
+}
+
+function withRetainedKoActive(
+  state: GameState,
+  queue: BattleEffectEvent[],
+  retainedActiveBySide: Partial<Record<SideId, UmamusumeInstance>>,
+): GameState {
+  const queuedKoBySide: Partial<Record<SideId, UmamusumeInstance>> = {};
+  queue.forEach((effect) => {
+    if (effect.kind !== "ko" || effect.targetSlot?.zone !== "active" || !effect.targetUmamusume) return;
+    queuedKoBySide[effect.side] = cloneBattleSnapshotUmamusume(effect.targetUmamusume);
+  });
+  const effectiveBySide: Partial<Record<SideId, UmamusumeInstance>> = {
+    ...retainedActiveBySide,
+    ...queuedKoBySide,
+  };
+  if (!effectiveBySide.player && !effectiveBySide.opponent) return state;
+  const nextSides = { ...state.sides };
+  (["player", "opponent"] as SideId[]).forEach((sideId) => {
+    const retained = effectiveBySide[sideId];
+    if (!retained) return;
+    const side = nextSides[sideId];
+    if (side.active?.uid === retained.uid) return;
+    nextSides[sideId] = {
+      ...side,
+      active: retained,
+      bench: side.bench.filter((umamusume) => umamusume.uid !== retained.uid),
+    };
+  });
+  return {
+    ...state,
+    sides: nextSides,
+  };
+}
+
+function withKoVacantActive(state: GameState, vacancyBySide: Partial<Record<SideId, boolean>>): GameState {
+  const playerVacant = Boolean(vacancyBySide.player);
+  const opponentVacant = Boolean(vacancyBySide.opponent);
+  if (!playerVacant && !opponentVacant) return state;
+  return {
+    ...state,
+    sides: {
+      ...state.sides,
+      player: playerVacant ? { ...state.sides.player, active: null } : state.sides.player,
+      opponent: opponentVacant ? { ...state.sides.opponent, active: null } : state.sides.opponent,
+    },
+  };
+}
+
 function getBattleEntries(snapshot: BattleSnapshot): BattleSnapshotEntry[] {
   return [...snapshot.player, ...snapshot.opponent];
+}
+
+function readBattleEffectCardRect(uid: number): BattleEffectRect | undefined {
+  if (typeof document === "undefined") return undefined;
+  const node = document.querySelector<HTMLElement>(`[data-battle-effect-card="${uid}"]`);
+  if (!node) return undefined;
+  const visualNode = node.querySelector<HTMLElement>("[data-battle-effect-visual='true']") ?? node.querySelector<HTMLElement>(".pokemon-card-foil") ?? node;
+  const rect = visualNode.getBoundingClientRect();
+  return {
+    x: rect.left,
+    y: rect.top,
+    width: rect.width,
+    height: rect.height,
+  };
 }
 
 function getActorSideFromLog(entry: string): SideId | null {
@@ -249,7 +336,7 @@ function logMentionsBattleEntry(logEntry: string, entry: BattleSnapshotEntry): b
 function findSupportingLogEntry(
   newEntries: string[],
   entry: BattleSnapshotEntry,
-  kind: "damage" | "heal" | "energy" | "status" | "evolve",
+  kind: "damage" | "heal" | "energy" | "status" | "tool" | "evolve",
   claimedLogIndexes: Set<number>,
   before?: BattleSnapshotEntry,
 ): number | null {
@@ -259,8 +346,9 @@ function findSupportingLogEntry(
     const lowered = logEntry.toLowerCase();
     if (kind === "damage" && !lowered.includes("damage")) continue;
     if (kind === "heal" && !lowered.includes("healed")) continue;
-    if (kind === "energy" && !lowered.includes("attached 1") && !lowered.includes("moved 1")) continue;
+    if (kind === "energy" && !lowered.includes("attached 1") && !lowered.includes("moved 1") && !lowered.includes("generated 1")) continue;
     if (kind === "status" && !lowered.includes(" is ") && !lowered.includes("special condition")) continue;
+    if (kind === "tool" && !lowered.includes(" attached ")) continue;
     if (kind === "evolve") {
       const previousName = before ? getBattleEntryCardName(before) : null;
       const currentName = getBattleEntryCardName(entry);
@@ -273,6 +361,21 @@ function findSupportingLogEntry(
   return null;
 }
 
+function getAddedSpecialCondition(before: BattleSnapshotEntry, entry: BattleSnapshotEntry): SpecialCondition | null {
+  const beforeConditions = new Set(before.specialConditions.split("|").filter(Boolean));
+  const currentConditions = entry.specialConditions.split("|").filter(Boolean) as SpecialCondition[];
+  return currentConditions.find((condition) => !beforeConditions.has(condition)) ?? currentConditions[0] ?? null;
+}
+
+function statusLabel(condition: SpecialCondition | null): string {
+  if (condition === "asleep") return "Asleep";
+  if (condition === "burned") return "Burned";
+  if (condition === "frozen") return "Frozen";
+  if (condition === "paralysed") return "Paralysed";
+  if (condition === "poisoned") return "Poisoned";
+  return "Status";
+}
+
 function buildBattleEffects(
   previous: BattleSnapshot,
   current: BattleSnapshot,
@@ -280,11 +383,18 @@ function buildBattleEffects(
 ): BattleEffectEvent[] {
   if (current.phase !== "play" || (current.gameOver && previous.gameOver)) return [];
   const previousByUid = new Map(getBattleEntries(previous).map((entry) => [entry.uid, entry]));
+  const currentByUid = new Map(getBattleEntries(current).map((entry) => [entry.uid, entry]));
   const effects: BattleEffectEvent[] = [];
+  const hpBatchKey = `hp-${previous.log.length}-${current.log.length}`;
   const newEntries = getNewLogHeadEntries(previous.log, current.log);
   const attackEntry = newEntries.find((entry) => entry.includes(" attacked with "));
   const koEntry = newEntries.find((entry) => entry.includes(" was knocked out"));
   const claimedLogIndexes = new Set<number>();
+  const knockedSide = koEntry?.startsWith("Opponent's") ? "opponent" : koEntry ? "player" : null;
+  const knockedEntry = knockedSide
+    ? previous[knockedSide].find((entry) => !currentByUid.has(entry.uid))
+      ?? previous[knockedSide].find((entry) => entry.slot.zone === "active")
+    : undefined;
   const hpDrops = getBattleEntries(current)
     .map((entry) => ({ entry, before: previousByUid.get(entry.uid) }))
     .filter((change): change is { entry: BattleSnapshotEntry; before: BattleSnapshotEntry } => Boolean(change.before && change.entry.hp < change.before.hp));
@@ -294,7 +404,7 @@ function buildBattleEffects(
     const sourceSide = actorSide ?? "player";
     const defendingSide = sourceSide === "player" ? "opponent" : "player";
     const source = current[sourceSide].find((entry) => entry.slot.zone === "active");
-    const target = hpDrops[0]?.entry ?? current[defendingSide].find((entry) => entry.slot.zone === "active");
+    const target = hpDrops[0]?.entry ?? (knockedEntry?.sideId === defendingSide ? knockedEntry : undefined) ?? current[defendingSide].find((entry) => entry.slot.zone === "active");
     effects.push({
       id: nextId(),
       kind: "attack",
@@ -302,8 +412,11 @@ function buildBattleEffects(
       targetUid: target?.uid,
       sourceSide,
       sourceSlot: { zone: "active" },
+      sourceRect: source?.rect,
+      targetCardId: target?.cardId,
       side: target?.sideId ?? defendingSide,
       targetSlot: target?.slot ?? { zone: "active" },
+      targetRect: target?.rect,
       label: "Attack",
     });
   }
@@ -315,60 +428,173 @@ function buildBattleEffects(
       const logIndex = findSupportingLogEntry(newEntries, entry, "evolve", claimedLogIndexes, before);
       if (logIndex !== null) {
         claimedLogIndexes.add(logIndex);
-        effects.push({ id: nextId(), kind: "evolve", side: entry.sideId, targetUid: entry.uid, targetSlot: entry.slot, label: "Evolve" });
+        effects.push({ id: nextId(), kind: "evolve", side: entry.sideId, targetUid: entry.uid, targetSlot: entry.slot, targetRect: entry.rect ?? before.rect, label: "Evolve" });
       }
     }
     if (entry.energyCount > before.energyCount) {
       const logIndex = findSupportingLogEntry(newEntries, entry, "energy", claimedLogIndexes);
-      if (logIndex !== null) {
-        claimedLogIndexes.add(logIndex);
-        effects.push({ id: nextId(), kind: "energy", side: entry.sideId, targetUid: entry.uid, targetSlot: entry.slot, label: "Energy" });
-      }
+      if (logIndex === null) continue;
+      if (logIndex !== null) claimedLogIndexes.add(logIndex);
+      effects.push({
+        id: nextId(),
+        kind: "energy",
+        side: entry.sideId,
+        targetUid: entry.uid,
+        targetSlot: entry.slot,
+        targetRect: entry.rect ?? before.rect,
+        attachedEnergyBefore: getAttachedEnergyFromUmamusume(before.umamusume),
+        attachedEnergyAfter: getAttachedEnergyFromUmamusume(entry.umamusume),
+        label: "Energy",
+      });
     }
     if (entry.specialConditions !== before.specialConditions && entry.specialConditions) {
       const logIndex = findSupportingLogEntry(newEntries, entry, "status", claimedLogIndexes);
       if (logIndex !== null) {
+        const condition = getAddedSpecialCondition(before, entry);
         claimedLogIndexes.add(logIndex);
-        effects.push({ id: nextId(), kind: "status", side: entry.sideId, targetUid: entry.uid, targetSlot: entry.slot, label: "Status" });
+        effects.push({
+          id: nextId(),
+          kind: "status",
+          side: entry.sideId,
+          targetUid: entry.uid,
+          targetSlot: entry.slot,
+          targetRect: entry.rect ?? before.rect,
+          targetCardId: entry.cardId,
+          statusCondition: condition ?? undefined,
+          label: statusLabel(condition),
+        });
       }
     }
+    if (entry.toolCardId && entry.toolCardId !== before.toolCardId) {
+      const logIndex = findSupportingLogEntry(newEntries, entry, "tool", claimedLogIndexes);
+      if (logIndex === null) continue;
+      if (logIndex !== null) claimedLogIndexes.add(logIndex);
+      effects.push({
+        id: nextId(),
+        kind: "tool",
+        side: entry.sideId,
+        targetUid: entry.uid,
+        targetSlot: entry.slot,
+        targetRect: entry.rect ?? before.rect,
+        targetCardId: entry.cardId,
+        label: "Tool",
+      });
+    }
     if (entry.hp < before.hp) {
+      const alreadyTracked = effects.some(
+        (effect) => (effect.kind === "damage" || effect.kind === "ko")
+          && effect.targetUid === entry.uid
+          && effect.hpAfter === entry.hp,
+      );
+      if (alreadyTracked) continue;
       const amount = before.hp - entry.hp;
       const sourceSide = attackEntry ? getActorSideFromLog(attackEntry) ?? undefined : undefined;
       const source = sourceSide ? current[sourceSide].find((sourceEntry) => sourceEntry.slot.zone === "active") : undefined;
-      if (!attackEntry || koEntry || sourceSide === undefined) {
-        const logIndex = findSupportingLogEntry(newEntries, entry, "damage", claimedLogIndexes);
-        if (koEntry || logIndex !== null) {
-          if (logIndex !== null) claimedLogIndexes.add(logIndex);
-          effects.push({
-            id: nextId(),
-            kind: koEntry && entry.hp === 0 ? "ko" : "damage",
-            side: entry.sideId,
-            targetUid: entry.uid,
-            sourceUid: source?.uid,
-            sourceSide,
-            sourceSlot: attackEntry ? { zone: "active" } : undefined,
-            targetSlot: entry.slot,
-            amount,
-            label: "Damage",
-          });
-        }
-      }
+      const logIndex = findSupportingLogEntry(newEntries, entry, "damage", claimedLogIndexes);
+      if (!attackEntry && !koEntry && logIndex === null) continue;
+      if (logIndex !== null) claimedLogIndexes.add(logIndex);
+      effects.push({
+        id: nextId(),
+        batchKey: hpBatchKey,
+        kind: koEntry && entry.hp === 0 ? "ko" : "damage",
+        side: entry.sideId,
+        targetUid: entry.uid,
+        sourceUid: source?.uid,
+        sourceSide,
+        sourceSlot: attackEntry ? { zone: "active" } : undefined,
+        sourceRect: source?.rect,
+        targetCardId: entry.cardId,
+        targetUmamusume: entry.umamusume,
+        targetSlot: entry.slot,
+        targetRect: entry.rect ?? before.rect,
+        amount,
+        hpBefore: before.hp,
+        hpAfter: entry.hp,
+        label: "Damage",
+      });
     } else if (entry.hp > before.hp) {
+      const alreadyTracked = effects.some(
+        (effect) => effect.kind === "heal"
+          && effect.targetUid === entry.uid
+          && effect.hpAfter === entry.hp,
+      );
+      if (alreadyTracked) continue;
       const logIndex = findSupportingLogEntry(newEntries, entry, "heal", claimedLogIndexes);
-      if (logIndex !== null) {
-        claimedLogIndexes.add(logIndex);
-        effects.push({ id: nextId(), kind: "heal", side: entry.sideId, targetUid: entry.uid, targetSlot: entry.slot, amount: entry.hp - before.hp, label: "Heal" });
-      }
+      if (logIndex === null) continue;
+      if (logIndex !== null) claimedLogIndexes.add(logIndex);
+      effects.push({
+        id: nextId(),
+        batchKey: hpBatchKey,
+        kind: "heal",
+        side: entry.sideId,
+        targetUid: entry.uid,
+        targetSlot: entry.slot,
+        targetRect: entry.rect ?? before.rect,
+        targetCardId: entry.cardId,
+        amount: entry.hp - before.hp,
+        hpBefore: before.hp,
+        hpAfter: entry.hp,
+        label: "Heal",
+      });
     }
   }
 
   if (koEntry && !effects.some((effect) => effect.kind === "ko")) {
-    const knockedSide = koEntry.startsWith("Opponent's") ? "opponent" : "player";
-    effects.push({ id: nextId(), kind: "ko", side: knockedSide, targetSlot: { zone: "active" }, label: "KO" });
+    const sourceSide = attackEntry ? getActorSideFromLog(attackEntry) ?? undefined : undefined;
+    const source = sourceSide ? current[sourceSide].find((entry) => entry.slot.zone === "active") : undefined;
+    if (knockedEntry && !effects.some((effect) => effect.kind === "damage" && effect.targetUid === knockedEntry.uid)) {
+      effects.push({
+        id: nextId(),
+        batchKey: hpBatchKey,
+        kind: "damage",
+        side: knockedEntry.sideId,
+        targetUid: knockedEntry.uid,
+        sourceUid: source?.uid,
+        sourceSide,
+        sourceSlot: attackEntry ? { zone: "active" } : undefined,
+        sourceRect: source?.rect,
+        targetCardId: knockedEntry.cardId,
+        targetUmamusume: knockedEntry.umamusume,
+        targetSlot: knockedEntry.slot,
+        targetRect: knockedEntry.rect,
+        amount: knockedEntry.hp,
+        hpBefore: knockedEntry.hp,
+        hpAfter: 0,
+        label: "Damage",
+      });
+    }
+    effects.push({
+      id: nextId(),
+      kind: "ko",
+      side: knockedEntry?.sideId ?? knockedSide ?? "player",
+      targetUid: knockedEntry?.uid,
+      sourceUid: source?.uid,
+      sourceSide,
+      sourceSlot: attackEntry ? { zone: "active" } : undefined,
+      sourceRect: source?.rect,
+      targetCardId: knockedEntry?.cardId,
+      targetUmamusume: knockedEntry?.umamusume,
+      targetSlot: knockedEntry?.slot ?? { zone: "active" },
+      targetRect: knockedEntry?.rect,
+      hpBefore: knockedEntry?.hp,
+      hpAfter: 0,
+      label: "KO",
+    });
   }
 
-  return effects.slice(0, 5);
+  return effects;
+}
+
+function getLeadingBattleEffectBatch(queue: BattleEffectEvent[]): BattleEffectEvent[] {
+  const first = queue[0];
+  if (!first) return [];
+  if (!first.batchKey) return [first];
+  const batch: BattleEffectEvent[] = [];
+  for (const effect of queue) {
+    if (effect.batchKey !== first.batchKey) break;
+    batch.push(effect);
+  }
+  return batch;
 }
 
 function getNewLogHeadEntries(previousLog: string[], currentLog: string[]): string[] {
@@ -384,12 +610,45 @@ function getNewLogHeadEntries(previousLog: string[], currentLog: string[]): stri
     }
     if (matches) return currentLog.slice(0, start);
   }
-  return currentLog;
+  // The game log is capped. If enough entries are emitted at once, the previous
+  // overlap can be truncated away; treating the whole log as new replays old UI
+  // effects, so prefer dropping that ambiguous batch.
+  return [];
 }
 
 function hasPlayLogEntry(previousLog: string[], currentLog: string[], cardName: string): boolean {
   const newEntries = getNewLogHeadEntries(previousLog, currentLog);
   return newEntries.some((entry) => entry.includes(`played ${cardName}.`));
+}
+
+function hasHandGainLogEntry(newEntries: string[], sideId: SideId): boolean {
+  const actor = sideId === "player" ? "You" : "Opponent";
+  return newEntries.some((entry) => (
+    entry.startsWith(`${actor} drew `)
+    || (entry.startsWith(`${actor} added `) && entry.includes(" hand"))
+    || (entry.startsWith(`${actor} revealed `) && entry.includes("added it to") && entry.includes(" hand"))
+    || (entry.startsWith(`${actor} put `) && entry.includes(" into ") && entry.includes(" hand"))
+  ));
+}
+
+function hasHandDiscardLogEntry(newEntries: string[], sideId: SideId, cardName: string | null): boolean {
+  const actor = sideId === "player" ? "You" : "Opponent";
+  return newEntries.some((entry) => {
+    if (!entry.startsWith(`${actor} discarded `)) return false;
+    return !cardName || entry.includes(cardName) || /\bdiscarded \d+ cards?\b/i.test(entry) || entry.includes("discarded 1 card");
+  });
+}
+
+function isAutomaticTurnDraw(
+  previous: { currentSide: GameState["currentSide"]; player: { deck: string[] }; opponent: { deck: string[] } },
+  current: { currentSide: GameState["currentSide"]; player: { deck: string[] }; opponent: { deck: string[] } },
+  sideId: SideId,
+  gainedCards: string[],
+): boolean {
+  return gainedCards.length === 1
+    && previous.currentSide !== current.currentSide
+    && current.currentSide === sideId
+    && current[sideId].deck.length === previous[sideId].deck.length - 1;
 }
 
 function getShuffleHandDrawCount(previousLog: string[], currentLog: string[], sideId: SideId): number | null {
@@ -448,7 +707,14 @@ export function App() {
   const [acknowledgedCoinLogMessage, setAcknowledgedCoinLogMessage] = useState<string | null>(null);
   const [pendingCoinAttack, setPendingCoinAttack] = useState<PendingCoinAttack | null>(null);
   const [cardFlowQueue, setCardFlowQueue] = useState<CardFlowItem[][]>([]);
+  const [openingHandDeferredRevealCardIds, setOpeningHandDeferredRevealCardIds] = useState<string[]>([]);
   const [battleEffectQueue, setBattleEffectQueue] = useState<BattleEffectEvent[]>([]);
+  const [koCrumblingUids, setKoCrumblingUids] = useState<Set<number>>(new Set());
+  const [koRetainedActiveBySide, setKoRetainedActiveBySide] = useState<Partial<Record<SideId, UmamusumeInstance>>>({});
+  const [koVacancyBySide, setKoVacancyBySide] = useState<Partial<Record<SideId, boolean>>>({});
+  const [koPromotionLockedBySide, setKoPromotionLockedBySide] = useState<Partial<Record<SideId, boolean>>>({});
+  const [visualHpByUid, setVisualHpByUid] = useState<VisualHpByUid>({});
+  const [visualAttachedEnergyByUid, setVisualAttachedEnergyByUid] = useState<VisualAttachedEnergyByUid>({});
   const [openingCoinChoicePending, setOpeningCoinChoicePending] = useState(false);
   const [setupActiveIndex, setSetupActiveIndex] = useState<number | null>(null);
   const [setupBenchIndexes, setSetupBenchIndexes] = useState<number[]>([]);
@@ -469,6 +735,8 @@ export function App() {
   const previousLogRef = useRef<string[]>([]);
   const previousBattleSnapshotRef = useRef<BattleSnapshot | null>(null);
   const battleEffectIdRef = useRef(1);
+  const koVacancyTimeoutBySideRef = useRef<Partial<Record<SideId, number>>>({});
+  const koCrumbleTimeoutIdsRef = useRef<number[]>([]);
   const previousPlayerZonesRef = useRef<{
     player: { hand: string[]; deck: string[]; discard: string[]; inPlay: string[] };
     opponent: { hand: string[]; deck: string[]; discard: string[]; inPlay: string[] };
@@ -480,7 +748,9 @@ export function App() {
   const wasSetupCoinFlipBlockingRef = useRef(false);
   const coinFlipIdRef = useRef(1);
   const openingHandAnimationKeyRef = useRef<string | null>(null);
+  const openingHandDeferredRevealTimeoutRef = useRef<number | null>(null);
   const shouldDealOpeningHandsAfterFlowRef = useRef(false);
+  const queuedVisualActionsRef = useRef<Array<() => void>>([]);
   const skipNextCoinLogMessageRef = useRef<string | null>(null);
   const pvpPeerRef = useRef<PeerRuntime | null>(null);
   const pvpRtcConfigRef = useRef<RTCConfiguration | null>(null);
@@ -500,6 +770,7 @@ export function App() {
   const remoteDeckRef = useRef<string[] | null>(null);
   const remoteEnergyTypesRef = useRef<EnergyType[] | null>(null);
   const remoteNameRef = useRef<string>("Opponent");
+  const appliedVisibleHpBatchRef = useRef<string>("");
   const equippedDeck = getDeckById(equippedDeckId);
   const selectedPlaymat = getSelectedPlaymat(customisation);
   const uiTextTone = getPlaymatTextTone(customisation);
@@ -513,7 +784,9 @@ export function App() {
   // During preparation we always show the player's playmat to avoid a one-frame flash
   // if the POV was previously switched in AI-vs-AI.
   const displayPerspective: SideId = isAiVsAi ? (game.phase === "setup" ? "player" : aiPerspective) : "player";
-  const displayGame = isNetworkMatch ? game : toPerspectiveGame(game, displayPerspective);
+  const baseDisplayGame = isNetworkMatch ? game : toPerspectiveGame(game, displayPerspective);
+  const retainedKoDisplayGame = withRetainedKoActive(baseDisplayGame, battleEffectQueue, koRetainedActiveBySide);
+  const displayGame = withKoVacantActive(retainedKoDisplayGame, koVacancyBySide);
   const player = game.sides.player;
   const displayPlayer = displayGame.sides.player;
   const localPlayerName = getAccountPlayerName(firebaseAccount);
@@ -555,6 +828,9 @@ export function App() {
     coinFlipQueue,
     acknowledgedCoinLogMessage,
   });
+  const hasKoVacancy = Boolean(koVacancyBySide.player || koVacancyBySide.opponent);
+  const hasKoPromotionLock = Boolean(koPromotionLockedBySide.player || koPromotionLockedBySide.opponent);
+  const visualFlowBlocked = battleEffectQueue.length > 0 || koCrumblingUids.size > 0 || hasKoVacancy || hasKoPromotionLock || (cardFlowQueue.length > 0 && !game.pendingPlayerChoice);
 
   useEffect(() => {
     pvpRoleRef.current = pvpRole;
@@ -563,6 +839,20 @@ export function App() {
   useEffect(() => {
     matchModeRef.current = matchMode;
   }, [matchMode]);
+
+  useEffect(() => () => {
+    const timeouts = koVacancyTimeoutBySideRef.current;
+    (["player", "opponent"] as SideId[]).forEach((sideId) => {
+      const timeoutId = timeouts[sideId];
+      if (timeoutId !== undefined) window.clearTimeout(timeoutId);
+    });
+    koCrumbleTimeoutIdsRef.current.forEach((timeoutId) => window.clearTimeout(timeoutId));
+    koCrumbleTimeoutIdsRef.current = [];
+    if (openingHandDeferredRevealTimeoutRef.current !== null) {
+      window.clearTimeout(openingHandDeferredRevealTimeoutRef.current);
+      openingHandDeferredRevealTimeoutRef.current = null;
+    }
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -636,7 +926,16 @@ export function App() {
 
   useEffect(() => {
     if (!game.gameOver) return;
+    queuedVisualActionsRef.current = [];
     setCardFlowQueue([]);
+    setOpeningHandDeferredRevealCardIds([]);
+    if (openingHandDeferredRevealTimeoutRef.current !== null) {
+      window.clearTimeout(openingHandDeferredRevealTimeoutRef.current);
+      openingHandDeferredRevealTimeoutRef.current = null;
+    }
+    setKoVacancyBySide({});
+    setVisualHpByUid({});
+    setVisualAttachedEnergyByUid({});
     openingHandAnimationKeyRef.current = null;
     shouldDealOpeningHandsAfterFlowRef.current = false;
   }, [game.gameOver]);
@@ -650,12 +949,26 @@ export function App() {
     previousLogRef.current = [];
     previousBattleSnapshotRef.current = null;
     previousPlayerZonesRef.current = null;
+    queuedVisualActionsRef.current = [];
     setCoinFlipQueue([]);
     setActiveCoinFlip(null);
     setAcknowledgedCoinLogMessage(null);
     setPendingCoinAttack(null);
     setCardFlowQueue([]);
+    setOpeningHandDeferredRevealCardIds([]);
+    if (openingHandDeferredRevealTimeoutRef.current !== null) {
+      window.clearTimeout(openingHandDeferredRevealTimeoutRef.current);
+      openingHandDeferredRevealTimeoutRef.current = null;
+    }
     setBattleEffectQueue([]);
+    setKoVacancyBySide({});
+    setVisualHpByUid({});
+    setVisualAttachedEnergyByUid({});
+    (["player", "opponent"] as SideId[]).forEach((sideId) => {
+      const timeoutId = koVacancyTimeoutBySideRef.current[sideId];
+      if (timeoutId !== undefined) window.clearTimeout(timeoutId);
+      delete koVacancyTimeoutBySideRef.current[sideId];
+    });
     skipNextCoinLogMessageRef.current = null;
     setSetupActiveIndex(null);
     setSetupBenchIndexes([]);
@@ -1370,7 +1683,8 @@ export function App() {
     isNetworkMatch,
     shouldDriveSetupCountdown: !isNetworkMatch || isPvpHost,
     advanceSetupCountdown,
-    isTurnFlowBlocked: isTurnFlowBlocked || cardFlowQueue.length > 0,
+    isTurnFlowBlocked: isTurnFlowBlocked || visualFlowBlocked,
+    isBattleAnimationBlocking: visualFlowBlocked || Boolean(activeCoinFlip),
     isCoinFlipBlocking,
     hiddenOpponent,
     equippedDeckId: equippedDeck.id,
@@ -1416,7 +1730,7 @@ export function App() {
     screen,
     gameOver: game.gameOver,
     hasPendingPlayerChoice: hasLocalPendingChoice,
-    isTurnFlowBlocked,
+    isTurnFlowBlocked: isTurnFlowBlocked || visualFlowBlocked,
     endTurnWarningActions,
     previewTarget,
     discardOpen,
@@ -1453,8 +1767,8 @@ export function App() {
     formatKoActionNotice,
   });
 
-  useEffect(() => {
-    const current = createBattleSnapshot(displayGame);
+  useLayoutEffect(() => {
+    const current = createBattleSnapshot(baseDisplayGame);
     const previous = previousBattleSnapshotRef.current;
     if (!previous) {
       previousBattleSnapshotRef.current = current;
@@ -1464,11 +1778,39 @@ export function App() {
     if (current.phase !== "play" || isCoinFlipBlocking) return;
 
     const effects = buildBattleEffects(previous, current, () => battleEffectIdRef.current++);
-    if (effects.length > 0) setBattleEffectQueue((queue) => [...queue, ...effects]);
+    if (effects.length > 0) {
+      const activeKoSides = effects
+        .filter((effect) => effect.kind === "ko" && effect.targetSlot?.zone === "active")
+        .map((effect) => effect.side);
+      if (activeKoSides.length > 0) {
+        setKoPromotionLockedBySide((currentLocks) => {
+          const nextLocks = { ...currentLocks };
+          activeKoSides.forEach((sideId) => { nextLocks[sideId] = true; });
+          return nextLocks;
+        });
+      }
+      setBattleEffectQueue((queue) => [...queue, ...effects]);
+      setVisualHpByUid((currentVisualHp) => {
+        const nextVisualHp = { ...currentVisualHp };
+        effects.forEach((effect) => {
+          if (effect.targetUid === undefined || effect.hpBefore === undefined) return;
+          if (nextVisualHp[effect.targetUid] === undefined) nextVisualHp[effect.targetUid] = effect.hpBefore;
+        });
+        return nextVisualHp;
+      });
+      setVisualAttachedEnergyByUid((currentVisualEnergy) => {
+        const nextVisualEnergy = { ...currentVisualEnergy };
+        effects.forEach((effect) => {
+          if (effect.kind !== "energy" || effect.targetUid === undefined || !effect.attachedEnergyBefore) return;
+          if (nextVisualEnergy[effect.targetUid] === undefined) nextVisualEnergy[effect.targetUid] = effect.attachedEnergyBefore;
+        });
+        return nextVisualEnergy;
+      });
+    }
     previousBattleSnapshotRef.current = current;
-  }, [displayGame, isCoinFlipBlocking]);
+  }, [baseDisplayGame, isCoinFlipBlocking]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const previous = previousPlayerZonesRef.current;
     const current = {
       player: {
@@ -1502,6 +1844,7 @@ export function App() {
     // Keeping the previous snapshot allows the queued diff to animate immediately after unblock.
     if (isCoinFlipBlocking) return;
     const nextFlow: CardFlowItem[] = [];
+    const newLogEntries = getNewLogHeadEntries(previous.log, current.log);
     const povSideId: SideId = isAiVsAi ? displayPerspective : "player";
     const sideIds: SideId[] = ["player", "opponent"];
     for (const sideId of sideIds) {
@@ -1529,7 +1872,9 @@ export function App() {
         // Diff alone misses those redraws, so take the freshly rebuilt hand tail by drawn count.
         obtainedFromDeckCards = currentSide.hand.slice(-shuffleDrawCount);
       }
-      if (obtainedFromDeckCards.length > 0 && isPovSide) {
+      const shouldShowHandGain = hasHandGainLogEntry(newLogEntries, sideId)
+        || isAutomaticTurnDraw(previous, current, sideId, obtainedFromDeckCards);
+      if (obtainedFromDeckCards.length > 0 && isPovSide && shouldShowHandGain) {
         const label = `${actor} Drew`;
         obtainedFromDeckCards.slice(0, 5).forEach((cardId) => {
           nextFlow.push({
@@ -1556,7 +1901,8 @@ export function App() {
       discardedFromHandCards.slice(0, 5).forEach((discardedFromHand) => {
         const cardName = tryGetCardName(discardedFromHand);
         const played = Boolean(cardName && hasPlayLogEntry(previous.log, current.log, cardName));
-        if (!played && !isPovSide) return;
+        const discarded = hasHandDiscardLogEntry(newLogEntries, sideId, cardName);
+        if (!played && (!isPovSide || !discarded)) return;
 
         nextFlow.push({
           cardId: discardedFromHand,
@@ -1625,11 +1971,34 @@ export function App() {
       setRevealedOpponentHandOpen(true);
     },
   });
+  const queueVisualAction = (action: () => void) => {
+    if (visualFlowBlocked) {
+      queuedVisualActionsRef.current.push(action);
+      return;
+    }
+    action();
+  };
+  useEffect(() => {
+    if (visualFlowBlocked || queuedVisualActionsRef.current.length === 0) return;
+    const queuedActions = queuedVisualActionsRef.current;
+    queuedVisualActionsRef.current = [];
+    queuedActions.forEach((action) => action());
+  }, [visualFlowBlocked]);
+  const queuedPlayHandCardOnCenter = (handIndex: number) => queueVisualAction(() => playHandCardOnCenter(handIndex));
+  const queuedPlayHandCardOnStadiumSpot = (handIndex: number) => queueVisualAction(() => playHandCardOnStadiumSpot(handIndex));
+  const queuedPlayHandCardOnUmamusume = (handIndex: number, umamusumeUid: number) => queueVisualAction(() => playHandCardOnUmamusume(handIndex, umamusumeUid));
+  const queuedPlayHandCardOnBenchSlot = (handIndex: number) => queueVisualAction(() => playHandCardOnBenchSlot(handIndex));
+  const queuedAttachEnergyByDrop = (umamusumeUid: number) => queueVisualAction(() => attachEnergyByDrop(umamusumeUid));
+  const queuedMoveAbilityEnergyByDrop = (sourceUmamusumeUid: number, energyType: EnergyType) => queueVisualAction(() => moveAbilityEnergyByDrop(sourceUmamusumeUid, energyType));
+  const queuedChooseHandCard = (handIndex: number) => queueVisualAction(() => chooseHandCard(handIndex));
+  const queuedSelectUmamusume = (umamusume: UmamusumeInstance) => queueVisualAction(() => selectUmamusume(umamusume));
+  const queuedSelectStadiumForTrainerTarget = () => queueVisualAction(selectStadiumForTrainerTarget);
+  const queuedSelectAttachedToolForTrainerTarget = (umamusumeUid: number) => queueVisualAction(() => selectAttachedToolForTrainerTarget(umamusumeUid));
   const cardPreviewActions = useCardPreviewActions({
     game,
     player,
     previewTarget,
-    isTurnFlowBlocked,
+    isTurnFlowBlocked: isTurnFlowBlocked || visualFlowBlocked,
     coinFlipIdRef,
     setGame,
     setPendingSelection,
@@ -1654,8 +2023,8 @@ export function App() {
     setAcknowledgedCoinLogMessage,
     toCoinFlipEvent,
   });
-  const canAttachInHeader = !isAiVsAi && canAttachEnergy(game, player) && !isBusyWithChoice;
-  const canEndTurnInHeader = !isAiVsAi && !game.gameOver && game.currentSide === "player" && !isBusyWithChoice;
+  const canAttachInHeader = !isAiVsAi && canAttachEnergy(game, player) && !isBusyWithChoice && !visualFlowBlocked;
+  const canEndTurnInHeader = !isAiVsAi && !game.gameOver && game.currentSide === "player" && !isBusyWithChoice && !visualFlowBlocked;
   const hasLocalSetupReady = game.phase === "setup" ? (game.setup?.readyBySide.player ?? false) : false;
   const openingHandsDealt = game.phase === "setup" ? (game.setup?.openingHandsDealt ?? false) : true;
   const canChooseOpeningCoin = game.phase === "setup"
@@ -1673,6 +2042,136 @@ export function App() {
         message: formatMatchText(topBanner.message),
       }
     : null;
+  const activeBattleEffects = battleEffectQueue[0]?.batchKey
+    ? getLeadingBattleEffectBatch(battleEffectQueue)
+    : battleEffectQueue[0]
+      ? [battleEffectQueue[0]]
+      : [];
+  const completeBattleEffect = () => {
+    const completedEffects = getLeadingBattleEffectBatch(battleEffectQueue);
+    const remaining = battleEffectQueue.slice(completedEffects.length || 1);
+    const completedKoEffects = completedEffects.filter((effect) => effect.kind === "ko" && effect.targetUid !== undefined);
+    const completedKoUids = completedKoEffects.map((effect) => effect.targetUid as number);
+    const completedActiveKoEffects = completedKoEffects.filter((effect) => effect.targetSlot?.zone === "active");
+    setBattleEffectQueue(remaining);
+    setVisualHpByUid((currentVisualHp) => {
+      const nextVisualHp = { ...currentVisualHp };
+      completedEffects.forEach((effect) => {
+        if (effect.targetUid === undefined || effect.hpAfter === undefined) return;
+        const hasFutureHpEvent = remaining.some((futureEffect) => futureEffect.targetUid === effect.targetUid && futureEffect.hpAfter !== undefined);
+        if (!hasFutureHpEvent) delete nextVisualHp[effect.targetUid];
+      });
+      return nextVisualHp;
+    });
+    setVisualAttachedEnergyByUid((currentVisualEnergy) => {
+      const nextVisualEnergy = { ...currentVisualEnergy };
+      completedEffects.forEach((effect) => {
+        if (effect.kind !== "energy" || effect.targetUid === undefined) return;
+        if (effect.attachedEnergyAfter) nextVisualEnergy[effect.targetUid] = effect.attachedEnergyAfter;
+        const hasFutureEnergyEvent = remaining.some((futureEffect) => futureEffect.kind === "energy" && futureEffect.targetUid === effect.targetUid);
+        if (!hasFutureEnergyEvent) delete nextVisualEnergy[effect.targetUid];
+      });
+      return nextVisualEnergy;
+    });
+    if (completedKoUids.length > 0) {
+      setKoCrumblingUids((current) => {
+        const next = new Set(current);
+        completedKoUids.forEach((uid) => next.add(uid));
+        return next;
+      });
+      setKoRetainedActiveBySide((current) => {
+        const next = { ...current };
+        completedActiveKoEffects.forEach((effect) => {
+          if (effect.targetUmamusume) next[effect.side] = cloneBattleSnapshotUmamusume(effect.targetUmamusume);
+        });
+        return next;
+      });
+      const crumbleTimeout = window.setTimeout(() => {
+        setKoCrumblingUids((current) => {
+          const next = new Set(current);
+          completedKoUids.forEach((uid) => next.delete(uid));
+          return next;
+        });
+        if (completedActiveKoEffects.length > 0) {
+          const activeSides = completedActiveKoEffects.map((effect) => effect.side);
+          setKoRetainedActiveBySide((current) => {
+            const next = { ...current };
+            activeSides.forEach((sideId) => {
+              delete next[sideId];
+            });
+            return next;
+          });
+          setKoVacancyBySide((current) => {
+            const next = { ...current };
+            activeSides.forEach((sideId) => { next[sideId] = true; });
+            return next;
+          });
+          activeSides.forEach((sideId) => {
+            const existingTimeout = koVacancyTimeoutBySideRef.current[sideId];
+            if (existingTimeout !== undefined) window.clearTimeout(existingTimeout);
+            koVacancyTimeoutBySideRef.current[sideId] = window.setTimeout(() => {
+              setKoVacancyBySide((current) => {
+                const next = { ...current };
+                delete next[sideId];
+                return next;
+              });
+              setKoPromotionLockedBySide((current) => {
+                const next = { ...current };
+                delete next[sideId];
+                return next;
+              });
+              delete koVacancyTimeoutBySideRef.current[sideId];
+            }, KO_ACTIVE_VACANCY_MS);
+          });
+        }
+      }, KO_DISSOLVE_MS + 20);
+      koCrumbleTimeoutIdsRef.current.push(crumbleTimeout);
+    }
+  };
+  const activeKoImpactUidBySide: Partial<Record<SideId, number>> = {};
+  activeBattleEffects.forEach((effect) => {
+    if (effect.kind !== "ko" || effect.targetSlot?.zone !== "active" || effect.targetUid === undefined) return;
+    activeKoImpactUidBySide[effect.side] = effect.targetUid;
+  });
+  const activeKoAnimatingUidBySide: Partial<Record<SideId, number>> = {};
+  const koAnimatingUids = new Set<number>(koCrumblingUids);
+  const suppressActiveReplacementBySide: Partial<Record<SideId, boolean>> = {};
+  (["player", "opponent"] as SideId[]).forEach((sideId) => {
+    const retainedActive = koRetainedActiveBySide[sideId];
+    if (retainedActive && koAnimatingUids.has(retainedActive.uid)) {
+      activeKoAnimatingUidBySide[sideId] = retainedActive.uid;
+      suppressActiveReplacementBySide[sideId] = true;
+    }
+    if (koVacancyBySide[sideId]) suppressActiveReplacementBySide[sideId] = true;
+  });
+  const cardFlowHasPriority = cardFlowQueue[0]?.some((item) => item.group === "played" || item.group === "discarded") ?? false;
+  const canShowCardFlowOverlay = cardFlowQueue.length > 0
+    && (battleEffectQueue.length === 0 || cardFlowHasPriority)
+    && !activeCoinFlip
+    && !game.pendingPlayerChoice;
+  const canShowBattleEffects = activeBattleEffects.length > 0
+    && !activeCoinFlip
+    && !cardFlowHasPriority;
+  useEffect(() => {
+    if (!canShowBattleEffects) return;
+    const hpEffects = activeBattleEffects.filter((effect) => effect.targetUid !== undefined && effect.hpAfter !== undefined);
+    if (hpEffects.length === 0) return;
+    const hpBatchSignature = hpEffects.map((effect) => `${effect.id}:${effect.targetUid}:${effect.hpAfter}`).join("|");
+    if (appliedVisibleHpBatchRef.current === hpBatchSignature) return;
+    appliedVisibleHpBatchRef.current = hpBatchSignature;
+    setVisualHpByUid((currentVisualHp) => {
+      const nextVisualHp = { ...currentVisualHp };
+      hpEffects.forEach((effect) => {
+        nextVisualHp[effect.targetUid!] = effect.hpAfter!;
+      });
+      return nextVisualHp;
+    });
+  }, [canShowBattleEffects, activeBattleEffects]);
+  const canShowSelectionPrompt = Boolean(activePendingSelection)
+    && battleEffectQueue.length === 0
+    && koCrumblingUids.size === 0
+    && !hasKoVacancy
+    && !activeCoinFlip;
   const pvpSecondsRemaining = game.turnDeadlineMs === null
     ? 30
     : Math.max(0, Math.ceil((game.turnDeadlineMs - pvpTimerNowMs) / 1000));
@@ -1692,7 +2191,8 @@ export function App() {
   const displayOpponentSleeveImage = isAiVsAi && displayPerspective === "opponent" ? selectedSleeve.image : opponentSleeve.image;
   const deferredHandRevealCardIds = (cardFlowQueue[0] ?? [])
     .filter((item) => item.group === "drawn" && item.exitTo === "bottomCenter")
-    .map((item) => item.cardId);
+    .map((item) => item.cardId)
+    .concat(openingHandDeferredRevealCardIds);
   const isPlayPhase = game.phase === "play";
   const showSelectedPlaymat = isPlayPhase
     ? game.currentSide === "player"
@@ -1774,21 +2274,21 @@ export function App() {
           abilityEnergyTypes={abilityEnergyTypes}
           setupDragHandIndexByUid={setupDragHandIndexByUid}
           onInspect={openPreview}
-          onUmamusumeSelect={selectUmamusume}
-          onAttachedToolSelect={pendingSelection?.kind === "masterCleatHammerTarget" ? selectAttachedToolForTrainerTarget : undefined}
+          onUmamusumeSelect={queuedSelectUmamusume}
+          onAttachedToolSelect={pendingSelection?.kind === "masterCleatHammerTarget" ? queuedSelectAttachedToolForTrainerTarget : undefined}
           onSetupDropActive={applySetupActive}
           onSetupDropBench={applySetupBench}
           onSetupPromoteToActive={promoteSetupBenchToActive}
-          onHandCardDropOnUmamusume={playHandCardOnUmamusume}
-          onHandCardDropOnBenchSlot={playHandCardOnBenchSlot}
-          onEnergyDropOnUmamusume={attachEnergyByDrop}
-          onAbilityEnergyDropOnActive={moveAbilityEnergyByDrop}
+          onHandCardDropOnUmamusume={queuedPlayHandCardOnUmamusume}
+          onHandCardDropOnBenchSlot={queuedPlayHandCardOnBenchSlot}
+          onEnergyDropOnUmamusume={queuedAttachEnergyByDrop}
+          onAbilityEnergyDropOnActive={queuedMoveAbilityEnergyByDrop}
           opponentSleeveImage={displayOpponentSleeveImage}
           stadiumAbilityReady={stadiumAbilityReady}
-          onDropHandCardOnStadium={playHandCardOnStadiumSpot}
-          onSelectStadiumTarget={selectStadiumForTrainerTarget}
+          onDropHandCardOnStadium={queuedPlayHandCardOnStadiumSpot}
+          onSelectStadiumTarget={queuedSelectStadiumForTrainerTarget}
           stadiumSelectable={pendingSelection?.kind === "masterCleatHammerTarget"}
-          onDropHandCardOnCenter={playHandCardOnCenter}
+          onDropHandCardOnCenter={queuedPlayHandCardOnCenter}
           setupActiveIndex={setupActiveIndex}
           setupBenchIndexes={setupBenchIndexes}
           menuOpen={menuOpen}
@@ -1818,18 +2318,32 @@ export function App() {
           turnAlert={turnAlert}
           onEndTurn={handleEndTurn}
           selectableHandIndexes={selectableHandIndexes}
-          onChooseHandCard={chooseHandCard}
+          onChooseHandCard={queuedChooseHandCard}
           onOpenDiscard={onOpenPlayerDiscard}
           onOpenOpponentZones={onOpenOpponentZones}
           displayLog={displayLog}
+          visualHpByUid={visualHpByUid}
+          visualAttachedEnergyByUid={visualAttachedEnergyByUid}
+          koAnimatingUids={koAnimatingUids}
+          suppressActiveReplacementBySide={suppressActiveReplacementBySide}
+          activeKoImpactUidBySide={activeKoImpactUidBySide}
+          activeKoAnimatingUidBySide={activeKoAnimatingUidBySide}
         />
-        {displayTopBanner && <OpponentActionBanner title={displayTopBanner.title} message={displayTopBanner.message} paused={displayTopBanner.paused} />}
-        {battleEffectQueue[0] && !activeCoinFlip && (
-          <BattleEffectOverlay
-            key={battleEffectQueue[0].id}
-            event={battleEffectQueue[0]}
-            onDone={() => setBattleEffectQueue((queue) => queue.slice(1))}
-          />
+        {displayTopBanner && (
+          <Suspense fallback={null}>
+            <OpponentActionBanner title={displayTopBanner.title} message={displayTopBanner.message} paused={displayTopBanner.paused} />
+          </Suspense>
+        )}
+        {canShowBattleEffects && (
+          <Suspense fallback={null}>
+            {activeBattleEffects.map((effect, index) => (
+              <BattleEffectOverlay
+                key={effect.id}
+                event={effect}
+                onDone={index === activeBattleEffects.length - 1 ? completeBattleEffect : () => undefined}
+              />
+            ))}
+          </Suspense>
         )}
         {game.phase === "setup" && (!game.setup?.coinFlipResult || (openingCoinChoicePending && !activeCoinFlip)) && (
           <CoinFlipOverlay
@@ -1855,23 +2369,35 @@ export function App() {
             onContinue={handleCoinFlipContinue}
           />
         )}
-        {cardFlowQueue[0] && (
-          <CardFlowOverlay
-            items={cardFlowQueue[0]}
-            durationMs={game.phase === "setup" ? 1500 : 2100}
-            onDone={() => {
-              setCardFlowQueue((queue) => queue.slice(1));
-              if (!shouldDealOpeningHandsAfterFlowRef.current) return;
-              shouldDealOpeningHandsAfterFlowRef.current = false;
-              setGame((current) => {
-                const next = dealOpeningHands(current);
-                if (isPvpHost) syncToGuest(next);
-                return next;
-              });
-            }}
-          />
+        {canShowCardFlowOverlay && cardFlowQueue[0] && (
+          <Suspense fallback={null}>
+            <CardFlowOverlay
+              items={cardFlowQueue[0]}
+              durationMs={game.phase === "setup" ? 1500 : 2100}
+              onDone={() => {
+                const completedFlow = cardFlowQueue[0] ?? [];
+                setCardFlowQueue((queue) => queue.slice(1));
+                if (!shouldDealOpeningHandsAfterFlowRef.current) return;
+                shouldDealOpeningHandsAfterFlowRef.current = false;
+                const openingRevealCardIds = completedFlow
+                  .filter((item) => item.group === "drawn" && item.exitTo === "bottomCenter")
+                  .map((item) => item.cardId);
+                setOpeningHandDeferredRevealCardIds(openingRevealCardIds);
+                if (openingHandDeferredRevealTimeoutRef.current !== null) window.clearTimeout(openingHandDeferredRevealTimeoutRef.current);
+                openingHandDeferredRevealTimeoutRef.current = window.setTimeout(() => {
+                  setOpeningHandDeferredRevealCardIds([]);
+                  openingHandDeferredRevealTimeoutRef.current = null;
+                }, 120);
+                setGame((current) => {
+                  const next = dealOpeningHands(current);
+                  if (isPvpHost) syncToGuest(next);
+                  return next;
+                });
+              }}
+            />
+          </Suspense>
         )}
-        {activePendingSelection && (
+        {canShowSelectionPrompt && activePendingSelection && (
           <SelectionPrompt
             pending={activePendingSelection}
             onCancel={onSelectionCancel}
@@ -1945,13 +2471,15 @@ export function App() {
           />
         )}
         {game.gameOver && (
-          <GameOverModal
-            game={displayGame}
-            playerName="You"
-            opponentName="Opponent"
-            onPlayAgain={isNetworkMatch ? returnToPvpLobbyForRematch : onPlayAgain}
-            onMainMenu={returnToMainMenu}
-          />
+          <Suspense fallback={null}>
+            <GameOverModal
+              game={displayGame}
+              playerName="You"
+              opponentName="Opponent"
+              onPlayAgain={isNetworkMatch ? returnToPvpLobbyForRematch : onPlayAgain}
+              onMainMenu={returnToMainMenu}
+            />
+          </Suspense>
         )}
       </Suspense>
       <div style={screenFadeOverlayStyle(screenFadeOverlayOpacity)} />
