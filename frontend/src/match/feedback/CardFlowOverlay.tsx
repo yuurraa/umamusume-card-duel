@@ -1,7 +1,7 @@
 import { type AnimationEvent, type CSSProperties, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { getCard } from "../../game/engine";
 import { HoloCardImage } from "../../components/cards/HoloCardImage";
-import { CARD_ASPECT_RATIO, CARD_INSPECT_IMAGE_RADIUS, colors, radius, shadows } from "../../styles/shared";
+import { CARD_ASPECT_RATIO, colors, radius, shadows } from "../../styles/shared";
 import { isImagePreloaded, preloadImage } from "../../utils/imagePreload";
 
 export type CardFlowAnchor = "bottomLeft" | "bottomCenter" | "bottomRight" | "leftDeck" | "rightDiscard" | "rightHand" | "leftHand";
@@ -14,6 +14,8 @@ export type CardFlowItem = {
   enterFrom: CardFlowAnchor;
   exitTo: CardFlowAnchor;
 };
+
+const CARD_FLOW_IMAGE_RADIUS = 8;
 
 export function CardFlowOverlay({
   items,
@@ -119,7 +121,7 @@ export function CardFlowOverlay({
 const rootStyle: CSSProperties = {
   position: "fixed",
   inset: 0,
-  zIndex: 70,
+  zIndex: 92,
   pointerEvents: "none",
 };
 
@@ -464,7 +466,7 @@ function FlowCard({
           src={image}
           alt={card.name}
           imageStyle={cardImageStyle}
-          radiusOverride={CARD_INSPECT_IMAGE_RADIUS}
+          radiusOverride={CARD_FLOW_IMAGE_RADIUS}
           disableHoverAnimation
         />
       </div>

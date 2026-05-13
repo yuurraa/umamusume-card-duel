@@ -41,6 +41,8 @@ type SideBoardProps = {
   activeKoImpactUid?: number | undefined;
   activeKoAnimatingUid?: number | undefined;
   koAnimatingUids?: Set<number> | undefined;
+  scorePointsOverride?: number | undefined;
+  scorePointGainAnimating?: number | undefined;
 };
 
 type SideTone = {
@@ -87,6 +89,8 @@ export function SideBoard({
   activeKoImpactUid,
   activeKoAnimatingUid,
   koAnimatingUids,
+  scorePointsOverride,
+  scorePointGainAnimating,
 }: SideBoardProps) {
   const isPlayer = sideId === "player";
   const activeType = hidden ? null : side.active ? getUmamusumeCard(side.active).type : null;
@@ -228,6 +232,7 @@ export function SideBoard({
       }}
         >
           <UmaCard
+            key={`active-umamusume-${side.active.uid}`}
             umamusume={side.active}
             hidden={hidden}
             sleeveImage={sleeveImage}
@@ -259,35 +264,36 @@ export function SideBoard({
       </div>
     </div>
   ) : (
-    <div
-      style={{
-        ...emptyActiveSpotStyle,
-        border: activeDropHovered ? `2px solid ${tone.hoverBorderColor}` : emptyActiveSpotStyle.border,
-        background: activeDropHovered ? tone.hoverBackground : emptyActiveSpotStyle.background,
-        boxShadow: activeDropHovered ? `0 0 0 5px ${tone.hoverRingColor}, 0 0 30px ${tone.hoverGlowColor}` : shadows.none,
-        transition: `border-color ${transitions.fast}, background ${transitions.fast}, box-shadow ${transitions.fast}`,
-      }}
-      onDragOver={(event) => {
-        if (!setupMode || !setupInteractionsEnabled || !onSetupDropActive || hidden || !hasTextDragPayload(event)) return;
-        event.preventDefault();
-        event.dataTransfer.dropEffect = "move";
-        setActiveDropHovered(true);
-      }}
-      onDragEnter={(event) => {
-        if (!setupMode || !setupInteractionsEnabled || hidden || !hasTextDragPayload(event)) return;
-        setActiveDropHovered(true);
-      }}
-      onDragLeave={() => setActiveDropHovered(false)}
-      onDrop={(event) => {
-        event.preventDefault();
-        if (!setupMode || !setupInteractionsEnabled || !onSetupDropActive || hidden) return;
-        const payload = readDragPayload(event.dataTransfer);
-        if (payload?.kind !== "setup-hand") return;
-        setActiveDropHovered(false);
-        handleActiveDrop(event);
-      }}
-    >
-      Active Spot
+    <div style={activeCardFrameStyle}>
+      <div style={activeSlotBackdropStyle} aria-hidden="true" />
+      <div
+        style={{
+          ...emptyActiveSpotStyle,
+          boxShadow: activeDropHovered ? `0 0 0 5px ${tone.hoverRingColor}, 0 0 30px ${tone.hoverGlowColor}` : shadows.none,
+          transition: `box-shadow ${transitions.fast}`,
+        }}
+        onDragOver={(event) => {
+          if (!setupMode || !setupInteractionsEnabled || !onSetupDropActive || hidden || !hasTextDragPayload(event)) return;
+          event.preventDefault();
+          event.dataTransfer.dropEffect = "move";
+          setActiveDropHovered(true);
+        }}
+        onDragEnter={(event) => {
+          if (!setupMode || !setupInteractionsEnabled || hidden || !hasTextDragPayload(event)) return;
+          setActiveDropHovered(true);
+        }}
+        onDragLeave={() => setActiveDropHovered(false)}
+        onDrop={(event) => {
+          event.preventDefault();
+          if (!setupMode || !setupInteractionsEnabled || !onSetupDropActive || hidden) return;
+          const payload = readDragPayload(event.dataTransfer);
+          if (payload?.kind !== "setup-hand") return;
+          setActiveDropHovered(false);
+          handleActiveDrop(event);
+        }}
+      >
+        Active Spot
+      </div>
     </div>
   );
   const active = (
@@ -333,9 +339,10 @@ export function SideBoard({
   return (
     <section style={boardStyle(tone)}>
       <style>{SETUP_REVEAL_KEYFRAMES}</style>
+      <style>{SCORE_ORB_KEYFRAMES}</style>
       <div style={glowStyle(tone)} />
       <div style={scorePositionStyle(isPlayer)}>
-        <ScorePips points={side.points} fillColor={tone.fillColor} />
+        <ScorePips points={scorePointsOverride ?? side.points} sideId={sideId} gainAnimatingPoint={scorePointGainAnimating} />
       </div>
       <div style={layoutStyle(isPlayer)}>
         {isPlayer ? (
@@ -356,24 +363,34 @@ export function SideBoard({
   );
 }
 
-function ScorePips({ points, fillColor }: { points: number; fillColor: string }) {
+function ScorePips({ points, sideId, gainAnimatingPoint }: { points: number; sideId: SideId; gainAnimatingPoint?: number | undefined }) {
   return (
     <div style={{ display: "flex", gap: 8, alignItems: "center", height: 36, borderRadius: radius.pill, border: borders.glass, background: "rgba(238, 243, 238, 0.56)", padding: "0 12px", boxShadow: shadows.md, backdropFilter: filters.glassBlur }} aria-label={`${points} of ${MAX_POINTS} points`}>
       {Array.from({ length: MAX_POINTS }, (_, index) => (
         <span
           key={index}
-          style={{
-            width: 16,
-            height: 16,
-            borderRadius: radius.circle,
-            border: `2px solid ${index < points ? fillColor : colors.slate300}`,
-            background: index < points ? fillColor : colors.glassStrong,
-            boxShadow: "0 3px 8px rgba(17, 24, 39, 0.12)",
-          }}
+          style={scorePipStyle(index < points, sideId, gainAnimatingPoint === index + 1)}
         />
       ))}
     </div>
   );
+}
+
+function scorePipStyle(filled: boolean, sideId: SideId, gainAnimating: boolean): CSSProperties {
+  const orbFill = sideId === "player" ? "#22c55e" : "#f59e0b";
+  return {
+    width: 18,
+    height: 18,
+    borderRadius: radius.circle,
+    border: `2px solid ${filled ? "rgba(203, 213, 225, 0.92)" : "rgba(148, 163, 184, 0.72)"}`,
+    background: filled
+      ? `radial-gradient(circle at 34% 28%, rgba(255, 255, 255, 0.96) 0%, ${orbFill} 42%, rgba(15, 23, 42, 0.48) 145%)`
+      : "radial-gradient(circle at 34% 28%, rgba(255, 255, 255, 0.94) 0%, rgba(226, 232, 240, 0.86) 48%, rgba(100, 116, 139, 0.52) 145%)",
+    boxShadow: filled
+      ? `inset -2px -3px 5px rgba(15, 23, 42, 0.22), inset 2px 2px 4px rgba(255, 255, 255, 0.7), 0 4px 12px ${sideId === "player" ? "rgba(34, 197, 94, 0.34)" : "rgba(245, 158, 11, 0.34)"}`
+      : "inset -2px -3px 5px rgba(15, 23, 42, 0.14), inset 2px 2px 4px rgba(255, 255, 255, 0.76), 0 3px 8px rgba(17, 24, 39, 0.12)",
+    animation: gainAnimating ? "score-orb-pop 380ms cubic-bezier(0.18, 0.82, 0.22, 1) both" : undefined,
+  };
 }
 
 function boardStyle(tone: SideTone): CSSProperties {
@@ -456,15 +473,14 @@ function getTypeTone(type: UmamusumeType | null): SideTone {
 }
 
 const emptyActiveSpotStyle: CSSProperties = {
-  width: "94%",
-  maxWidth: "var(--board-active-width)",
-  margin: "0 auto",
-  aspectRatio: CARD_ASPECT_RATIO,
+  position: "relative",
+  zIndex: 1,
+  width: "100%",
+  height: "100%",
+  boxSizing: "border-box",
   display: "grid",
   placeItems: "center",
-  borderRadius: radius.md,
-  border: "2px dashed rgba(226, 232, 240, 0.68)",
-  background: "rgba(226, 232, 240, 0.1)",
+  borderRadius: CARD_INSPECT_IMAGE_RADIUS,
   color: uiTextColor,
   textShadow: uiTextShadow,
   fontSize: 16,
@@ -537,5 +553,13 @@ const SETUP_REVEAL_KEYFRAMES = `
 @keyframes hp-bar-appear {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
+}
+`;
+
+const SCORE_ORB_KEYFRAMES = `
+@keyframes score-orb-pop {
+  0% { opacity: 0.35; transform: translateY(8px) scale(0.45); filter: brightness(1.2); }
+  55% { opacity: 1; transform: translateY(-3px) scale(1.16); filter: brightness(1.35); }
+  100% { opacity: 1; transform: translateY(0) scale(1); filter: brightness(1); }
 }
 `;

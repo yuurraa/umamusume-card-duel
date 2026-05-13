@@ -57,12 +57,22 @@ function ScoreSummary({ label, points, highlighted }: { label: string; points: n
   );
 }
 
-const gameOverBackdropStyle: CSSProperties = { ...overlayBackdropStyle, zIndex: 80 };
+const gameOverBackdropStyle: CSSProperties = {
+  ...overlayBackdropStyle,
+  zIndex: 80,
+  animation: "game-over-backdrop-in 260ms ease both",
+};
 
 const OVERLAY_FADE_IN_KEYFRAMES = `
-@keyframes overlay-fade-in {
-  from { opacity: 0; transform: translateY(6px); }
-  to { opacity: 1; transform: translateY(0); }
+@keyframes game-over-backdrop-in {
+  from { opacity: 0; backdrop-filter: blur(0); }
+  to { opacity: 1; backdrop-filter: blur(6px); }
+}
+
+@keyframes game-over-shell-in {
+  0% { opacity: 0; transform: translateY(24px) scale(0.94); filter: blur(8px); }
+  62% { opacity: 1; transform: translateY(-4px) scale(1.015); filter: blur(0); }
+  100% { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
 }
 `;
 
@@ -91,7 +101,7 @@ function gameOverShellStyle(playerWon: boolean): CSSProperties {
     color: colors.black,
     textShadow: "none",
     boxShadow: `0 26px 80px ${hue.glow}, 0 22px 68px rgba(17, 24, 39, 0.2)`,
-    animation: "overlay-fade-in 160ms ease both",
+    animation: "game-over-shell-in 420ms cubic-bezier(0.16, 1, 0.3, 1) both",
   };
 }
 

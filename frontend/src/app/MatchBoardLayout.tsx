@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
-import type { EnergyType, GameState, SideState, UmamusumeInstance } from "../../../shared/src/types";
+import type { EnergyType, GameState, SideId, SideState, UmamusumeInstance } from "../../../shared/src/types";
 import type { InspectTarget } from "../inspect";
 import { Hand } from "../components/boards/Hand";
 import { SideBoard } from "../components/boards/SideBoard";
@@ -71,6 +71,8 @@ type MatchBoardLayoutProps = {
   suppressActiveReplacementBySide?: Partial<Record<"player" | "opponent", boolean>> | undefined;
   activeKoImpactUidBySide?: Partial<Record<"player" | "opponent", number>> | undefined;
   activeKoAnimatingUidBySide?: Partial<Record<"player" | "opponent", number>> | undefined;
+  visualScorePointsBySide?: Partial<Record<SideId, number>> | undefined;
+  scorePointGainAnimatingBySide?: Partial<Record<SideId, number>> | undefined;
 };
 
 export function MatchBoardLayout(props: MatchBoardLayoutProps) {
@@ -136,6 +138,8 @@ export function MatchBoardLayout(props: MatchBoardLayoutProps) {
     suppressActiveReplacementBySide,
     activeKoImpactUidBySide,
     activeKoAnimatingUidBySide,
+    visualScorePointsBySide,
+    scorePointGainAnimatingBySide,
   } = props;
 
   const [opponentPlayRevealActive, setOpponentPlayRevealActive] = useState(false);
@@ -232,6 +236,8 @@ export function MatchBoardLayout(props: MatchBoardLayoutProps) {
               activeKoImpactUid={activeKoImpactUidBySide?.player}
               activeKoAnimatingUid={activeKoAnimatingUidBySide?.player}
               koAnimatingUids={koAnimatingUids}
+              scorePointsOverride={visualScorePointsBySide?.player}
+              scorePointGainAnimating={scorePointGainAnimatingBySide?.player}
             />
           </div>
           <div style={opponentBoardSlotStyle}>
@@ -254,6 +260,8 @@ export function MatchBoardLayout(props: MatchBoardLayoutProps) {
               activeKoImpactUid={activeKoImpactUidBySide?.opponent}
               activeKoAnimatingUid={activeKoAnimatingUidBySide?.opponent}
               koAnimatingUids={koAnimatingUids}
+              scorePointsOverride={visualScorePointsBySide?.opponent}
+              scorePointGainAnimating={scorePointGainAnimatingBySide?.opponent}
               {...(hiddenOpponentBenchCount !== undefined ? { hiddenBenchCount: hiddenOpponentBenchCount } : {})}
             />
           </div>

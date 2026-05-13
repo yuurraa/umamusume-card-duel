@@ -1,4 +1,4 @@
-import { type CSSProperties, useEffect, useRef, useState } from "react";
+import { type CSSProperties, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { EnergyIcon } from "./EnergyIcon";
 import { AbilityReadyBadge } from "./AbilityReadyBadge";
 import { AttachedToolBadge } from "./AttachedToolBadge";
@@ -135,7 +135,7 @@ export function CardHpOverlay({
   const percent = maxHp > 0 ? Math.max(0, Math.min(100, Math.round((hp / maxHp) * 100))) : 0;
   const fillColor = percent <= 25 ? "#f59e0b" : percent <= 50 ? "#facc15" : "#29e6bd";
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (previousIdentityRef.current !== identityKey || previousSourceRef.current !== sourceKey) {
       previousIdentityRef.current = identityKey;
       previousSourceRef.current = sourceKey;
@@ -533,13 +533,13 @@ function hpStrikeStyle(size: "sm" | "md" | "lg"): CSSProperties {
 
 function hiddenCardStyle(fontSize: number): CSSProperties {
   return {
-    width: "100%",
-    height: "100%",
+    width: "99.3%",
+    height: "99.4%",
     display: "grid",
     placeItems: "center",
     position: "relative",
     overflow: "hidden",
-    borderRadius: radius.md,
+    borderRadius: radius.xl,
     border: "1px solid rgba(23, 33, 28, 0.2)",
     background: "linear-gradient(180deg, #26312d 0%, #17211c 100%)",
     color: colors.white,
@@ -556,6 +556,7 @@ const hiddenSleeveImageStyle: CSSProperties = {
   height: "112%",
   objectFit: "cover",
   display: "block",
+  borderRadius: radius.xl,
 };
 
 const umaCardImageStyle: CSSProperties = {

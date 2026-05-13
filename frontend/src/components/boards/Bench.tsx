@@ -441,7 +441,7 @@ function BenchSlot({ card, umamusume, side, hidden, setupMode, setupInteractions
               identityKey={`${umamusume.uid}:${umamusume.cardId}`}
               sourceKey={visualHpByUid?.[umamusume.uid] === undefined ? "state" : "visual"}
             />
-            {abilityReady && <AbilityReadyBadge corner="topLeft" size="xs" nudgeX={14} />}
+            {abilityReady && <AbilityReadyBadge corner="topLeft" size="xs" nudgeX={-4} />}
             <SpecialConditionBadges conditions={umamusume.specialConditions} size="sm" />
             <AttachedToolBadge
               toolCardId={umamusume.toolCardId}

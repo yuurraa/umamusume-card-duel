@@ -12,6 +12,11 @@ export type BattleEffectRect = {
   height: number;
 };
 
+export type BattleEffectBoardSnapshot = {
+  active: UmamusumeInstance | null;
+  bench: UmamusumeInstance[];
+};
+
 export type BattleEffectEvent = {
   id: number;
   batchKey?: string | undefined;
@@ -26,6 +31,7 @@ export type BattleEffectEvent = {
   targetRect?: BattleEffectRect | undefined;
   targetCardId?: string | undefined;
   targetUmamusume?: UmamusumeInstance | undefined;
+  targetBoardBefore?: BattleEffectBoardSnapshot | undefined;
   statusCondition?: SpecialCondition | undefined;
   hpBefore?: number | undefined;
   hpAfter?: number | undefined;
@@ -323,7 +329,7 @@ function durationForEvent(kind: BattleEffectKind): number {
 const rootStyle: CSSProperties = {
   position: "fixed",
   inset: 0,
-  zIndex: 68,
+  zIndex: 40,
   pointerEvents: "none",
   overflow: "hidden",
 };
