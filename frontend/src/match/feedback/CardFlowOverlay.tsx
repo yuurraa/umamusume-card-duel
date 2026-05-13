@@ -13,6 +13,8 @@ export type CardFlowItem = {
   group?: CardFlowGroup;
   enterFrom: CardFlowAnchor;
   exitTo: CardFlowAnchor;
+  faceDownImage?: string | null | undefined;
+  fadeOutInPlace?: boolean | undefined;
 };
 
 const CARD_FLOW_IMAGE_RADIUS = 8;
@@ -121,7 +123,8 @@ export function CardFlowOverlay({
 const rootStyle: CSSProperties = {
   position: "fixed",
   inset: 0,
-  zIndex: 92,
+  zIndex: 150,
+  isolation: "isolate",
   pointerEvents: "none",
 };
 
@@ -129,6 +132,7 @@ function boxStyle(groupCount: number): CSSProperties {
   return {
     position: "absolute",
     inset: 0,
+    zIndex: 2,
     display: "grid",
     gridTemplateColumns: `repeat(${groupCount}, minmax(0, 1fr))`,
     alignItems: "center",
@@ -164,6 +168,7 @@ function groupRowStyle(itemCount: number): CSSProperties {
 function itemShellStyle(group: CardFlowGroup, groupCount: number): CSSProperties {
   return {
     position: "relative",
+    zIndex: 3,
     width: `min(240px, calc((100% - ${(Math.max(groupCount, 1) - 1) * 8}px) / ${Math.min(Math.max(groupCount, 1), 5)}))`,
     minWidth: 0,
     transform: group === "drawn" ? "translateX(0)" : "translateX(0)",
@@ -174,6 +179,7 @@ function dimStyle(durationMs: number): CSSProperties {
   return {
     position: "absolute",
     inset: 0,
+    zIndex: 0,
     background: colors.black,
     animation: `card-flow-dim ${durationMs}ms ease both`,
   };
@@ -199,7 +205,7 @@ function cardWrapStyle(durationMs: number, enterFrom: CardFlowAnchor, exitTo: Ca
   const shouldFadeOut = group === "drawn" || group === "retrieved" || group === "played" || group === "discarded";
   return {
     position: "relative",
-    zIndex: 1,
+    zIndex: 4,
     width: "100%",
     aspectRatio: CARD_ASPECT_RATIO,
     borderRadius: radius.md,
@@ -407,9 +413,10 @@ function FlowCard({
   registerNode: (globalIndex: number, node: HTMLDivElement | null) => void;
   onDone: () => void;
 }) {
-  const card = getCard(item.cardId);
-  const image = card.kind === "umamusume" ? card.portrait : card.image;
-  const [ready, setReady] = useState(() => isImagePreloaded(image));
+  const faceDown = item.faceDownImage !== undefined;
+  const card = faceDown ? null : getCard(item.cardId);
+  const image = faceDown ? item.faceDownImage ?? "" : card!.kind === "umamusume" ? card!.portrait : card!.image;
+  const [ready, setReady] = useState(() => !image || isImagePreloaded(image));
   const group = resolveGroup(item);
   const handleAnimationEnd = (event: AnimationEvent<HTMLDivElement>) => {
     if (index !== totalCount - 1) return;
@@ -424,7 +431,7 @@ function FlowCard({
 
   useEffect(() => {
     let active = true;
-    if (!ready) {
+    if (!ready && image) {
       const timeoutId = window.setTimeout(() => {
         if (active) setReady(true);
       }, 900);
@@ -443,6 +450,12 @@ function FlowCard({
   }, [image, ready]);
 
   const xToCenterPx = (group === "drawn" || group === "retrieved") ? (endDeltaXByGlobalIndex[index] ?? 0) : 0;
+  const exitX = item.fadeOutInPlace
+    ? "0px"
+    : (group === "drawn" || group === "retrieved")
+      ? addPxToX(baseEnd.x, xToCenterPx)
+      : baseEnd.x;
+  const exitY = item.fadeOutInPlace ? "0px" : baseEnd.y;
   return (
     <div
       style={itemShellStyle(group, groupCount)}
@@ -453,23 +466,54 @@ function FlowCard({
           ...wrapStyle,
           ["--card-flow-start-x" as string]: baseStart.x,
           ["--card-flow-start-y" as string]: baseStart.y,
-          ["--card-flow-end-x" as string]: (group === "drawn" || group === "retrieved") ? addPxToX(baseEnd.x, xToCenterPx) : baseEnd.x,
-          ["--card-flow-end-y" as string]: baseEnd.y,
+          ["--card-flow-end-x" as string]: exitX,
+          ["--card-flow-end-y" as string]: exitY,
           animationDelay: ready ? `${70 + index * staggerMs}ms` : undefined,
           animation: ready ? wrapStyle.animation : undefined,
           opacity: ready ? undefined : 0,
         }}
         onAnimationEnd={handleAnimationEnd}
       >
-        <HoloCardImage
-          card={card}
-          src={image}
-          alt={card.name}
-          imageStyle={cardImageStyle}
-          radiusOverride={CARD_FLOW_IMAGE_RADIUS}
-          disableHoverAnimation
-        />
+        {faceDown ? (
+          <div style={faceDownCardStyle}>
+            {image ? <img style={faceDownImageStyle} src={image} alt="Face-down card" draggable={false} /> : "Hidden"}
+          </div>
+        ) : (
+          <HoloCardImage
+            card={card!}
+            src={image}
+            alt={card!.name}
+            imageStyle={cardImageStyle}
+            radiusOverride={CARD_FLOW_IMAGE_RADIUS}
+            disableHoverAnimation
+          />
+        )}
       </div>
     </div>
   );
 }
+
+const faceDownCardStyle: CSSProperties = {
+  width: "100%",
+  height: "100%",
+  position: "relative",
+  display: "grid",
+  placeItems: "center",
+  overflow: "hidden",
+  borderRadius: CARD_FLOW_IMAGE_RADIUS,
+  border: "1px solid rgba(255, 255, 255, 0.18)",
+  background: "linear-gradient(180deg, #26312d 0%, #17211c 100%)",
+  color: colors.white,
+  fontWeight: 950,
+  boxShadow: "inset 0 1px 0 rgba(255, 255, 255, 0.18)",
+};
+
+const faceDownImageStyle: CSSProperties = {
+  position: "absolute",
+  inset: "-6%",
+  width: "112%",
+  height: "112%",
+  objectFit: "cover",
+  display: "block",
+  borderRadius: CARD_FLOW_IMAGE_RADIUS,
+};

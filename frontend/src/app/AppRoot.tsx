@@ -119,9 +119,9 @@ const PointGainOverlay = lazy(() => import("../match/feedback/PointGainOverlay")
 })));
 
 const KO_DISSOLVE_MS = 800;
-const KO_ACTIVE_VACANCY_MS = 800;
-const ACTIVE_PROMOTION_REVEAL_MS = 500;
-const GAME_OVER_REVEAL_DELAY_MS = 400;
+const KO_ACTIVE_VACANCY_MS = 100;
+const ACTIVE_PROMOTION_REVEAL_MS = 300;
+const GAME_OVER_REVEAL_DELAY_MS = 100;
 
 function isTurnRelayUnavailableError(error: unknown): error is Error {
   return error instanceof Error && error.message.includes(TURN_RELAY_UNAVAILABLE_TEXT);
@@ -369,6 +369,11 @@ function logMentionsBattleEntry(logEntry: string, entry: BattleSnapshotEntry): b
   return entry.slot.zone === "active" && /\bactive\b/i.test(logEntry);
 }
 
+function koLogMatchesBattleEntry(logEntry: string, entry: BattleSnapshotEntry): boolean {
+  const logSide: SideId = logEntry.startsWith("Opponent's") ? "opponent" : "player";
+  return entry.sideId === logSide && logMentionsBattleEntry(logEntry, entry);
+}
+
 function findSupportingLogEntry(
   newEntries: string[],
   entry: BattleSnapshotEntry,
@@ -428,23 +433,35 @@ function buildBattleEffects(
   const hpBatchKey = `hp-${previous.log.length}-${current.log.length}`;
   const newEntries = getNewLogHeadEntries(previous.log, current.log);
   const attackEntry = newEntries.find((entry) => entry.includes(" attacked with "));
-  const koEntry = newEntries.find((entry) => entry.includes(" was knocked out"));
+  const attackSourceSide = attackEntry
+    ? getActorSideFromLog(attackEntry) ?? (current.log[0] ? getActorSideFromLog(current.log[0]) : null)
+    : null;
+  const attackDefendingSide = attackSourceSide ? (attackSourceSide === "player" ? "opponent" : "player") : null;
+  const koEntries = newEntries.filter((entry) => entry.includes(" was knocked out"));
+  const koEntry = koEntries[0];
   const claimedLogIndexes = new Set<number>();
   const knockedSide = koEntry?.startsWith("Opponent's") ? "opponent" : koEntry ? "player" : null;
-  const knockedEntry = knockedSide
-    ? previous[knockedSide].find((entry) => !currentByUid.has(entry.uid))
-      ?? previous[knockedSide].find((entry) => entry.slot.zone === "active")
-    : undefined;
+  const knockedEntries = getBattleEntries(previous).filter((entry) => {
+    if (currentByUid.has(entry.uid)) return false;
+    return koEntries.some((logEntry) => koLogMatchesBattleEntry(logEntry, entry));
+  });
+  const knockedEntry = knockedEntries[0] ?? (
+    knockedSide
+      ? previous[knockedSide].find((entry) => !currentByUid.has(entry.uid))
+        ?? previous[knockedSide].find((entry) => entry.slot.zone === "active")
+      : undefined
+  );
   const hpDrops = getBattleEntries(current)
     .map((entry) => ({ entry, before: previousByUid.get(entry.uid) }))
     .filter((change): change is { entry: BattleSnapshotEntry; before: BattleSnapshotEntry } => Boolean(change.before && change.entry.hp < change.before.hp));
 
   if (attackEntry) {
-    const actorSide = getActorSideFromLog(attackEntry) ?? (current.log[0] ? getActorSideFromLog(current.log[0]) : null);
-    const sourceSide = actorSide ?? "player";
-    const defendingSide = sourceSide === "player" ? "opponent" : "player";
+    const sourceSide = attackSourceSide ?? "player";
+    const defendingSide = attackDefendingSide ?? (sourceSide === "player" ? "opponent" : "player");
     const source = current[sourceSide].find((entry) => entry.slot.zone === "active");
-    const target = hpDrops[0]?.entry ?? (knockedEntry?.sideId === defendingSide ? knockedEntry : undefined) ?? current[defendingSide].find((entry) => entry.slot.zone === "active");
+    const target = hpDrops.find((change) => change.entry.sideId === defendingSide)?.entry
+      ?? (knockedEntry?.sideId === defendingSide ? knockedEntry : undefined)
+      ?? current[defendingSide].find((entry) => entry.slot.zone === "active");
     effects.push({
       id: nextId(),
       kind: "attack",
@@ -528,15 +545,17 @@ function buildBattleEffects(
       );
       if (alreadyTracked) continue;
       const amount = before.hp - entry.hp;
-      const sourceSide = attackEntry ? getActorSideFromLog(attackEntry) ?? undefined : undefined;
+      const sourceSide = attackSourceSide ?? undefined;
       const source = sourceSide ? current[sourceSide].find((sourceEntry) => sourceEntry.slot.zone === "active") : undefined;
       const logIndex = findSupportingLogEntry(newEntries, entry, "damage", claimedLogIndexes);
-      if (!attackEntry && !koEntry && logIndex === null) continue;
+      const isAttackDamageCandidate = Boolean(attackEntry && attackDefendingSide && entry.sideId === attackDefendingSide);
+      const isKnockedOutEntry = Boolean(koEntry && knockedEntries.some((knocked) => knocked.uid === entry.uid));
+      if (!isAttackDamageCandidate && !isKnockedOutEntry && logIndex === null) continue;
       if (logIndex !== null) claimedLogIndexes.add(logIndex);
       effects.push({
         id: nextId(),
         batchKey: hpBatchKey,
-        kind: koEntry && entry.hp === 0 ? "ko" : "damage",
+        kind: koEntries.length > 0 && entry.hp === 0 ? "ko" : "damage",
         side: entry.sideId,
         targetUid: entry.uid,
         sourceUid: source?.uid,
@@ -545,7 +564,7 @@ function buildBattleEffects(
         sourceRect: source?.rect,
         targetCardId: entry.cardId,
         targetUmamusume: entry.umamusume,
-        targetBoardBefore: koEntry && entry.hp === 0 ? previousBoardBySide[entry.sideId] : undefined,
+        targetBoardBefore: koEntries.length > 0 && entry.hp === 0 ? previousBoardBySide[entry.sideId] : undefined,
         targetSlot: entry.slot,
         targetRect: entry.rect ?? before.rect,
         amount,
@@ -580,48 +599,52 @@ function buildBattleEffects(
     }
   }
 
-  if (koEntry && !effects.some((effect) => effect.kind === "ko")) {
+  if (koEntries.length > 0) {
     const sourceSide = attackEntry ? getActorSideFromLog(attackEntry) ?? undefined : undefined;
     const source = sourceSide ? current[sourceSide].find((entry) => entry.slot.zone === "active") : undefined;
-    if (knockedEntry && !effects.some((effect) => effect.kind === "damage" && effect.targetUid === knockedEntry.uid)) {
+    const fallbackKnockedEntries = knockedEntries.length > 0 ? knockedEntries : knockedEntry ? [knockedEntry] : [];
+    fallbackKnockedEntries.forEach((knocked) => {
+      if (!effects.some((effect) => effect.kind === "damage" && effect.targetUid === knocked.uid)) {
+        effects.push({
+          id: nextId(),
+          batchKey: hpBatchKey,
+          kind: "damage",
+          side: knocked.sideId,
+          targetUid: knocked.uid,
+          sourceUid: source?.uid,
+          sourceSide,
+          sourceSlot: attackEntry ? { zone: "active" } : undefined,
+          sourceRect: source?.rect,
+          targetCardId: knocked.cardId,
+          targetUmamusume: knocked.umamusume,
+          targetBoardBefore: previousBoardBySide[knocked.sideId],
+          targetSlot: knocked.slot,
+          targetRect: knocked.rect,
+          amount: knocked.hp,
+          hpBefore: knocked.hp,
+          hpAfter: 0,
+          label: "Damage",
+        });
+      }
+      if (effects.some((effect) => effect.kind === "ko" && effect.targetUid === knocked.uid)) return;
       effects.push({
         id: nextId(),
-        batchKey: hpBatchKey,
-        kind: "damage",
-        side: knockedEntry.sideId,
-        targetUid: knockedEntry.uid,
+        kind: "ko",
+        side: knocked.sideId,
+        targetUid: knocked.uid,
         sourceUid: source?.uid,
         sourceSide,
         sourceSlot: attackEntry ? { zone: "active" } : undefined,
         sourceRect: source?.rect,
-        targetCardId: knockedEntry.cardId,
-        targetUmamusume: knockedEntry.umamusume,
-        targetBoardBefore: previousBoardBySide[knockedEntry.sideId],
-        targetSlot: knockedEntry.slot,
-        targetRect: knockedEntry.rect,
-        amount: knockedEntry.hp,
-        hpBefore: knockedEntry.hp,
+        targetCardId: knocked.cardId,
+        targetUmamusume: knocked.umamusume,
+        targetBoardBefore: previousBoardBySide[knocked.sideId],
+        targetSlot: knocked.slot,
+        targetRect: knocked.rect,
+        hpBefore: knocked.hp,
         hpAfter: 0,
-        label: "Damage",
+        label: "KO",
       });
-    }
-    effects.push({
-      id: nextId(),
-      kind: "ko",
-      side: knockedEntry?.sideId ?? knockedSide ?? "player",
-      targetUid: knockedEntry?.uid,
-      sourceUid: source?.uid,
-      sourceSide,
-      sourceSlot: attackEntry ? { zone: "active" } : undefined,
-      sourceRect: source?.rect,
-      targetCardId: knockedEntry?.cardId,
-      targetUmamusume: knockedEntry?.umamusume,
-      targetBoardBefore: previousBoardBySide[knockedEntry?.sideId ?? knockedSide ?? "player"],
-      targetSlot: knockedEntry?.slot ?? { zone: "active" },
-      targetRect: knockedEntry?.rect,
-      hpBefore: knockedEntry?.hp,
-      hpAfter: 0,
-      label: "KO",
     });
   }
 
@@ -706,13 +729,20 @@ function getShuffleHandDrawCount(previousLog: string[], currentLog: string[], si
 }
 
 function splitCardFlowIntoBatches(items: CardFlowItem[]): CardFlowItem[][] {
-  const cardGainItems = items.filter((item) => item.group === "drawn" || item.group === "retrieved");
-  const actionItems = items.filter((item) => item.group === "played" || item.group === "discarded");
-  const opponentActionItems = actionItems.filter((item) => item.label?.startsWith("Opponent"));
-  if (cardGainItems.length === 0 || opponentActionItems.length === 0) return [items];
+  return [items];
+}
 
-  const localActionItems = actionItems.filter((item) => !item.label?.startsWith("Opponent"));
-  return [localActionItems, cardGainItems, opponentActionItems].filter((batch) => batch.length > 0);
+function cardFlowBatchKey(items: CardFlowItem[]): string {
+  return items
+    .map((item) => [
+      item.group ?? "unknown",
+      item.label ?? "",
+      item.cardId,
+      item.enterFrom,
+      item.exitTo,
+      item.faceDownImage ? "face-down" : "face-up",
+    ].join(":"))
+    .join("|");
 }
 
 function tryGetCardName(cardId: string): string | null {
@@ -1970,12 +2000,16 @@ export function App() {
     const nextFlow: CardFlowItem[] = [];
     const newLogEntries = getNewLogHeadEntries(previous.log, current.log);
     const povSideId: SideId = isAiVsAi ? displayPerspective : "player";
+    const flowSleeveBySide: Record<SideId, string | null> = isAiVsAi && displayPerspective === "opponent"
+      ? { player: opponentSleeve.image, opponent: selectedSleeve.image }
+      : { player: selectedSleeve.image, opponent: opponentSleeve.image };
     const sideIds: SideId[] = ["player", "opponent"];
     for (const sideId of sideIds) {
       const previousSide = previous[sideId];
       const currentSide = current[sideId];
       const isPovSide = sideId === povSideId;
       const actor = isPovSide ? "You" : "Opponent";
+      const fadeOutInPlace = !isPovSide;
       const sideOnRight = sideId === "player";
       const discardedFromHandCards = allCardsMoved(
         previousSide.hand,
@@ -1998,7 +2032,7 @@ export function App() {
       }
       const shouldShowHandGain = hasHandGainLogEntry(newLogEntries, sideId)
         || isAutomaticTurnDraw(previous, current, sideId, obtainedFromDeckCards);
-      if (obtainedFromDeckCards.length > 0 && isPovSide && shouldShowHandGain) {
+      if (obtainedFromDeckCards.length > 0 && shouldShowHandGain) {
         const label = `${actor} Drew`;
         obtainedFromDeckCards.slice(0, 5).forEach((cardId) => {
           nextFlow.push({
@@ -2007,10 +2041,12 @@ export function App() {
             group: "drawn",
             enterFrom: sideOnRight ? "leftDeck" : "bottomLeft",
             exitTo: "bottomCenter",
+            faceDownImage: isPovSide ? undefined : flowSleeveBySide[sideId],
+            fadeOutInPlace,
           });
         });
       }
-      if (retrievedIntoDeckCards.length > 0 && isPovSide) {
+      if (retrievedIntoDeckCards.length > 0) {
         retrievedIntoDeckCards.slice(0, 8).forEach((cardId) => {
           nextFlow.push({
             cardId,
@@ -2018,6 +2054,8 @@ export function App() {
             group: "retrieved",
             enterFrom: sideOnRight ? "bottomRight" : "bottomLeft",
             exitTo: "leftDeck",
+            faceDownImage: isPovSide ? undefined : flowSleeveBySide[sideId],
+            fadeOutInPlace,
           });
         });
       }
@@ -2026,7 +2064,7 @@ export function App() {
         const cardName = tryGetCardName(discardedFromHand);
         const played = Boolean(cardName && hasPlayLogEntry(previous.log, current.log, cardName));
         const discarded = hasHandDiscardLogEntry(newLogEntries, sideId, cardName);
-        if (!played && (!isPovSide || !discarded)) return;
+        if (!played && !discarded) return;
 
         nextFlow.push({
           cardId: discardedFromHand,
@@ -2034,6 +2072,8 @@ export function App() {
           group: played ? "played" : "discarded",
           enterFrom: sideOnRight ? "rightHand" : "leftHand",
           exitTo: isPovSide ? "rightDiscard" : sideOnRight ? "rightHand" : "leftHand",
+          faceDownImage: !played && !isPovSide ? flowSleeveBySide[sideId] : undefined,
+          fadeOutInPlace,
         });
       });
     }
@@ -2044,7 +2084,7 @@ export function App() {
     }
 
     previousPlayerZonesRef.current = current;
-  }, [game, isAiVsAi, displayPerspective, isCoinFlipBlocking]);
+  }, [game, isAiVsAi, displayPerspective, isCoinFlipBlocking, opponentSleeve.image, selectedSleeve.image]);
 
   const showShuffleReveal = (cardId: string) => {
     setCardFlowQueue((queue) => [
@@ -2371,7 +2411,8 @@ export function App() {
     }
     if (koVacancyBySide[sideId]) suppressActiveReplacementBySide[sideId] = true;
   });
-  const cardFlowHasPriority = cardFlowQueue[0]?.some((item) => item.group === "played" || item.group === "discarded") ?? false;
+  const battleQueueHasKo = battleEffectQueue.some((effect) => effect.kind === "ko");
+  const cardFlowHasPriority = !battleQueueHasKo && (cardFlowQueue[0]?.some((item) => item.group === "played" || item.group === "discarded") ?? false);
   const canShowCardFlowOverlay = cardFlowQueue.length > 0
     && (battleEffectQueue.length === 0 || cardFlowHasPriority)
     && koCrumblingUids.size === 0
@@ -2383,7 +2424,12 @@ export function App() {
     && !game.pendingPlayerChoice;
   const canShowBattleEffects = activeBattleEffects.length > 0
     && !activeCoinFlip
-    && !cardFlowHasPriority;
+    && koCrumblingUids.size === 0
+    && pointGainQueue.length === 0
+    && !hasKoVacancy
+    && !hasKoPromotionLock
+    && !hasActivePromotionReveal
+    && (!cardFlowHasPriority || battleQueueHasKo);
   useEffect(() => {
     if (!canShowBattleEffects) return;
     const hpEffects = activeBattleEffects.filter((effect) => effect.targetUid !== undefined && effect.hpAfter !== undefined);
@@ -2647,6 +2693,7 @@ export function App() {
         {canShowCardFlowOverlay && cardFlowQueue[0] && (
           <Suspense fallback={null}>
             <CardFlowOverlay
+              key={cardFlowBatchKey(cardFlowQueue[0])}
               items={cardFlowQueue[0]}
               durationMs={game.phase === "setup" ? 1500 : 2100}
               onDone={() => {

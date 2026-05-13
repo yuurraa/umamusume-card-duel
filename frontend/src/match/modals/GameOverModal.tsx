@@ -23,7 +23,7 @@ export function GameOverModal({
   const winnerPoints = game.winner ? game.sides[game.winner].points : 0;
   const body = winnerPoints >= 3
     ? `${winnerLabel} reached three points.`
-    : `${loserLabel} has no benched Umamusume remaining.`;
+    : formatNoBenchRemaining(loserLabel);
 
   return (
     <div style={gameOverBackdropStyle}>
@@ -46,6 +46,12 @@ export function GameOverModal({
 
 function formatWinTitle(name: string): string {
   return name.toLowerCase() === "you" ? "You Win" : `${name} Wins`;
+}
+
+function formatNoBenchRemaining(name: string): string {
+  return name.toLowerCase() === "you"
+    ? "You have no benched Umamusume remaining."
+    : `${name} has no benched Umamusume remaining.`;
 }
 
 function ScoreSummary({ label, points, highlighted }: { label: string; points: number; highlighted: boolean }) {

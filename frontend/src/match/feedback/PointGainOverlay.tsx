@@ -84,7 +84,7 @@ const KEYFRAMES = `
 const rootStyle: CSSProperties = {
   position: "fixed",
   inset: 0,
-  zIndex: 46,
+  zIndex: 170,
   display: "grid",
   placeItems: "center",
   pointerEvents: "none",

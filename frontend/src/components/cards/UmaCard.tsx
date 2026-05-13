@@ -393,11 +393,13 @@ export const KO_CRUMBLE_KEYFRAMES = `
 }
 `;
 
+const HP_NUMBER_FILTER = "drop-shadow(0 3px 4px rgba(15, 23, 42, 0.4))";
+
 const HP_DELTA_KEYFRAMES = `
 @keyframes hp-number-tick {
-  0% { transform: translateY(0) scale(1); filter: brightness(1); }
-  45% { transform: translateY(-2px) scale(1.08); filter: brightness(1.18); }
-  100% { transform: translateY(0) scale(1); filter: brightness(1); }
+  0% { transform: translateY(0) scale(1); filter: ${HP_NUMBER_FILTER} brightness(1); }
+  45% { transform: translateY(-2px) scale(1.08); filter: ${HP_NUMBER_FILTER} brightness(1.18); }
+  100% { transform: translateY(0) scale(1); filter: ${HP_NUMBER_FILTER} brightness(1); }
 }
 @keyframes hp-fill-loss {
   0% { filter: brightness(1.4) saturate(1.25); }
@@ -455,7 +457,7 @@ function hpNumberStyle(size: "sm" | "md" | "lg"): CSSProperties {
     lineHeight: 0.86,
     fontWeight: 950,
     letterSpacing: 0,
-    filter: "drop-shadow(0 3px 4px rgba(15, 23, 42, 0.4))",
+    filter: HP_NUMBER_FILTER,
     textShadow: [
       "0 0 2px rgba(15, 23, 42, 0.96)",
       "1.5px 1.5px 0 rgba(31, 41, 55, 0.9)",
