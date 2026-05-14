@@ -200,8 +200,8 @@ function groupHeaderStyle(durationMs: number): CSSProperties {
   };
 }
 
-function cardWrapStyle(durationMs: number, enterFrom: CardFlowAnchor, exitTo: CardFlowAnchor, group: CardFlowGroup): CSSProperties {
-  const shouldTravel = enterFrom !== exitTo;
+function cardWrapStyle(durationMs: number, enterFrom: CardFlowAnchor, exitTo: CardFlowAnchor, group: CardFlowGroup, fadeInOutInPlace: boolean): CSSProperties {
+  const shouldTravel = !fadeInOutInPlace && enterFrom !== exitTo;
   const shouldFadeOut = group === "drawn" || group === "retrieved" || group === "played" || group === "discarded";
   return {
     position: "relative",
@@ -427,7 +427,7 @@ function FlowCard({
   };
   const baseEnd = anchorToTranslate(item.exitTo);
   const baseStart = anchorToTranslate(item.enterFrom);
-  const wrapStyle = cardWrapStyle(durationMs, item.enterFrom, item.exitTo, group);
+  const wrapStyle = cardWrapStyle(durationMs, item.enterFrom, item.exitTo, group, Boolean(item.fadeOutInPlace));
 
   useEffect(() => {
     let active = true;
