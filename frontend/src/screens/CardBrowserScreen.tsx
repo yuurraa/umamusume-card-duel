@@ -1,110 +1,34 @@
 import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import { CARD_RARITY_LABELS, CARD_RARITY_SHORT_LABELS, getCardRarity, isCardDisabled, isFullArtCard } from "../../../shared/src/cardRarity";
-import { allCards, ownedStarterCardIds } from "../../../shared/src/gameData";
-import type { Card, CardRarity, EnergyType, TrainerType, UmamusumeType } from "../../../shared/src/types";
+import type { Card, EnergyType, TrainerType, UmamusumeType } from "../../../shared/src/types";
 import { EnergyIcon } from "../components/cards/EnergyIcon";
 import { HoloCardImage } from "../components/cards/HoloCardImage";
 import { NeutralButton } from "../components/buttons/NeutralButton";
 import { energyLabel } from "../game/engine";
 import { formatCardName } from "../game/engine/core/labels";
+import {
+  HOVER_PREVIEW_ACTION_HEIGHT,
+  HOVER_PREVIEW_MAX_WIDTH,
+  artFilters,
+  cardEntries,
+  categoryFilters,
+  energyTypes,
+  getHoverPreviewPosition,
+  ownershipFilters,
+  rarityFilters,
+  stageFilters,
+  starterCardCounts,
+  type ArtFilter,
+  type CategoryFilter,
+  type OwnershipFilter,
+  type RarityFilter,
+  type StageFilter,
+} from "./card-browser/model";
 import { devUnlocksEnabled, isDevForcedUnowned } from "../config/devUnlocks";
 import { CARD_ASPECT_RATIO, CARD_INSPECT_IMAGE_RADIUS, borders, colors, glassPanelStyle, radius, transitions, uiTextColor, uiTextShadow } from "../styles/shared";
 import { readCloudCardCollection } from "../utils/cardCollectionApi";
 import { DEFAULT_CARD_SORT, sortCardsForCollection, type CardSortKey, type CardSortOption } from "../utils/cardSorting";
 import { preloadImage } from "../utils/imagePreload";
-
-type CategoryFilter = "umamusume" | "trainer" | "item" | "tool" | "stadium";
-type StageFilter = 0 | 1 | 2;
-type ArtFilter = "normal" | "fullArt";
-type OwnershipFilter = "owned" | "unowned";
-type RarityFilter = CardRarity;
-
-const categoryFilters: Array<{ id: CategoryFilter; label: string }> = [
-  { id: "umamusume", label: "Umamusume" },
-  { id: "trainer", label: "Supporter" },
-  { id: "item", label: "Item" },
-  { id: "tool", label: "Tool" },
-  { id: "stadium", label: "Stadium" },
-];
-
-const energyTypes: EnergyType[] = [
-  "grass",
-  "fire",
-  "water",
-  "lightning",
-  "psychic",
-  "fighting",
-  "darkness",
-  "steel",
-  "colorless",
-  "dragon",
-];
-
-const stageFilters: Array<{ id: StageFilter; label: string }> = [
-  { id: 0, label: "Basic" },
-  { id: 1, label: "Stage 1" },
-  { id: 2, label: "Stage 2" },
-];
-
-const artFilters: Array<{ id: ArtFilter; label: string }> = [
-  { id: "normal", label: "Normal Art" },
-  { id: "fullArt", label: "Full Art" },
-];
-
-const ownershipFilters: Array<{ id: OwnershipFilter; label: string }> = [
-  { id: "owned", label: "Owned" },
-  { id: "unowned", label: "Unowned" },
-];
-
-const rarityFilters: Array<{ id: RarityFilter; label: string }> = [
-  { id: "common", label: CARD_RARITY_LABELS.common },
-  { id: "uncommon", label: CARD_RARITY_LABELS.uncommon },
-  { id: "uncommonPlus", label: CARD_RARITY_LABELS.uncommonPlus },
-  { id: "rare", label: CARD_RARITY_LABELS.rare },
-  { id: "ultraRare", label: CARD_RARITY_LABELS.ultraRare },
-  { id: "artRare", label: CARD_RARITY_LABELS.artRare },
-  { id: "specialArtRare", label: CARD_RARITY_LABELS.specialArtRare },
-  { id: "secretRare", label: CARD_RARITY_LABELS.secretRare },
-];
-
-const cardEntries = Object.values(allCards).sort((left, right) => {
-  const groupSort = getCardSortGroup(left) - getCardSortGroup(right);
-  if (groupSort !== 0) return groupSort;
-  return formatCardName(left).localeCompare(formatCardName(right));
-});
-const starterCardCounts = Array.from(ownedStarterCardIds).reduce<Record<string, number>>((counts, cardId) => {
-  counts[cardId] = 2;
-  return counts;
-}, {});
-
-const HOVER_PREVIEW_MAX_WIDTH = 440;
-const HOVER_PREVIEW_VIEWPORT_WIDTH_PADDING = 36;
-const HOVER_PREVIEW_GAP = 12;
-const HOVER_PREVIEW_VIEWPORT_PAD = 10;
-const HOVER_PREVIEW_HEIGHT_PER_WIDTH = 1040 / 745;
-const HOVER_PREVIEW_ACTION_HEIGHT = 56;
-
-function getHoverPreviewPosition(rect: DOMRect, extraHeight = 0): { left: number; top: number; width: number } {
-  const viewportWidth = Math.max(120, window.innerWidth - HOVER_PREVIEW_VIEWPORT_WIDTH_PADDING);
-  const viewportHeight = Math.max(120, window.innerHeight - (HOVER_PREVIEW_VIEWPORT_PAD * 2) - extraHeight);
-  const heightConstrainedWidth = viewportHeight / HOVER_PREVIEW_HEIGHT_PER_WIDTH;
-  const popupWidth = Math.min(HOVER_PREVIEW_MAX_WIDTH, viewportWidth, Math.max(120, heightConstrainedWidth));
-  const popupHeight = (popupWidth * HOVER_PREVIEW_HEIGHT_PER_WIDTH) + extraHeight;
-  const rightCandidate = rect.right + HOVER_PREVIEW_GAP;
-  const leftCandidate = rect.left - HOVER_PREVIEW_GAP - popupWidth;
-  const prefersRight = rightCandidate + popupWidth + HOVER_PREVIEW_VIEWPORT_PAD <= window.innerWidth;
-  const unclampedLeft = prefersRight ? rightCandidate : leftCandidate;
-  const maxLeft = Math.max(HOVER_PREVIEW_VIEWPORT_PAD, window.innerWidth - HOVER_PREVIEW_VIEWPORT_PAD - popupWidth);
-  const left = Math.max(HOVER_PREVIEW_VIEWPORT_PAD, Math.min(maxLeft, unclampedLeft));
-  const preferredCenterY = rect.top + rect.height / 2;
-  const halfHeight = popupHeight / 2;
-  const minCenterY = HOVER_PREVIEW_VIEWPORT_PAD + halfHeight;
-  const maxCenterY = window.innerHeight - HOVER_PREVIEW_VIEWPORT_PAD - halfHeight;
-  const top = minCenterY <= maxCenterY
-    ? Math.max(minCenterY, Math.min(maxCenterY, preferredCenterY))
-    : window.innerHeight / 2;
-  return { left, top, width: popupWidth };
-}
 
 export function CardBrowserScreen({ onBack }: { onBack: () => void }) {
   const [ownedCardCounts, setOwnedCardCounts] = useState<Record<string, number> | null>(null);
@@ -564,14 +488,6 @@ function matchesAnyRarityFilter(card: Card, filters: Set<RarityFilter>): boolean
 
 function getCardImage(card: Card): string {
   return card.kind === "umamusume" ? card.portrait : card.image;
-}
-
-function getCardSortGroup(card: Card): number {
-  if (card.kind === "umamusume") return 0;
-  if (card.trainerType === "item") return 1;
-  if (card.trainerType === "tool") return 2;
-  if (card.trainerType === "supporter") return 3;
-  return 4;
 }
 
 function getSearchText(card: Card): string {

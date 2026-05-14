@@ -1,109 +1,70 @@
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createDeckIdFromName, LOCAL_DECK_FORMAT_VERSION, type LocalDeck } from "../../../shared/src/localDecks";
 import type { EnergyType } from "../../../shared/src/types";
 import { getCard } from "../game/engine";
 import { NeutralButton } from "../components/buttons/NeutralButton";
 import type { PremadeDeck } from "../types/ui";
-import { getDeckEnergyTypes, normalizeDeckEnergyTypes, readHiddenPremadeDeckIds, writeHiddenPremadeDeckIds } from "../utils/deck";
+import { getDeckEnergyTypes, readHiddenPremadeDeckIds, writeHiddenPremadeDeckIds } from "../utils/deck";
 import { deleteLocalDeck, importLocalDeck, listCloudDeckDrafts, listLocalDecks, saveCloudDeckDrafts, saveLocalDeck } from "../utils/localDeckApi";
 import {
   DeckClearAllConfirmModal,
   CreateDeckModal,
-  DeckBrowserCreateTile,
   DeckImportOverwriteConfirmModal,
   DeckUnsavedChangesModal,
-  DeckBrowserTile,
   DeckCardSelectorModal,
   DeckDeleteConfirmModal,
   DeckEnergySelectionModal,
   DeckJsonModal,
-  DeckListModal,
   DeckSummaryCard,
 } from "./deck-browser/components";
 import {
   DECK_CARD_COUNT,
-  type DeckEntity,
-  buildDeckJson,
   getDuplicateOverflowCardName,
-  getDeckSelectedEnergyTypes,
   getSearchText,
   parseDeckJson,
   sortDeckCardIds,
   toggleSetValue,
   toEditableDeckSlots,
   writeLocalDeckCache,
-  energyTypes,
 } from "./deck-browser/helpers";
 import {
-  clearFiltersButtonStyle,
   deckBrowserBackButtonStyle,
-  deckBrowserDeckTrayStyle,
-  deckBrowserFilterPanelStyle,
-  deckBrowserGridStyle,
   deckBrowserHeaderStyle,
   deckBrowserShellStyle,
   deckBrowserSubtitleStyle,
   deckBrowserTitleStyle,
-  energyFilterButtonStyle,
-  energyFilterGridStyle,
-  filterChipStyle,
-  filterGroupLabelStyle,
-  filterGroupStyle,
-  filterMenuButtonStyle,
-  filterMenuWrapStyle,
-  filterPopoverHeaderStyle,
-  filterPopoverStyle,
-  filterPopoverTitleStyle,
   localDeckPersistenceNoticeStyle,
   menuKickerStyle,
-  searchInputStyle,
-  searchToolbarStyle,
-  sortControlGroupStyle,
-  sortDirectionButtonStyle,
-  sortSelectStyle,
 } from "./deck-browser/styles";
-import { EnergyIcon } from "../components/cards/EnergyIcon";
-import { energyLabel } from "../game/engine/core/labels";
-
+import { DeckBrowserFilters } from "./deck-browser/DeckBrowserFilters";
+import { DeckBrowserDeckGrid } from "./deck-browser/DeckBrowserDeckGrid";
+import { DeckOpenedModal } from "./deck-browser/DeckOpenedModal";
+import {
+  buildCreateDraftDeckId,
+  getDeckSearchText,
+  getEditDraftKeyForDeck,
+  getEditedPremadeDeckId,
+  getPremadeDeckIdFromEditedDeckId,
+  isEditedPremadeDeckId,
+  normalizeDeckNameForCompare,
+  normalizeEditDraftEnergyTypes,
+  readCreateDraftDecks,
+  readEditDeckDrafts,
+  readFavoriteDeckKeys,
+  resolveDraftCoverCardId,
+  sameEnergyTypes,
+  sortDeckBrowserDecks,
+  toDeckFavoriteKey,
+  writeCreateDraftDecks,
+  writeEditDeckDrafts,
+  writeFavoriteDeckKeys,
+  type DeckEditorDraft,
+  type DeckEditorSnapshot,
+  type DeckListFilter,
+  type DeckListSortKey,
+  type DeckRef,
+} from "./deck-browser/model";
 export { DeckSummaryCard } from "./deck-browser/components";
-
-const CREATE_DECK_DRAFTS_STORAGE_KEY = "umamusume-deck-editor-draft-create-list";
-const EDIT_DECK_DRAFT_STORAGE_KEY = "umamusume-deck-editor-draft-edit";
-const FAVORITE_DECKS_STORAGE_KEY = "umamusume-deck-browser-favorite-decks";
-const EDITED_PREMADE_DECK_ID_SUFFIX = "-edited";
-
-type DeckSource = "premade" | "premadeEdited" | "local" | "draft";
-type DeckRef = { id: string; source: DeckSource };
-type DeckListFilter = "favorites" | "premade" | "created" | "drafts";
-type DeckListSortKey = "recommended" | "name" | "updated";
-
-const deckListFilters: Array<{ id: DeckListFilter; label: string }> = [
-  { id: "favorites", label: "Favorites" },
-  { id: "premade", label: "Premade" },
-  { id: "created", label: "Created" },
-  { id: "drafts", label: "Drafts" },
-];
-
-const deckListSorts: Array<{ id: DeckListSortKey; label: string }> = [
-  { id: "recommended", label: "Recommended" },
-  { id: "name", label: "Name" },
-  { id: "updated", label: "Updated" },
-];
-
-type DeckEditorDraft = {
-  name: string;
-  cardIds: Array<string | null>;
-  selectedCoverCardId: string | null;
-  energyTypes: EnergyType[];
-};
-
-type DeckEditorSnapshot = {
-  name: string;
-  cardIds: Array<string | null>;
-  selectedCoverCardId: string | null;
-  energyTypes: EnergyType[];
-};
-
 export function DeckBrowserScreen({
   decks,
   equippedDeckId,
@@ -168,7 +129,6 @@ export function DeckBrowserScreen({
   const [deckSortDirection, setDeckSortDirection] = useState<"asc" | "desc">("asc");
   const [deckFiltersOpen, setDeckFiltersOpen] = useState(false);
   const [deckEnergyFiltersSelected, setDeckEnergyFiltersSelected] = useState<Set<EnergyType>>(new Set());
-
   const allDecks = useMemo(
     () => [
       ...decks.filter((deck) => !hiddenPremadeDeckIds.has(deck.id)).map((deck) => {
@@ -219,7 +179,6 @@ export function DeckBrowserScreen({
     && (openedDeck.source === "draft" || editDraftByDeckId[getEditDraftKeyForDeck(openedDeck)]),
   );
   const openedDeckDraft = openedDeck ? editDraftByDeckId[getEditDraftKeyForDeck(openedDeck)] : undefined;
-
   useEffect(() => {
     writeCreateDraftDecks(createDraftDecks);
     if (!cloudDraftsLoaded) return;
@@ -227,30 +186,24 @@ export function DeckBrowserScreen({
       setLocalDeckError(error instanceof Error ? error.message : "Failed to save deck drafts.");
     });
   }, [cloudDraftsLoaded, createDraftDecks, editDraftByDeckId]);
-
   useEffect(() => {
     writeEditDeckDrafts(editDraftByDeckId);
   }, [editDraftByDeckId]);
-
   useEffect(() => {
     writeHiddenPremadeDeckIds(hiddenPremadeDeckIds);
   }, [hiddenPremadeDeckIds]);
-
   useEffect(() => {
     writeFavoriteDeckKeys(favoriteDeckKeys);
   }, [favoriteDeckKeys]);
-
   const setEditDraft = (deckId: string, draft: DeckEditorDraft) => {
     setEditDraftByDeckId((current) => ({ ...current, [deckId]: draft }));
   };
-
   const persistDrafts = async (nextCreateDrafts = createDraftDecks, nextEditDrafts = editDraftByDeckId): Promise<void> => {
     writeCreateDraftDecks(nextCreateDrafts);
     writeEditDeckDrafts(nextEditDrafts);
     if (!cloudDraftsLoaded) return;
     await saveCloudDeckDrafts(nextCreateDrafts, nextEditDrafts);
   };
-
   const clearEditDraft = (deckId: string) => {
     setEditDraftByDeckId((current) => {
       if (!(deckId in current)) return current;
@@ -259,7 +212,6 @@ export function DeckBrowserScreen({
       return next;
     });
   };
-
   const hasUnsavedEditorChanges = (): boolean => {
     if (pendingValidatedDeck || pendingEnergySelectionDeck) return true;
     if (!editorBaseline) return false;
@@ -272,26 +224,21 @@ export function DeckBrowserScreen({
     }
     return false;
   };
-
   const validateDeckNameAvailability = (name: string, currentDeckId: string | null = null): string | null => {
     const nextDeckId = createDeckIdFromName(name);
     const normalizedName = normalizeDeckNameForCompare(name);
     const currentId = currentDeckId ?? "";
-
     for (const deck of [...decks, ...localDecks, ...createDraftDecks]) {
       if (deck.id === currentId) continue;
       if (deck.id === nextDeckId || normalizeDeckNameForCompare(deck.name) === normalizedName) {
         return `A deck named ${deck.name} already exists.`;
       }
     }
-
     if (Object.keys(editDraftByDeckId).some((deckId) => deckId !== currentId && deckId === nextDeckId)) {
       return "A draft with this deck name already exists.";
     }
-
     return null;
   };
-
   const closeCreateEditorImmediately = () => {
     setPickerSlotIndex(null);
     setEditingDeckId(null);
@@ -308,7 +255,6 @@ export function DeckBrowserScreen({
     setEditorBaseline(null);
     setIsCreateOpen(false);
   };
-
   const requestCloseCreateEditor = () => {
     if (hasUnsavedEditorChanges()) {
       setShowUnsavedChangesConfirm(editingDeckId || editingPremadeDeckId || editingCreateDraftId ? "edit" : "create");
@@ -316,7 +262,6 @@ export function DeckBrowserScreen({
     }
     closeCreateEditorImmediately();
   };
-
   useEffect(() => {
     if (!customDecksEnabled) {
       setLocalDecks([]);
@@ -326,7 +271,6 @@ export function DeckBrowserScreen({
       setLocalDeckError(null);
       return;
     }
-
     let active = true;
     Promise.all([listLocalDecks(), listCloudDeckDrafts()])
       .then(([nextDecks, nextDrafts]) => {
@@ -347,7 +291,6 @@ export function DeckBrowserScreen({
       active = false;
     };
   }, [customDecksEnabled]);
-
   useEffect(() => {
     const onDeckEscape = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
@@ -449,7 +392,6 @@ export function DeckBrowserScreen({
     setLocalDecks(nextDecks);
     writeLocalDeckCache(nextDecks);
   };
-
   const openImportDeckJsonModal = () => {
     if (editingDeckId) {
       setJsonModalDeckRef({ id: editingDeckId, source: "local" });
@@ -466,7 +408,6 @@ export function DeckBrowserScreen({
     setShowClearAllConfirm(false);
     setShowUnsavedChangesConfirm(null);
   };
-
   return (
     <section style={deckBrowserShellStyle}>
       <div style={deckBrowserHeaderStyle}>
@@ -490,225 +431,60 @@ export function DeckBrowserScreen({
       {/* <div style={localDeckPersistenceNoticeStyle}>
 Created decks are saved to cloud storage for this test profile. Export still gives you a portable JSON backup.
       </div> */}
-      <section style={deckBrowserFilterPanelStyle}>
-        <div style={searchToolbarStyle}>
-          <input
-            value={deckQuery}
-            onChange={(event) => setDeckQuery(event.target.value)}
-            placeholder="Search decks"
-            aria-label="Search decks"
-            style={searchInputStyle}
-          />
-          <div style={sortControlGroupStyle}>
-            <select
-              value={deckSortKey}
-              aria-label="Sort decks"
-              style={sortSelectStyle}
-              onChange={(event) => setDeckSortKey(event.target.value as DeckListSortKey)}
-            >
-              {deckListSorts.map((sort) => (
-                <option key={sort.id} value={sort.id}>{sort.label}</option>
-              ))}
-            </select>
-            <button
-              type="button"
-              aria-label="Toggle deck sort direction"
-              style={sortDirectionButtonStyle(deckSortKey !== "recommended")}
-              disabled={deckSortKey === "recommended"}
-              onClick={() => setDeckSortDirection((current) => (current === "asc" ? "desc" : "asc"))}
-            >
-              {deckSortDirection === "asc" ? "Asc" : "Desc"}
-            </button>
-          </div>
-          <div style={filterMenuWrapStyle}>
-            <button
-              type="button"
-              aria-expanded={deckFiltersOpen}
-              aria-haspopup="menu"
-              style={filterMenuButtonStyle(deckFiltersOpen || activeDeckFilterCount > 0)}
-              onClick={() => setDeckFiltersOpen((open) => !open)}
-            >
-              Filters{activeDeckFilterCount > 0 ? ` (${activeDeckFilterCount})` : ""}
-            </button>
-            {deckFiltersOpen && (
-              <div style={filterPopoverStyle} role="menu">
-                <div style={filterPopoverHeaderStyle}>
-                  <div style={filterPopoverTitleStyle}>Deck Filters</div>
-                  <button
-                    type="button"
-                    style={clearFiltersButtonStyle(activeDeckFilterCount > 0)}
-                    disabled={activeDeckFilterCount === 0}
-                    onClick={() => {
-                      setDeckFilter(null);
-                      setDeckEnergyFiltersSelected(new Set());
-                    }}
-                  >
-                    Clear
-                  </button>
-                </div>
-                <div style={filterGroupStyle}>
-                  <div style={filterGroupLabelStyle}>Deck Type</div>
-                  <div style={deckFilterOptionGridStyle}>
-                    {deckListFilters.map((filter) => (
-                      <DeckFilterChip
-                        key={filter.id}
-                        active={deckFilter === filter.id}
-                        onClick={() => setDeckFilter((current) => (current === filter.id ? null : filter.id))}
-                      >
-                        {filter.label}
-                      </DeckFilterChip>
-                    ))}
-                  </div>
-                </div>
-                <div style={filterGroupStyle}>
-                  <div style={filterGroupLabelStyle}>Energy</div>
-                  <div style={energyFilterGridStyle}>
-                    {energyTypes.map((type) => (
-                      <button
-                        key={type}
-                        type="button"
-                        aria-label={`${energyLabel(type)} filter`}
-                        title={energyLabel(type)}
-                        style={energyFilterButtonStyle(deckEnergyFiltersSelected.has(type))}
-                        onClick={() => setDeckEnergyFiltersSelected((selected) => toggleSetValue(selected, type))}
-                      >
-                        <EnergyIcon type={type} size="md" />
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </section>
-      <div style={deckBrowserDeckTrayStyle}>
-        <div style={deckBrowserGridStyle}>
-          {visibleDecks.map((deck) => {
-            const equipped = deck.source !== "draft" && deck.id === equippedDeckId;
-            const hasDraft = deck.source === "draft" || Boolean(editDraftByDeckId[getEditDraftKeyForDeck(deck)]);
-            const favorite = favoriteDeckKeys.has(toDeckFavoriteKey(deck));
-            return (
-              <DeckBrowserTile
-                key={`${deck.source}-${deck.id}`}
-                deck={deck}
-                equipped={equipped}
-                isDraft={hasDraft}
-                favorite={favorite}
-                label={deck.source === "premade" ? "Premade Deck" : deck.source === "premadeEdited" ? "Premade Deck (Edited)" : hasDraft ? "Draft Deck" : "Created Deck"}
-                onOpen={() => setOpenedDeckRef({ id: deck.id, source: deck.source })}
-                onToggleFavorite={() => {
-                  const key = toDeckFavoriteKey(deck);
-                  setFavoriteDeckKeys((current) => toggleSetValue(current, key));
-                }}
-              />
-            );
-          })}
-          {customDecksEnabled && (
-            <DeckBrowserCreateTile
-              onOpen={() => {
-                const blankCardIds = Array.from({ length: DECK_CARD_COUNT }, () => null as string | null);
-                setCreateName("New Deck");
-                setCreateCardIds(blankCardIds);
-                setCreateError(null);
-                setPickerSlotIndex(null);
-                setEditingDeckId(null);
-                setEditingCreateDraftId(null);
-                setPendingValidatedDeck(null);
-                setPendingEnergySelectionDeck(null);
-                setEnergySelectionError(null);
-                setSelectedCoverCardId(null);
-                setSelectedEnergyTypes(["psychic"]);
-                setShowImportOverwriteConfirm(false);
-                setShowClearAllConfirm(false);
-                setShowUnsavedChangesConfirm(null);
-                setEditorBaseline({
-                  name: "New Deck",
-                  cardIds: blankCardIds,
-                  selectedCoverCardId: null,
-                  energyTypes: ["psychic"],
-                });
-                setIsCreateOpen(true);
-            }}
-            />
-          )}
-        </div>
-      </div>
-      {openedDeck && (
-        <DeckListModal
-          deck={openedDeck as DeckEntity}
-          equipped={openedDeck.id === equippedDeckId}
-          canEquip
-          equipDisabled={openedDeck.source === "draft" || openedDeckHasDraft}
-          canExport={!openedDeckHasDraft}
-          canEdit={customDecksEnabled}
-          {...(openedDeckDraft
-            ? {
-              displayCardIds: openedDeckDraft.cardIds,
-              cardCountText: `${openedDeckDraft.cardIds.filter((cardId) => Boolean(cardId)).length}/${DECK_CARD_COUNT} cards`,
-            }
-            : {})}
-          deckLabel={openedDeck.source === "premade" ? "Premade Deck" : openedDeck.source === "premadeEdited" ? "Premade Deck (Edited)" : openedDeckHasDraft ? "Draft Deck" : "Created Deck"}
-          onClose={() => {
-            setOpenedDeckRef(null);
-          }}
-          onExport={() => {
-            if (openedDeckHasDraft) return;
-            setJsonModalDeckRef({ id: openedDeck.id, source: openedDeck.source });
-            setJsonModalMode("export");
-            setJsonModalError(null);
-            setJsonModalText(buildDeckJson(openedDeck));
-          }}
-          onImport={() => {
-            if (openedDeck.source !== "local") return;
-            setJsonModalDeckRef({ id: openedDeck.id, source: openedDeck.source });
-            setJsonModalMode("import");
-            setJsonModalError(null);
-            setJsonModalText("");
-          }}
-          onEdit={() => {
-            const draft = editDraftByDeckId[getEditDraftKeyForDeck(openedDeck)];
-            const draftName = draft?.name ?? openedDeck.name;
-            const draftCardIds = draft?.cardIds ?? toEditableDeckSlots(openedDeck.cardIds);
-            const draftCover = draft?.selectedCoverCardId ?? openedDeck.coverCardId;
-            const draftEnergyTypes = draft?.energyTypes ?? getDeckSelectedEnergyTypes(openedDeck);
-            setCreateName(draftName);
-            setCreateCardIds([...draftCardIds]);
-            setCreateError(null);
-            setPickerSlotIndex(null);
-            setEditingDeckId(openedDeck.source === "local" || openedDeck.source === "premadeEdited" ? openedDeck.id : null);
-            setEditingPremadeDeckId(openedDeck.source === "premade" ? openedDeck.id : null);
-            setEditingCreateDraftId(openedDeck.source === "draft" ? openedDeck.id : null);
-            setPendingValidatedDeck(null);
-            setPendingEnergySelectionDeck(null);
-            setEnergySelectionError(null);
-            setSelectedCoverCardId(draftCover);
-            setSelectedEnergyTypes(draftEnergyTypes);
-            setShowImportOverwriteConfirm(false);
-            setShowClearAllConfirm(false);
-            setShowUnsavedChangesConfirm(null);
-            setEditorBaseline({
-              name: draftName,
-              cardIds: [...draftCardIds],
-              selectedCoverCardId: draftCover,
-              energyTypes: draftEnergyTypes,
-            });
-            setOpenedDeckRef(null);
-            setIsCreateOpen(true);
-          }}
-          onEquip={() => {
-            if (openedDeckHasDraft) return;
-            onEquipDeck(openedDeck.id);
-            setOpenedDeckRef(null);
-          }}
-          onDelete={() => {
-            setDeleteDeckRef({ id: openedDeck.id, source: openedDeck.source });
-          }}
-          canDelete={customDecksEnabled}
-          canImport={customDecksEnabled && openedDeck.source === "local"}
-          onInspectActiveChange={setDeckListInspectActive}
-        />
-      )}
+      <DeckBrowserFilters
+        deckQuery={deckQuery}
+        setDeckQuery={setDeckQuery}
+        deckSortKey={deckSortKey}
+        setDeckSortKey={setDeckSortKey}
+        deckSortDirection={deckSortDirection}
+        setDeckSortDirection={setDeckSortDirection}
+        deckFiltersOpen={deckFiltersOpen}
+        setDeckFiltersOpen={setDeckFiltersOpen}
+        activeDeckFilterCount={activeDeckFilterCount}
+        deckFilter={deckFilter}
+        setDeckFilter={setDeckFilter}
+        deckEnergyFiltersSelected={deckEnergyFiltersSelected}
+        setDeckEnergyFiltersSelected={setDeckEnergyFiltersSelected}
+      />
+      <DeckBrowserDeckGrid
+        visibleDecks={visibleDecks}
+        equippedDeckId={equippedDeckId}
+        editDraftByDeckId={editDraftByDeckId}
+        favoriteDeckKeys={favoriteDeckKeys}
+        setFavoriteDeckKeys={setFavoriteDeckKeys}
+        setOpenedDeckRef={setOpenedDeckRef}
+        customDecksEnabled={customDecksEnabled}
+        onCreate={(blankCardIds: Array<string | null>) => {
+          setCreateName("New Deck");
+          setCreateCardIds(blankCardIds);
+          setCreateError(null);
+          setPickerSlotIndex(null);
+          setEditingDeckId(null);
+          setEditingCreateDraftId(null);
+          setPendingValidatedDeck(null);
+          setPendingEnergySelectionDeck(null);
+          setEnergySelectionError(null);
+          setSelectedCoverCardId(null);
+          setSelectedEnergyTypes(["psychic"]);
+          setShowImportOverwriteConfirm(false);
+          setShowClearAllConfirm(false);
+          setShowUnsavedChangesConfirm(null);
+          setEditorBaseline({
+            name: "New Deck",
+            cardIds: blankCardIds,
+            selectedCoverCardId: null,
+            energyTypes: ["psychic"],
+          });
+          setIsCreateOpen(true);
+        }}
+      />
+      <DeckOpenedModal {...{
+        openedDeck, openedDeckDraft, openedDeckHasDraft, equippedDeckId, customDecksEnabled, editDraftByDeckId, onEquipDeck,
+        setOpenedDeckRef, setJsonModalDeckRef, setJsonModalMode, setJsonModalError, setJsonModalText,
+        setCreateName, setCreateCardIds, setCreateError, setPickerSlotIndex, setEditingDeckId, setEditingPremadeDeckId, setEditingCreateDraftId,
+        setPendingValidatedDeck, setPendingEnergySelectionDeck, setEnergySelectionError, setSelectedCoverCardId, setSelectedEnergyTypes,
+        setShowImportOverwriteConfirm, setShowClearAllConfirm, setShowUnsavedChangesConfirm, setEditorBaseline, setIsCreateOpen, setDeleteDeckRef, setDeckListInspectActive,
+      }} />
       {customDecksEnabled && isCreateOpen && (
         <CreateDeckModal
           title={editingDeckId || editingPremadeDeckId || editingCreateDraftId ? "Edit Deck" : "Create Deck"}
@@ -1221,226 +997,3 @@ Created decks are saved to cloud storage for this test profile. Export still giv
     </section>
   );
 }
-
-function readCreateDraftDecks(): LocalDeck[] {
-  if (typeof window === "undefined") return [];
-  const raw = window.localStorage.getItem(CREATE_DECK_DRAFTS_STORAGE_KEY);
-  if (!raw) return [];
-  try {
-    const parsed = JSON.parse(raw) as LocalDeck[];
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter((deck) => {
-      if (!deck || typeof deck !== "object") return false;
-      if (typeof deck.id !== "string" || deck.id.length === 0) return false;
-      if (typeof deck.name !== "string" || deck.name.length === 0) return false;
-      if (typeof deck.coverCardId !== "string" || deck.coverCardId.length === 0) return false;
-      if (!Array.isArray(deck.cardIds) || deck.cardIds.some((cardId) => typeof cardId !== "string")) return false;
-      if (deck.energyTypes !== undefined && !Array.isArray(deck.energyTypes)) return false;
-      if (typeof deck.createdAt !== "string" || typeof deck.updatedAt !== "string") return false;
-      return true;
-    });
-  } catch {
-    return [];
-  }
-}
-
-function writeCreateDraftDecks(drafts: LocalDeck[]): void {
-  if (typeof window === "undefined") return;
-  if (drafts.length === 0) {
-    window.localStorage.removeItem(CREATE_DECK_DRAFTS_STORAGE_KEY);
-    return;
-  }
-  window.localStorage.setItem(CREATE_DECK_DRAFTS_STORAGE_KEY, JSON.stringify(drafts));
-}
-
-function readFavoriteDeckKeys(): Set<string> {
-  if (typeof window === "undefined") return new Set();
-  const raw = window.localStorage.getItem(FAVORITE_DECKS_STORAGE_KEY);
-  if (!raw) return new Set();
-  try {
-    const parsed = JSON.parse(raw) as unknown;
-    if (!Array.isArray(parsed)) return new Set();
-    return new Set(parsed.filter((value): value is string => typeof value === "string" && value.length > 0));
-  } catch {
-    return new Set();
-  }
-}
-
-function writeFavoriteDeckKeys(deckKeys: Set<string>): void {
-  if (typeof window === "undefined") return;
-  if (deckKeys.size === 0) {
-    window.localStorage.removeItem(FAVORITE_DECKS_STORAGE_KEY);
-    return;
-  }
-  window.localStorage.setItem(FAVORITE_DECKS_STORAGE_KEY, JSON.stringify([...deckKeys]));
-}
-
-function readEditDeckDrafts(): Record<string, DeckEditorDraft> {
-  if (typeof window === "undefined") return {};
-  const raw = window.localStorage.getItem(EDIT_DECK_DRAFT_STORAGE_KEY);
-  if (!raw) return {};
-  try {
-    const parsed = JSON.parse(raw) as Record<string, DeckEditorDraft>;
-    if (!parsed || typeof parsed !== "object") return {};
-    const next: Record<string, DeckEditorDraft> = {};
-    for (const [deckId, value] of Object.entries(parsed)) {
-      if (!value || typeof value !== "object") continue;
-      if (typeof value.name !== "string") continue;
-      if (!Array.isArray(value.cardIds) || value.cardIds.length !== DECK_CARD_COUNT) continue;
-      if (value.cardIds.some((cardId) => cardId !== null && typeof cardId !== "string")) continue;
-      if (value.selectedCoverCardId !== null && typeof value.selectedCoverCardId !== "string") continue;
-      if (value.energyTypes !== undefined && !Array.isArray(value.energyTypes)) continue;
-      const energyTypes = normalizeDeckEnergyTypes(
-        value.energyTypes?.filter((energyType): energyType is EnergyType => typeof energyType === "string"),
-      );
-      next[deckId] = {
-        name: value.name,
-        cardIds: [...value.cardIds],
-        selectedCoverCardId: value.selectedCoverCardId,
-        energyTypes: energyTypes.length > 0 ? energyTypes : ["psychic"],
-      };
-    }
-    return next;
-  } catch {
-    return {};
-  }
-}
-
-function writeEditDeckDrafts(drafts: Record<string, DeckEditorDraft>): void {
-  if (typeof window === "undefined") return;
-  if (Object.keys(drafts).length === 0) {
-    window.localStorage.removeItem(EDIT_DECK_DRAFT_STORAGE_KEY);
-    return;
-  }
-  window.localStorage.setItem(EDIT_DECK_DRAFT_STORAGE_KEY, JSON.stringify(drafts));
-}
-
-function normalizeDeckNameForCompare(name: string): string {
-  return name.trim().replace(/\s+/g, " ").toLowerCase();
-}
-
-function resolveDraftCoverCardId(draft: DeckEditorDraft): string {
-  return draft.selectedCoverCardId
-    ?? draft.cardIds.find((cardId): cardId is string => Boolean(cardId))
-    ?? "matikanetannhauserStage2";
-}
-
-function sameEnergyTypes(left: EnergyType[], right: EnergyType[]): boolean {
-  if (left.length !== right.length) return false;
-  return left.every((type, index) => type === right[index]);
-}
-
-function normalizeEditDraftEnergyTypes(drafts: Record<string, DeckEditorDraft>): Record<string, DeckEditorDraft> {
-  return Object.fromEntries(Object.entries(drafts).map(([deckId, draft]) => {
-    const energyTypes = normalizeDeckEnergyTypes(draft.energyTypes);
-    return [deckId, { ...draft, energyTypes: energyTypes.length > 0 ? energyTypes : ["psychic"] }];
-  }));
-}
-
-function buildCreateDraftDeckId(
-  deckName: string,
-  createDraftDecks: LocalDeck[],
-  editDraftByDeckId: Record<string, DeckEditorDraft>,
-): string {
-  const existingIds = new Set([
-    ...createDraftDecks.map((deck) => deck.id),
-    ...Object.keys(editDraftByDeckId),
-  ]);
-  const base = createDeckIdFromName(deckName);
-  let candidate = base;
-  let suffix = 1;
-  while (existingIds.has(candidate)) {
-    suffix += 1;
-    candidate = `${base}-${suffix}`;
-  }
-  return candidate;
-}
-
-function getEditedPremadeDeckId(deckId: string): string {
-  return `${deckId}${EDITED_PREMADE_DECK_ID_SUFFIX}`;
-}
-
-function getEditDraftKeyForDeck(deck: DeckEntity & { source: DeckSource }): string {
-  return deck.source === "premade" ? getEditedPremadeDeckId(deck.id) : deck.id;
-}
-
-function getPremadeDeckIdFromEditedDeckId(deckId: string): string {
-  return deckId.endsWith(EDITED_PREMADE_DECK_ID_SUFFIX)
-    ? deckId.slice(0, -EDITED_PREMADE_DECK_ID_SUFFIX.length)
-    : deckId;
-}
-
-function isEditedPremadeDeckId(deckId: string, premadeDecks: PremadeDeck[]): boolean {
-  return premadeDecks.some((deck) => getEditedPremadeDeckId(deck.id) === deckId);
-}
-
-function toDeckFavoriteKey(deck: DeckEntity & { source: DeckSource }): string {
-  if (deck.source === "premadeEdited") return `premade:${getPremadeDeckIdFromEditedDeckId(deck.id)}`;
-  return `${deck.source}:${deck.id}`;
-}
-
-function getDeckSearchText(deck: DeckEntity & { source: DeckSource }): string {
-  const sourceLabel = deck.source === "premade" || deck.source === "premadeEdited" ? "premade" : deck.source === "local" ? "created custom" : "draft";
-  return [
-    deck.name,
-    sourceLabel,
-    getDeckEnergyTypes(deck).map(energyLabel).join(" "),
-    ...deck.cardIds.map((cardId) => {
-      try {
-        return getSearchText(getCard(cardId));
-      } catch {
-        return cardId;
-      }
-    }),
-  ].join(" ").toLowerCase();
-}
-
-function sortDeckBrowserDecks<T extends DeckEntity & { source: DeckSource }>(
-  decks: T[],
-  favoriteDeckKeys: Set<string>,
-  sortKey: DeckListSortKey,
-  direction: "asc" | "desc",
-): T[] {
-  const multiplier = direction === "asc" ? 1 : -1;
-  return [...decks].sort((left, right) => {
-    const favoriteSort = Number(favoriteDeckKeys.has(toDeckFavoriteKey(right))) - Number(favoriteDeckKeys.has(toDeckFavoriteKey(left)));
-    if (favoriteSort !== 0) return favoriteSort;
-    if (sortKey === "name") return left.name.localeCompare(right.name) * multiplier;
-    if (sortKey === "updated") return (getDeckUpdatedAt(left).localeCompare(getDeckUpdatedAt(right)) || left.name.localeCompare(right.name)) * multiplier;
-    return getDeckRecommendedRank(left) - getDeckRecommendedRank(right)
-      || getDeckSourceRank(left.source) - getDeckSourceRank(right.source)
-      || left.name.localeCompare(right.name);
-  });
-}
-
-function getDeckRecommendedRank(deck: DeckEntity & { source: DeckSource }): number {
-  if (deck.source === "local") return 0;
-  if (deck.source === "draft") return 1;
-  if (deck.source === "premadeEdited") return 2;
-  return 2;
-}
-
-function getDeckUpdatedAt(deck: DeckEntity & { source: DeckSource }): string {
-  return "updatedAt" in deck ? deck.updatedAt : "";
-}
-
-function getDeckSourceRank(source: DeckSource): number {
-  if (source === "premade") return 0;
-  if (source === "premadeEdited") return 0;
-  if (source === "local") return 1;
-  return 2;
-}
-
-function DeckFilterChip({ active, onClick, children }: { active: boolean; onClick: () => void; children: string }) {
-  return (
-    <button type="button" style={filterChipStyle(active)} onClick={onClick}>
-      {children}
-    </button>
-  );
-}
-
-const deckFilterOptionGridStyle = {
-  display: "flex",
-  flexWrap: "wrap",
-  gap: 8,
-} satisfies CSSProperties;
