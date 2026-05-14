@@ -2427,7 +2427,6 @@ export function App() {
     && koCrumblingUids.size === 0
     && pointGainQueue.length === 0
     && !hasKoVacancy
-    && !hasKoPromotionLock
     && !hasActivePromotionReveal
     && (!cardFlowHasPriority || battleQueueHasKo);
   useEffect(() => {
