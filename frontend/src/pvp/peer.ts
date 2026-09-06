@@ -1,4 +1,5 @@
 import { encodePvpMessage, parsePvpMessage, type PvpWireMessage } from "./protocol";
+import { createOrderedPvpReceiver } from "./orderedReceiver";
 
 export type PeerStatus = "idle" | "creatingOffer" | "awaitingAnswer" | "joining" | "connecting" | "connected" | "failed" | "closed";
 
@@ -23,6 +24,7 @@ export class PeerRuntime {
   private gatheredCandidateLines: string[] = [];
   private pendingRemoteCandidates: RTCIceCandidateInit[] = [];
   private sendQueue: Promise<void> = Promise.resolve();
+  private connectionGeneration = 0;
 
   constructor(private readonly options: PeerRuntimeOptions) {}
 
@@ -107,6 +109,7 @@ export class PeerRuntime {
   }
 
   close(): void {
+    this.connectionGeneration += 1;
     if (this.channel) {
       this.channel.onopen = null;
       this.channel.onclose = null;
@@ -179,14 +182,19 @@ export class PeerRuntime {
   }
 
   private attachChannel(channel: RTCDataChannel): void {
+    const generation = this.connectionGeneration;
+    const receive = createOrderedPvpReceiver(parsePvpMessage, (message) => {
+      if (generation !== this.connectionGeneration || channel !== this.channel) return;
+      this.options.onMessage(message);
+    });
     channel.onopen = () => this.options.onStatus("connected", "Connected.");
     channel.onclose = () => this.options.onStatus("closed", "Data channel closed.");
     channel.onerror = () => this.options.onStatus("failed", "Data channel error.");
     channel.onmessage = (event) => {
-      void parsePvpMessage(String(event.data)).then((message) => {
-        if (!message) return;
-        this.options.onMessage(message);
-      });
+      const raw = String(event.data);
+      // Ordered data channels preserve arrival order, not asynchronous decode order.
+      // Keep failures local so one malformed packet cannot poison later packets.
+      receive(raw);
     };
   }
 

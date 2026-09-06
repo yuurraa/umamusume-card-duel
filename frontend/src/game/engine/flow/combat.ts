@@ -5,7 +5,7 @@ import { actorLowerPossessive, actorName, actorPossessive, energyLabel, formatCa
 import { log } from "../core/log";
 import { findMostDamagedUmamusume, findOwnUmamusumeByUid, getAllUmamusume } from "../core/umamusume";
 import { drawCards } from "./turn";
-import { shuffle } from "../core/random";
+import { shuffle, type RandomSource } from "../core/random";
 import { evolveUmamusume } from "./evolution";
 import { getUmamusumeAbility } from "./abilityRules";
 import { clearSpecialConditions } from "./specialConditions";
@@ -13,6 +13,7 @@ import { clearSpecialConditions } from "./specialConditions";
 type CombatDeps = {
   refreshContinuousEffects: (state: GameState) => void;
   choosePreferredActiveIndex: (side: SideState) => number;
+  random?: RandomSource;
 };
 
 export function performAttack(
@@ -31,6 +32,7 @@ export function performAttack(
   maxDiscardCount?: number,
   discardHandIndexes?: number[],
 ): void {
+  const random = deps.random ?? Math.random;
   const defenderId = attackerId === "player" ? "opponent" : "player";
   const pointsBeforeAttack = {
     attacker: state.sides[attackerId].points,
@@ -119,7 +121,7 @@ export function performAttack(
     damage += evolvedLastTurnBonus;
   }
   if (attack.coinBonus || attack.drawOnHeads || attack.discardRandomOpponentHandOnHeads) {
-    const heads = flipCoin(attacker, forcedCoinResults) === "heads";
+    const heads = flipCoin(attacker, forcedCoinResults, random) === "heads";
     coinFlipHeads = heads;
     if (heads && attack.coinBonus) damage += attack.coinBonus;
   }
@@ -140,7 +142,7 @@ export function performAttack(
     log(state, `${actorPossessive(attacker)} next coin flip is guaranteed to be heads.`);
   }
   if (attack.knockOutActiveIfAllCoinHeads) {
-    const results = Array.from({ length: attack.knockOutActiveIfAllCoinHeads }, () => flipCoin(attacker, forcedCoinResults));
+    const results = Array.from({ length: attack.knockOutActiveIfAllCoinHeads }, () => flipCoin(attacker, forcedCoinResults, random));
     log(state, formatCoinFlipResultLog(results));
     if (results.every((result) => result === "heads")) {
       attackTarget.hp = 0;
@@ -208,7 +210,7 @@ export function performAttack(
   if (attack.discardRandomOpponentHandOnHeads && coinFlipHeads) {
     const shouldUseOptionalDiscard = defender.hand.length > 0 && attacker.active.hp > attack.discardRandomOpponentHandOnHeads.selfDamage;
     if (shouldUseOptionalDiscard) {
-      const randomHandIndex = Math.floor(Math.random() * defender.hand.length);
+      const randomHandIndex = Math.floor(random() * defender.hand.length);
       const [discardedCardId] = defender.hand.splice(randomHandIndex, 1);
       if (discardedCardId) {
         defender.discard.push(discardedCardId);
@@ -246,7 +248,7 @@ export function performAttack(
     shuffleActiveIntoDeckIfPaid(state, attacker, attack.shuffleSelfIntoDeck, deps);
   }
   if (attack.shuffleRandomDiscardIntoDeck) {
-    shuffleRandomDiscardIntoDeck(state, attacker, attack.name, randomDiscardIndex);
+    shuffleRandomDiscardIntoDeck(state, attacker, attack.name, randomDiscardIndex, random);
   }
 
   resolveKnockout(state, attackerId, defenderId, deps, `${formatUmamusumeCardName(attackerCard)}'s ${attack.name}`);
@@ -291,14 +293,14 @@ export function performAttack(
   }
 }
 
-function shuffleRandomDiscardIntoDeck(state: GameState, side: SideState, attackName: string, randomDiscardIndex?: number): void {
+function shuffleRandomDiscardIntoDeck(state: GameState, side: SideState, attackName: string, randomDiscardIndex: number | undefined, random: RandomSource): void {
   if (side.discard.length === 0) return;
   const discardIndex = randomDiscardIndex !== undefined && randomDiscardIndex >= 0 && randomDiscardIndex < side.discard.length
     ? randomDiscardIndex
-    : Math.floor(Math.random() * side.discard.length);
+    : Math.floor(random() * side.discard.length);
   const [cardId] = side.discard.splice(discardIndex, 1);
   if (!cardId) return;
-  side.deck = shuffle([...side.deck, cardId]);
+  side.deck = shuffle([...side.deck, cardId], random);
   log(state, `${attackName} shuffled ${formatCardName(getCard(cardId))} from ${actorPossessive(side)} discard pile into the deck.`);
 }
 
@@ -341,7 +343,7 @@ function shuffleActiveIntoDeckIfPaid(
 
   const shuffledCardIds = [...(active.evolutionCardIds ?? []), active.cardId, ...(active.toolCardId ? [active.toolCardId] : [])];
   side.active = null;
-  side.deck = shuffle([...side.deck, ...shuffledCardIds]);
+  side.deck = shuffle([...side.deck, ...shuffledCardIds], deps.random);
 
   const promotedIndex = deps.choosePreferredActiveIndex(side);
   const promoted = promotedIndex >= 0 ? side.bench.splice(promotedIndex, 1)[0] : side.bench.shift();
@@ -498,13 +500,13 @@ function resolveSwitchTarget(
   return preferredIndex >= 0 ? attacker.bench[preferredIndex] ?? null : attacker.bench[0] ?? null;
 }
 
-function flipCoin(side: SideState, forcedCoinResults: CoinFlipResult[]): CoinFlipResult {
+function flipCoin(side: SideState, forcedCoinResults: CoinFlipResult[], random: RandomSource): CoinFlipResult {
   if ((side.guaranteedCoinFlipHeads ?? 0) > 0) {
     side.guaranteedCoinFlipHeads -= 1;
     if (forcedCoinResults.length > 0) forcedCoinResults.shift();
     return "heads";
   }
-  return forcedCoinResults.shift() ?? (Math.random() >= 0.5 ? "heads" : "tails");
+  return forcedCoinResults.shift() ?? (random() >= 0.5 ? "heads" : "tails");
 }
 
 function formatCoinFlipResultLog(results: CoinFlipResult[]): string {

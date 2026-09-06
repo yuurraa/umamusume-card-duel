@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createDeckIdFromName, LOCAL_DECK_FORMAT_VERSION, type LocalDeck } from "../../../shared/src/localDecks";
 import type { EnergyType } from "../../../shared/src/types";
 import { getCard } from "../game/engine";
@@ -212,7 +212,7 @@ export function DeckBrowserScreen({
       return next;
     });
   };
-  const hasUnsavedEditorChanges = (): boolean => {
+  const hasUnsavedEditorChanges = useCallback((): boolean => {
     if (pendingValidatedDeck || pendingEnergySelectionDeck) return true;
     if (!editorBaseline) return false;
     if (editorBaseline.name !== createName) return true;
@@ -223,7 +223,7 @@ export function DeckBrowserScreen({
       if (editorBaseline.cardIds[index] !== createCardIds[index]) return true;
     }
     return false;
-  };
+  }, [createCardIds, createName, editorBaseline, pendingEnergySelectionDeck, pendingValidatedDeck, selectedCoverCardId, selectedEnergyTypes]);
   const validateDeckNameAvailability = (name: string, currentDeckId: string | null = null): string | null => {
     const nextDeckId = createDeckIdFromName(name);
     const normalizedName = normalizeDeckNameForCompare(name);
@@ -239,7 +239,7 @@ export function DeckBrowserScreen({
     }
     return null;
   };
-  const closeCreateEditorImmediately = () => {
+  const closeCreateEditorImmediately = useCallback(() => {
     setPickerSlotIndex(null);
     setEditingDeckId(null);
     setEditingPremadeDeckId(null);
@@ -254,14 +254,14 @@ export function DeckBrowserScreen({
     setShowUnsavedChangesConfirm(null);
     setEditorBaseline(null);
     setIsCreateOpen(false);
-  };
-  const requestCloseCreateEditor = () => {
+  }, []);
+  const requestCloseCreateEditor = useCallback(() => {
     if (hasUnsavedEditorChanges()) {
       setShowUnsavedChangesConfirm(editingDeckId || editingPremadeDeckId || editingCreateDraftId ? "edit" : "create");
       return;
     }
     closeCreateEditorImmediately();
-  };
+  }, [closeCreateEditorImmediately, editingCreateDraftId, editingDeckId, editingPremadeDeckId, hasUnsavedEditorChanges]);
   useEffect(() => {
     if (!customDecksEnabled) {
       setLocalDecks([]);

@@ -8,6 +8,7 @@ export function NeutralButton({
   tone = "default",
   style,
   ariaLabel,
+  autoFocus = false,
 }: {
   children: ReactNode;
   onClick?: () => void;
@@ -15,6 +16,7 @@ export function NeutralButton({
   tone?: NeutralButtonTone;
   style?: CSSProperties;
   ariaLabel?: string;
+  autoFocus?: boolean;
 }) {
   const [hovered, setHovered] = useState(false);
   const enabled = !disabled;
@@ -30,6 +32,7 @@ export function NeutralButton({
       onFocus={() => setHovered(true)}
       onBlur={() => setHovered(false)}
       aria-label={ariaLabel}
+      autoFocus={autoFocus}
     >
       {children}
     </button>

@@ -8,6 +8,7 @@ import { findOwnUmamusumeByUid, getAllUmamusume } from "../core/umamusume";
 import { createUmamusume } from "./setup";
 import { applyTrainer, playStadium } from "./trainers";
 import type { PlayChoices } from "../core/playTypes";
+import type { RandomSource } from "../core/random";
 import type { SwitchAfterGustResume } from "./trainers";
 
 export function getPlayableAction(state: GameState, side: SideState, cardId: string): PlayAction {
@@ -101,10 +102,11 @@ export function resolveCardPlay(
   play: PlayAction,
   choices: PlayChoices,
   switchOutOpponentActive: (state: GameState, actingSideId: SideState["id"], pendingChoiceResume?: SwitchAfterGustResume) => void,
+  random: RandomSource = Math.random,
 ): void {
   if (!play.canPlay) return;
   if (play.type === "benchBasic" && card.kind === "umamusume") {
-    side.bench.push(createUmamusume(card.id, state.turnNumber));
+    side.bench.push(createUmamusume(state, card.id, state.turnNumber));
     log(state, `${actorName(side)} benched ${formatUmamusumeCardName(card)}.`);
   } else if (play.type === "evolve" && card.kind === "umamusume") {
     const chosenTarget = choices.umamusumeTargetUid !== undefined ? findOwnUmamusumeByUid(side, choices.umamusumeTargetUid) : undefined;
@@ -126,7 +128,7 @@ export function resolveCardPlay(
       if (card.effect.rainbowUncapCrystal) {
         useRainbowUncapCrystal(state, side, choices.umamusumeTargetUid, choices.rainbowEvolutionHandIndex);
       } else {
-        applyTrainer(state, side, card, choices, switchOutOpponentActive);
+        applyTrainer(state, side, card, choices, switchOutOpponentActive, "none", random);
       }
       if (card.trainerType === "supporter") side.usedSupporterThisTurn = true;
       side.discard.push(card.id);

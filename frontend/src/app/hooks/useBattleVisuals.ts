@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { CardFlowItem } from "../../match/feedback/CardFlowOverlay";
 import type { BattleEffectEvent } from "../../match/feedback/BattleEffectOverlay";
 import type { GameState, SideId, UmamusumeInstance } from "../../../../shared/src/types";
@@ -56,6 +56,7 @@ export function useBattleVisuals({
   const koCrumbleTimeoutIdsRef = useRef<number[]>([]);
   const activePromotionRevealTimeoutBySideRef = useRef<Partial<Record<SideId, number>>>({});
   const appliedVisibleHpBatchRef = useRef<string>("");
+  const visualGenerationRef = useRef(0);
 
   const retainedKoDisplayGame = withRetainedKoBoard(baseDisplayGame, battleEffectQueue, koRetainedBoardBySide);
   const displayGame = withKoVacantActive(retainedKoDisplayGame, koVacancyBySide);
@@ -86,6 +87,7 @@ export function useBattleVisuals({
   };
 
   const resetBattleVisuals = () => {
+    visualGenerationRef.current += 1;
     previousBattleSnapshotRef.current = null;
     setBattleEffectQueue([]);
     setKoCrumblingUids(new Set());
@@ -166,18 +168,20 @@ export function useBattleVisuals({
     previousBattleSnapshotRef.current = current;
   }, [baseDisplayGame, isCoinFlipBlocking]);
 
-  const activeBattleEffects = battleEffectQueue[0]?.batchKey
+  const activeBattleEffects = useMemo(() => battleEffectQueue[0]?.batchKey
     ? getLeadingBattleEffectBatch(battleEffectQueue)
     : battleEffectQueue[0]
       ? [battleEffectQueue[0]]
-      : [];
+      : [], [battleEffectQueue]);
 
   const scheduleKoPromotionRelease = (sideIds: SideId[]) => {
+    const generation = visualGenerationRef.current;
     const uniqueSideIds = Array.from(new Set(sideIds));
     uniqueSideIds.forEach((sideId) => {
       const existingTimeout = koVacancyTimeoutBySideRef.current[sideId];
       if (existingTimeout !== undefined) window.clearTimeout(existingTimeout);
       koVacancyTimeoutBySideRef.current[sideId] = window.setTimeout(() => {
+        if (generation !== visualGenerationRef.current) return;
         setKoVacancyBySide((current) => {
           const next = { ...current };
           delete next[sideId];
@@ -197,6 +201,7 @@ export function useBattleVisuals({
         const existingRevealTimeout = activePromotionRevealTimeoutBySideRef.current[sideId];
         if (existingRevealTimeout !== undefined) window.clearTimeout(existingRevealTimeout);
         activePromotionRevealTimeoutBySideRef.current[sideId] = window.setTimeout(() => {
+          if (generation !== visualGenerationRef.current) return;
           setActivePromotionRevealingBySide((current) => {
             const next = { ...current };
             delete next[sideId];
@@ -271,6 +276,7 @@ export function useBattleVisuals({
       return nextVisualEnergy;
     });
     if (completedKoUids.length > 0) {
+      const generation = visualGenerationRef.current;
       setKoCrumblingUids((current) => {
         const next = new Set(current);
         completedKoUids.forEach((uid) => next.add(uid));
@@ -291,6 +297,7 @@ export function useBattleVisuals({
         return next;
       });
       const crumbleTimeout = window.setTimeout(() => {
+        if (generation !== visualGenerationRef.current) return;
         setKoCrumblingUids((current) => {
           const next = new Set(current);
           completedKoUids.forEach((uid) => next.delete(uid));

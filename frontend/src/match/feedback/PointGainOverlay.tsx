@@ -16,7 +16,7 @@ export function PointGainOverlay({
 }: {
   event: PointGainEvent;
   onDone: () => void;
-  durationMs?: number;
+  durationMs?: number | undefined;
 }) {
   const onDoneRef = useRef(onDone);
 
@@ -33,16 +33,16 @@ export function PointGainOverlay({
   const overlay = (
     <div style={rootStyle} aria-live="polite">
       <style>{KEYFRAMES}</style>
-      <div style={backdropStyle} aria-hidden="true" />
-      <section style={popupStyle(event.side)}>
-        <div style={burstStyle} aria-hidden="true" />
+      <div style={backdropStyle(durationMs)} aria-hidden="true" />
+      <section style={popupStyle(event.side, durationMs)}>
+        <div style={burstStyle(durationMs)} aria-hidden="true" />
         <div style={kickerStyle}>KO Reward</div>
         <div style={titleStyle}>{label}</div>
         <div style={pointRowStyle} aria-label={`${event.points} points`}>
           {Array.from({ length: 3 }, (_, index) => (
             <span
               key={index}
-              style={pointPipStyle(index < event.points, event.side, index)}
+              style={pointPipStyle(index < event.points, event.side, index, durationMs)}
             />
           ))}
         </div>
@@ -91,14 +91,16 @@ const rootStyle: CSSProperties = {
   fontFamily: fontStacks.ui,
 };
 
-const backdropStyle: CSSProperties = {
+function backdropStyle(durationMs: number): CSSProperties {
+  return {
   position: "absolute",
   inset: 0,
   background: "rgba(15, 23, 42, 0.62)",
-  animation: "point-gain-backdrop 2000ms ease both",
-};
+    animation: `point-gain-backdrop ${durationMs}ms ease both`,
+  };
+}
 
-function popupStyle(side: SideId): CSSProperties {
+function popupStyle(side: SideId, durationMs: number): CSSProperties {
   const playerTone = side === "player";
   const accent = playerTone ? "#22c55e" : "#f59e0b";
   return {
@@ -114,12 +116,13 @@ function popupStyle(side: SideId): CSSProperties {
     textAlign: "center",
     textShadow: "none",
     padding: "18px 24px 18px",
-    animation: "point-gain-pop 2000ms cubic-bezier(0.16, 1, 0.3, 1) both",
+    animation: `point-gain-pop ${durationMs}ms cubic-bezier(0.16, 1, 0.3, 1) both`,
     ["--point-accent" as string]: accent,
   };
 }
 
-const burstStyle: CSSProperties = {
+function burstStyle(durationMs: number): CSSProperties {
+  return {
   position: "absolute",
   left: "50%",
   top: "50%",
@@ -128,9 +131,10 @@ const burstStyle: CSSProperties = {
   borderRadius: radius.circle,
   background: "radial-gradient(circle, var(--point-accent) 0%, rgba(255, 255, 255, 0.42) 34%, transparent 68%)",
   opacity: 0,
-  animation: "point-gain-burst 920ms ease-out both",
+    animation: `point-gain-burst ${Math.min(920, durationMs)}ms ease-out both`,
   pointerEvents: "none",
-};
+  };
+}
 
 const kickerStyle: CSSProperties = {
   position: "relative",
@@ -156,7 +160,7 @@ const pointRowStyle: CSSProperties = {
   gap: 12,
 };
 
-function pointPipStyle(filled: boolean, side: SideId, index: number): CSSProperties {
+function pointPipStyle(filled: boolean, side: SideId, index: number, durationMs: number): CSSProperties {
   const accent = side === "player" ? "#22c55e" : "#f59e0b";
   return {
     width: 28,
@@ -165,6 +169,6 @@ function pointPipStyle(filled: boolean, side: SideId, index: number): CSSPropert
     border: `3px solid ${filled ? accent : "rgba(15, 23, 42, 0.28)"}`,
     background: filled ? `radial-gradient(circle at 35% 28%, #ffffff 0%, ${accent} 42%, #111827 150%)` : "rgba(255, 255, 255, 0.58)",
     boxShadow: filled ? `0 8px 18px ${side === "player" ? "rgba(34, 197, 94, 0.34)" : "rgba(245, 158, 11, 0.34)"}` : "none",
-    animation: filled ? `point-pip-pop 380ms cubic-bezier(0.18, 0.82, 0.22, 1) ${220 + index * 110}ms both` : undefined,
+    animation: filled ? `point-pip-pop ${Math.min(380, durationMs)}ms cubic-bezier(0.18, 0.82, 0.22, 1) ${Math.min(220 + index * 110, Math.max(0, durationMs - 60))}ms both` : undefined,
   };
 }

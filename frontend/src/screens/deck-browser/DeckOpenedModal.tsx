@@ -1,10 +1,47 @@
+import type { Dispatch, SetStateAction } from "react";
 import type { EnergyType } from "../../../../shared/src/types";
 import type { DeckEntity } from "./helpers";
 import { DECK_CARD_COUNT, buildDeckJson, getDeckSelectedEnergyTypes, toEditableDeckSlots } from "./helpers";
 import { DeckListModal } from "./components";
-import { getEditDraftKeyForDeck, getEditedPremadeDeckId } from "./model";
+import { getEditDraftKeyForDeck, getEditedPremadeDeckId, type DeckEditorDraft, type DeckEditorSnapshot, type DeckRef, type DeckSource } from "./model";
 
-type DeckOpenedModalProps = Record<string, any>;
+type OpenedDeck = (DeckEntity & { source: DeckSource }) | null;
+type PendingValidatedDeck = { name: string; cardIds: string[]; deckId: string | null; energyTypes: EnergyType[] } | null;
+type PendingEnergySelectionDeck = { name: string; cardIds: string[]; deckId: string | null; initialCoverCardId: string } | null;
+
+type DeckOpenedModalProps = {
+  openedDeck: OpenedDeck;
+  openedDeckDraft: DeckEditorDraft | undefined;
+  openedDeckHasDraft: boolean;
+  equippedDeckId: string;
+  customDecksEnabled: boolean;
+  editDraftByDeckId: Record<string, DeckEditorDraft>;
+  onEquipDeck: (deckId: string) => void;
+  setOpenedDeckRef: Dispatch<SetStateAction<DeckRef | null>>;
+  setJsonModalDeckRef: Dispatch<SetStateAction<DeckRef | null>>;
+  setJsonModalMode: Dispatch<SetStateAction<"export" | "import" | null>>;
+  setJsonModalError: Dispatch<SetStateAction<string | null>>;
+  setJsonModalText: Dispatch<SetStateAction<string>>;
+  setCreateName: Dispatch<SetStateAction<string>>;
+  setCreateCardIds: Dispatch<SetStateAction<Array<string | null>>>;
+  setCreateError: Dispatch<SetStateAction<string | null>>;
+  setPickerSlotIndex: Dispatch<SetStateAction<number | null>>;
+  setEditingDeckId: Dispatch<SetStateAction<string | null>>;
+  setEditingPremadeDeckId: Dispatch<SetStateAction<string | null>>;
+  setEditingCreateDraftId: Dispatch<SetStateAction<string | null>>;
+  setPendingValidatedDeck: Dispatch<SetStateAction<PendingValidatedDeck>>;
+  setPendingEnergySelectionDeck: Dispatch<SetStateAction<PendingEnergySelectionDeck>>;
+  setEnergySelectionError: Dispatch<SetStateAction<string | null>>;
+  setSelectedCoverCardId: Dispatch<SetStateAction<string | null>>;
+  setSelectedEnergyTypes: Dispatch<SetStateAction<EnergyType[]>>;
+  setShowImportOverwriteConfirm: Dispatch<SetStateAction<boolean>>;
+  setShowClearAllConfirm: Dispatch<SetStateAction<boolean>>;
+  setShowUnsavedChangesConfirm: Dispatch<SetStateAction<"create" | "edit" | null>>;
+  setEditorBaseline: Dispatch<SetStateAction<DeckEditorSnapshot | null>>;
+  setIsCreateOpen: Dispatch<SetStateAction<boolean>>;
+  setDeleteDeckRef: Dispatch<SetStateAction<DeckRef | null>>;
+  setDeckListInspectActive: Dispatch<SetStateAction<boolean>>;
+};
 
 export function DeckOpenedModal({
   openedDeck,
@@ -42,7 +79,7 @@ export function DeckOpenedModal({
   if (!openedDeck) return null;
   return (
     <DeckListModal
-      deck={openedDeck as DeckEntity}
+      deck={openedDeck}
       equipped={openedDeck.id === equippedDeckId}
       canEquip
       equipDisabled={openedDeck.source === "draft" || openedDeckHasDraft}

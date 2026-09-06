@@ -1,5 +1,5 @@
 import type { EnergyType, GameState, SideState, UmamusumeInstance } from "../../../../../shared/src/types";
-import { getPrimaryAttack, getUmamusumeCard } from "../core/catalog";
+import { getUmamusumeCard } from "../core/catalog";
 import { getAbilityMoveEnergyTypes, hasEnoughEnergy } from "./energy";
 import { effectiveRetreatCost } from "./retreat";
 import { attachedEnergyCount, findOwnUmamusumeByUid } from "../core/umamusume";
@@ -23,11 +23,16 @@ export function canAttachEnergyToUmamusume(state: GameState, side: SideState, um
   return side.energyAttachmentsThisTurn < 1 || umamusume.uid === side.active?.uid;
 }
 
-export function canAttack(state: GameState, side: SideState): boolean {
+export function canAttack(state: GameState, side: SideState, attackIndex = 0): boolean {
   if (state.phase !== "play" || state.pendingPlayerChoice || state.gameOver || state.currentSide !== side.id || !side.active) return false;
   if (side.active.specialConditions.includes("paralysed")) return false;
   if (side.active.attackBlockedUntilOwnTurn === state.turnsTakenBySide[side.id]) return false;
-  return hasEnoughEnergy(side.active, getPrimaryAttack(getUmamusumeCard(side.active)).cost);
+  const card = getUmamusumeCard(side.active);
+  const attack = card.attacks[attackIndex];
+  // An explicit out-of-range attack is never a request for the primary attack.
+  // This keeps UI, local commands, and network intents on the same contract.
+  if (!attack) return false;
+  return hasEnoughEnergy(side.active, attack.cost);
 }
 
 export function canRetreat(state: GameState, side: SideState): boolean {

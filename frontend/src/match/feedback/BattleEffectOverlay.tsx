@@ -1,4 +1,4 @@
-import { type CSSProperties, useEffect, useLayoutEffect, useMemo, useState } from "react";
+import { type CSSProperties, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { EnergyType, SideId, SpecialCondition, UmamusumeInstance } from "../../../../shared/src/types";
 import { colors, fontStacks, radius, shadows } from "../../styles/shared";
@@ -55,12 +55,17 @@ export function BattleEffectOverlay({
   event,
   onDone,
   durationMs: requestedDurationMs,
+  includeStyles = true,
 }: {
   event: BattleEffectEvent;
   onDone: () => void;
-  durationMs?: number;
+  durationMs?: number | undefined;
+  /** A batch needs the global keyframes once, not once per effect. */
+  includeStyles?: boolean;
 }) {
   const durationMs = requestedDurationMs ?? durationForEvent(event.kind);
+  const onDoneRef = useRef(onDone);
+  const completedEventRef = useRef<number | null>(null);
   const [viewportSize, setViewportSize] = useState(() => getViewportSize());
   const [measuredRects, setMeasuredRects] = useState<{ source?: EffectRect; target?: EffectRect }>({});
   const tone = toneForEvent(event.kind, event.statusCondition);
@@ -71,19 +76,41 @@ export function BattleEffectOverlay({
   const particles = useMemo(() => Array.from({ length: particleCountForKind(event.kind) }, (_, index) => index), [event.kind]);
 
   useEffect(() => {
-    const timeoutId = window.setTimeout(onDone, durationMs);
+    onDoneRef.current = onDone;
+  }, [onDone]);
+
+  useEffect(() => {
+    completedEventRef.current = null;
+    const complete = () => {
+      if (completedEventRef.current === event.id) return;
+      completedEventRef.current = event.id;
+      onDoneRef.current();
+    };
+    const timeoutId = window.setTimeout(complete, durationMs);
     return () => window.clearTimeout(timeoutId);
-  }, [durationMs, event.id, onDone]);
+  }, [durationMs, event.id]);
 
   useLayoutEffect(() => {
+    const needsSourceMeasurement = event.sourceUid !== undefined && event.sourceRect === undefined;
+    const needsTargetMeasurement = event.targetUid !== undefined && event.targetRect === undefined;
+    // Battle snapshots capture geometry before the canonical state changes. Using
+    // that geometry avoids synchronous layout reads at the attack/KO boundary.
+    if (!needsSourceMeasurement && !needsTargetMeasurement) return;
     const measure = () => {
       const nextRects: { source?: EffectRect; target?: EffectRect } = {};
-      const source = event.sourceUid !== undefined ? getCardRect(event.sourceUid) : undefined;
-      const target = event.targetUid !== undefined ? getCardRect(event.targetUid) : undefined;
+      const source = needsSourceMeasurement && event.sourceUid !== undefined ? getCardRect(event.sourceUid) : undefined;
+      const target = needsTargetMeasurement && event.targetUid !== undefined ? getCardRect(event.targetUid) : undefined;
       if (source) nextRects.source = source;
       if (target) nextRects.target = target;
-      setViewportSize(getViewportSize());
-      setMeasuredRects(nextRects);
+      setViewportSize((current) => {
+        const next = getViewportSize();
+        return current.width === next.width && current.height === next.height ? current : next;
+      });
+      setMeasuredRects((current) => {
+        if (current.source?.x === nextRects.source?.x && current.source?.y === nextRects.source?.y
+          && current.target?.x === nextRects.target?.x && current.target?.y === nextRects.target?.y) return current;
+        return nextRects;
+      });
     };
 
     measure();
@@ -93,11 +120,11 @@ export function BattleEffectOverlay({
       window.cancelAnimationFrame(rafId);
       window.removeEventListener("resize", measure);
     };
-  }, [event.sourceUid, event.targetUid]);
+  }, [event.sourceRect, event.sourceUid, event.targetRect, event.targetUid]);
 
   const overlay = (
     <div style={rootStyle} aria-live="polite">
-      <style>{KEYFRAMES}</style>
+      {includeStyles && <style>{KEYFRAMES}</style>}
       {event.kind === "attack" && <AttackTrace sourceRect={sourceRect} targetRect={targetRect} tone={tone} durationMs={durationMs} />}
       {event.kind === "energy" && <EnergyTrace targetRect={targetRect} tone={tone} durationMs={durationMs} />}
       {(event.kind === "damage" || event.kind === "heal" || event.kind === "status" || event.kind === "tool" || event.kind === "evolve" || event.kind === "ko") && (
@@ -622,10 +649,4 @@ const KEYFRAMES = `
   100% { transform: translateX(420%) skewX(-14deg); }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  * {
-    animation-duration: 1ms !important;
-    animation-iteration-count: 1 !important;
-  }
-}
 `;

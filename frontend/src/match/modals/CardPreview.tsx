@@ -57,8 +57,8 @@ export function CardPreview({ state, target, canUseAttack, canUseRetreat, canUse
 
   return (
     <div style={previewBackdropStyle} onClick={onClose}>
-      <NeutralButton style={closeButtonStyle} onClick={onClose}>Close</NeutralButton>
-      <div style={previewShellStyle}>
+      <NeutralButton autoFocus style={closeButtonStyle} onClick={onClose}>Close</NeutralButton>
+      <div role="dialog" aria-modal="true" aria-label="Card details" style={previewShellStyle}>
         <HoloCardImage
           card={card}
           src={image}

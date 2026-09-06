@@ -97,6 +97,24 @@ export function validateLocalDeck(
   return { ok: true };
 }
 
+/** Validates a network deck using the same format rules as saved local decks. */
+export function validatePvpDeckCardIds(
+  cardIds: string[],
+  energyTypes: EnergyType[] | undefined,
+  allCards: Record<string, Card>,
+): { ok: true } | { ok: false; reason: string } {
+  return validateLocalDeck({
+    id: "pvp-guest",
+    name: "PvP guest deck",
+    coverCardId: cardIds[0] ?? "",
+    cardIds,
+    ...(energyTypes ? { energyTypes } : {}),
+    formatVersion: LOCAL_DECK_FORMAT_VERSION,
+    createdAt: "",
+    updatedAt: "",
+  }, allCards);
+}
+
 function normalizeEnergyTypes(energyTypes: EnergyType[]): EnergyType[] {
   return [...new Set(energyTypes)].filter((type) => VALID_ENERGY_TYPES.has(type));
 }

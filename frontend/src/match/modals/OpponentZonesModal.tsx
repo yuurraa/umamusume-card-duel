@@ -19,13 +19,13 @@ export function OpponentZonesModal({
 }: OpponentZonesModalProps) {
   return (
     <div style={backdropStyle} onClick={onClose}>
-      <section style={modalStyle} onClick={(event) => event.stopPropagation()}>
+      <section role="dialog" aria-modal="true" aria-label="Opponent zones" style={modalStyle} onClick={(event) => event.stopPropagation()}>
         <header style={headerStyle}>
           <div>
             <div style={kickerStyle}>Opponent</div>
             <h2 style={titleStyle}>Zones</h2>
           </div>
-          <NeutralButton style={closeButtonStyle} onClick={onClose}>Close</NeutralButton>
+          <NeutralButton autoFocus style={closeButtonStyle} onClick={onClose}>Close</NeutralButton>
         </header>
         <div style={statsGridStyle}>
           <ZoneStat label="Hand" count={handCount} />

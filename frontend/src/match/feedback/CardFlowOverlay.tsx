@@ -1,4 +1,4 @@
-import { type AnimationEvent, type CSSProperties, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { type AnimationEvent, type CSSProperties, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { getCard } from "../../game/engine";
 import { HoloCardImage } from "../../components/cards/HoloCardImage";
 import { CARD_ASPECT_RATIO, colors, radius, shadows } from "../../styles/shared";
@@ -23,38 +23,69 @@ export function CardFlowOverlay({
   items,
   onDone,
   durationMs = 2100,
+  generation = 0,
 }: {
   items: CardFlowItem[];
-  onDone: () => void;
+  onDone: (generation: number) => void;
   durationMs?: number;
+  generation?: number;
 }) {
-  if (items.length === 0) return null;
-
   const [endDeltaXByGlobalIndex, setEndDeltaXByGlobalIndex] = useState<Record<number, number>>({});
+  const [readyIndexes, setReadyIndexes] = useState<Set<number>>(() => new Set());
+  const onDoneRef = useRef(onDone);
+  const completedBatchRef = useRef<string | null>(null);
   // Track the static (non-animated) slot position for each rendered card so we can
   // compute a screen-space delta to center. This must NOT be the animated node,
   // because animation-fill-mode applies the 0% transform during the delay.
   const slotNodeByGlobalIndexRef = useRef<Map<number, HTMLDivElement>>(new Map());
   const MEASURE_PAD_MS = 70;
 
-  const drawnItems = items.filter((item) => resolveGroup(item) === "drawn").slice(0, 10);
-  const retrievedItems = items.filter((item) => resolveGroup(item) === "retrieved").slice(0, 10);
-  const playedItems = items.filter((item) => resolveGroup(item) === "played").slice(0, 10);
-  const discardedItems = items.filter((item) => resolveGroup(item) === "discarded").slice(0, 10);
-  const groups = [
-    { key: "drawn", title: titleForGroup(drawnItems, "Card Drawn", "Cards Drawn"), items: drawnItems },
-    { key: "retrieved", title: titleForGroup(retrievedItems, "Card Retrieved", "Cards Retrieved"), items: retrievedItems },
-    { key: "played", title: titleForGroup(playedItems, "Card Played", "Cards Played"), items: playedItems },
-    { key: "discarded", title: titleForGroup(discardedItems, "Card Discarded", "Cards Discarded"), items: discardedItems },
-  ].filter((group) => group.items.length > 0);
+  const groups = useMemo(() => {
+    const drawnItems = items.filter((item) => resolveGroup(item) === "drawn").slice(0, 10);
+    const retrievedItems = items.filter((item) => resolveGroup(item) === "retrieved").slice(0, 10);
+    const playedItems = items.filter((item) => resolveGroup(item) === "played").slice(0, 10);
+    const discardedItems = items.filter((item) => resolveGroup(item) === "discarded").slice(0, 10);
+    return [
+      { key: "drawn", title: titleForGroup(drawnItems, "Card Drawn", "Cards Drawn"), items: drawnItems },
+      { key: "retrieved", title: titleForGroup(retrievedItems, "Card Retrieved", "Cards Retrieved"), items: retrievedItems },
+      { key: "played", title: titleForGroup(playedItems, "Card Played", "Cards Played"), items: playedItems },
+      { key: "discarded", title: titleForGroup(discardedItems, "Card Discarded", "Cards Discarded"), items: discardedItems },
+    ].filter((group) => group.items.length > 0);
+  }, [items]);
   const totalRendered = groups.reduce((count, group) => count + group.items.length, 0);
   const staggerMs = 90;
   const totalDurationMs = MEASURE_PAD_MS + durationMs + Math.max(0, totalRendered - 1) * staggerMs;
-  let renderedIndex = 0;
-  const groupsWithIndexes = groups.map((group) => ({
-    ...group,
-    items: group.items.map((item) => ({ item, globalIndex: renderedIndex++ })),
-  }));
+  const groupsWithIndexes = useMemo(() => {
+    let renderedIndex = 0;
+    return groups.map((group) => ({
+      ...group,
+      items: group.items.map((item) => ({ item, globalIndex: renderedIndex++ })),
+    }));
+  }, [groups]);
+  const batchKey = items.map((item, index) => `${index}:${item.cardId}:${item.enterFrom}:${item.exitTo}`).join("|");
+  const isReady = totalRendered > 0 && readyIndexes.size >= totalRendered;
+
+  useEffect(() => {
+    onDoneRef.current = onDone;
+  }, [onDone]);
+
+  useEffect(() => {
+    completedBatchRef.current = null;
+    setReadyIndexes(new Set());
+  }, [batchKey]);
+
+  useEffect(() => {
+    if (!isReady) return;
+    const complete = () => {
+      if (completedBatchRef.current === batchKey) return;
+      completedBatchRef.current = batchKey;
+      onDoneRef.current(generation);
+    };
+    // This is a recovery barrier for browsers that fail to dispatch animationend.
+    // It starts only after every image settles, so it cannot cut off a slow member.
+    const timeoutId = window.setTimeout(complete, totalDurationMs + 150);
+    return () => window.clearTimeout(timeoutId);
+  }, [batchKey, generation, isReady, totalDurationMs]);
 
   useLayoutEffect(() => {
     const convergingGroups = groupsWithIndexes.filter((group) => group.key === "drawn" || group.key === "retrieved");
@@ -84,7 +115,9 @@ export function CardFlowOverlay({
     });
     return () => window.cancelAnimationFrame(raf);
   // Only re-measure when a new overlay `items` set is shown.
-  }, [items]);
+  }, [groupsWithIndexes]);
+
+  if (items.length === 0) return null;
 
   return (
     <div style={rootStyle} aria-live="polite">
@@ -109,7 +142,19 @@ export function CardFlowOverlay({
                     if (!node) slotNodeByGlobalIndexRef.current.delete(idx);
                     else slotNodeByGlobalIndexRef.current.set(idx, node);
                   }}
-                  onDone={onDone}
+                  start={isReady}
+                  onReady={() => {
+                    setReadyIndexes((current) => {
+                      if (current.has(globalIndex)) return current;
+                      const next = new Set(current);
+                      next.add(globalIndex);
+                      return next;
+                    });
+                  }}
+                  onDone={() => {
+                    // Individual signals are intentionally not sufficient: the batch
+                    // advances only through the all-member barrier above.
+                  }}
                 />
               ))}
             </div>
@@ -401,6 +446,8 @@ function FlowCard({
   staggerMs,
   endDeltaXByGlobalIndex,
   registerNode,
+  start,
+  onReady,
   onDone,
 }: {
   item: CardFlowItem;
@@ -411,6 +458,8 @@ function FlowCard({
   staggerMs: number;
   endDeltaXByGlobalIndex: Record<number, number>;
   registerNode: (globalIndex: number, node: HTMLDivElement | null) => void;
+  start: boolean;
+  onReady: () => void;
   onDone: () => void;
 }) {
   const faceDown = item.faceDownImage !== undefined;
@@ -449,6 +498,10 @@ function FlowCard({
     };
   }, [image, ready]);
 
+  useEffect(() => {
+    if (ready) onReady();
+  }, [onReady, ready]);
+
   const xToCenterPx = (group === "drawn" || group === "retrieved") ? (endDeltaXByGlobalIndex[index] ?? 0) : 0;
   const exitX = item.fadeOutInPlace
     ? "0px"
@@ -468,9 +521,9 @@ function FlowCard({
           ["--card-flow-start-y" as string]: baseStart.y,
           ["--card-flow-end-x" as string]: exitX,
           ["--card-flow-end-y" as string]: exitY,
-          animationDelay: ready ? `${70 + index * staggerMs}ms` : undefined,
-          animation: ready ? wrapStyle.animation : undefined,
-          opacity: ready ? undefined : 0,
+          animationDelay: start ? `${70 + index * staggerMs}ms` : undefined,
+          animation: start ? wrapStyle.animation : undefined,
+          opacity: start ? undefined : 0,
         }}
         onAnimationEnd={handleAnimationEnd}
       >

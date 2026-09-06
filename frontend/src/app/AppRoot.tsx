@@ -45,6 +45,7 @@ import { useFirebaseAccount } from "./hooks/useFirebaseAccount";
 import { useBattleVisuals } from "./hooks/useBattleVisuals";
 import { useCardFlowVisuals } from "./hooks/useCardFlowVisuals";
 import { usePvpMatch } from "./hooks/usePvpMatch";
+import { useReducedMotion } from "./hooks/useReducedMotion";
 import { AiTelemetryPanel } from "./AiTelemetryPanel";
 import { getAccountPlayerName } from "../utils/playerNames";
 import type { CoinFlipResult, EnergyType, GameState, SideId, UmamusumeInstance } from "../../../shared/src/types";
@@ -54,6 +55,7 @@ import { GAME_OVER_REVEAL_DELAY_MS } from "./constants";
 import { delay } from "./pvp/rtcHelpers";
 import { redactHiddenSidePrivateInfo, swapBattlePerspectiveText, toPerspectiveGame } from "./matchPerspective";
 export function App() {
+  const reducedMotion = useReducedMotion();
   const [screen, setScreen] = useState<AppScreen>("mainMenu");
   const [pendingScreen, setPendingScreen] = useState<AppScreen | null>(null);
   const [screenFadeOverlayOpacity, setScreenFadeOverlayOpacity] = useState(0);
@@ -342,7 +344,7 @@ export function App() {
     coinFlipQueue,
     acknowledgedCoinLogMessage,
   });
-  const { resetCardFlowTracking, showShuffleReveal, handleCardFlowDone } = useCardFlowVisuals({
+  const { resetCardFlowTracking, showShuffleReveal, handleCardFlowDone, cardFlowGeneration } = useCardFlowVisuals({
     game,
     isAiVsAi,
     displayPerspective,
@@ -419,6 +421,7 @@ export function App() {
     setEndTurnWarningActions,
     openingHandAnimationKeyRef,
     shouldDealOpeningHandsAfterFlowRef,
+    resetTransientMatchUi,
     submitPlayerIntent,
   });
   const returnToPvpLobbyForRematch = () => {
@@ -936,6 +939,7 @@ export function App() {
         <MatchOverlays
           displayTopBanner={displayTopBanner}
           canShowBattleEffects={canShowBattleEffects}
+          reducedMotion={reducedMotion}
           activeBattleEffects={activeBattleEffects}
           completeBattleEffect={completeBattleEffect}
           pointGainQueue={pointGainQueue}
@@ -950,6 +954,7 @@ export function App() {
           handleCoinFlipContinue={handleCoinFlipContinue}
           canShowCardFlowOverlay={canShowCardFlowOverlay}
           cardFlowQueue={cardFlowQueue}
+          cardFlowGeneration={cardFlowGeneration}
           onCardFlowDone={handleCardFlowDone}
           canShowSelectionPrompt={canShowSelectionPrompt}
           activePendingSelection={activePendingSelection}

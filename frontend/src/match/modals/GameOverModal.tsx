@@ -28,7 +28,7 @@ export function GameOverModal({
   return (
     <div style={gameOverBackdropStyle}>
       <style>{OVERLAY_FADE_IN_KEYFRAMES}</style>
-      <section style={gameOverShellStyle(playerWon)}>
+      <section role="dialog" aria-modal="true" aria-label="Match result" style={gameOverShellStyle(playerWon)}>
         <div style={resultBadgeStyle(playerWon)}>{playerWon ? "Victory" : "Defeat"}</div>
         <div style={gameOverKickerStyle}>Duel Finished</div>
         <h2 style={gameOverTitleStyle}>{title}</h2>
@@ -37,7 +37,7 @@ export function GameOverModal({
           <ScoreSummary label={playerName} points={game.sides.player.points} highlighted={playerWon} />
           <ScoreSummary label={opponentName} points={game.sides.opponent.points} highlighted={!playerWon} />
         </div>
-        <NeutralButton style={gameOverButtonStyle} onClick={onPlayAgain}>Play Again</NeutralButton>
+        <NeutralButton autoFocus style={gameOverButtonStyle} onClick={onPlayAgain}>Play Again</NeutralButton>
         <NeutralButton style={gameOverSecondaryButtonStyle} onClick={onMainMenu}>Main Menu</NeutralButton>
       </section>
     </div>

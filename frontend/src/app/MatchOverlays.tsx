@@ -1,6 +1,12 @@
-import { Suspense } from "react";
+import { type ComponentProps, type Dispatch, type SetStateAction, Suspense, useRef } from "react";
+import type { GameState, SideId } from "../../../shared/src/types";
+import type { BattleEffectEvent } from "../match/feedback/BattleEffectOverlay";
+import type { CardFlowItem } from "../match/feedback/CardFlowOverlay";
 import { DiscardPileModal } from "../match/modals/DiscardPileModal";
 import { OpponentZonesModal } from "../match/modals/OpponentZonesModal";
+import type { InspectTarget } from "../inspect";
+import type { PendingSelection } from "../types/ui";
+import type { CoinFlipEvent } from "./gameUiHelpers";
 import { getActionNoticeTone, isBottomActionNotice } from "./gameUiHelpers";
 import { cardFlowBatchKey } from "./animation";
 import {
@@ -17,12 +23,74 @@ import {
   SelectionPrompt,
 } from "./lazyMatchComponents";
 
-type MatchOverlaysProps = Record<string, any>;
+type CardPreviewActions = Pick<ComponentProps<typeof CardPreview>, "canUseAttack" | "canUseRetreat" | "canUseAbility" | "onAttack" | "onRetreat" | "onAbility">;
+
+type MatchOverlaysProps = {
+  displayTopBanner: ComponentProps<typeof OpponentActionBanner> | null;
+  canShowBattleEffects: boolean;
+  reducedMotion: boolean;
+  activeBattleEffects: BattleEffectEvent[];
+  completeBattleEffect: () => void;
+  pointGainQueue: Array<ComponentProps<typeof PointGainOverlay>["event"]>;
+  completePointGain: () => void;
+  game: GameState;
+  openingCoinChoicePending: boolean;
+  activeCoinFlip: CoinFlipEvent | null;
+  isAiVsAi: boolean;
+  canChooseOpeningCoin: boolean;
+  handleChooseOpeningCoin: ComponentProps<typeof CoinFlipOverlay>["onChoose"];
+  formatMatchText: (text: string) => string;
+  handleCoinFlipContinue: ComponentProps<typeof CoinFlipOverlay>["onContinue"];
+  canShowCardFlowOverlay: boolean;
+  cardFlowQueue: CardFlowItem[][];
+  cardFlowGeneration: number;
+  onCardFlowDone: (completedFlow: CardFlowItem[], generation: number) => void;
+  canShowSelectionPrompt: boolean;
+  activePendingSelection: ComponentProps<typeof SelectionPrompt>["pending"] | null;
+  onSelectionCancel: ComponentProps<typeof SelectionPrompt>["onCancel"];
+  onChooseAttackShuffleSelf: ComponentProps<typeof SelectionPrompt>["onChooseAttackShuffleSelf"];
+  nextPlayerEnergy: ComponentProps<typeof SelectionPrompt>["nextEnergyType"];
+  adjustRetreatDiscard: ComponentProps<typeof SelectionPrompt>["onRetreatDiscardAdjust"];
+  confirmRetreatDiscard: ComponentProps<typeof SelectionPrompt>["onConfirmRetreatDiscard"];
+  displayGame: GameState;
+  previewTarget: InspectTarget | null;
+  cardPreviewActions: CardPreviewActions;
+  openPreview: ComponentProps<typeof CardPreview>["onInspect"];
+  closePreview: ComponentProps<typeof CardPreview>["onClose"];
+  endTurnWarningActions: ComponentProps<typeof EndTurnWarningModal>["actions"];
+  suppressEndTurnWarningForGame: boolean;
+  setSuppressEndTurnWarningForGame: Dispatch<SetStateAction<boolean>>;
+  onEndTurnWarningCancel: ComponentProps<typeof EndTurnWarningModal>["onCancel"];
+  onEndTurnWarningConfirm: ComponentProps<typeof EndTurnWarningModal>["onConfirm"];
+  discardOpen: boolean;
+  discardViewSide: SideId;
+  onDiscardInspect: ComponentProps<typeof DiscardPileModal>["onInspect"];
+  onCloseDiscard: ComponentProps<typeof DiscardPileModal>["onClose"];
+  revealedOpponentHandOpen: boolean;
+  revealedOpponentHandCardIds: string[];
+  setPreviewTarget: Dispatch<SetStateAction<InspectTarget | null>>;
+  setRevealedOpponentHandOpen: Dispatch<SetStateAction<boolean>>;
+  opponentZonesOpen: boolean;
+  onOpenOpponentDiscard: ComponentProps<typeof OpponentZonesModal>["onOpenDiscard"];
+  setOpponentZonesOpen: Dispatch<SetStateAction<boolean>>;
+  pendingSelection: PendingSelection | null;
+  player: GameState["sides"]["player"];
+  chooseScoutDeckCard: ComponentProps<typeof DeckChoiceModal>["onChoose"];
+  onDeckScoutClose: ComponentProps<typeof DeckChoiceModal>["onClose"];
+  actionNotice: string | null;
+  onActionNoticeClose: ComponentProps<typeof ActionNotice>["onClose"];
+  gameOverModalVisible: boolean;
+  isNetworkMatch: boolean;
+  returnToPvpLobbyForRematch: () => void;
+  onPlayAgain: () => void;
+  returnToMainMenu: () => void;
+};
 
 export function MatchOverlays(props: MatchOverlaysProps) {
   const {
     displayTopBanner,
     canShowBattleEffects,
+    reducedMotion,
     activeBattleEffects,
     completeBattleEffect,
     pointGainQueue,
@@ -37,6 +105,7 @@ export function MatchOverlays(props: MatchOverlaysProps) {
     handleCoinFlipContinue,
     canShowCardFlowOverlay,
     cardFlowQueue,
+    cardFlowGeneration,
     onCardFlowDone,
     canShowSelectionPrompt,
     activePendingSelection,
@@ -78,6 +147,34 @@ export function MatchOverlays(props: MatchOverlaysProps) {
     onPlayAgain,
     returnToMainMenu,
   } = props;
+  const battleBatchRef = useRef<{ key: string; pendingIds: Set<number> }>({ key: "", pendingIds: new Set() });
+  const battleBatchKey = activeBattleEffects.map((effect: BattleEffectEvent) => effect.id).join(",");
+  if (battleBatchRef.current.key !== battleBatchKey) {
+    battleBatchRef.current = {
+      key: battleBatchKey,
+      pendingIds: new Set(activeBattleEffects.map((effect: BattleEffectEvent) => effect.id)),
+    };
+  }
+  const completeBattleMember = (id: number) => {
+    const batch = battleBatchRef.current;
+    if (!batch.pendingIds.delete(id)) return;
+    if (batch.pendingIds.size === 0) completeBattleEffect();
+  };
+  const motionBySequenceRef = useRef({ battleKey: "", battleReduced: false, cardKey: "", cardReduced: false, pointId: -1, pointReduced: false });
+  if (motionBySequenceRef.current.battleKey !== battleBatchKey) {
+    motionBySequenceRef.current.battleKey = battleBatchKey;
+    motionBySequenceRef.current.battleReduced = reducedMotion;
+  }
+  const cardBatchKey = cardFlowQueue[0] ? cardFlowBatchKey(cardFlowQueue[0]) : "";
+  if (motionBySequenceRef.current.cardKey !== cardBatchKey) {
+    motionBySequenceRef.current.cardKey = cardBatchKey;
+    motionBySequenceRef.current.cardReduced = reducedMotion;
+  }
+  const pointEventId = pointGainQueue[0]?.id ?? -1;
+  if (motionBySequenceRef.current.pointId !== pointEventId) {
+    motionBySequenceRef.current.pointId = pointEventId;
+    motionBySequenceRef.current.pointReduced = reducedMotion;
+  }
 
   return (
     <>
@@ -88,11 +185,13 @@ export function MatchOverlays(props: MatchOverlaysProps) {
       )}
       {canShowBattleEffects && (
         <Suspense fallback={null}>
-          {activeBattleEffects.map((effect: any, index: number) => (
+          {activeBattleEffects.map((effect: BattleEffectEvent, index: number) => (
             <BattleEffectOverlay
               key={effect.id}
               event={effect}
-              onDone={index === activeBattleEffects.length - 1 ? completeBattleEffect : () => undefined}
+              includeStyles={index === 0}
+              durationMs={motionBySequenceRef.current.battleReduced ? 180 : undefined}
+              onDone={() => completeBattleMember(effect.id)}
             />
           ))}
         </Suspense>
@@ -101,6 +200,7 @@ export function MatchOverlays(props: MatchOverlaysProps) {
         <Suspense fallback={null}>
           <PointGainOverlay
             event={pointGainQueue[0]}
+            durationMs={motionBySequenceRef.current.pointReduced ? 280 : undefined}
             onDone={completePointGain}
           />
         </Suspense>
@@ -126,16 +226,17 @@ export function MatchOverlays(props: MatchOverlaysProps) {
           result={activeCoinFlip.result}
           results={activeCoinFlip.results}
           message={formatMatchText(activeCoinFlip.message)}
-          onContinue={handleCoinFlipContinue}
+          {...(handleCoinFlipContinue ? { onContinue: handleCoinFlipContinue } : {})}
         />
       )}
       {canShowCardFlowOverlay && cardFlowQueue[0] && (
         <Suspense fallback={null}>
           <CardFlowOverlay
-            key={cardFlowBatchKey(cardFlowQueue[0])}
+            key={cardBatchKey}
             items={cardFlowQueue[0]}
-            durationMs={game.phase === "setup" ? 1500 : 2100}
-            onDone={() => onCardFlowDone(cardFlowQueue[0] ?? [])}
+            generation={cardFlowGeneration}
+            durationMs={motionBySequenceRef.current.cardReduced ? 180 : game.phase === "setup" ? 1500 : 2100}
+            onDone={(generation: number) => onCardFlowDone(cardFlowQueue[0] ?? [], generation)}
           />
         </Suspense>
       )}
@@ -143,10 +244,10 @@ export function MatchOverlays(props: MatchOverlaysProps) {
         <SelectionPrompt
           pending={activePendingSelection}
           onCancel={onSelectionCancel}
-          onChooseAttackShuffleSelf={onChooseAttackShuffleSelf}
           nextEnergyType={nextPlayerEnergy}
-          onRetreatDiscardAdjust={adjustRetreatDiscard}
-          onConfirmRetreatDiscard={confirmRetreatDiscard}
+          {...(onChooseAttackShuffleSelf ? { onChooseAttackShuffleSelf } : {})}
+          {...(adjustRetreatDiscard ? { onRetreatDiscardAdjust: adjustRetreatDiscard } : {})}
+          {...(confirmRetreatDiscard ? { onConfirmRetreatDiscard: confirmRetreatDiscard } : {})}
         />
       )}
       <CardPreview
@@ -180,7 +281,7 @@ export function MatchOverlays(props: MatchOverlaysProps) {
         <DiscardPileModal
           cardIds={revealedOpponentHandCardIds}
           pileLabel="Opponent Hand (Revealed)"
-          onInspect={(card: any) => setPreviewTarget({ card })}
+          onInspect={(card) => setPreviewTarget({ card })}
           onClose={() => setRevealedOpponentHandOpen(false)}
         />
       )}

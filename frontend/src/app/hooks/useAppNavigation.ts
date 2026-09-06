@@ -42,6 +42,7 @@ export type UseAppNavigationArgs = {
   setEndTurnWarningActions: Dispatch<SetStateAction<string[] | null>>;
   openingHandAnimationKeyRef: MutableRefObject<string | null>;
   shouldDealOpeningHandsAfterFlowRef: MutableRefObject<boolean>;
+  resetTransientMatchUi: () => void;
   submitPlayerIntent: (intent: PlayerIntent) => void;
 };
 
@@ -78,9 +79,11 @@ export function useAppNavigation({
   setEndTurnWarningActions,
   openingHandAnimationKeyRef,
   shouldDealOpeningHandsAfterFlowRef,
+  resetTransientMatchUi,
   submitPlayerIntent,
 }: UseAppNavigationArgs) {
   const startNewGame = (mode: MatchMode = matchMode) => {
+    resetTransientMatchUi();
     setMatchMode(mode);
     setAiPerspective("player");
     setPovSwitchAnimationToken(0);

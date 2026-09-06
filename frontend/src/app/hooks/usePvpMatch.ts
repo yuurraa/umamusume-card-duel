@@ -17,6 +17,8 @@ import { createGuestSyncState, mirrorGameState, mirrorGameStateForGuest } from "
 import type { PvpRole } from "../../screens/PvpLobbyScreen";
 import type { AppScreen, MatchMode } from "../../types/ui";
 import type { EnergyType, GameState } from "../../../../shared/src/types";
+import { cards } from "../../../../shared/src/gameData";
+import { validatePvpDeckCardIds } from "../../../../shared/src/localDecks";
 import { delay, isTurnRelayUnavailableError, toStunFallbackRtcConfig, withDefaultIceServers } from "../pvp/rtcHelpers";
 
 type UsePvpMatchOptions = {
@@ -72,6 +74,8 @@ export function usePvpMatch({
   const remoteDeckRef = useRef<string[] | null>(null);
   const remoteEnergyTypesRef = useRef<EnergyType[] | null>(null);
   const remoteNameRef = useRef("Opponent");
+  const outgoingSyncSequenceRef = useRef(0);
+  const receivedSyncSequenceRef = useRef(0);
 
   const isNetworkMatch = matchMode === "playerVsPlayer";
   const isPvpHost = isNetworkMatch && pvpRole === "host";
@@ -100,23 +104,17 @@ export function usePvpMatch({
 
   const syncToGuest = (state: GameState) => {
     if (matchModeRef.current !== "playerVsPlayer" || pvpRoleRef.current !== "host") return;
-    pvpPeerRef.current?.send({ type: "sync", state: createGuestSyncState(state) });
+    outgoingSyncSequenceRef.current += 1;
+    pvpPeerRef.current?.send({ type: "sync", sequence: outgoingSyncSequenceRef.current, state: createGuestSyncState(state) });
   };
 
   const applyIntentForHost = (intent: PlayerIntent) => {
-    setGame((current) => {
-      const timed = current.turnDeadlineMs !== null
-        && Date.now() >= current.turnDeadlineMs
-        && !current.pendingPlayerChoice
-        && current.phase === "play"
-        && !current.gameOver
-        && current.currentSide !== "done"
-        ? timeoutEndTurn(current)
-        : current;
-      const next = applyPlayerIntent(timed, intent);
-      syncToGuest(next);
-      return next;
-    });
+    const current = gameRef.current;
+    const timed = applyDeadlineIfExpired(current);
+    const next = applyPlayerIntent(timed, intent);
+    gameRef.current = next;
+    setGame(next);
+    syncToGuest(next);
   };
 
   const handlePvpMessage = (message: PvpWireMessage) => {
@@ -128,6 +126,11 @@ export function usePvpMatch({
 
     if (message.type === "hello") {
       if (!isHostNow) return;
+      const deckValidity = validatePvpDeckCardIds(message.deckCardIds, message.energyTypes, cards);
+      if (!deckValidity.ok) {
+        setPvpStatusDetail(`Guest deck rejected: ${deckValidity.reason}`);
+        return;
+      }
       pvpPeerRef.current?.send({ type: "helloAck" });
       remoteDeckRef.current = message.deckCardIds;
       remoteEnergyTypesRef.current = message.energyTypes ?? null;
@@ -165,6 +168,8 @@ export function usePvpMatch({
 
     if (message.type === "sync") {
       if (!isGuestNow) return;
+      if (message.sequence <= receivedSyncSequenceRef.current) return;
+      receivedSyncSequenceRef.current = message.sequence;
       if (currentScreen !== "match") resetTransientMatchUi();
       setGame(mirrorGameStateForGuest(message.state));
       setMatchMode("playerVsPlayer");
@@ -175,21 +180,12 @@ export function usePvpMatch({
 
     if (message.type === "intent") {
       if (!isHostNow) return;
-      setGame((current) => {
-        const timed = current.turnDeadlineMs !== null
-          && Date.now() >= current.turnDeadlineMs
-          && !current.pendingPlayerChoice
-          && current.phase === "play"
-          && !current.gameOver
-          && current.currentSide !== "done"
-          ? timeoutEndTurn(current)
-          : current;
-        const mirrored = mirrorGameState(timed);
-        const nextMirrored = applyPlayerIntent(mirrored, message.intent);
-        const canonical = mirrorGameState(nextMirrored);
-        syncToGuest(canonical);
-        return canonical;
-      });
+      const timed = applyDeadlineIfExpired(gameRef.current);
+      const mirrored = mirrorGameState(timed);
+      const canonical = mirrorGameState(applyPlayerIntent(mirrored, message.intent));
+      gameRef.current = canonical;
+      setGame(canonical);
+      syncToGuest(canonical);
     }
   };
 
@@ -206,14 +202,14 @@ export function usePvpMatch({
     if (pvpDeadlineTurnKeyRef.current === turnKey && game.turnDeadlineMs !== null) return;
     const deadline = Date.now() + 30_000;
     pvpDeadlineTurnKeyRef.current = turnKey;
-    setGame((current) => {
-      if (current.phase !== "play" || current.gameOver || current.currentSide === "done") return current;
-      const currentTurnKey = `${current.turnNumber}:${current.currentSide}`;
-      if (currentTurnKey !== turnKey) return current;
-      const next = { ...current, turnDeadlineMs: deadline };
-      syncToGuest(next);
-      return next;
-    });
+    const current = gameRef.current;
+    if (current.phase !== "play" || current.gameOver || current.currentSide === "done") return;
+    const currentTurnKey = `${current.turnNumber}:${current.currentSide}`;
+    if (currentTurnKey !== turnKey) return;
+    const next = { ...current, turnDeadlineMs: deadline };
+    gameRef.current = next;
+    setGame(next);
+    syncToGuest(next);
   }, [isNetworkMatch, isPvpHost, game.phase, game.gameOver, game.currentSide, game.turnNumber, game.turnDeadlineMs, setGame]);
 
   useEffect(() => {
@@ -223,19 +219,19 @@ export function usePvpMatch({
     if (deadline === null) return;
     const delayMs = Math.max(0, deadline - Date.now());
     const timeoutId = window.setTimeout(() => {
-      setGame((current) => {
-        if (
-          current.phase !== "play"
-          || current.gameOver
-          || current.pendingPlayerChoice
-          || current.currentSide === "done"
-          || current.turnDeadlineMs === null
-          || Date.now() < current.turnDeadlineMs
-        ) return current;
-        const next = timeoutEndTurn(current);
-        syncToGuest(next);
-        return next;
-      });
+      const current = gameRef.current;
+      if (
+        current.phase !== "play"
+        || current.gameOver
+        || current.pendingPlayerChoice
+        || current.currentSide === "done"
+        || current.turnDeadlineMs === null
+        || Date.now() < current.turnDeadlineMs
+      ) return;
+      const next = timeoutEndTurn(current);
+      gameRef.current = next;
+      setGame(next);
+      syncToGuest(next);
     }, delayMs);
     return () => window.clearTimeout(timeoutId);
   }, [
@@ -407,6 +403,8 @@ export function usePvpMatch({
     remoteDeckRef.current = null;
     remoteEnergyTypesRef.current = null;
     remoteNameRef.current = "Opponent";
+    outgoingSyncSequenceRef.current = 0;
+    receivedSyncSequenceRef.current = 0;
     pvpAnswerPollTokenRef.current += 1;
     resetCandidateSync();
     pvpLocalCloseIntentRef.current = true;
@@ -592,4 +590,15 @@ export function usePvpMatch({
     clearPvp,
     setPvpRemoteSignal,
   };
+}
+
+function applyDeadlineIfExpired(state: GameState): GameState {
+  return state.turnDeadlineMs !== null
+    && Date.now() >= state.turnDeadlineMs
+    && !state.pendingPlayerChoice
+    && state.phase === "play"
+    && !state.gameOver
+    && state.currentSide !== "done"
+    ? timeoutEndTurn(state)
+    : state;
 }

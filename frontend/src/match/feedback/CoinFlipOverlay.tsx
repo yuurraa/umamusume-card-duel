@@ -86,7 +86,7 @@ export function CoinFlipOverlay({
     return (
       <div style={coinFlipBackdropStyle}>
         <style>{OVERLAY_FADE_IN_KEYFRAMES}</style>
-        <section style={coinFlipShellStyle}>
+        <section role="dialog" aria-modal="true" aria-label="Coin flip" style={coinFlipShellStyle}>
           <span style={coinFlipKickerStyle}>Coin Flip</span>
           <div style={coinSlotStyle}>
             <div aria-hidden="true" style={coinStyle(0, "heads")}>
@@ -126,7 +126,7 @@ export function CoinFlipOverlay({
   return (
     <div style={coinFlipBackdropStyle}>
       <style>{OVERLAY_FADE_IN_KEYFRAMES}</style>
-      <section style={coinFlipShellStyle}>
+      <section role="dialog" aria-modal="true" aria-label="Coin flip" style={coinFlipShellStyle}>
         <span style={coinFlipKickerStyle}>{flipResults.length > 1 ? `Coin Flip ${activeIndex + 1} / ${flipResults.length}` : "Coin Flip"}</span>
         <div style={coinSlotStyle}>
           <div aria-hidden="true" style={coinStyle(angle, activeResult)}>

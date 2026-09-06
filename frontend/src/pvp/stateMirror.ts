@@ -68,6 +68,9 @@ export function createGuestSyncState(state: GameState): GameState {
   if (guestState.setup) {
     guestState.setup.openingHands.player = createHiddenCardList(guestState.setup.openingHands.player.length);
   }
+  // The guest receives this object before perspective mirroring. Redact private
+  // host-zone actions here as well as in the guest display projection.
+  guestState.log = guestState.log.map((entry) => redactHostPrivateInfo(entry));
   return guestState;
 }
 
@@ -149,6 +152,30 @@ function redactOpponentPrivateInfo(entry: string): string {
 
   if (entry.startsWith("Opponent discarded ")) return "Opponent discarded a card.";
 
+  return entry;
+}
+
+function redactHostPrivateInfo(entry: string): string {
+  if (!entry.startsWith("You") && !entry.startsWith("Your")) return entry;
+
+  if (/^You added .+ from .*deck to .*hand\.?$/.test(entry)) return "You added 1 card from your deck to your hand.";
+  if (/^You put .+ from .*discard into .*hand\.?$/.test(entry)) return "You put 1 card from discard into your hand.";
+  if (/^You revealed .+ and added it to .*hand\.?$/.test(entry)) return "You revealed a card and added it to your hand.";
+  const drawnCountMatch = entry.match(/^You drew (\d+) cards?\./);
+  if (drawnCountMatch?.[1]) {
+    const count = Number(drawnCountMatch[1]);
+    return `You drew ${count} ${count === 1 ? "card" : "cards"}.`;
+  }
+  if (entry.startsWith("You drew ")) return "You drew cards.";
+  if (entry.includes(" discarded ") && entry.includes(" and drew ")) {
+    const drawCount = entry.match(/ and drew (\d+) cards?\./);
+    if (drawCount?.[1]) {
+      const count = Number(drawCount[1]);
+      return `You discarded a card and drew ${count} ${count === 1 ? "card" : "cards"}.`;
+    }
+    return "You discarded a card and drew cards.";
+  }
+  if (entry.startsWith("You discarded ")) return "You discarded a card.";
   return entry;
 }
 

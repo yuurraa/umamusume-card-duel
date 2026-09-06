@@ -8,7 +8,7 @@ export { getEvolutionTargets } from "./flow/evolution";
 export { shuffle, rollEnergyFromPool } from "./core/random";
 export { attachEnergy, hasEnoughEnergy, getAbilityMoveEnergyTypes } from "./flow/energy";
 export { retreatCost, getGlobalRetreatCostReduction, effectiveRetreatCost, payRetreatCost, getDisplayedRetreatCost } from "./flow/retreat";
-export { resetUmamusumeIdCounter, createUmamusume, buildOpeningSide } from "./flow/setup";
+export { createUmamusume, buildOpeningSide } from "./flow/setup";
 export { isPlayerTurn, canAttachEnergy, canAttachEnergyToUmamusume, canAttack, canRetreat, canUseUmamusumeAbility } from "./flow/eligibility";
 export { prepareUmamusumeForTurn, drawCards, applyStartAbilities, startTurn, endTurn } from "./flow/turn";
 export { playStadium, canUseStadium, useStadium, applyTrainer, hasDamagedHealingTarget } from "./flow/trainers";

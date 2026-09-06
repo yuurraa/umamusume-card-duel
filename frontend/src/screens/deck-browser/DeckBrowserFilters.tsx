@@ -1,9 +1,9 @@
-import type { CSSProperties } from "react";
+import type { CSSProperties, Dispatch, SetStateAction } from "react";
 import type { EnergyType } from "../../../../shared/src/types";
 import { EnergyIcon } from "../../components/cards/EnergyIcon";
 import { energyLabel } from "../../game/engine/core/labels";
 import { energyTypes, toggleSetValue } from "./helpers";
-import { deckListFilters, deckListSorts, type DeckListSortKey } from "./model";
+import { deckListFilters, deckListSorts, type DeckListFilter, type DeckListSortKey } from "./model";
 import {
   clearFiltersButtonStyle,
   deckBrowserFilterPanelStyle,
@@ -24,7 +24,21 @@ import {
   sortSelectStyle,
 } from "./styles";
 
-type DeckBrowserFiltersProps = Record<string, any>;
+type DeckBrowserFiltersProps = {
+  deckQuery: string;
+  setDeckQuery: Dispatch<SetStateAction<string>>;
+  deckSortKey: DeckListSortKey;
+  setDeckSortKey: Dispatch<SetStateAction<DeckListSortKey>>;
+  deckSortDirection: "asc" | "desc";
+  setDeckSortDirection: Dispatch<SetStateAction<"asc" | "desc">>;
+  deckFiltersOpen: boolean;
+  setDeckFiltersOpen: Dispatch<SetStateAction<boolean>>;
+  activeDeckFilterCount: number;
+  deckFilter: DeckListFilter | null;
+  setDeckFilter: Dispatch<SetStateAction<DeckListFilter | null>>;
+  deckEnergyFiltersSelected: Set<EnergyType>;
+  setDeckEnergyFiltersSelected: Dispatch<SetStateAction<Set<EnergyType>>>;
+};
 
 export function DeckBrowserFilters({
   deckQuery,
@@ -67,7 +81,7 @@ export function DeckBrowserFilters({
             aria-label="Toggle deck sort direction"
             style={sortDirectionButtonStyle(deckSortKey !== "recommended")}
             disabled={deckSortKey === "recommended"}
-            onClick={() => setDeckSortDirection((current: "asc" | "desc") => (current === "asc" ? "desc" : "asc"))}
+            onClick={() => setDeckSortDirection((current) => (current === "asc" ? "desc" : "asc"))}
           >
             {deckSortDirection === "asc" ? "Asc" : "Desc"}
           </button>
@@ -78,7 +92,7 @@ export function DeckBrowserFilters({
             aria-expanded={deckFiltersOpen}
             aria-haspopup="menu"
             style={filterMenuButtonStyle(deckFiltersOpen || activeDeckFilterCount > 0)}
-            onClick={() => setDeckFiltersOpen((open: boolean) => !open)}
+            onClick={() => setDeckFiltersOpen((open) => !open)}
           >
             Filters{activeDeckFilterCount > 0 ? ` (${activeDeckFilterCount})` : ""}
           </button>
@@ -105,7 +119,7 @@ export function DeckBrowserFilters({
                     <DeckFilterChip
                       key={filter.id}
                       active={deckFilter === filter.id}
-                      onClick={() => setDeckFilter((current: string | null) => (current === filter.id ? null : filter.id))}
+                      onClick={() => setDeckFilter((current) => (current === filter.id ? null : filter.id))}
                     >
                       {filter.label}
                     </DeckFilterChip>
@@ -122,7 +136,7 @@ export function DeckBrowserFilters({
                       aria-label={`${energyLabel(type)} filter`}
                       title={energyLabel(type)}
                       style={energyFilterButtonStyle(deckEnergyFiltersSelected.has(type))}
-                      onClick={() => setDeckEnergyFiltersSelected((selected: Set<EnergyType>) => toggleSetValue(selected, type))}
+                      onClick={() => setDeckEnergyFiltersSelected((selected) => toggleSetValue(selected, type))}
                     >
                       <EnergyIcon type={type} size="md" />
                     </button>

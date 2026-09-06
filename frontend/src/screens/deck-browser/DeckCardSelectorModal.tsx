@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import { CARD_RARITY_SHORT_LABELS, getCardRarity, isCardDisabled } from "../../../../shared/src/cardRarity";
 import { ownedStarterCardIds } from "../../../../shared/src/gameData";
 import type { Card, EnergyType } from "../../../../shared/src/types";
@@ -101,14 +101,14 @@ export function DeckCardSelectorModal({
   const [filtersOpen, setFiltersOpen] = useState(false);
   const activeFilterCount = categoryFiltersSelected.size + energyFiltersSelected.size + stageFiltersSelected.size + artFiltersSelected.size + ownershipFiltersSelected.size + rarityFiltersSelected.size;
 
-  const getOwnedCount = (cardId: string): number => {
+  const getOwnedCount = useCallback((cardId: string): number => {
     if (isDevForcedUnowned(cardId)) return 0;
     const value = ownedCardCounts?.[cardId];
     if (typeof value === "number") return value;
     if (devUnlocksEnabled) return 2;
     return ownedStarterCardIds.has(cardId) ? 2 : 0;
-  };
-  const isOwned = (cardId: string): boolean => getOwnedCount(cardId) > 0;
+  }, [ownedCardCounts]);
+  const isOwned = useCallback((cardId: string): boolean => getOwnedCount(cardId) > 0, [getOwnedCount]);
 
   useEffect(() => {
     let active = true;
@@ -139,7 +139,7 @@ export function DeckCardSelectorModal({
       return getSearchText(card).includes(normalizedQuery);
     });
     return sortCardsForCollection(filtered, sortOption, (card) => getOwnedCount(card.id) > 0);
-  }, [artFiltersSelected, categoryFiltersSelected, energyFiltersSelected, ownershipFiltersSelected, query, rarityFiltersSelected, sortOption, stageFiltersSelected]);
+  }, [artFiltersSelected, categoryFiltersSelected, energyFiltersSelected, getOwnedCount, isOwned, ownershipFiltersSelected, query, rarityFiltersSelected, sortOption, stageFiltersSelected]);
 
   const cardCounts = useMemo(() => {
     const counts = new Map<string, number>();

@@ -516,6 +516,17 @@ body {
   filter: brightness(calc((var(--pointer-from-center) * 0.4) + 0.4)) contrast(1.4) saturate(2.25);
 }
 
+/* Deliberate, durable motion policy. Sequence timers use reduced durations in
+   React; this rule suppresses decorative motion that is not sequence-owned. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
+}
+
 .pokemon-card-foil[data-rarity="rare ultra"][data-subtypes*="supporter"] .pokemon-card-foil__shine::after {
   content: "";
   background-position: center center, 0% var(--background-y), calc((var(--background-x) + (var(--background-y) * 0.2)) * -1) calc(var(--background-y) * -1), var(--background-x) var(--background-y);

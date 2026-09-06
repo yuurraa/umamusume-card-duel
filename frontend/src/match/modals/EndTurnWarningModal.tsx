@@ -19,7 +19,7 @@ export function EndTurnWarningModal({
 
   return (
     <div style={warningBackdropStyle} onClick={onCancel}>
-      <section style={warningShellStyle} onClick={(event) => event.stopPropagation()}>
+      <section role="dialog" aria-modal="true" aria-label="End turn warning" style={warningShellStyle} onClick={(event) => event.stopPropagation()}>
         <header style={warningHeaderStyle}>
           <h2 style={warningTitleStyle}>Are you sure you want to end your turn?</h2>
         </header>
@@ -38,7 +38,7 @@ export function EndTurnWarningModal({
             <span>Do not show me again for this game</span>
           </label>
           <div style={warningButtonRowStyle}>
-            <NeutralButton style={warningButtonStyle} onClick={onCancel}>Cancel</NeutralButton>
+            <NeutralButton autoFocus style={warningButtonStyle} onClick={onCancel}>Cancel</NeutralButton>
             <NeutralButton tone="danger" style={warningButtonStyle} onClick={onConfirm}>End Turn</NeutralButton>
           </div>
         </div>

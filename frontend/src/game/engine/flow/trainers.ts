@@ -5,7 +5,7 @@ import { actorLowerPossessive, actorName, actorPossessive, energyLabel, formatCa
 import { log, logPrimaryFirst } from "../core/log";
 import { findMostDamagedUmamusume, findOwnUmamusumeByUid, getAllUmamusume } from "../core/umamusume";
 import { drawCards } from "./turn";
-import { rollEnergyFromPool, shuffle } from "../core/random";
+import { rollEnergyFromPool, shuffle, type RandomSource } from "../core/random";
 import type { PlayChoices } from "../core/playTypes";
 import { clearSpecialConditions } from "./specialConditions";
 
@@ -34,7 +34,7 @@ export function canUseStadium(state: GameState, side: SideState): boolean {
   return Boolean(stadium.effect.shuffleHandIntoDeckDraw && stadium.effect.shuffleHandIntoDeckDraw > 0);
 }
 
-export function useStadium(state: GameState, side: SideState): boolean {
+export function useStadium(state: GameState, side: SideState, random: RandomSource = Math.random): boolean {
   if (!canUseStadium(state, side) || !state.stadium) return false;
   const stadium = getCard(state.stadium.cardId);
   if (stadium.kind !== "trainer") return false;
@@ -42,7 +42,7 @@ export function useStadium(state: GameState, side: SideState): boolean {
   if (drawAmount <= 0) return false;
 
   const shuffledFromHand = side.hand.length;
-  side.deck = shuffle([...side.deck, ...side.hand]);
+  side.deck = shuffle([...side.deck, ...side.hand], random);
   side.hand = [];
 
   const drawnCardIds = drawCards(state, side, drawAmount);
@@ -61,6 +61,7 @@ export function applyTrainer(
   choices: PlayChoices = {},
   switchOutOpponentActive: SwitchOutOpponentActiveFn,
   pendingChoiceResume: SwitchAfterGustResume = "none",
+  random: RandomSource = Math.random,
 ): void {
   const discardedCardName = trainer.effect.discardOtherCard ? discardOtherCardForScout(state, side, choices.discardHandIndex) : null;
   if (trainer.effect.retreatCostReduction) side.retreatCostReduction += trainer.effect.retreatCostReduction;
@@ -68,20 +69,20 @@ export function applyTrainer(
   if (trainer.effect.extraEnergyAttach) {
     side.bonusEnergyAttachments += trainer.effect.extraEnergyAttach;
     for (let count = 0; count < trainer.effect.extraEnergyAttach; count += 1) {
-      side.energyZone.push(rollEnergyFromPool(side.energyPool));
+      side.energyZone.push(rollEnergyFromPool(side.energyPool, random));
     }
   }
   if (trainer.effect.attachEnergyFromZoneToBench) {
-    attachEnergyFromZoneToBench(state, side, trainer, trainer.effect.attachEnergyFromZoneToBench, choices.umamusumeTargetUid);
+    attachEnergyFromZoneToBench(state, side, trainer, trainer.effect.attachEnergyFromZoneToBench, choices.umamusumeTargetUid, random);
   }
   if (trainer.effect.moveEnergyFromBenchToActive) {
     moveEnergyFromBenchToActive(state, side, trainer);
   }
   if (trainer.effect.shuffleOpponentHandIntoDeckDraw) {
-    shuffleOpponentHandIntoDeckDraw(state, side, trainer, trainer.effect.shuffleOpponentHandIntoDeckDraw);
+    shuffleOpponentHandIntoDeckDraw(state, side, trainer, trainer.effect.shuffleOpponentHandIntoDeckDraw, random);
   }
   if (trainer.effect.swapHandUmamusumeWithRandomDeckUmamusume) {
-    swapHandUmamusumeWithRandomDeckUmamusume(state, side, trainer, choices.swapHandCardIndex);
+    swapHandUmamusumeWithRandomDeckUmamusume(state, side, trainer, choices.swapHandCardIndex, random);
   }
   if (trainer.effect.discardToolOrStadium) {
     discardToolOrStadium(state, side, trainer, choices.discardToolHolderUmamusumeUid, choices.discardStadiumInPlay);
@@ -116,9 +117,9 @@ export function applyTrainer(
   }
   if (trainer.effect.searchUmamusume) searchUmamusumeFromDeck(state, side, choices.deckCardIndex, Boolean(trainer.effect.revealSearchedCard));
   if (trainer.effect.searchEvolutionUmamusume) searchEvolutionUmamusumeFromDeck(state, side, choices.deckCardIndex, Boolean(trainer.effect.revealSearchedCard));
-  if (trainer.effect.searchRandomBasicUmamusume) searchRandomBasicUmamusumeFromDeck(state, side, Boolean(trainer.effect.revealSearchedCard));
-  if (trainer.effect.randomBasicUmamusumeFromDiscard) moveRandomBasicUmamusumeFromDiscardToHand(state, side);
-  if (trainer.effect.discardRandomOpponentActiveEnergy) discardRandomOpponentActiveEnergy(state, side, trainer);
+  if (trainer.effect.searchRandomBasicUmamusume) searchRandomBasicUmamusumeFromDeck(state, side, Boolean(trainer.effect.revealSearchedCard), random);
+  if (trainer.effect.randomBasicUmamusumeFromDiscard) moveRandomBasicUmamusumeFromDiscardToHand(state, side, random);
+  if (trainer.effect.discardRandomOpponentActiveEnergy) discardRandomOpponentActiveEnergy(state, side, trainer, random);
   if (trainer.effect.recoverActiveSpecialConditions) recoverActiveSpecialConditions(state, side, trainer);
   if (discardedCardName) {
     if (side.id === "player") {
@@ -140,13 +141,14 @@ function attachEnergyFromZoneToBench(
   trainer: TrainerCard,
   count: number,
   targetUid?: number,
+  random: RandomSource = Math.random,
 ): void {
   if (count <= 0 || side.bench.length === 0) return;
   const target = (targetUid ? side.bench.find((umamusume) => umamusume.uid === targetUid) : undefined) ?? side.bench[0];
   if (!target) return;
 
   for (let attached = 0; attached < count; attached += 1) {
-    const energyType = rollEnergyFromPool(side.energyPool);
+    const energyType = rollEnergyFromPool(side.energyPool, random);
     target.energies[energyType] += 1;
     log(state, `${trainer.name} generated 1 ${energyLabel(energyType)} in the Energy Zone and attached it to ${formatUmamusumeInstanceName(target)}.`);
   }
@@ -177,20 +179,20 @@ function searchEvolutionUmamusumeFromDeck(state: GameState, side: SideState, dec
   moveDeckCardToHand(state, side, index, reveal);
 }
 
-function searchRandomBasicUmamusumeFromDeck(state: GameState, side: SideState, reveal = false): void {
+function searchRandomBasicUmamusumeFromDeck(state: GameState, side: SideState, reveal = false, random: RandomSource = Math.random): void {
   const candidates = side.deck
     .map((cardId, index) => ({ card: getCard(cardId), index }))
     .filter(({ card }) => card.kind === "umamusume" && card.stage === 0);
-  const chosen = candidates[Math.floor(Math.random() * candidates.length)];
+  const chosen = candidates[Math.floor(random() * candidates.length)];
   moveDeckCardToHand(state, side, chosen?.index ?? -1, reveal);
 }
 
-function moveRandomBasicUmamusumeFromDiscardToHand(state: GameState, side: SideState): void {
+function moveRandomBasicUmamusumeFromDiscardToHand(state: GameState, side: SideState, random: RandomSource = Math.random): void {
   if (side.hand.length >= MAX_HAND) return;
   const candidates = side.discard
     .map((cardId, index) => ({ card: getCard(cardId), index }))
     .filter(({ card }) => card.kind === "umamusume" && card.stage === 0);
-  const chosen = candidates[Math.floor(Math.random() * candidates.length)];
+  const chosen = candidates[Math.floor(random() * candidates.length)];
   if (!chosen) return;
   const [cardId] = side.discard.splice(chosen.index, 1);
   if (!cardId) return;
@@ -202,13 +204,13 @@ function moveRandomBasicUmamusumeFromDiscardToHand(state: GameState, side: SideS
   }
 }
 
-function discardRandomOpponentActiveEnergy(state: GameState, side: SideState, trainer: TrainerCard): void {
+function discardRandomOpponentActiveEnergy(state: GameState, side: SideState, trainer: TrainerCard, random: RandomSource = Math.random): void {
   const opponent = state.sides[side.id === "player" ? "opponent" : "player"];
   const active = opponent.active;
   if (!active) return;
   const energyPool = (Object.entries(active.energies) as [EnergyType, number][])
     .flatMap(([energyType, count]) => Array.from({ length: count }, () => energyType));
-  const energyType = energyPool[Math.floor(Math.random() * energyPool.length)];
+  const energyType = energyPool[Math.floor(random() * energyPool.length)];
   if (!energyType) return;
   active.energies[energyType] = Math.max(0, active.energies[energyType] - 1);
   log(state, `${trainer.name} discarded 1 ${energyLabel(energyType)} from ${actorPossessive(opponent)} Active Umamusume.`);
@@ -239,11 +241,11 @@ function moveEnergyFromBenchToActive(state: GameState, side: SideState, trainer:
   );
 }
 
-function shuffleOpponentHandIntoDeckDraw(state: GameState, side: SideState, trainer: TrainerCard, drawAmount: number): void {
+function shuffleOpponentHandIntoDeckDraw(state: GameState, side: SideState, trainer: TrainerCard, drawAmount: number, random: RandomSource = Math.random): void {
   if (drawAmount <= 0) return;
   const opponent = state.sides[side.id === "player" ? "opponent" : "player"];
   const shuffledFromHand = opponent.hand.length;
-  opponent.deck = shuffle([...opponent.deck, ...opponent.hand]);
+  opponent.deck = shuffle([...opponent.deck, ...opponent.hand], random);
   opponent.hand = [];
   const drawnCardIds = drawCards(state, opponent, drawAmount);
   log(
@@ -257,6 +259,7 @@ function swapHandUmamusumeWithRandomDeckUmamusume(
   side: SideState,
   trainer: TrainerCard,
   preferredHandIndex?: number,
+  random: RandomSource = Math.random,
 ): void {
   const handOptions = side.hand
     .map((cardId, index) => ({ cardId, index }))
@@ -272,8 +275,8 @@ function swapHandUmamusumeWithRandomDeckUmamusume(
   if (!handChoice) return;
   const [sentToDeck] = side.hand.splice(handChoice.index, 1);
   if (!sentToDeck) return;
-  side.deck = shuffle([...side.deck, sentToDeck]);
-  const drawFromDeck = deckOptions[Math.floor(Math.random() * deckOptions.length)];
+  side.deck = shuffle([...side.deck, sentToDeck], random);
+  const drawFromDeck = deckOptions[Math.floor(random() * deckOptions.length)];
   if (!drawFromDeck) return;
   const resolvedDeckIndex = side.deck.findIndex((cardId) => cardId === drawFromDeck.cardId);
   if (resolvedDeckIndex < 0) return;

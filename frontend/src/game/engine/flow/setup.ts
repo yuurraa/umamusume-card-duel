@@ -1,20 +1,14 @@
 import { MAX_BENCH, OPENING_HAND, cards } from "../../../../../shared/src/gameData";
-import type { EnergyType, SideId, SideState, UmamusumeInstance } from "../../../../../shared/src/types";
+import type { EnergyType, GameState, SideId, SideState, UmamusumeInstance } from "../../../../../shared/src/types";
 import { ALL_ENERGY_TYPES, UMAMUSUME_TYPE_TO_ENERGY } from "../core/constants";
 import { getCard, isBasicUmamusumeInDeck } from "../core/catalog";
-import { shuffle } from "../core/random";
+import { shuffle, type RandomSource } from "../core/random";
 
-let nextUmamusumeId = 1;
-
-export function resetUmamusumeIdCounter(): void {
-  nextUmamusumeId = 1;
-}
-
-export function createUmamusume(cardId: string, turnNumber: number): UmamusumeInstance {
+export function createUmamusume(state: GameState, cardId: string, turnNumber: number): UmamusumeInstance {
   const card = getCard(cardId);
   if (card.kind !== "umamusume") throw new Error(`Expected Umamusume card: ${cardId}`);
   return {
-    uid: nextUmamusumeId++,
+    uid: state.nextUmamusumeUid++,
     cardId,
     evolutionCardIds: [],
     species: card.species,
@@ -35,8 +29,8 @@ export function createUmamusume(cardId: string, turnNumber: number): UmamusumeIn
   };
 }
 
-export function buildOpeningSide(id: SideId, title: string, deckList: string[], autoSetupActive: boolean, selectedEnergyTypes?: EnergyType[]): SideState {
-  const { deck, hand } = drawOpeningHand(deckList);
+export function buildOpeningSide(state: GameState, id: SideId, title: string, deckList: string[], autoSetupActive: boolean, selectedEnergyTypes?: EnergyType[], random: RandomSource = Math.random): SideState {
+  const { deck, hand } = drawOpeningHand(deckList, random);
   const side = makeSide(id, title, deck, getDeckEnergyPool(deckList, selectedEnergyTypes));
   side.hand = hand;
 
@@ -47,9 +41,9 @@ export function buildOpeningSide(id: SideId, title: string, deckList: string[], 
       .slice(0, MAX_BENCH + 1);
     const activeEntry = basicIndexes[0];
     if (activeEntry) {
-      side.active = createUmamusume(activeEntry.cardId, 0);
+      side.active = createUmamusume(state, activeEntry.cardId, 0);
       const benchEntries = basicIndexes.slice(1);
-      side.bench = benchEntries.map(({ cardId }) => createUmamusume(cardId, 0));
+      side.bench = benchEntries.map(({ cardId }) => createUmamusume(state, cardId, 0));
       const taken = new Set(basicIndexes.map(({ index }) => index));
       side.hand = side.hand.filter((_, index) => !taken.has(index));
     }
@@ -58,15 +52,15 @@ export function buildOpeningSide(id: SideId, title: string, deckList: string[], 
   return side;
 }
 
-export function buildDeferredOpeningSide(id: SideId, title: string, deckList: string[], selectedEnergyTypes?: EnergyType[]): { side: SideState; openingHand: string[] } {
-  const { deck, hand } = drawOpeningHand(deckList);
+export function buildDeferredOpeningSide(id: SideId, title: string, deckList: string[], selectedEnergyTypes?: EnergyType[], random: RandomSource = Math.random): { side: SideState; openingHand: string[] } {
+  const { deck, hand } = drawOpeningHand(deckList, random);
   return {
     side: makeSide(id, title, deck, getDeckEnergyPool(deckList, selectedEnergyTypes)),
     openingHand: hand,
   };
 }
 
-export function autoSetupBasicUmamusume(side: SideState): void {
+export function autoSetupBasicUmamusume(state: GameState, side: SideState): void {
   const basicIndexes = side.hand
     .map((cardId, index) => ({ cardId, index }))
     .filter(({ cardId }) => isBasicUmamusumeInDeck(cardId))
@@ -74,9 +68,9 @@ export function autoSetupBasicUmamusume(side: SideState): void {
   const activeEntry = basicIndexes[0];
   if (!activeEntry) return;
 
-  side.active = createUmamusume(activeEntry.cardId, 0);
+  side.active = createUmamusume(state, activeEntry.cardId, 0);
   const benchEntries = basicIndexes.slice(1);
-  side.bench = benchEntries.map(({ cardId }) => createUmamusume(cardId, 0));
+  side.bench = benchEntries.map(({ cardId }) => createUmamusume(state, cardId, 0));
   const taken = new Set(basicIndexes.map(({ index }) => index));
   side.hand = side.hand.filter((_, index) => !taken.has(index));
 }
@@ -107,9 +101,9 @@ function normalizeSelectedEnergyTypes(selectedEnergyTypes?: EnergyType[]): Energ
   return ALL_ENERGY_TYPES.filter((type) => type !== "colorless" && selected.has(type)).slice(0, 3);
 }
 
-function drawOpeningHand(deckList: string[]): { deck: string[]; hand: string[] } {
+function drawOpeningHand(deckList: string[], random: RandomSource): { deck: string[]; hand: string[] } {
   while (true) {
-    const deck = shuffle(deckList);
+    const deck = shuffle(deckList, random);
     const hand = deck.splice(0, OPENING_HAND);
     if (hand.some(isBasicUmamusumeInDeck)) return { deck, hand };
   }

@@ -1,14 +1,17 @@
 import type { GameState, PendingPlayerChoice, SideId, SideState } from "../../../../../../shared/src/types";
 import type { SwitchAfterGustResume } from "../trainers";
+import type { RandomSource } from "../../core/random";
 
 export type AiTrainerDeps = {
   refreshContinuousEffects: (state: GameState) => void;
   switchOutOpponentActive: (state: GameState, actingSideId: SideId, pendingChoiceResume?: SwitchAfterGustResume) => void;
+  random?: RandomSource;
 };
 
 export type AiCombatDeps = {
   refreshContinuousEffects: (state: GameState) => void;
   choosePreferredActiveIndex: (side: SideState) => number;
+  random?: RandomSource;
 };
 
 export type AiCombatDecision =

@@ -47,7 +47,7 @@ export function aiPlayOneBasic(state: GameState, side: SideState): boolean {
   if (!cardId) return false;
   const card = getCard(cardId);
   if (card.kind !== "umamusume") return false;
-  side.bench.push(createUmamusume(card.id, state.turnNumber));
+  side.bench.push(createUmamusume(state, card.id, state.turnNumber));
   log(state, `${actorName(side)} benched ${formatUmamusumeCardName(card)}.`);
   return true;
 }
@@ -156,6 +156,7 @@ export function aiPlayOneTrainer(
       choices,
       deps.switchOutOpponentActive,
       pendingChoiceResume,
+      deps.random,
     );
     if (card.trainerType === "supporter") side.usedSupporterThisTurn = true;
     side.discard.push(card.id);
@@ -257,7 +258,7 @@ function simulateTrainerAttachCombatBundle(
         : getToolTargets(simulatedSide)[0];
       if (target) target.toolCardId = card.id;
     } else {
-      applyTrainer(simulated, simulatedSide, card, choices, deps.switchOutOpponentActive, pendingChoiceResume);
+      applyTrainer(simulated, simulatedSide, card, choices, deps.switchOutOpponentActive, pendingChoiceResume, deps.random);
       if (card.trainerType === "supporter") simulatedSide.usedSupporterThisTurn = true;
       simulatedSide.discard.push(card.id);
     }
@@ -389,7 +390,7 @@ export function aiUseOneAbility(
         const [cardId] = side.discard.splice(randomIndex, 1);
         if (cardId) shuffledCardIds.push(cardId);
       }
-      side.deck = shuffle([...side.deck, ...shuffledCardIds]);
+  side.deck = shuffle([...side.deck, ...shuffledCardIds], random);
       abilityUmamusume.usedAbilityThisTurn = true;
       side.usedAbilityNamesThisTurn ??= [];
       if (!side.usedAbilityNamesThisTurn.includes(ability.name)) side.usedAbilityNamesThisTurn.push(ability.name);

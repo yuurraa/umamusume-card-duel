@@ -1,4 +1,4 @@
-import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CARD_RARITY_LABELS, CARD_RARITY_SHORT_LABELS, getCardRarity, isCardDisabled, isFullArtCard } from "../../../shared/src/cardRarity";
 import type { Card, EnergyType, TrainerType, UmamusumeType } from "../../../shared/src/types";
 import { EnergyIcon } from "../components/cards/EnergyIcon";
@@ -47,19 +47,19 @@ export function CardBrowserScreen({ onBack }: { onBack: () => void }) {
   const filterMenuWrapRef = useRef<HTMLDivElement | null>(null);
   const activeFilterCount = categoryFiltersSelected.size + energyFiltersSelected.size + stageFiltersSelected.size + artFiltersSelected.size + ownershipFiltersSelected.size + rarityFiltersSelected.size;
 
-  const getOwnedCount = (cardId: string): number => {
+  const getOwnedCount = useCallback((cardId: string): number => {
     if (isDevForcedUnowned(cardId)) return 0;
     const value = ownedCardCounts?.[cardId];
     if (typeof value === "number") return value;
     if (devUnlocksEnabled) return 2;
     return starterCardCounts[cardId] ?? 0;
-  };
+  }, [ownedCardCounts]);
 
-  const isOwned = (cardId: string): boolean => getOwnedCount(cardId) > 0;
+  const isOwned = useCallback((cardId: string): boolean => getOwnedCount(cardId) > 0, [getOwnedCount]);
 
   const ownedCardCount = useMemo(
     () => cardEntries.filter((card) => isOwned(card.id)).length,
-    [ownedCardCounts],
+    [isOwned],
   );
 
   useEffect(() => {

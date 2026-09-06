@@ -131,14 +131,14 @@ export function DeckChoiceModal({
 
   return (
     <div style={deckBackdropStyle} onClick={onClose}>
-      <section style={deckModalStyle} onClick={(event) => event.stopPropagation()}>
+      <section role="dialog" aria-modal="true" aria-label="Choose a card from your deck" style={deckModalStyle} onClick={(event) => event.stopPropagation()}>
         <style>{`.${deckScrollerClassName}{scrollbar-width:none;-ms-overflow-style:none;}.${deckScrollerClassName}::-webkit-scrollbar{display:none;width:0;height:0;}`}</style>
         <header style={deckHeaderStyle}>
           <div>
             <div style={deckKickerStyle}>Deck</div>
             <h2 style={deckTitleStyle}>{visibleOptions.length} of {options.length} {options.length === 1 ? "card" : "cards"}</h2>
           </div>
-          <NeutralButton style={closeButtonStyle} onClick={onClose}>Back</NeutralButton>
+          <NeutralButton autoFocus style={closeButtonStyle} onClick={onClose}>Back</NeutralButton>
         </header>
         <div style={searchToolbarStyle}>
           <input

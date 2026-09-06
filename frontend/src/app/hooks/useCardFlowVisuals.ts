@@ -41,6 +41,7 @@ export function useCardFlowVisuals({
   syncToGuest,
 }: UseCardFlowVisualsOptions) {
   const previousPlayerZonesRef = useRef<PlayerZonesSnapshot | null>(null);
+  const cardFlowGenerationRef = useRef(0);
 
   useLayoutEffect(() => {
     const previous = previousPlayerZonesRef.current;
@@ -77,6 +78,7 @@ export function useCardFlowVisuals({
   }, [game, isAiVsAi, displayPerspective, isCoinFlipBlocking, opponentSleeveImage, selectedSleeveImage, setCardFlowQueue]);
 
   const resetCardFlowTracking = () => {
+    cardFlowGenerationRef.current += 1;
     previousPlayerZonesRef.current = null;
   };
 
@@ -93,7 +95,8 @@ export function useCardFlowVisuals({
     ]);
   };
 
-  const handleCardFlowDone = (completedFlow: CardFlowItem[]) => {
+  const handleCardFlowDone = (completedFlow: CardFlowItem[], generation: number) => {
+    if (generation !== cardFlowGenerationRef.current) return;
     setCardFlowQueue((queue) => queue.slice(1));
     if (!shouldDealOpeningHandsAfterFlowRef.current) return;
     shouldDealOpeningHandsAfterFlowRef.current = false;
@@ -113,5 +116,10 @@ export function useCardFlowVisuals({
     });
   };
 
-  return { resetCardFlowTracking, showShuffleReveal, handleCardFlowDone };
+  return {
+    resetCardFlowTracking,
+    showShuffleReveal,
+    handleCardFlowDone,
+    cardFlowGeneration: cardFlowGenerationRef.current,
+  };
 }

@@ -4,7 +4,7 @@ import { actorName, actorPossessive, formatUmamusumeCardName, formatUmamusumeIns
 import { log } from "../core/log";
 import { getAllUmamusume } from "../core/umamusume";
 import { getCard, getUmamusumeCard } from "../core/catalog";
-import { rollEnergyFromPool } from "../core/random";
+import { rollEnergyFromPool, type RandomSource } from "../core/random";
 import { getUmamusumeAbility } from "./abilityRules";
 import { clearSpecialConditions } from "./specialConditions";
 
@@ -51,6 +51,7 @@ export function startTurn(
   sideId: SideId,
   refreshContinuousEffects: (state: GameState) => void,
   skipDraw = false,
+  random: RandomSource = Math.random,
 ): void {
   const side = state.sides[sideId];
   const turnsTaken = state.turnsTakenBySide[sideId] ?? 0;
@@ -69,7 +70,7 @@ export function startTurn(
   prepareUmamusumeForTurn(side);
   side.energyZone = [];
   if (!(isSideFirstTurn && state.firstPlayer === sideId)) {
-    side.energyZone.push(rollEnergyFromPool(side.energyPool));
+    side.energyZone.push(rollEnergyFromPool(side.energyPool, random));
   }
   refreshContinuousEffects(state);
   applyStartAbilities(state, side);

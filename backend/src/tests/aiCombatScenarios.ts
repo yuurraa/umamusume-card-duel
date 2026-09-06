@@ -1,14 +1,16 @@
 import assert from "node:assert/strict";
 import { opponentDeckList, playerDeckList } from "../../../shared/src/gameData";
 import type { EnergyType, GameState, SideState, UmamusumeInstance } from "../../../shared/src/types";
-import { advanceOpponentTurnStep, createGame, getCard, playHandCard, playerAttack, playerEndTurn } from "../../../frontend/src/game/engine";
+import { advanceOpponentTurnStep, chooseOpeningCoin, createGame, getCard, playHandCard, playerAttack, playerEndTurn, playerRetreat, usePlayerAbility } from "../../../frontend/src/game/engine";
 import { refreshContinuousHp } from "../../../frontend/src/game/engine/flow/board";
-import { createUmamusume, resetUmamusumeIdCounter } from "../../../frontend/src/game/engine/flow/setup";
+import { createUmamusume } from "../../../frontend/src/game/engine/flow/setup";
 
 type Scenario = {
   name: string;
   run: () => void;
 };
+
+let fixtureIdentityState: GameState | null = null;
 
 const scenarios: Scenario[] = [
   { name: "hard takes lethal KO over non-lethal target", run: scenarioLethalTargeting },
@@ -41,6 +43,15 @@ const scenarios: Scenario[] = [
   { name: "Miracle Cure attaches to statused active", run: scenarioMiracleCureTargetsStatusedActive },
   { name: "Rudolf EX once-per-game recovery is saved until discard is rich", run: scenarioRudolfExRecoveryRestraint },
   { name: "Nice Nature EX grants non-stacking HP bonus to all own Umamusume", run: scenarioNiceNatureExAllHpBonus },
+  { name: "unaffordable selected attack leaves player state unchanged", run: scenarioRejectsUnaffordableSelectedAttack },
+  { name: "invalid attack targets leave player state unchanged", run: scenarioRejectsInvalidAttackTarget },
+  { name: "invalid ability targets leave player state unchanged", run: scenarioRejectsInvalidAbilityTarget },
+  { name: "invalid trainer targets leave player state unchanged", run: scenarioRejectsInvalidTrainerTarget },
+  { name: "invalid retreat targets leave player state unchanged", run: scenarioRejectsInvalidRetreatTarget },
+  { name: "instance IDs are isolated between interleaved matches", run: scenarioMatchLocalInstanceIds },
+  { name: "injected opening randomness produces reproducible match setup", run: scenarioDeterministicOpeningSetup },
+  { name: "injected coin randomness resolves the chosen opening flip deterministically", run: scenarioDeterministicOpeningCoin },
+  { name: "injected turn randomness determines generated Energy", run: scenarioDeterministicTurnEnergy },
 ];
 
 scenarios.forEach(({ name, run }) => {
@@ -520,9 +531,113 @@ function scenarioNiceNatureExAllHpBonus() {
   assert.equal(opponent.active?.maxHp, 50, "Nice Nature EX should not buff opponent Umamusume");
 }
 
-function makeCombatState(): GameState {
-  resetUmamusumeIdCounter();
+function scenarioRejectsUnaffordableSelectedAttack() {
+  const state = makePlayerActionState();
+  state.sides.player.active = withEnergy(createUma("matikanefukukitaruStage1"), { psychic: 1 });
+  state.sides.opponent.active = createUma("riceShowerBasic");
+  const before = structuredClone(state);
+
+  const next = playerAttack(state, undefined, undefined, undefined, undefined, 1);
+
+  assert.deepEqual(next, before, "selecting an unaffordable secondary attack must not spend resources or advance the turn");
+}
+
+function scenarioRejectsInvalidAttackTarget() {
+  const state = makePlayerActionState();
+  state.sides.player.active = withEnergy(createUma("manhattanCafeBasic"), { darkness: 1 });
+  state.sides.opponent.active = createUma("riceShowerBasic");
+  const before = structuredClone(state);
+
+  const next = playerAttack(state, 999_999);
+
+  assert.deepEqual(next, before, "a target-any attack must not silently substitute an invalid target");
+}
+
+function scenarioRejectsInvalidAbilityTarget() {
+  const state = makePlayerActionState();
+  state.sides.player.active = createUma("manhattanCafeStage1");
+  state.sides.opponent.active = createUma("riceShowerBasic");
+  const before = structuredClone(state);
+
+  const next = usePlayerAbility(state, state.sides.player.active.uid, state.sides.player.active.uid, undefined, undefined, 999_999);
+
+  assert.deepEqual(next, before, "a target-any ability must not silently substitute an invalid target");
+}
+
+function scenarioRejectsInvalidTrainerTarget() {
+  const state = makePlayerActionState();
+  state.sides.player.active = createUma("riceShowerBasic");
+  state.sides.player.bench = [createUma("manhattanCafeBasic")];
+  state.sides.player.hand = ["teamCanopus"];
+  const before = structuredClone(state);
+
+  const next = playHandCard(state, 0, { umamusumeTargetUid: 999_999 });
+
+  assert.deepEqual(next, before, "a trainer requiring a selected bench target must not silently use another target");
+}
+
+function scenarioRejectsInvalidRetreatTarget() {
+  const state = makePlayerActionState();
+  state.sides.player.active = withEnergy(createUma("riceShowerBasic"), { grass: 1 });
+  state.sides.player.bench = [createUma("manhattanCafeBasic")];
+  const before = structuredClone(state);
+
+  const next = playerRetreat(state, 999_999, ["grass"]);
+
+  assert.deepEqual(next, before, "an invalid retreat target must not spend Energy or substitute another bench card");
+}
+
+function scenarioMatchLocalInstanceIds() {
+  const first = createGame(playerDeckList, opponentDeckList, "First");
+  const second = createGame(playerDeckList, opponentDeckList, "Second");
+  first.phase = "play";
+  second.phase = "play";
+  first.sides.player.active = createUmamusume(first, "riceShowerBasic", 1);
+  second.sides.player.active = createUmamusume(second, "riceShowerBasic", 1);
+  first.sides.player.bench = [createUmamusume(first, "manhattanCafeBasic", 1)];
+  second.sides.player.bench = [createUmamusume(second, "manhattanCafeBasic", 1)];
+
+  assert.deepEqual([first.sides.player.active.uid, first.sides.player.bench[0]?.uid], [1, 2]);
+  assert.deepEqual([second.sides.player.active.uid, second.sides.player.bench[0]?.uid], [1, 2]);
+  assert.equal(first.nextUmamusumeUid, 3);
+  assert.equal(second.nextUmamusumeUid, 3);
+}
+
+function scenarioDeterministicOpeningSetup() {
+  const createSeededRandom = () => {
+    let value = 0x12345678;
+    return () => {
+      value = (value * 1664525 + 1013904223) >>> 0;
+      return value / 0x1_0000_0000;
+    };
+  };
+  const first = createGame(playerDeckList, opponentDeckList, "Opponent", "hard", false, "Guest", undefined, undefined, createSeededRandom());
+  const second = createGame(playerDeckList, opponentDeckList, "Opponent", "hard", false, "Guest", undefined, undefined, createSeededRandom());
+
+  assert.deepEqual(first.sides.player.deck, second.sides.player.deck);
+  assert.deepEqual(first.sides.opponent.deck, second.sides.opponent.deck);
+  assert.deepEqual(first.setup?.openingHands, second.setup?.openingHands);
+}
+
+function scenarioDeterministicOpeningCoin() {
   const state = createGame(playerDeckList, opponentDeckList, "Opponent");
+  const next = chooseOpeningCoin(state, "heads", () => 0.1);
+
+  assert.equal(next.setup?.coinFlipResult, "tails");
+  assert.equal(next.firstPlayer, "opponent");
+}
+
+function scenarioDeterministicTurnEnergy() {
+  const state = makePlayerActionState();
+  const expected = state.sides.opponent.energyPool.at(-1);
+  const next = playerEndTurn(state, () => 0.999);
+
+  assert.deepEqual(next.sides.opponent.energyZone, expected ? [expected] : []);
+}
+
+function makeCombatState(): GameState {
+  const state = createGame(playerDeckList, opponentDeckList, "Opponent");
+  fixtureIdentityState = state;
   state.phase = "play";
   state.setup = null;
   state.pendingPlayerChoice = null;
@@ -562,7 +677,8 @@ function resetSideForCombat(side: SideState): void {
 }
 
 function createUma(cardId: string): UmamusumeInstance {
-  const umamusume = createUmamusume(cardId, 2);
+  if (!fixtureIdentityState) throw new Error("Create a combat fixture before creating an Umamusume.");
+  const umamusume = createUmamusume(fixtureIdentityState, cardId, 2);
   const card = getCard(cardId);
   if (card.kind !== "umamusume") throw new Error(`Expected umamusume card: ${cardId}`);
   umamusume.hp = card.hp;

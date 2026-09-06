@@ -1,216 +1,34 @@
-# Engine Dependency Map
+# Engine ownership map
 
-Source analyzed:
-- frontend/src/game/engine.ts
-- Frontend import consumers under frontend/src
+Verified from the current `frontend/src/game/engine.ts` facade and `frontend/src/game/engine/` tree on 2026-09-06.
 
-Generated summary:
-- Top-level functions: 94
-- Directed function-call edges: 189
+## Public boundary
 
-## 1) External Consumer Map (Public API Surface)
+`frontend/src/game/engine.ts` is the stable engine facade. It composes public player actions, match setup, AI turn advancement, and match-level helpers from focused modules. App code, PvP intent application, components, deck screens, and backend scenarios import through this public boundary. New browser code should not import deep rule modules unless it is itself an engine-internal module.
 
-Files importing from frontend/src/game/engine:
+The engine has no React, DOM geometry, browser storage, or transport dependency. It depends on `shared/` card/type data. Backend scenarios intentionally use the same facade so the tested rules are the rules the client runs.
 
-- frontend/src/App.tsx
-  - advanceOpponentTurnStep
-  - attachPlayerEnergy
-  - canAttack
-  - canAttachEnergy
-  - canRetreat
-  - canUseUmamusumeAbility
-  - completePregameSetup
-  - createGame
-  - getAllUmamusume
-  - getCard
-  - getDamagedUmamusume
-  - getEvolutionTargets
-  - getPrimaryAttack
-  - getUmamusumeCard
-  - getPlayableAction
-  - playerAttack
-  - playerEndTurn
-  - playerRetreat
-  - playerSurrender
-  - playHandCard
-  - resolvePendingPlayerChoice
-  - usePlayerAbility
-- frontend/src/components/Bench.tsx
-  - getUmamusumeCard
-- frontend/src/components/EnergyIcon.tsx
-  - energyLabel
-- frontend/src/components/Hand.tsx
-  - getCard
-  - getPlayableAction
-- frontend/src/components/SideBoard.tsx
-  - getUmamusumeCard
-- frontend/src/components/UmaCard.tsx
-  - getUmamusumeCard
-- frontend/src/match/CardPreview.tsx
-  - getDisplayedRetreatCost
-- frontend/src/match/ChoiceModal.tsx
-  - getCard
-  - isUmamusumeInDeck
-- frontend/src/match/HandControls.tsx
-  - energyLabel
-- frontend/src/match/helpers.ts
-  - canAttachEnergyToUmamusume
-  - getAllUmamusume
-  - getCard
-  - getDamagedUmamusume
-  - getEvolutionTargets
-- frontend/src/match/SelectionPrompt.tsx
-  - energyLabel
-- frontend/src/match/StadiumSpot.tsx
-  - getCard
-- frontend/src/screens/DeckBrowserScreen.tsx
-  - energyLabel
-- frontend/src/utils/deck.ts
-  - getCard
+## Module ownership
 
-Implication: keep a stable facade file for UI imports while splitting internals.
+| Area | Modules | Responsibility |
+| --- | --- | --- |
+| Foundation | `core/catalog`, `constants`, `labels`, `log`, `playTypes`, `random`, `stateClone`, `umamusume` | Immutable card lookup, typed primitives, labels/logs, gameplay random source, cloning, and instance queries. |
+| Rule flows | `flow/eligibility`, `energy`, `evolution`, `retreat`, `specialConditions`, `trainers`, `turn`, `abilityRules` | Legal-action predicates and focused card/rule resolution. |
+| Board and combat | `flow/board`, `combat` | Continuous effects, board normalization, knockouts, attacks, scoring, and promotion mechanics. |
+| Card-play orchestration | `flow/playRules`, `setup` | Play routing, setup/opening hands, and match-local instance allocation. |
+| AI | `flow/ai/*` | Tactical evaluation, trainer/ability/combat choice, non-authoritative telemetry, and AI execution helpers. |
+| Public exports | `engine.ts`, `engine/index.ts` | Stable facade and module-local discovery exports. |
 
-## 2) Proposed Module Ownership
+## Dependency direction
 
-- catalog: card lookup and typed card access
-- labels: formatting and actor text helpers
-- umamusume: umamusume instance queries and selectors
-- setup: game creation and pregame setup
-- stateClone: cloneGame
-- turn: start/end turn and draw/start abilities
-- random: shuffle and random energy roll
-- log: log append/trim
-- playRules: getPlayableAction and resolveCardPlay routing
-- trainers: trainer effects and deck search/discard mechanics
-- evolution: evolution target validation and evolve transition
-- energy: attach energy, energy checks, move-energy ability
-- retreat: retreat checks/cost/payment
-- combat: attack execution and knockout resolution
-- board: continuous effects, board normalization, auto knockouts
-- playerActions: player-triggered orchestration
-- opponentAi: AI turn-step orchestration and decisions
+Foundation modules do not import rule flows. Rule flows may use foundation modules and narrow callbacks for cross-flow coordination. `board` and `combat` are mutually coordinated through injected callbacks and shared domain functions; keep UI, transport, and persistence outside both. `playRules`, setup, and the facade orchestrate multiple flows. AI evaluates and invokes rule flows but must not own canonical state outside its supplied `GameState` transition.
 
-## 3) Module Dependency Map (Weighted Edges)
+Gameplay randomness uses the narrow `RandomSource` type from `core/random`. Public actions default to real randomness; tests and AI can inject a deterministic source. The source is not stored in public match state.
 
-Higher weight means more direct calls across module boundaries.
+## Presentation and networking boundary
 
-- combat -> labels (9)
-- trainers -> catalog (7)
-- opponentAi -> catalog (6)
-- playerActions -> stateClone (6)
-- combat -> catalog (6)
-- trainers -> labels (6)
-- energy -> labels (5)
-- playerActions -> board (5)
-- turn -> labels (4)
-- playerActions -> turn (4)
-- opponentAi -> energy (3)
-- setup -> catalog (3)
-- energy -> umamusume (3)
-- opponentAi -> retreat (3)
-- trainers -> log (3)
-- retreat -> catalog (3)
-- evolution -> labels (3)
-- playerActions -> retreat (3)
-- playerActions -> log (3)
+The engine produces canonical state and logs. Presentation-side match hooks derive visual queues, snapshots, and text perspective outside the engine. PvP uses `frontend/src/pvp/playerIntent.ts` to apply validated player intents through the facade, while `stateMirror.ts` projects/redacts state for guests. Host authority and private-zone redaction are transport concerns, not engine rule concerns.
 
-Other observed edges (weight 1-2) include:
-- opponentAi -> combat, board, evolution, labels, log, umamusume, playRules, trainers, turn, stateClone, setup
-- combat -> umamusume, log, energy, board, turn, opponentAi
-- board -> combat, catalog, umamusume
-- turn -> board, random, catalog, umamusume, log
-- setup -> turn, log, stateClone
+## Testing boundary
 
-## 4) Hotspot Functions (Most Incoming Calls)
-
-- log (16)
-- getCard (15)
-- getUmamusumeCard (13)
-- actorName (9)
-- cloneGame (9)
-- formatUmamusumeCardName (8)
-- formatUmamusumeInstanceName (6)
-- getAllUmamusume (5)
-- refreshContinuousEffects (5)
-
-These are strong utility/foundation candidates and should stay low-level.
-
-## 5) Orchestration Functions (Most Outgoing Calls)
-
-- performAttack (14)
-- advanceOpponentTurnStep (10)
-- playerRetreat (8)
-- usePlayerAbility (8)
-- knockOutUmamusume (6)
-- resolvePendingPlayerChoice (6)
-- shouldAiPlayTrainer (6)
-
-These are high-coupling flows and should be isolated as top-level orchestration modules.
-
-## 6) Current Cycles To Break During Split
-
-Detected or implied cycles at module level:
-
-- combat <-> board
-- combat -> opponentAi -> combat
-- turn -> board -> combat -> turn
-
-Recommended break strategy:
-
-- Move choosePreferredActiveIndex out of opponentAi into combatHelpers or boardHelpers so combat no longer imports opponentAi.
-- Keep board as a pure state-normalization/effects layer that does not call combat internals directly; route knockout triggering through a narrow callback or domain service.
-- Keep turn independent from combat resolution; only invoke board refresh entrypoints.
-
-## 7) Suggested Layering (Target)
-
-Bottom to top:
-
-- Foundation: catalog, labels, log, stateClone, random
-- Domain primitives: umamusume, evolution, energy, retreat, trainers
-- State/effects: board, turn
-- Combat domain: combat
-- Orchestration: playRules, playerActions, opponentAi, setup
-- Public facade: game/engine/index.ts re-exporting stable API
-
-This layering minimizes upward calls and keeps UI-facing API stable while internals are modularized.
-
-## 8) Standard-Conventions Folder Layout (Applied)
-
-Current engine folder shape:
-
-- frontend/src/game/engine.ts
-  - Compatibility facade and top-level game orchestration
-- frontend/src/game/engine/
-  - ai.ts
-  - board.ts
-  - combat.ts
-  - eligibility.ts
-  - energy.ts
-  - index.ts
-  - catalog.ts
-  - constants.ts
-  - evolution.ts
-  - labels.ts
-  - log.ts
-  - playRules.ts
-  - playTypes.ts
-  - random.ts
-  - retreat.ts
-  - setup.ts
-  - stateClone.ts
-  - trainers.ts
-  - turn.ts
-  - umamusume.ts
-
-Conventions used:
-
-- One responsibility per file with noun-based module names.
-- Stable public facade retained at frontend/src/game/engine.ts to avoid touching UI imports during incremental migration.
-- Shared utilities and domain modules are split by concern (catalog, play-rules, AI, combat, board, setup, turn).
-- Barrel export file at frontend/src/game/engine/index.ts for module-local discoverability.
-- Cross-module dependencies are passed through narrow callbacks where needed to avoid tight cycles.
-
-Migration contract:
-
-- Do not import deep modules from UI yet; continue importing from frontend/src/game/engine.
-- Keep frontend/src/game/engine.ts as the user-facing facade unless a deliberate import-path migration is planned.
+Engine/rule regressions belong in `backend/src/tests/aiCombatScenarios.ts`; transport shape/privacy checks belong in `backend/src/tests/pvpProtocolScenarios.ts`; lifecycle/overlay behavior belongs in frontend Vitest tests. Run all fast checks with `npm run test`, then type/build with `npm run build`.

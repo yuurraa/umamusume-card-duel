@@ -223,6 +223,8 @@ export type SideState = {
 };
 
 export type GameState = {
+  /** Match-local allocator; never derive instance identity from module state. */
+  nextUmamusumeUid: number;
   phase: "setup" | "play";
   setup: SetupState | null;
   pendingPlayerChoice: PendingPlayerChoice | null;

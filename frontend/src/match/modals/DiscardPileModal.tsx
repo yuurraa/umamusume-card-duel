@@ -59,14 +59,14 @@ export function DiscardPileModal({
 
   return (
     <div style={discardBackdropStyle} onClick={onClose}>
-      <section style={discardModalStyle} onClick={(event) => event.stopPropagation()}>
+      <section role="dialog" aria-modal="true" aria-label={pileLabel} style={discardModalStyle} onClick={(event) => event.stopPropagation()}>
         <style>{`.${discardScrollerClassName}{scrollbar-width:none;-ms-overflow-style:none;}.${discardScrollerClassName}::-webkit-scrollbar{display:none;width:0;height:0;}`}</style>
         <header style={discardHeaderStyle}>
           <div>
             <div style={discardKickerStyle}>{pileLabel}</div>
             <h2 style={discardTitleStyle}>{cardIds.length} {cardIds.length === 1 ? "card" : "cards"}</h2>
           </div>
-          <NeutralButton style={closeButtonStyle} onClick={onClose}>Back</NeutralButton>
+          <NeutralButton autoFocus style={closeButtonStyle} onClick={onClose}>Back</NeutralButton>
         </header>
         {cards.length === 0 ? (
           <div style={emptyDiscardStyle}>No cards have been discarded yet.</div>
