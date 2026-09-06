@@ -8,6 +8,7 @@ import { drawCards } from "./turn";
 import { rollEnergyFromPool, shuffle, type RandomSource } from "../core/random";
 import type { PlayChoices } from "../core/playTypes";
 import { clearSpecialConditions } from "./specialConditions";
+import { emitCardMovement, emitEnergyChanges, emitGameEvent } from "../core/events";
 
 export type SwitchAfterGustResume = Extract<PendingPlayerChoice, { kind: "switchAfterGust" }>["resume"];
 
@@ -19,6 +20,7 @@ export function playStadium(state: GameState, side: SideState, stadium: TrainerC
       const previous = state.stadium;
       const previousCard = getCard(previous.cardId);
       state.sides[previous.owner].discard.push(previous.cardId);
+      emitCardMovement(state, previous.owner, "play", "discard", 1, [previous.cardId]);
       log(state, `${previousCard.name} left the Stadium Spot.`);
     }
     state.stadium = { cardId: stadium.id, owner: side.id };
@@ -42,8 +44,10 @@ export function useStadium(state: GameState, side: SideState, random: RandomSour
   if (drawAmount <= 0) return false;
 
   const shuffledFromHand = side.hand.length;
+  const shuffledCardIds = [...side.hand];
   side.deck = shuffle([...side.deck, ...side.hand], random);
   side.hand = [];
+  if (shuffledFromHand > 0) emitCardMovement(state, side.id, "hand", "deck", shuffledFromHand, shuffledCardIds);
 
   const drawnCardIds = drawCards(state, side, drawAmount);
   side.usedStadiumThisTurn = true;
@@ -102,7 +106,19 @@ export function applyTrainer(
     const before = target.hp;
     target.hp = Math.min(target.maxHp, target.hp + trainer.effect.heal);
     const healed = target.hp - before;
-    if (healed > 0) log(state, `${trainer.name} healed ${formatUmamusumeInstanceName(target)} for ${healed} HP.`);
+    if (healed > 0) {
+      emitGameEvent(state, {
+        kind: "heal",
+        visibility: "public",
+        actorSide: side.id,
+        targetSide: side.id,
+        targetUid: target.uid,
+        amount: healed,
+        hpBefore: before,
+        hpAfter: target.hp,
+      });
+      log(state, `${trainer.name} healed ${formatUmamusumeInstanceName(target)} for ${healed} HP.`);
+    }
   }
   if (trainer.effect.draw) {
     const drawnCardIds = drawCards(state, side, trainer.effect.draw);
@@ -150,6 +166,14 @@ function attachEnergyFromZoneToBench(
   for (let attached = 0; attached < count; attached += 1) {
     const energyType = rollEnergyFromPool(side.energyPool, random);
     target.energies[energyType] += 1;
+    emitGameEvent(state, {
+      kind: "energy",
+      visibility: "public",
+      side: side.id,
+      targetUid: target.uid,
+      energyType,
+      amount: 1,
+    });
     log(state, `${trainer.name} generated 1 ${energyLabel(energyType)} in the Energy Zone and attached it to ${formatUmamusumeInstanceName(target)}.`);
   }
 }
@@ -158,6 +182,15 @@ function discardOtherCardForScout(state: GameState, side: SideState, discardHand
   const discarded = side.hand.splice(discardHandIndex, 1)[0];
   if (!discarded) return null;
   side.discard.push(discarded);
+  emitGameEvent(state, {
+    kind: "cardMovement",
+    visibility: "public",
+    side: side.id,
+    from: "hand",
+    to: "discard",
+    count: 1,
+    cardIds: [discarded],
+  });
   return formatCardName(getCard(discarded));
 }
 
@@ -197,6 +230,15 @@ function moveRandomBasicUmamusumeFromDiscardToHand(state: GameState, side: SideS
   const [cardId] = side.discard.splice(chosen.index, 1);
   if (!cardId) return;
   side.hand.push(cardId);
+  emitGameEvent(state, {
+    kind: "cardMovement",
+    visibility: "public",
+    side: side.id,
+    from: "discard",
+    to: "hand",
+    count: 1,
+    ...(side.id === "player" ? { cardIds: [cardId] } : {}),
+  });
   if (side.id === "player") {
     log(state, `${actorName(side)} put ${formatCardName(getCard(cardId))} from discard into ${actorLowerPossessive(side)} hand.`);
   } else {
@@ -213,6 +255,7 @@ function discardRandomOpponentActiveEnergy(state: GameState, side: SideState, tr
   const energyType = energyPool[Math.floor(random() * energyPool.length)];
   if (!energyType) return;
   active.energies[energyType] = Math.max(0, active.energies[energyType] - 1);
+  emitEnergyChanges(state, opponent.id, active.uid, { ...active.energies, [energyType]: active.energies[energyType] + 1 }, active.energies);
   log(state, `${trainer.name} discarded 1 ${energyLabel(energyType)} from ${actorPossessive(opponent)} Active Umamusume.`);
 }
 
@@ -235,6 +278,14 @@ function moveEnergyFromBenchToActive(state: GameState, side: SideState, trainer:
   if (!energyType) return;
   source.energies[energyType] -= 1;
   active.energies[energyType] += 1;
+  emitGameEvent(state, {
+    kind: "energy",
+    visibility: "public",
+    side: side.id,
+    targetUid: active.uid,
+    energyType,
+    amount: 1,
+  });
   log(
     state,
     `${trainer.name} moved 1 ${energyLabel(energyType)} from ${formatUmamusumeInstanceName(source)} to ${formatUmamusumeInstanceName(active)}.`,
@@ -245,8 +296,10 @@ function shuffleOpponentHandIntoDeckDraw(state: GameState, side: SideState, trai
   if (drawAmount <= 0) return;
   const opponent = state.sides[side.id === "player" ? "opponent" : "player"];
   const shuffledFromHand = opponent.hand.length;
+  const shuffledCardIds = [...opponent.hand];
   opponent.deck = shuffle([...opponent.deck, ...opponent.hand], random);
   opponent.hand = [];
+  if (shuffledFromHand > 0) emitCardMovement(state, opponent.id, "hand", "deck", shuffledFromHand, shuffledCardIds);
   const drawnCardIds = drawCards(state, opponent, drawAmount);
   log(
     state,
@@ -275,6 +328,7 @@ function swapHandUmamusumeWithRandomDeckUmamusume(
   if (!handChoice) return;
   const [sentToDeck] = side.hand.splice(handChoice.index, 1);
   if (!sentToDeck) return;
+  emitCardMovement(state, side.id, "hand", "deck", 1, [sentToDeck]);
   side.deck = shuffle([...side.deck, sentToDeck], random);
   const drawFromDeck = deckOptions[Math.floor(random() * deckOptions.length)];
   if (!drawFromDeck) return;
@@ -283,6 +337,7 @@ function swapHandUmamusumeWithRandomDeckUmamusume(
   const [receivedCardId] = side.deck.splice(resolvedDeckIndex, 1);
   if (!receivedCardId) return;
   side.hand.push(receivedCardId);
+  emitCardMovement(state, side.id, "deck", "hand", 1, [receivedCardId]);
   if (side.id === "player") {
     log(
       state,
@@ -303,6 +358,7 @@ function discardToolOrStadium(
   if (discardStadiumInPlay && state.stadium) {
     const stadiumCard = getCard(state.stadium.cardId);
     state.sides[state.stadium.owner].discard.push(state.stadium.cardId);
+    emitCardMovement(state, state.stadium.owner, "play", "discard", 1, [state.stadium.cardId]);
     state.stadium = null;
     log(state, `${trainer.name} discarded Stadium card ${formatCardName(stadiumCard)}.`);
     return;
@@ -321,6 +377,15 @@ function discardToolOrStadium(
   const discardedToolCardId = chosen.umamusume.toolCardId;
   chosen.umamusume.toolCardId = null;
   state.sides[chosen.sideId].discard.push(discardedToolCardId);
+  emitGameEvent(state, {
+    kind: "cardMovement",
+    visibility: "public",
+    side: chosen.sideId,
+    from: "play",
+    to: "discard",
+    count: 1,
+    cardIds: [discardedToolCardId],
+  });
   log(state, `${trainer.name} discarded Tool card ${formatCardName(getCard(discardedToolCardId))}.`);
 }
 
@@ -338,6 +403,15 @@ function moveDeckCardToHand(state: GameState, side: SideState, deckIndex: number
   const cardId = side.deck.splice(deckIndex, 1)[0];
   if (!cardId) return;
   side.hand.push(cardId);
+  emitGameEvent(state, {
+    kind: "cardMovement",
+    visibility: "public",
+    side: side.id,
+    from: "deck",
+    to: "hand",
+    count: 1,
+    ...(side.id === "player" || reveal ? { cardIds: [cardId] } : {}),
+  });
   const possessive = actorLowerPossessive(side);
   log(
     state,

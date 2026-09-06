@@ -3,7 +3,7 @@ import type { EnergyType, GameState } from "../../../../shared/src/types";
 import type { InspectTarget } from "../../inspect";
 import type { ActionNoticeSource, PendingSelection } from "../../types/ui";
 import {
-  canAttack,
+  canUseAnyAttack,
   canRetreat,
   canUseStadium,
   canUseUmamusumeAbility,
@@ -54,7 +54,7 @@ export function useCardPreviewActions(args: UseCardPreviewActionsArgs) {
     showShuffleReveal,
   } = args;
 
-  const canUseAttack = Boolean(!isTurnFlowBlocked && player.active && previewTarget?.isActive && previewTarget.sideId === "player" && canAttack(game, player));
+  const canUseAttack = Boolean(!isTurnFlowBlocked && player.active && previewTarget?.isActive && previewTarget.sideId === "player" && canUseAnyAttack(game, player));
   const canUseRetreat = Boolean(!isTurnFlowBlocked && player.active && previewTarget?.isActive && previewTarget.sideId === "player" && canRetreat(game, player));
   const canUseAbility = Boolean(
     !isTurnFlowBlocked && ((previewTarget?.umamusume && previewTarget.sideId === "player" && canUseUmamusumeAbility(game, player, previewTarget.umamusume.uid))

@@ -1,7 +1,7 @@
 import type { Dispatch, SetStateAction } from "react";
 import type { GameState, SideState, EnergyType } from "../../../../shared/src/types";
 import type { ActionNoticeSource, PendingSelection } from "../../types/ui";
-import { canAttack, canAttachEnergy } from "../../game/engine";
+import { canUseAnyAttack, canAttachEnergy } from "../../game/engine";
 import { RETREAT_ENERGY_ORDER } from "../gameUiHelpers";
 import type { PlayerIntent } from "../../pvp/playerIntent";
 
@@ -65,7 +65,7 @@ export function useMatchUiActions({
     if (isAiVsAi || isTurnFlowBlocked || game.phase !== "play" || game.currentSide !== "player" || game.gameOver || isBusyWithChoice) return;
     const availableActions: string[] = [];
     if (canAttachEnergy(game, player)) availableActions.push("attach Energy");
-    if (canAttack(game, player)) availableActions.push("attack");
+    if (canUseAnyAttack(game, player)) availableActions.push("attack");
     if (availableActions.length > 0 && !suppressEndTurnWarningForGame) {
       setEndTurnWarningActions(availableActions);
       return;

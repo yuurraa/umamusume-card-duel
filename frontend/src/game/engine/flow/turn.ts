@@ -7,6 +7,7 @@ import { getCard, getUmamusumeCard } from "../core/catalog";
 import { rollEnergyFromPool, type RandomSource } from "../core/random";
 import { getUmamusumeAbility } from "./abilityRules";
 import { clearSpecialConditions } from "./specialConditions";
+import { emitCardMovement, emitGameEvent } from "../core/events";
 
 export function prepareUmamusumeForTurn(side: SideState): void {
   getAllUmamusume(side).forEach((umamusume) => {
@@ -32,6 +33,17 @@ export function drawCards(state: GameState, side: SideState, amount: number): st
     side.hand.push(card);
     drawnCardIds.push(card);
   }
+  if (drawnCardIds.length > 0) {
+    emitGameEvent(state, {
+      kind: "cardMovement",
+      visibility: "public",
+      side: side.id,
+      from: "deck",
+      to: "hand",
+      count: drawnCardIds.length,
+      ...(side.id === "player" ? { cardIds: [...drawnCardIds] } : {}),
+    });
+  }
   return drawnCardIds;
 }
 
@@ -43,7 +55,19 @@ export function applyStartAbilities(state: GameState, side: SideState): void {
   const before = side.active.hp;
   side.active.hp = Math.min(side.active.maxHp, side.active.hp + ability.heal);
   const healed = side.active.hp - before;
-  if (healed > 0) log(state, `${actorPossessive(side)} ${formatUmamusumeCardName(card)} healed ${healed} HP with ${ability.name}.`);
+  if (healed > 0) {
+    emitGameEvent(state, {
+      kind: "heal",
+      visibility: "public",
+      actorSide: side.id,
+      targetSide: side.id,
+      targetUid: side.active.uid,
+      amount: healed,
+      hpBefore: before,
+      hpAfter: side.active.hp,
+    });
+    log(state, `${actorPossessive(side)} ${formatUmamusumeCardName(card)} healed ${healed} HP with ${ability.name}.`);
+  }
 }
 
 export function startTurn(
@@ -58,6 +82,12 @@ export function startTurn(
   const isSideFirstTurn = turnsTaken === 0;
   state.turnsTakenBySide[sideId] = turnsTaken + 1;
   state.currentSide = sideId;
+  emitGameEvent(state, {
+    kind: "turn",
+    visibility: "public",
+    side: sideId,
+    turnNumber: state.turnNumber,
+  });
   state.opponentTurnStep = sideId === "opponent" ? "bench" : null;
   side.energyAttachmentsThisTurn = 0;
   side.bonusEnergyAttachments = 0;
@@ -113,12 +143,25 @@ function applyEndTurnToolTriggers(state: GameState, sideId: SideId): void {
       const before = umamusume.hp;
       umamusume.hp = Math.min(umamusume.maxHp, umamusume.hp + heal);
       const healed = umamusume.hp - before;
-      if (healed > 0) log(state, `${tool.name} healed ${formatUmamusumeInstanceName(umamusume)} for ${healed} HP.`);
+      if (healed > 0) {
+        emitGameEvent(state, {
+          kind: "heal",
+          visibility: "public",
+          actorSide: sideId,
+          targetSide: sideId,
+          targetUid: umamusume.uid,
+          amount: healed,
+          hpBefore: before,
+          hpAfter: umamusume.hp,
+        });
+        log(state, `${tool.name} healed ${formatUmamusumeInstanceName(umamusume)} for ${healed} HP.`);
+      }
     }
     if (tool.effect.toolEndTurnRecoverSpecialConditionsDiscardSelf && umamusume.specialConditions.length > 0) {
       clearSpecialConditions(umamusume);
       ownerSide.discard.push(toolCardId);
       umamusume.toolCardId = null;
+      emitCardMovement(state, sideId, "play", "discard", 1, [toolCardId]);
       log(state, `${tool.name} cleared all Special Conditions from ${formatUmamusumeInstanceName(umamusume)} and was discarded.`);
     }
   });
@@ -135,9 +178,23 @@ function processEndTurnStatusConditions(state: GameState): void {
     const side = state.sides[sideId];
     getAllUmamusume(side).forEach((umamusume) => {
       if (umamusume.specialConditions.includes("poisoned")) {
+        const before = umamusume.hp;
         umamusume.hp = Math.max(0, umamusume.hp - 10);
-        umamusume.tookDamageThisTurn = true;
-        log(state, `${formatUmamusumeInstanceName(umamusume)} took 10 damage from Poison.`);
+        const damage = before - umamusume.hp;
+        if (damage > 0) {
+          umamusume.tookDamageThisTurn = true;
+          emitGameEvent(state, {
+            kind: "damage",
+            visibility: "public",
+            actorSide: sideId,
+            targetSide: sideId,
+            targetUid: umamusume.uid,
+            amount: damage,
+            hpBefore: before,
+            hpAfter: umamusume.hp,
+          });
+          log(state, `${formatUmamusumeInstanceName(umamusume)} took ${damage} damage from Poison.`);
+        }
       }
       if (!umamusume.specialConditions.includes("paralysed")) return;
       const recoveryTurn = umamusume.paralysedUntilOwnTurn;

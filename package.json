@@ -12,7 +12,7 @@
     "dev:backend": "npm --workspace backend run dev",
     "build": "npm --workspace backend run build && npm --workspace frontend run build",
     "lint": "npm --workspace frontend run lint",
-    "test": "npm --workspace backend run test:ai && npm --workspace backend run test:pvp-protocol && npm --workspace frontend run test",
+    "test": "npm --workspace backend run test:ai && npm --workspace backend run test:config && npm --workspace backend run test:package-resolution && npm --workspace backend run test:storage && npm --workspace backend run test:local-deck-routes && npm --workspace backend run test:cloud-decks && npm --workspace backend run test:pvp-routes && npm --workspace backend run test:pvp-protocol && npm --workspace backend run test:server && npm --workspace frontend run test",
     "start": "npm --workspace backend run start"
   },
   "devDependencies": {

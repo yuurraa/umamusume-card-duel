@@ -3,11 +3,18 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx src/server.ts",
+    "dev": "tsx src/start.ts",
     "build": "tsc -p tsconfig.json",
-    "start": "tsx src/server.ts",
+    "start": "tsx src/start.ts",
     "test:ai": "tsx src/tests/aiCombatScenarios.ts",
-    "test:pvp-protocol": "tsx src/tests/pvpProtocolScenarios.ts"
+    "test:config": "tsx src/tests/configScenarios.ts",
+    "test:package-resolution": "tsx src/tests/packageResolution.ts",
+    "test:storage": "tsx src/tests/localDeckStoreScenarios.ts",
+    "test:local-deck-routes": "tsx src/tests/localDeckRoutesScenarios.ts",
+    "test:cloud-decks": "tsx src/tests/cloudDeckStoreScenarios.ts",
+    "test:pvp-routes": "tsx src/tests/pvpRoutesScenarios.ts",
+    "test:pvp-protocol": "tsx src/tests/pvpProtocolScenarios.ts",
+    "test:server": "tsx src/tests/serverConstruction.ts"
   },
   "dependencies": {
     "cors": "^2.8.5",

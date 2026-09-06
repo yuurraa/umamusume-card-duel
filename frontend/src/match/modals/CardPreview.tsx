@@ -1,8 +1,7 @@
 import { type CSSProperties, useState } from "react";
 import type { EnergyCost, EnergyType, GameState, UmamusumeInstance, UmamusumeType } from "../../../../shared/src/types";
 import type { InspectTarget } from "../../inspect";
-import { energyLabel, getAllUmamusume, getCard, getDisplayedRetreatCost, getUmamusumeCard } from "../../game/engine";
-import { UMAMUSUME_TYPE_TO_ENERGY } from "../../game/engine/core/constants";
+import { energyLabel, getAllUmamusume, getCard, getDisplayedRetreatCost, getUmamusumeCard, UMAMUSUME_TYPE_TO_ENERGY } from "../../game/engine";
 import { abilityRuby, alphaColor, energyAccentColors, getPreviewTone } from "../../utils/color";
 import { CARD_INSPECT_IMAGE_RADIUS, borders, colors, neutralButtonStyle, overlayBackdropStyle, overlayButtonStyle, overlaySurfaceStyle, previewKickerStyle, radius, shadows, transitions } from "../../styles/shared";
 import { NeutralButton } from "../../components/buttons/NeutralButton";
@@ -11,6 +10,7 @@ import { EnergyIcon } from "../../components/cards/EnergyIcon";
 import { AbilityReadyBadge } from "../../components/cards/AbilityReadyBadge";
 import { AttachedToolBadge } from "../../components/cards/AttachedToolBadge";
 import { HoloCardImage } from "../../components/cards/HoloCardImage";
+import { useModalFocus } from "../useModalFocus";
 
 export function CardPreview({ state, target, canUseAttack, canUseRetreat, canUseAbility, onAttack, onRetreat, onAbility, onInspect, onClose }: {
   state: GameState;
@@ -26,6 +26,7 @@ export function CardPreview({ state, target, canUseAttack, canUseRetreat, canUse
 }) {
   const [abilityHovered, setAbilityHovered] = useState(false);
   const [retreatHovered, setRetreatHovered] = useState(false);
+  const modalRef = useModalFocus<HTMLDivElement>({ active: Boolean(target), onClose });
   if (!target) return null;
   const { card, umamusume } = target;
   const previewTone = getPreviewTone(card);
@@ -58,7 +59,7 @@ export function CardPreview({ state, target, canUseAttack, canUseRetreat, canUse
   return (
     <div style={previewBackdropStyle} onClick={onClose}>
       <NeutralButton autoFocus style={closeButtonStyle} onClick={onClose}>Close</NeutralButton>
-      <div role="dialog" aria-modal="true" aria-label="Card details" style={previewShellStyle}>
+      <div ref={modalRef} role="dialog" aria-modal="true" aria-label="Card details" style={previewShellStyle}>
         <HoloCardImage
           card={card}
           src={image}

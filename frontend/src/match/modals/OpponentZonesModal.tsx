@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react";
 import { NeutralButton } from "../../components/buttons/NeutralButton";
 import { borders, colors, overlayBackdropStyle, overlayButtonStyle, overlaySurfaceStyle, previewKickerStyle } from "../../styles/shared";
+import { useModalFocus } from "../useModalFocus";
 
 type OpponentZonesModalProps = {
   handCount: number;
@@ -17,9 +18,10 @@ export function OpponentZonesModal({
   onOpenDiscard,
   onClose,
 }: OpponentZonesModalProps) {
+  const modalRef = useModalFocus({ onClose });
   return (
     <div style={backdropStyle} onClick={onClose}>
-      <section role="dialog" aria-modal="true" aria-label="Opponent zones" style={modalStyle} onClick={(event) => event.stopPropagation()}>
+      <section ref={modalRef} role="dialog" aria-modal="true" aria-label="Opponent zones" style={modalStyle} onClick={(event) => event.stopPropagation()}>
         <header style={headerStyle}>
           <div>
             <div style={kickerStyle}>Opponent</div>

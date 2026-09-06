@@ -1,6 +1,7 @@
 import { type CSSProperties, useEffect, useRef, useState } from "react";
 import { NeutralButton } from "../../components/buttons/NeutralButton";
 import { attackButtonStyle, overlayBackdropStyle } from "../../styles/shared";
+import { useModalFocus } from "../useModalFocus";
 
 export function CoinFlipOverlay({
   result = "heads",
@@ -30,6 +31,7 @@ export function CoinFlipOverlay({
   const activeResult = flipResults[activeIndex] ?? result;
   const finalAngle = 2160 + (activeResult === "heads" ? 0 : 180);
   const hasMoreFlips = activeIndex < flipResults.length - 1;
+  const modalRef = useModalFocus({ onClose: isPrompt ? undefined : onContinue });
 
   useEffect(() => {
     onContinueRef.current = onContinue ?? (() => undefined);
@@ -86,7 +88,7 @@ export function CoinFlipOverlay({
     return (
       <div style={coinFlipBackdropStyle}>
         <style>{OVERLAY_FADE_IN_KEYFRAMES}</style>
-        <section role="dialog" aria-modal="true" aria-label="Coin flip" style={coinFlipShellStyle}>
+        <section ref={modalRef} role="dialog" aria-modal="true" aria-label="Coin flip" style={coinFlipShellStyle}>
           <span style={coinFlipKickerStyle}>Coin Flip</span>
           <div style={coinSlotStyle}>
             <div aria-hidden="true" style={coinStyle(0, "heads")}>
@@ -126,7 +128,7 @@ export function CoinFlipOverlay({
   return (
     <div style={coinFlipBackdropStyle}>
       <style>{OVERLAY_FADE_IN_KEYFRAMES}</style>
-      <section role="dialog" aria-modal="true" aria-label="Coin flip" style={coinFlipShellStyle}>
+      <section ref={modalRef} role="dialog" aria-modal="true" aria-label="Coin flip" style={coinFlipShellStyle}>
         <span style={coinFlipKickerStyle}>{flipResults.length > 1 ? `Coin Flip ${activeIndex + 1} / ${flipResults.length}` : "Coin Flip"}</span>
         <div style={coinSlotStyle}>
           <div aria-hidden="true" style={coinStyle(angle, activeResult)}>

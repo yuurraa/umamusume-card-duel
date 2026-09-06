@@ -1,7 +1,6 @@
-import { getCard } from "../../game/engine";
+import { getNewGameEvents } from "../../game/engine";
 import type { BattleEffectBoardSnapshot, BattleEffectEvent, BattleEffectRect, BattleEffectSlot } from "../../match/feedback/BattleEffectOverlay";
-import type { EnergyType, GameState, SideId, SpecialCondition, UmamusumeInstance } from "../../../../shared/src/types";
-import { getNewLogHeadEntries } from "../matchLog";
+import type { EnergyType, GameEvent, GameState, SideId, SpecialCondition, UmamusumeInstance } from "../../../../shared/src/types";
 
 export type BattleSnapshotEntry = {
   uid: number;
@@ -20,9 +19,14 @@ export type BattleSnapshotEntry = {
 export type BattleSnapshot = {
   player: BattleSnapshotEntry[];
   opponent: BattleSnapshotEntry[];
-  log: string[];
   phase: GameState["phase"];
   gameOver: boolean;
+  events: GameEvent[];
+};
+
+export type BattleSnapshotOptions = {
+  /** Reuse geometry already captured for cards that remain on the board. */
+  reuseRects?: ReadonlyMap<number, BattleEffectRect | undefined>;
 };
 
 export type PointGainEvent = {
@@ -36,7 +40,7 @@ export type VisualHpByUid = Record<number, number>;
 export type VisualAttachedEnergyByUid = Record<number, EnergyType[]>;
 export type KoRetainedBoardBySide = Partial<Record<SideId, BattleEffectBoardSnapshot>>;
 
-export function createBattleSnapshot(state: GameState): BattleSnapshot {
+export function createBattleSnapshot(state: GameState, options: BattleSnapshotOptions = {}): BattleSnapshot {
   const collect = (sideId: SideId): BattleSnapshotEntry[] => {
     const side = state.sides[sideId];
     const active = side.active ? [{ umamusume: side.active, slot: { zone: "active" } satisfies BattleEffectSlot }] : [];
@@ -45,7 +49,9 @@ export function createBattleSnapshot(state: GameState): BattleSnapshot {
       uid: entry.uid,
       sideId,
       slot,
-      rect: readBattleEffectCardRect(entry.uid),
+      rect: options.reuseRects?.has(entry.uid)
+        ? options.reuseRects.get(entry.uid)
+        : readBattleEffectCardRect(entry.uid),
       cardId: entry.cardId,
       hp: entry.hp,
       maxHp: entry.maxHp,
@@ -59,9 +65,9 @@ export function createBattleSnapshot(state: GameState): BattleSnapshot {
   return {
     player: collect("player"),
     opponent: collect("opponent"),
-    log: [...state.log],
     phase: state.phase,
     gameOver: state.gameOver,
+    events: [...(state.events ?? [])],
   };
 }
 
@@ -167,59 +173,6 @@ function readBattleEffectCardRect(uid: number): BattleEffectRect | undefined {
   };
 }
 
-function getActorSideFromLog(entry: string): SideId | null {
-  if (entry.startsWith("You ") || entry.startsWith("Your ")) return "player";
-  if (entry.startsWith("Opponent ") || entry.startsWith("Opponent's ")) return "opponent";
-  return null;
-}
-
-function getBattleEntryCardName(entry: BattleSnapshotEntry): string | null {
-  try {
-    return getCard(entry.cardId).name;
-  } catch {
-    return null;
-  }
-}
-
-function logMentionsBattleEntry(logEntry: string, entry: BattleSnapshotEntry): boolean {
-  const cardName = getBattleEntryCardName(entry);
-  if (cardName && logEntry.includes(cardName)) return true;
-  return entry.slot.zone === "active" && /\bactive\b/i.test(logEntry);
-}
-
-function koLogMatchesBattleEntry(logEntry: string, entry: BattleSnapshotEntry): boolean {
-  const logSide: SideId = logEntry.startsWith("Opponent's") ? "opponent" : "player";
-  return entry.sideId === logSide && logMentionsBattleEntry(logEntry, entry);
-}
-
-function findSupportingLogEntry(
-  newEntries: string[],
-  entry: BattleSnapshotEntry,
-  kind: "damage" | "heal" | "energy" | "status" | "tool" | "evolve",
-  claimedLogIndexes: Set<number>,
-  before?: BattleSnapshotEntry,
-): number | null {
-  for (let index = 0; index < newEntries.length; index += 1) {
-    if (claimedLogIndexes.has(index)) continue;
-    const logEntry = newEntries[index] ?? "";
-    const lowered = logEntry.toLowerCase();
-    if (kind === "damage" && !lowered.includes("damage")) continue;
-    if (kind === "heal" && !lowered.includes("healed")) continue;
-    if (kind === "energy" && !lowered.includes("attached 1") && !lowered.includes("moved 1") && !lowered.includes("generated 1")) continue;
-    if (kind === "status" && !lowered.includes(" is ") && !lowered.includes("special condition")) continue;
-    if (kind === "tool" && !lowered.includes(" attached ")) continue;
-    if (kind === "evolve") {
-      const previousName = before ? getBattleEntryCardName(before) : null;
-      const currentName = getBattleEntryCardName(entry);
-      if (!lowered.includes("evolved") && !lowered.includes("skipped stage")) continue;
-      if ((currentName && logEntry.includes(currentName)) || (previousName && logEntry.includes(previousName))) return index;
-      continue;
-    }
-    if (logMentionsBattleEntry(logEntry, entry)) return index;
-  }
-  return null;
-}
-
 function getAddedSpecialCondition(before: BattleSnapshotEntry, entry: BattleSnapshotEntry): SpecialCondition | null {
   const beforeConditions = new Set(before.specialConditions.split("|").filter(Boolean));
   const currentConditions = entry.specialConditions.split("|").filter(Boolean) as SpecialCondition[];
@@ -248,20 +201,17 @@ export function buildBattleEffects(
     opponent: createBattleEffectBoardSnapshot(previous, "opponent"),
   };
   const effects: BattleEffectEvent[] = [];
-  const hpBatchKey = `hp-${previous.log.length}-${current.log.length}`;
-  const newEntries = getNewLogHeadEntries(previous.log, current.log);
-  const attackEntry = newEntries.find((entry) => entry.includes(" attacked with "));
-  const attackSourceSide = attackEntry
-    ? getActorSideFromLog(attackEntry) ?? (current.log[0] ? getActorSideFromLog(current.log[0]) : null)
-    : null;
+  const newEvents = getNewGameEvents(previous.events, current.events);
+  const hpBatchKey = `events-${newEvents.map((event) => event.id).join("-") || "none"}`;
+  const attackEvent = newEvents.find((event): event is Extract<GameEvent, { kind: "attack" }> => event.kind === "attack");
+  const knockoutEvents = newEvents.filter((event): event is Extract<GameEvent, { kind: "knockout" }> => event.kind === "knockout");
+  const attackSourceSide = attackEvent?.actorSide ?? null;
   const attackDefendingSide = attackSourceSide ? (attackSourceSide === "player" ? "opponent" : "player") : null;
-  const koEntries = newEntries.filter((entry) => entry.includes(" was knocked out"));
-  const koEntry = koEntries[0];
-  const claimedLogIndexes = new Set<number>();
-  const knockedSide = koEntry?.startsWith("Opponent's") ? "opponent" : koEntry ? "player" : null;
+  const hasKnockout = knockoutEvents.length > 0;
+  const knockedSide = knockoutEvents[0]?.knockedSide ?? null;
   const knockedEntries = getBattleEntries(previous).filter((entry) => {
     if (currentByUid.has(entry.uid)) return false;
-    return koEntries.some((logEntry) => koLogMatchesBattleEntry(logEntry, entry));
+    return knockoutEvents.some((event) => event.targetUid === entry.uid);
   });
   const knockedEntry = knockedEntries[0] ?? (
     knockedSide
@@ -273,11 +223,18 @@ export function buildBattleEffects(
     .map((entry) => ({ entry, before: previousByUid.get(entry.uid) }))
     .filter((change): change is { entry: BattleSnapshotEntry; before: BattleSnapshotEntry } => Boolean(change.before && change.entry.hp < change.before.hp));
 
-  if (attackEntry) {
+  if (attackEvent) {
     const sourceSide = attackSourceSide ?? "player";
     const defendingSide = attackDefendingSide ?? (sourceSide === "player" ? "opponent" : "player");
-    const source = current[sourceSide].find((entry) => entry.slot.zone === "active");
-    const target = hpDrops.find((change) => change.entry.sideId === defendingSide)?.entry
+    const source = current[sourceSide].find((entry) => entry.uid === attackEvent?.actorUid)
+      ?? current[sourceSide].find((entry) => entry.slot.zone === "active")
+      ?? previous[sourceSide].find((entry) => entry.uid === attackEvent?.actorUid);
+    const structuredTarget = attackEvent
+      ? current[attackEvent.targetSide].find((entry) => entry.uid === attackEvent.targetUid)
+        ?? previous[attackEvent.targetSide].find((entry) => entry.uid === attackEvent.targetUid)
+      : undefined;
+    const target = structuredTarget
+      ?? hpDrops.find((change) => change.entry.sideId === defendingSide)?.entry
       ?? (knockedEntry?.sideId === defendingSide ? knockedEntry : undefined)
       ?? current[defendingSide].find((entry) => entry.slot.zone === "active");
     effects.push({
@@ -300,33 +257,31 @@ export function buildBattleEffects(
     const before = previousByUid.get(entry.uid);
     if (!before) continue;
     if (entry.cardId !== before.cardId) {
-      const logIndex = findSupportingLogEntry(newEntries, entry, "evolve", claimedLogIndexes, before);
-      if (logIndex !== null) {
-        claimedLogIndexes.add(logIndex);
+      const structuredEvolution = newEvents.some((event) => event.kind === "evolution" && event.targetUid === entry.uid);
+      if (structuredEvolution) {
         effects.push({ id: nextId(), kind: "evolve", side: entry.sideId, targetUid: entry.uid, targetSlot: entry.slot, targetRect: entry.rect ?? before.rect, label: "Evolve" });
       }
     }
     if (entry.energyCount > before.energyCount) {
-      const logIndex = findSupportingLogEntry(newEntries, entry, "energy", claimedLogIndexes);
-      if (logIndex === null) continue;
-      if (logIndex !== null) claimedLogIndexes.add(logIndex);
-      effects.push({
-        id: nextId(),
-        kind: "energy",
-        side: entry.sideId,
-        targetUid: entry.uid,
-        targetSlot: entry.slot,
-        targetRect: entry.rect ?? before.rect,
-        attachedEnergyBefore: getAttachedEnergyFromUmamusume(before.umamusume),
-        attachedEnergyAfter: getAttachedEnergyFromUmamusume(entry.umamusume),
-        label: "Energy",
-      });
+      const structuredEnergy = newEvents.some((event) => event.kind === "energy" && event.targetUid === entry.uid);
+      if (structuredEnergy) {
+        effects.push({
+          id: nextId(),
+          kind: "energy",
+          side: entry.sideId,
+          targetUid: entry.uid,
+          targetSlot: entry.slot,
+          targetRect: entry.rect ?? before.rect,
+          attachedEnergyBefore: getAttachedEnergyFromUmamusume(before.umamusume),
+          attachedEnergyAfter: getAttachedEnergyFromUmamusume(entry.umamusume),
+          label: "Energy",
+        });
+      }
     }
     if (entry.specialConditions !== before.specialConditions && entry.specialConditions) {
-      const logIndex = findSupportingLogEntry(newEntries, entry, "status", claimedLogIndexes);
-      if (logIndex !== null) {
+      const structuredStatus = newEvents.some((event) => event.kind === "status" && event.targetUid === entry.uid);
+      if (structuredStatus) {
         const condition = getAddedSpecialCondition(before, entry);
-        claimedLogIndexes.add(logIndex);
         effects.push({
           id: nextId(),
           kind: "status",
@@ -341,19 +296,23 @@ export function buildBattleEffects(
       }
     }
     if (entry.toolCardId && entry.toolCardId !== before.toolCardId) {
-      const logIndex = findSupportingLogEntry(newEntries, entry, "tool", claimedLogIndexes);
-      if (logIndex === null) continue;
-      if (logIndex !== null) claimedLogIndexes.add(logIndex);
-      effects.push({
-        id: nextId(),
-        kind: "tool",
-        side: entry.sideId,
-        targetUid: entry.uid,
-        targetSlot: entry.slot,
-        targetRect: entry.rect ?? before.rect,
-        targetCardId: entry.cardId,
-        label: "Tool",
-      });
+      const structuredTool = newEvents.some((event) => event.kind === "cardMovement"
+        && event.side === entry.sideId
+        && event.from === "hand"
+        && event.to === "play"
+        && event.cardIds?.includes(entry.toolCardId ?? ""));
+      if (structuredTool) {
+        effects.push({
+          id: nextId(),
+          kind: "tool",
+          side: entry.sideId,
+          targetUid: entry.uid,
+          targetSlot: entry.slot,
+          targetRect: entry.rect ?? before.rect,
+          targetCardId: entry.cardId,
+          label: "Tool",
+        });
+      }
     }
     if (entry.hp < before.hp) {
       const alreadyTracked = effects.some(
@@ -362,32 +321,37 @@ export function buildBattleEffects(
           && effect.hpAfter === entry.hp,
       );
       if (alreadyTracked) continue;
-      const amount = before.hp - entry.hp;
       const sourceSide = attackSourceSide ?? undefined;
-      const source = sourceSide ? current[sourceSide].find((sourceEntry) => sourceEntry.slot.zone === "active") : undefined;
-      const logIndex = findSupportingLogEntry(newEntries, entry, "damage", claimedLogIndexes);
-      const isAttackDamageCandidate = Boolean(attackEntry && attackDefendingSide && entry.sideId === attackDefendingSide);
-      const isKnockedOutEntry = Boolean(koEntry && knockedEntries.some((knocked) => knocked.uid === entry.uid));
-      if (!isAttackDamageCandidate && !isKnockedOutEntry && logIndex === null) continue;
-      if (logIndex !== null) claimedLogIndexes.add(logIndex);
+      const source = sourceSide
+        ? current[sourceSide].find((sourceEntry) => sourceEntry.uid === attackEvent?.actorUid)
+          ?? current[sourceSide].find((sourceEntry) => sourceEntry.slot.zone === "active")
+        : undefined;
+      const structuredDamage = newEvents.find((event): event is Extract<GameEvent, { kind: "damage" | "heal" }> => (
+        event.kind === "damage" && event.targetUid === entry.uid
+      ));
+      const structuredAttackDamage = attackEvent?.targetUid === entry.uid && attackEvent.hpAfter < attackEvent.hpBefore;
+      const isKnockedOutEntry = Boolean(hasKnockout && knockedEntries.some((knocked) => knocked.uid === entry.uid));
+      if (!structuredAttackDamage && !isKnockedOutEntry && !structuredDamage) continue;
+      const hpBefore = structuredDamage?.hpBefore ?? (structuredAttackDamage ? attackEvent.hpBefore : before.hp);
+      const hpAfter = structuredDamage?.hpAfter ?? (structuredAttackDamage ? attackEvent.hpAfter : entry.hp);
       effects.push({
         id: nextId(),
         batchKey: hpBatchKey,
-        kind: koEntries.length > 0 && entry.hp === 0 ? "ko" : "damage",
+        kind: hasKnockout && entry.hp === 0 ? "ko" : "damage",
         side: entry.sideId,
         targetUid: entry.uid,
         sourceUid: source?.uid,
         sourceSide,
-        sourceSlot: attackEntry ? { zone: "active" } : undefined,
+        sourceSlot: attackEvent ? { zone: "active" } : undefined,
         sourceRect: source?.rect,
         targetCardId: entry.cardId,
         targetUmamusume: entry.umamusume,
-        targetBoardBefore: koEntries.length > 0 && entry.hp === 0 ? previousBoardBySide[entry.sideId] : undefined,
+        targetBoardBefore: hasKnockout && entry.hp === 0 ? previousBoardBySide[entry.sideId] : undefined,
         targetSlot: entry.slot,
         targetRect: entry.rect ?? before.rect,
-        amount,
-        hpBefore: before.hp,
-        hpAfter: entry.hp,
+        amount: structuredDamage?.amount ?? (hpBefore - hpAfter),
+        hpBefore,
+        hpAfter,
         label: "Damage",
       });
     } else if (entry.hp > before.hp) {
@@ -397,9 +361,8 @@ export function buildBattleEffects(
           && effect.hpAfter === entry.hp,
       );
       if (alreadyTracked) continue;
-      const logIndex = findSupportingLogEntry(newEntries, entry, "heal", claimedLogIndexes);
-      if (logIndex === null) continue;
-      if (logIndex !== null) claimedLogIndexes.add(logIndex);
+      const structuredHeal = newEvents.some((event) => event.kind === "heal" && event.targetUid === entry.uid);
+      if (!structuredHeal) continue;
       effects.push({
         id: nextId(),
         batchKey: hpBatchKey,
@@ -417,9 +380,12 @@ export function buildBattleEffects(
     }
   }
 
-  if (koEntries.length > 0) {
-    const sourceSide = attackEntry ? getActorSideFromLog(attackEntry) ?? undefined : undefined;
-    const source = sourceSide ? current[sourceSide].find((entry) => entry.slot.zone === "active") : undefined;
+  if (hasKnockout) {
+    const sourceSide = attackEvent?.actorSide;
+    const source = sourceSide
+      ? current[sourceSide].find((entry) => entry.uid === attackEvent?.actorUid)
+        ?? current[sourceSide].find((entry) => entry.slot.zone === "active")
+      : undefined;
     const fallbackKnockedEntries = knockedEntries.length > 0 ? knockedEntries : knockedEntry ? [knockedEntry] : [];
     fallbackKnockedEntries.forEach((knocked) => {
       if (!effects.some((effect) => effect.kind === "damage" && effect.targetUid === knocked.uid)) {
@@ -431,7 +397,7 @@ export function buildBattleEffects(
           targetUid: knocked.uid,
           sourceUid: source?.uid,
           sourceSide,
-          sourceSlot: attackEntry ? { zone: "active" } : undefined,
+          sourceSlot: attackEvent ? { zone: "active" } : undefined,
           sourceRect: source?.rect,
           targetCardId: knocked.cardId,
           targetUmamusume: knocked.umamusume,
@@ -452,7 +418,7 @@ export function buildBattleEffects(
         targetUid: knocked.uid,
         sourceUid: source?.uid,
         sourceSide,
-        sourceSlot: attackEntry ? { zone: "active" } : undefined,
+          sourceSlot: attackEvent ? { zone: "active" } : undefined,
         sourceRect: source?.rect,
         targetCardId: knocked.cardId,
         targetUmamusume: knocked.umamusume,

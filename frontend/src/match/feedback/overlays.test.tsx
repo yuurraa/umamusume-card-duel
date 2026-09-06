@@ -1,8 +1,9 @@
 import { StrictMode } from "react";
-import { act, cleanup, render } from "@testing-library/react";
+import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { BattleEffectOverlay, type BattleEffectEvent } from "./BattleEffectOverlay";
 import { CardFlowOverlay } from "./CardFlowOverlay";
+import { useModalFocus } from "../useModalFocus";
 
 const battleEvent: BattleEffectEvent = {
   id: 1,
@@ -112,5 +113,47 @@ describe("card flow completion", () => {
 
     expect(onDone).toHaveBeenCalledTimes(1);
     expect(onDone).toHaveBeenCalledWith(0);
+  });
+});
+
+describe("modal keyboard focus", () => {
+  it("traps Tab, closes on Escape, and restores the invoking control", () => {
+    const opener = document.createElement("button");
+    opener.type = "button";
+    opener.textContent = "Open";
+    document.body.appendChild(opener);
+    opener.focus();
+    const onClose = vi.fn();
+
+    function FocusHarness({ open }: { open: boolean }) {
+      const modalRef = useModalFocus<HTMLDivElement>({ active: open, onClose });
+      if (!open) return null;
+      return (
+        <div ref={modalRef} role="dialog">
+          <button type="button">First</button>
+          <button type="button">Last</button>
+        </div>
+      );
+    }
+
+    const view = render(<FocusHarness open />);
+    const first = view.getByRole("button", { name: "First" });
+    const last = view.getByRole("button", { name: "Last" });
+    expect(document.activeElement).toBe(first);
+
+    last.focus();
+    fireEvent.keyDown(document, { key: "Tab" });
+    expect(document.activeElement).toBe(first);
+
+    first.focus();
+    fireEvent.keyDown(document, { key: "Tab", shiftKey: true });
+    expect(document.activeElement).toBe(last);
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(onClose).toHaveBeenCalledTimes(1);
+
+    view.rerender(<FocusHarness open={false} />);
+    expect(document.activeElement).toBe(opener);
+    opener.remove();
   });
 });

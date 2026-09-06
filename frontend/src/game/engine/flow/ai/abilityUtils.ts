@@ -11,6 +11,7 @@ import { knockOutUmamusume, performAttack } from "../combat";
 import { drawCards } from "../turn";
 import type { AiCombatDeps } from "./types";
 import { canImmediateOpponentKo, getDamageDealt } from "./combatUtils";
+import { emitEnergyChanges, emitGameEvent } from "../../core/events";
 
 type AbilityHeuristicDeps = {
   estimateAttackDamageOutput: (
@@ -77,8 +78,12 @@ export function aiUseMoveBenchedEnergyAbility(
   if (aiDifficulty === "hard" && best.score <= 20) return false;
   if (aiDifficulty !== "easy" && best.score <= 0) return false;
 
+  const sourceEnergyBefore = { ...best.source.energies };
+  const activeEnergyBefore = { ...active.energies };
   best.source.energies[best.energyType] -= 1;
   active.energies[best.energyType] += 1;
+  emitEnergyChanges(state, side.id, best.source.uid, sourceEnergyBefore, best.source.energies);
+  emitEnergyChanges(state, side.id, active.uid, activeEnergyBefore, active.energies);
   heuristicDeps.markAbilityUsed(side, abilityUmamusume, ability.name);
   log(state, `${formatUmamusumeCardName(abilityCard)}'s ${ability.name} moved 1 ${energyLabel(best.energyType)} to the active spot.`);
   return true;
@@ -132,13 +137,28 @@ export function aiUseDamageAbility(
   if (ability.discardEnergy) {
     Object.entries(ability.discardEnergy).forEach(([type, amount]) => {
       const energyType = type as keyof UmamusumeInstance["energies"];
+      const before = { ...abilityUmamusume.energies };
       abilityUmamusume.energies[energyType] = Math.max(0, abilityUmamusume.energies[energyType] - (amount ?? 0));
+      emitEnergyChanges(state, side.id, abilityUmamusume.uid, before, abilityUmamusume.energies);
       if (amount) log(state, `${actorName(side)} discarded ${amount} ${energyLabel(energyType)}.`);
     });
   }
 
+  const hpBefore = target.hp;
   target.hp = Math.max(0, target.hp - ability.damageOpponent);
   target.tookDamageThisTurn = ability.damageOpponent > 0;
+  if (ability.damageOpponent > 0) {
+    emitGameEvent(state, {
+      kind: "damage",
+      visibility: "public",
+      actorSide: side.id,
+      targetSide: opponentId,
+      targetUid: target.uid,
+      amount: hpBefore - target.hp,
+      hpBefore,
+      hpAfter: target.hp,
+    });
+  }
   heuristicMarkAbilityUsed(side, abilityUmamusume, ability.name);
   log(state, `${formatUmamusumeCardName(abilityCard)}'s ${ability.name} did ${ability.damageOpponent} damage to ${formatUmamusumeInstanceName(target)}.`);
   if (target.hp <= 0) {
@@ -172,6 +192,12 @@ export function aiUseCoinFlipDrawAbility(
   if (aiDifficulty === "hard" && side.hand.length >= 6) return false;
 
   const heads = flipCoin(side, random) === "heads";
+  emitGameEvent(state, {
+    kind: "coin",
+    visibility: "public",
+    side: side.id,
+    results: [heads ? "heads" : "tails"],
+  });
   heuristicMarkAbilityUsed(side, abilityUmamusume, ownerAbility.name);
   log(state, `${actorName(side)} used ${formatUmamusumeCardName(abilityCard)}'s ${ownerAbility.name}.`);
   log(state, `Flip a coin and got 1x ${heads ? "heads" : "tails"}.`);
@@ -181,8 +207,21 @@ export function aiUseCoinFlipDrawAbility(
     return true;
   }
 
+  const hpBefore = side.active.hp;
   side.active.hp = Math.max(0, side.active.hp - ability.damageOnTails);
   side.active.tookDamageThisTurn = true;
+  if (ability.damageOnTails > 0) {
+    emitGameEvent(state, {
+      kind: "damage",
+      visibility: "public",
+      actorSide: side.id,
+      targetSide: side.id,
+      targetUid: side.active.uid,
+      amount: hpBefore - side.active.hp,
+      hpBefore,
+      hpAfter: side.active.hp,
+    });
+  }
   log(state, `${formatUmamusumeCardName(abilityCard)}'s ${ownerAbility.name} put ${ability.damageOnTails} damage on ${actorName(side)} active.`);
   if (side.active.hp <= 0) {
     const scoringSideId: SideId = side.id === "player" ? "opponent" : "player";

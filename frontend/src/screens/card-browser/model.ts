@@ -1,7 +1,7 @@
 import { CARD_RARITY_LABELS, getCardRarity } from "../../../../shared/src/cardRarity";
 import { allCards, ownedStarterCardIds } from "../../../../shared/src/gameData";
 import type { Card, CardRarity, EnergyType } from "../../../../shared/src/types";
-import { formatCardName } from "../../game/engine/core/labels";
+import { formatCardName } from "../../game/engine";
 
 export type CategoryFilter = "umamusume" | "trainer" | "item" | "tool" | "stadium";
 export type StageFilter = 0 | 1 | 2;

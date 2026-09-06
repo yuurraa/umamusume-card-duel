@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
-import { createGame, opponentAbandonedMatch, timeoutEndTurn } from "../../game/engine";
+import { clearAiTelemetry, createGame, opponentAbandonedMatch, timeoutEndTurn } from "../../game/engine";
 import type { PlayerIntent } from "../../pvp/playerIntent";
-import { applyPlayerIntent } from "../../pvp/playerIntent";
+import { applyPlayerIntent, applyPlayerIntentWithResult } from "../../pvp/playerIntent";
 import { PeerRuntime } from "../../pvp/peer";
-import type { PvpWireMessage } from "../../pvp/protocol";
+import { PVP_PROTOCOL_VERSION, type PvpWireMessage } from "../../pvp/protocol";
 import {
   createPvpSession,
   getPvpAnswer,
@@ -13,7 +13,7 @@ import {
   submitPvpAnswer,
   submitPvpCandidates,
 } from "../../pvp/signalApi";
-import { createGuestSyncState, mirrorGameState, mirrorGameStateForGuest } from "../../pvp/stateMirror";
+import { createGuestSyncState, mirrorGameEvent, mirrorGameState, mirrorGameStateForGuest, projectGameEventsForSide } from "../../pvp/stateMirror";
 import type { PvpRole } from "../../screens/PvpLobbyScreen";
 import type { AppScreen, MatchMode } from "../../types/ui";
 import type { EnergyType, GameState } from "../../../../shared/src/types";
@@ -75,7 +75,11 @@ export function usePvpMatch({
   const remoteEnergyTypesRef = useRef<EnergyType[] | null>(null);
   const remoteNameRef = useRef("Opponent");
   const outgoingSyncSequenceRef = useRef(0);
+  const outgoingEventCursorRef = useRef(0);
   const receivedSyncSequenceRef = useRef(0);
+  const receivedEventCursorRef = useRef(0);
+  const pvpSessionIdRef = useRef(createPvpSessionId());
+  const remoteSessionIdRef = useRef<string | null>(null);
 
   const isNetworkMatch = matchMode === "playerVsPlayer";
   const isPvpHost = isNetworkMatch && pvpRole === "host";
@@ -104,17 +108,36 @@ export function usePvpMatch({
 
   const syncToGuest = (state: GameState) => {
     if (matchModeRef.current !== "playerVsPlayer" || pvpRoleRef.current !== "host") return;
+    const peer = pvpPeerRef.current;
+    if (!peer?.isConnected()) return;
+    const sessionId = remoteSessionIdRef.current;
+    if (!sessionId) return;
     outgoingSyncSequenceRef.current += 1;
-    pvpPeerRef.current?.send({ type: "sync", sequence: outgoingSyncSequenceRef.current, state: createGuestSyncState(state) });
+    const events = projectGameEventsForSide(state, "opponent", outgoingEventCursorRef.current);
+    const latestEventId = state.events?.[state.events.length - 1]?.id ?? outgoingEventCursorRef.current;
+    const eventHistoryStart = state.events?.[0]?.id;
+    outgoingEventCursorRef.current = Math.max(outgoingEventCursorRef.current, latestEventId);
+    peer.send({
+      type: "sync",
+      version: PVP_PROTOCOL_VERSION,
+      sessionId,
+      sequence: outgoingSyncSequenceRef.current,
+      state: createGuestSyncState(state),
+      ...(events.length > 0 ? { events } : {}),
+      eventCursor: outgoingEventCursorRef.current,
+      ...(eventHistoryStart === undefined ? {} : { eventHistoryStart }),
+    });
   };
 
   const applyIntentForHost = (intent: PlayerIntent) => {
     const current = gameRef.current;
     const timed = applyDeadlineIfExpired(current);
-    const next = applyPlayerIntent(timed, intent);
+    const result = applyPlayerIntentWithResult(timed, intent);
+    const next = result.state;
+    if (!result.accepted && timed === current) return;
     gameRef.current = next;
     setGame(next);
-    syncToGuest(next);
+    if (result.accepted || timed !== current) syncToGuest(next);
   };
 
   const handlePvpMessage = (message: PvpWireMessage) => {
@@ -126,12 +149,18 @@ export function usePvpMatch({
 
     if (message.type === "hello") {
       if (!isHostNow) return;
+      const isNewRemoteSession = remoteSessionIdRef.current !== message.sessionId;
+      remoteSessionIdRef.current = message.sessionId;
+      if (isNewRemoteSession) {
+        outgoingSyncSequenceRef.current = 0;
+        outgoingEventCursorRef.current = 0;
+      }
       const deckValidity = validatePvpDeckCardIds(message.deckCardIds, message.energyTypes, cards);
       if (!deckValidity.ok) {
         setPvpStatusDetail(`Guest deck rejected: ${deckValidity.reason}`);
         return;
       }
-      pvpPeerRef.current?.send({ type: "helloAck" });
+      pvpPeerRef.current?.send({ type: "helloAck", version: PVP_PROTOCOL_VERSION, sessionId: message.sessionId });
       remoteDeckRef.current = message.deckCardIds;
       remoteEnergyTypesRef.current = message.energyTypes ?? null;
       remoteNameRef.current = message.playerName || "Opponent";
@@ -140,6 +169,7 @@ export function usePvpMatch({
         return;
       }
       if (currentScreen !== "pvpLobby") return;
+      clearAiTelemetry();
       resetTransientMatchUi();
       const starting = createGame(
         equippedDeckCardIdsRef.current,
@@ -162,16 +192,38 @@ export function usePvpMatch({
 
     if (message.type === "helloAck") {
       if (!isGuestNow) return;
+      if (message.sessionId !== pvpSessionIdRef.current) return;
       pvpHelloAckRef.current = true;
       return;
     }
 
     if (message.type === "sync") {
       if (!isGuestNow) return;
+      if (message.sessionId !== pvpSessionIdRef.current) return;
       if (message.sequence <= receivedSyncSequenceRef.current) return;
       receivedSyncSequenceRef.current = message.sequence;
       if (currentScreen !== "match") resetTransientMatchUi();
-      setGame(mirrorGameStateForGuest(message.state));
+      if (currentScreen !== "match") clearAiTelemetry();
+      const mirrored = mirrorGameStateForGuest(message.state);
+      const eventHistoryGap = message.eventHistoryStart !== undefined
+        && receivedEventCursorRef.current > 0
+        && message.eventHistoryStart > receivedEventCursorRef.current + 1;
+      const isNewEventStream = (message.eventCursor !== undefined && message.eventCursor < receivedEventCursorRef.current)
+        || eventHistoryGap;
+      const mergedEvents = new Map(
+        (isNewEventStream ? [] : (gameRef.current.events ?? [])).map((event) => [event.id, event]),
+      );
+      (mirrored.events ?? []).forEach((event) => mergedEvents.set(event.id, event));
+      (message.events ?? []).forEach((event) => {
+        const mirroredEvent = mirrorGameEvent(event);
+        mergedEvents.set(mirroredEvent.id, mirroredEvent);
+      });
+      if (message.eventCursor !== undefined) {
+        receivedEventCursorRef.current = Math.max(receivedEventCursorRef.current, message.eventCursor);
+      }
+      mirrored.events = [...mergedEvents.values()].sort((left, right) => left.id - right.id).slice(-128);
+      gameRef.current = mirrored;
+      setGame(mirrored);
       setMatchMode("playerVsPlayer");
       setScreen("match");
       setPendingScreen(null);
@@ -180,12 +232,16 @@ export function usePvpMatch({
 
     if (message.type === "intent") {
       if (!isHostNow) return;
-      const timed = applyDeadlineIfExpired(gameRef.current);
+      if (message.sessionId !== remoteSessionIdRef.current) return;
+      const before = gameRef.current;
+      const timed = applyDeadlineIfExpired(before);
       const mirrored = mirrorGameState(timed);
-      const canonical = mirrorGameState(applyPlayerIntent(mirrored, message.intent));
+      const result = applyPlayerIntentWithResult(mirrored, message.intent);
+      if (!result.accepted && timed === before) return;
+      const canonical = mirrorGameState(result.state);
       gameRef.current = canonical;
       setGame(canonical);
-      syncToGuest(canonical);
+      if (result.accepted || timed !== before) syncToGuest(canonical);
     }
   };
 
@@ -256,7 +312,7 @@ export function usePvpMatch({
       return;
     }
     if (isPvpGuest) {
-      pvpPeerRef.current?.send({ type: "intent", intent });
+      pvpPeerRef.current?.send({ type: "intent", version: PVP_PROTOCOL_VERSION, sessionId: pvpSessionIdRef.current, intent });
     }
   };
 
@@ -400,11 +456,15 @@ export function usePvpMatch({
     setPvpRemoteSignal("");
     setPvpConnected(false);
     pvpHelloAckRef.current = false;
+    pvpSessionIdRef.current = createPvpSessionId();
+    remoteSessionIdRef.current = null;
     remoteDeckRef.current = null;
     remoteEnergyTypesRef.current = null;
     remoteNameRef.current = "Opponent";
     outgoingSyncSequenceRef.current = 0;
+    outgoingEventCursorRef.current = 0;
     receivedSyncSequenceRef.current = 0;
+    receivedEventCursorRef.current = 0;
     pvpAnswerPollTokenRef.current += 1;
     resetCandidateSync();
     pvpLocalCloseIntentRef.current = true;
@@ -527,6 +587,8 @@ export function usePvpMatch({
       if (!runtime || !runtime.isConnected()) return;
       runtime.send({
         type: "hello",
+        version: PVP_PROTOCOL_VERSION,
+        sessionId: pvpSessionIdRef.current,
         playerName,
         deckCardIds: equippedDeckCardIds,
         energyTypes: equippedDeckEnergyTypes,
@@ -590,6 +652,12 @@ export function usePvpMatch({
     clearPvp,
     setPvpRemoteSignal,
   };
+}
+
+function createPvpSessionId(): string {
+  const cryptoApi = globalThis.crypto as Crypto & { randomUUID?: () => string } | undefined;
+  if (cryptoApi?.randomUUID) return cryptoApi.randomUUID();
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
 }
 
 function applyDeadlineIfExpired(state: GameState): GameState {

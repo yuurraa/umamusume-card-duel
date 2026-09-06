@@ -10,6 +10,7 @@ import { applyTrainer, playStadium } from "./trainers";
 import type { PlayChoices } from "../core/playTypes";
 import type { RandomSource } from "../core/random";
 import type { SwitchAfterGustResume } from "./trainers";
+import { emitGameEvent } from "../core/events";
 
 export function getPlayableAction(state: GameState, side: SideState, cardId: string): PlayAction {
   const card = getCard(cardId);
@@ -132,6 +133,15 @@ export function resolveCardPlay(
       }
       if (card.trainerType === "supporter") side.usedSupporterThisTurn = true;
       side.discard.push(card.id);
+      emitGameEvent(state, {
+        kind: "cardMovement",
+        visibility: "actor",
+        side: side.id,
+        from: "play",
+        to: "discard",
+        count: 1,
+        cardIds: [card.id],
+      });
     });
   }
 }
@@ -169,6 +179,15 @@ export function useRainbowUncapCrystal(state: GameState, side: SideState, target
   if (!evolutionOption) return false;
   const { card: evolutionCard, handIndex: evolutionIndex } = evolutionOption;
   side.hand.splice(evolutionIndex, 1);
+  emitGameEvent(state, {
+    kind: "cardMovement",
+    visibility: "actor",
+    side: side.id,
+    from: "hand",
+    to: "play",
+    count: 1,
+    cardIds: [evolutionCard.id],
+  });
   evolveUmamusume(state, side, target, evolutionCard);
   log(state, `${formatCardName(evolutionCard)} skipped Stage 1 with Rainbow Uncap Crystal.`);
   return true;

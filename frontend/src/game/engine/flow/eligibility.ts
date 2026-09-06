@@ -35,6 +35,12 @@ export function canAttack(state: GameState, side: SideState, attackIndex = 0): b
   return hasEnoughEnergy(side.active, attack.cost);
 }
 
+export function canUseAnyAttack(state: GameState, side: SideState): boolean {
+  if (!side.active) return false;
+  const card = getUmamusumeCard(side.active);
+  return card.attacks.some((_, attackIndex) => canAttack(state, side, attackIndex));
+}
+
 export function canRetreat(state: GameState, side: SideState): boolean {
   if (state.phase !== "play" || state.pendingPlayerChoice || state.gameOver || state.currentSide !== side.id || side.usedRetreatThisTurn || !side.active) return false;
   if (side.active.specialConditions.includes("paralysed")) return false;

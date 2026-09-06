@@ -1,18 +1,20 @@
 import { type Dispatch, type MutableRefObject, type SetStateAction, useEffect } from "react";
-import type { CoinFlipEvent } from "../gameUiHelpers";
+import type { GameEvent } from "../../../../shared/src/types";
+import { getNewGameEvents } from "../../game/engine";
+import { formatStructuredKoActionNotice, type CoinFlipEvent, toCoinFlipEventFromGameEvent } from "../gameUiHelpers";
 
 type UseLogNotificationsArgs = {
   gameLog: string[];
+  gameEvents: GameEvent[] | undefined;
   actionNotice: string | null;
   activeCoinFlip: CoinFlipEvent | null;
   previousLogRef: MutableRefObject<string[]>;
+  previousEventsRef: MutableRefObject<GameEvent[]>;
   coinFlipIdRef: MutableRefObject<number>;
-  skipNextCoinLogMessageRef: MutableRefObject<string | null>;
+  skipNextCoinLogMessageRef: MutableRefObject<Array<"heads" | "tails"> | null>;
   setActionNotice: Dispatch<SetStateAction<string | null>>;
   setCoinFlipQueue: Dispatch<SetStateAction<CoinFlipEvent[]>>;
   setActiveCoinFlip: Dispatch<SetStateAction<CoinFlipEvent | null>>;
-  setAcknowledgedCoinLogMessage: Dispatch<SetStateAction<string | null>>;
-  toCoinFlipEvent: (entry: string, id: number) => CoinFlipEvent | null;
   getNewLogEntries: (currentLog: string[], previousLog: string[]) => string[];
   getKoCauseFromEntries: (newEntries: string[], koEntry: string) => string | null;
   formatKoActionNotice: (koEntry: string, koCause: string | null) => string;
@@ -20,16 +22,16 @@ type UseLogNotificationsArgs = {
 
 export function useLogNotifications({
   gameLog,
+  gameEvents,
   actionNotice,
   activeCoinFlip,
   previousLogRef,
+  previousEventsRef,
   coinFlipIdRef,
   skipNextCoinLogMessageRef,
   setActionNotice,
   setCoinFlipQueue,
   setActiveCoinFlip,
-  setAcknowledgedCoinLogMessage,
-  toCoinFlipEvent,
   getNewLogEntries,
   getKoCauseFromEntries,
   formatKoActionNotice,
@@ -38,15 +40,15 @@ export function useLogNotifications({
     const previousLog = previousLogRef.current;
     const newEntries = getNewLogEntries(gameLog, previousLog);
     previousLogRef.current = gameLog;
-    if (newEntries.length === 0) return;
+    const newEvents = getNewGameEvents(previousEventsRef.current, gameEvents);
+    previousEventsRef.current = gameEvents ?? [];
 
-    const coinFlips = newEntries
-      .map((entry) => toCoinFlipEvent(entry, coinFlipIdRef.current++))
-      .filter((event): event is CoinFlipEvent => Boolean(event));
+    const coinFlips = newEvents
+      .filter((event): event is Extract<GameEvent, { kind: "coin" }> => event.kind === "coin")
+      .map((event) => toCoinFlipEventFromGameEvent(event, coinFlipIdRef.current++));
     const filteredCoinFlips = coinFlips.filter((event) => {
-      const skipMessage = skipNextCoinLogMessageRef.current;
-      if (skipMessage && event.message === skipMessage) {
-        setAcknowledgedCoinLogMessage(event.message);
+      const skipResults = skipNextCoinLogMessageRef.current;
+      if (skipResults && skipResults.length === event.results?.length && skipResults.every((result, index) => result === event.results?.[index])) {
         skipNextCoinLogMessageRef.current = null;
         return false;
       }
@@ -62,10 +64,15 @@ export function useLogNotifications({
       }
     }
 
+    const knockoutEvent = newEvents.find((event): event is Extract<GameEvent, { kind: "knockout" }> => event.kind === "knockout");
+    if (knockoutEvent) {
+      setActionNotice(formatStructuredKoActionNotice(knockoutEvent));
+      return;
+    }
+
     const koEntry = newEntries.find((entry) => entry.includes("was knocked out"));
     if (koEntry) {
-      const koCause = getKoCauseFromEntries(newEntries, koEntry);
-      setActionNotice(formatKoActionNotice(koEntry, koCause));
+      setActionNotice(formatKoActionNotice(koEntry, getKoCauseFromEntries(newEntries, koEntry)));
       return;
     }
 
@@ -80,10 +87,10 @@ export function useLogNotifications({
     setActionNotice,
     setCoinFlipQueue,
     setActiveCoinFlip,
-    setAcknowledgedCoinLogMessage,
-    toCoinFlipEvent,
     getNewLogEntries,
     getKoCauseFromEntries,
     formatKoActionNotice,
+    gameEvents,
+    previousEventsRef,
   ]);
 }

@@ -1,6 +1,6 @@
 import type { Card } from "../../../shared/src/types";
 import { getCardRarity } from "../../../shared/src/cardRarity";
-import { formatCardName } from "../game/engine/core/labels";
+import { formatCardName } from "../game/engine";
 
 export type CardSortKey = "default" | "alphabetical" | "rarity";
 export type CardSortDirection = "asc" | "desc";

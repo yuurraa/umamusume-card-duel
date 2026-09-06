@@ -1,10 +1,8 @@
 import { Suspense, useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   canAttachEnergy,
-  chooseOpeningCoin,
+  clearAiTelemetry,
   createGame,
-  playerAttack,
-  tickSetupCountdown,
 } from "../game/engine";
 import type { InspectTarget } from "../inspect";
 import type { AppScreen, MatchMode, PendingSelection } from "../types/ui";
@@ -41,19 +39,22 @@ import { useAppNavigation } from "./hooks/useAppNavigation";
 import { useAppRuntimeEffects } from "./hooks/useAppRuntimeEffects";
 import { useMatchUiActions } from "./hooks/useMatchUiActions";
 import { useMatchModalActions } from "./hooks/useMatchModalActions";
+import { useMatchCommandController } from "./hooks/useMatchCommandController";
 import { useFirebaseAccount } from "./hooks/useFirebaseAccount";
 import { useBattleVisuals } from "./hooks/useBattleVisuals";
 import { useCardFlowVisuals } from "./hooks/useCardFlowVisuals";
 import { usePvpMatch } from "./hooks/usePvpMatch";
 import { useReducedMotion } from "./hooks/useReducedMotion";
+import { useQueuedVisualActions } from "./hooks/useQueuedVisualActions";
 import { AiTelemetryPanel } from "./AiTelemetryPanel";
 import { getAccountPlayerName } from "../utils/playerNames";
-import type { CoinFlipResult, EnergyType, GameState, SideId, UmamusumeInstance } from "../../../shared/src/types";
+import type { CoinFlipResult, GameEvent, EnergyType, GameState, SideId, UmamusumeInstance } from "../../../shared/src/types";
 import { MatchBoardLayout } from "./lazyMatchComponents";
 import { MatchOverlays } from "./MatchOverlays";
 import { GAME_OVER_REVEAL_DELAY_MS } from "./constants";
 import { delay } from "./pvp/rtcHelpers";
 import { redactHiddenSidePrivateInfo, swapBattlePerspectiveText, toPerspectiveGame } from "./matchPerspective";
+import { LazyLoadErrorBoundary } from "./LazyLoadErrorBoundary";
 export function App() {
   const reducedMotion = useReducedMotion();
   const [screen, setScreen] = useState<AppScreen>("mainMenu");
@@ -99,6 +100,7 @@ export function App() {
   } = useFirebaseAccount(setActionNotice);
 
   useEffect(() => {
+    clearAiTelemetry();
     const telemetryFlag = globalThis as typeof globalThis & { __UMA_AI_TELEMETRY__?: boolean };
     if (telemetryFlag.__UMA_AI_TELEMETRY__ === undefined) {
       telemetryFlag.__UMA_AI_TELEMETRY__ = import.meta.env.DEV;
@@ -109,14 +111,14 @@ export function App() {
   const [suppressOpponentPlaymatLayer, setSuppressOpponentPlaymatLayer] = useState(true);
   const [hasSeenMatchSetupPhase, setHasSeenMatchSetupPhase] = useState(false);
   const previousLogRef = useRef<string[]>([]);
+  const previousEventsRef = useRef<GameEvent[]>([]);
   const gameOverRevealTimeoutRef = useRef<number | null>(null);
   const wasSetupCoinFlipBlockingRef = useRef(false);
   const coinFlipIdRef = useRef(1);
   const openingHandAnimationKeyRef = useRef<string | null>(null);
   const openingHandDeferredRevealTimeoutRef = useRef<number | null>(null);
   const shouldDealOpeningHandsAfterFlowRef = useRef(false);
-  const queuedVisualActionsRef = useRef<Array<() => void>>([]);
-  const skipNextCoinLogMessageRef = useRef<string | null>(null);
+  const skipNextCoinLogMessageRef = useRef<CoinFlipResult[] | null>(null);
   const lastVisiblePlaymatSideRef = useRef<SideId>("player");
   const equippedDeck = getDeckById(equippedDeckId);
   const selectedPlaymat = getSelectedPlaymat(customisation);
@@ -146,6 +148,7 @@ export function App() {
     completeBattleEffect,
     canShowBattleEffects,
     canShowCardFlowOverlay,
+    canShowPointGainOverlay,
     pointGainQueue,
     completePointGain,
     koCrumblingUids,
@@ -167,6 +170,7 @@ export function App() {
     cardFlowQueue,
     pendingPlayerChoice: game.pendingPlayerChoice,
   });
+  const { queueVisualAction, clearQueuedVisualActions } = useQueuedVisualActions(visualFlowBlocked);
   const player = game.sides.player;
   const displayPlayer = displayGame.sides.player;
   const localPlayerName = getAccountPlayerName(firebaseAccount);
@@ -222,7 +226,7 @@ export function App() {
       }
       return;
     }
-    queuedVisualActionsRef.current = [];
+    clearQueuedVisualActions();
     setOpeningHandDeferredRevealCardIds([]);
     if (openingHandDeferredRevealTimeoutRef.current !== null) {
       window.clearTimeout(openingHandDeferredRevealTimeoutRef.current);
@@ -230,7 +234,7 @@ export function App() {
     }
     openingHandAnimationKeyRef.current = null;
     shouldDealOpeningHandsAfterFlowRef.current = false;
-  }, [game.gameOver]);
+  }, [clearQueuedVisualActions, game.gameOver]);
 
   useEffect(() => {
     if (!game.gameOver) return;
@@ -253,8 +257,9 @@ export function App() {
 
   const resetTransientMatchUi = () => {
     previousLogRef.current = [];
+    previousEventsRef.current = [];
     resetCardFlowTracking();
-    queuedVisualActionsRef.current = [];
+    clearQueuedVisualActions();
     setCoinFlipQueue([]);
     setActiveCoinFlip(null);
     setAcknowledgedCoinLogMessage(null);
@@ -313,6 +318,22 @@ export function App() {
     setMatchMode,
     setScreen,
     setPendingScreen,
+  });
+  const {
+    advanceSetupCountdown,
+    handleChooseOpeningCoin,
+    chooseAttackShuffleSelf,
+  } = useMatchCommandController({
+    game,
+    pendingSelection,
+    isNetworkMatch,
+    isPvpHost,
+    setGame,
+    setOpeningCoinChoicePending,
+    setPendingSelection,
+    setPreviewTarget,
+    submitPlayerIntent,
+    syncToGuest,
   });
   const {
     activePendingSelection,
@@ -492,49 +513,6 @@ export function App() {
     setMenuOpen(false);
     setOpponentZonesOpen(true);
   };
-  const onChooseAttackShuffleSelf = (shouldShuffle: boolean) => {
-    if (!pendingSelection || pendingSelection.kind !== "attackShuffleSelfChoice") return;
-    if (isNetworkMatch) {
-      submitPlayerIntent({
-        type: "attack",
-        attackIndex: pendingSelection.attackIndex,
-        useShuffleSelfIntoDeck: shouldShuffle,
-      });
-    } else {
-      setGame((current) => playerAttack(
-        current,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        pendingSelection.attackIndex,
-        undefined,
-        undefined,
-        undefined,
-        shouldShuffle,
-      ));
-    }
-    setPendingSelection(null);
-    setPreviewTarget(null);
-  };
-
-  const advanceSetupCountdown = () => {
-    setGame((current) => {
-      const next = tickSetupCountdown(current);
-      if (isPvpHost) syncToGuest(next);
-      return next;
-    });
-  };
-
-  const handleChooseOpeningCoin = (choice: CoinFlipResult) => {
-    setOpeningCoinChoicePending(true);
-    setGame((current) => {
-      const next = chooseOpeningCoin(current, choice);
-      if (isPvpHost) syncToGuest(next);
-      return next;
-    });
-  };
-
   useEffect(() => {
     if (game.phase !== "setup") {
       setOpeningCoinChoicePending(false);
@@ -644,16 +622,16 @@ export function App() {
 
   useLogNotifications({
     gameLog: game.log,
+    gameEvents: game.events,
     actionNotice,
     activeCoinFlip,
     previousLogRef,
+    previousEventsRef,
     coinFlipIdRef,
     skipNextCoinLogMessageRef,
     setActionNotice,
     setCoinFlipQueue,
     setActiveCoinFlip,
-    setAcknowledgedCoinLogMessage,
-    toCoinFlipEvent,
     getNewLogEntries,
     getKoCauseFromEntries,
     formatKoActionNotice,
@@ -697,19 +675,6 @@ export function App() {
       setRevealedOpponentHandOpen(true);
     },
   });
-  const queueVisualAction = (action: () => void) => {
-    if (visualFlowBlocked) {
-      queuedVisualActionsRef.current.push(action);
-      return;
-    }
-    action();
-  };
-  useEffect(() => {
-    if (visualFlowBlocked || queuedVisualActionsRef.current.length === 0) return;
-    const queuedActions = queuedVisualActionsRef.current;
-    queuedVisualActionsRef.current = [];
-    queuedActions.forEach((action) => action());
-  }, [visualFlowBlocked]);
   const queuedPlayHandCardOnCenter = (handIndex: number) => queueVisualAction(() => playHandCardOnCenter(handIndex));
   const queuedPlayHandCardOnStadiumSpot = (handIndex: number) => queueVisualAction(() => playHandCardOnStadiumSpot(handIndex));
   const queuedPlayHandCardOnUmamusume = (handIndex: number, umamusumeUid: number) => queueVisualAction(() => playHandCardOnUmamusume(handIndex, umamusumeUid));
@@ -863,8 +828,9 @@ export function App() {
     <main style={appStyle(false, undefined, uiTextTone)}>
       <div style={matchBackgroundLayerStyle(selectedPlaymat.image, showSelectedPlaymat ? 1 : 0)} />
       <div style={matchBackgroundLayerStyle(opponentPlaymat.image, showOpponentPlaymat ? 1 : 0, suppressOpponentPlaymatLayer)} />
-      <Suspense fallback={matchFallback}>
-        <MatchBoardLayout
+      <LazyLoadErrorBoundary label="Match board">
+        <Suspense fallback={matchFallback}>
+          <MatchBoardLayout
           game={displayGame}
           displayedPlayerSide={displayedPlayerSide}
           displayedOpponentSide={displayedOpponentSide}
@@ -935,13 +901,14 @@ export function App() {
           activeKoAnimatingUidBySide={activeKoAnimatingUidBySide}
           visualScorePointsBySide={visualScorePointsBySide}
           scorePointGainAnimatingBySide={scorePointGainAnimatingBySide}
-        />
-        <MatchOverlays
+          />
+          <MatchOverlays
           displayTopBanner={displayTopBanner}
           canShowBattleEffects={canShowBattleEffects}
           reducedMotion={reducedMotion}
           activeBattleEffects={activeBattleEffects}
           completeBattleEffect={completeBattleEffect}
+          canShowPointGainOverlay={canShowPointGainOverlay}
           pointGainQueue={pointGainQueue}
           completePointGain={completePointGain}
           game={game}
@@ -959,7 +926,7 @@ export function App() {
           canShowSelectionPrompt={canShowSelectionPrompt}
           activePendingSelection={activePendingSelection}
           onSelectionCancel={onSelectionCancel}
-          onChooseAttackShuffleSelf={onChooseAttackShuffleSelf}
+          onChooseAttackShuffleSelf={chooseAttackShuffleSelf}
           nextPlayerEnergy={nextPlayerEnergy}
           adjustRetreatDiscard={adjustRetreatDiscard}
           confirmRetreatDiscard={confirmRetreatDiscard}
@@ -995,8 +962,9 @@ export function App() {
           returnToPvpLobbyForRematch={returnToPvpLobbyForRematch}
           onPlayAgain={onPlayAgain}
           returnToMainMenu={returnToMainMenu}
-        />
-      </Suspense>
+          />
+        </Suspense>
+      </LazyLoadErrorBoundary>
       <div style={screenFadeOverlayStyle(screenFadeOverlayOpacity)} />
       {showAiTelemetryPanel && <AiTelemetryPanel />}
     </main>

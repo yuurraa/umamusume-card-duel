@@ -1,5 +1,5 @@
 import { MAX_BENCH } from "../../../shared/src/gameData";
-import type { EnergyType, GameState, SideId, UmamusumeInstance } from "../../../shared/src/types";
+import type { EnergyType, GameEvent, GameState, SideId, UmamusumeInstance } from "../../../shared/src/types";
 import { canAttack, getAllUmamusume, getCard, getPrimaryAttack, getUmamusumeCard } from "../game/engine";
 
 export type CoinFlipEvent = {
@@ -8,6 +8,15 @@ export type CoinFlipEvent = {
   results?: Array<"heads" | "tails"> | undefined;
   message: string;
 };
+
+export function toCoinFlipEventFromGameEvent(event: Extract<GameEvent, { kind: "coin" }>, id: number): CoinFlipEvent {
+  const results: Array<"heads" | "tails"> = event.results.length > 0 ? [...event.results] : ["heads"];
+  const actor = event.side === "player" ? "You" : "Opponent";
+  const message = results.length === 1
+    ? `${actor} flipped a coin and got 1x ${results[0]}.`
+    : `${actor} flipped ${results.length} coins and got ${results.filter((result) => result === "heads").length}x heads, ${results.filter((result) => result === "tails").length}x tails.`;
+  return { id, result: results[0] ?? "heads", results, message };
+}
 
 export const RETREAT_ENERGY_ORDER: EnergyType[] = ["grass", "fire", "water", "lightning", "psychic", "fighting", "darkness", "steel", "colorless", "dragon"];
 
@@ -75,6 +84,15 @@ export function formatKoActionNotice(koEntry: string, koCause: string | null): s
   return koCause
     ? `KO | ${normalizedEntry} | Cause: ${koCause}.`
     : `KO | ${normalizedEntry}`;
+}
+
+export function formatStructuredKoActionNotice(event: Extract<GameEvent, { kind: "knockout" }>): string {
+  const knockedOwner = event.knockedSide === "player" ? "Your" : "Opponent's";
+  const sourceOwner = event.scoringSide === "player" ? "your" : "opponent's";
+  const actor = event.scoringSide === "player" ? "You" : "Opponent";
+  const cardName = getCard(event.cardId).name;
+  const causeSuffix = event.cause ? ` by ${sourceOwner} ${event.cause}` : "";
+  return `KO | ${knockedOwner} ${cardName} was knocked out${causeSuffix}. ${actor} scored 1 point.`;
 }
 
 export function getTopActionBanner(game: GameState): { title: string; message: string; paused: boolean } | null {
@@ -147,9 +165,10 @@ export function getPendingAttackCoinFlip(state: GameState, attackerId: SideId, i
 
   const attacker = state.sides[attackerId];
   if (!attacker.active) return null;
-  if (!canAttack(state, attacker)) return null;
+  if (!canAttack(state, attacker, attackIndex)) return null;
   const attackerCard = getUmamusumeCard(attacker.active);
-  const attack = attackerCard.attacks[attackIndex] ?? getPrimaryAttack(attackerCard);
+  const attack = attackerCard.attacks[attackIndex];
+  if (!attack) return null;
   if (!attack.coinBonus && !attack.drawOnHeads && !attack.knockOutActiveIfAllCoinHeads) return null;
 
   const results = Array.from(

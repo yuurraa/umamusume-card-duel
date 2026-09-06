@@ -9,7 +9,7 @@ type UseCoinFlipResolutionArgs = {
   game: GameState;
   activeCoinFlip: CoinFlipEvent | null;
   pendingCoinAttack: PendingCoinAttack | null;
-  skipNextCoinLogMessageRef: MutableRefObject<string | null>;
+  skipNextCoinLogMessageRef: MutableRefObject<Array<"heads" | "tails"> | null>;
   setGame: Dispatch<SetStateAction<GameState>>;
   setPendingCoinAttack: Dispatch<SetStateAction<PendingCoinAttack | null>>;
   setActiveCoinFlip: Dispatch<SetStateAction<CoinFlipEvent | null>>;
@@ -35,12 +35,12 @@ export function useCoinFlipResolution({
     const coinAttack = pendingCoinAttack?.eventId === activeCoinFlip.id ? pendingCoinAttack : null;
     if (coinAttack) {
       const coinResults = coinAttack.results ?? [coinAttack.result];
+      skipNextCoinLogMessageRef.current = [...coinResults];
       const resolvedAttackCoinLog = coinResults.length === 1
         ? `Flip a coin and got 1x ${coinResults[0]}.`
         : `Flip ${coinResults.length} coins and got ${coinResults.filter((result) => result === "heads").length}x heads, ${coinResults.filter((result) => result === "tails").length}x tails.`;
-      skipNextCoinLogMessageRef.current = resolvedAttackCoinLog;
       setAcknowledgedCoinLogMessage(resolvedAttackCoinLog);
-      setCoinFlipQueue((queue) => queue.filter((event) => event.message !== resolvedAttackCoinLog));
+      setCoinFlipQueue((queue) => queue.filter((event) => !event.results || event.results.some((result, index) => result !== coinResults[index])));
       setGame((current) =>
         coinAttack.attackerId === "player"
           ? playerAttack(current, coinAttack.attackTargetUid, coinAttack.healTargetUid, coinResults, undefined, coinAttack.attackIndex)

@@ -2,6 +2,13 @@
   "name": "umamusume-pocket-frontend",
   "private": true,
   "type": "module",
+  "exports": {
+    "./engine": {
+      "types": "./src/game/engine.ts",
+      "import": "./src/game/engine.ts",
+      "default": "./src/game/engine.ts"
+    }
+  },
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "tsc --noEmit && vite build",

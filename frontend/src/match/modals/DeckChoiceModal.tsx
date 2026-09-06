@@ -1,6 +1,5 @@
 import { useId, useRef, useState, type CSSProperties, type PointerEvent } from "react";
-import { getCard } from "../../game/engine";
-import { energyLabel, formatCardName } from "../../game/engine/core/labels";
+import { energyLabel, formatCardName, getCard } from "../../game/engine";
 import { NeutralButton } from "../../components/buttons/NeutralButton";
 import { HoloCardImage } from "../../components/cards/HoloCardImage";
 import { EnergyIcon } from "../../components/cards/EnergyIcon";
@@ -26,6 +25,7 @@ import {
   sortSelectStyle,
 } from "../../screens/deck-browser/styles";
 import type { EnergyType, UmamusumeCard } from "../../../../shared/src/types";
+import { useModalFocus } from "../useModalFocus";
 
 type DeckChoiceOption = {
   deckIndex: number;
@@ -58,6 +58,7 @@ export function DeckChoiceModal({
   onChoose: (deckIndex: number) => void;
   onClose: () => void;
 }) {
+  const modalRef = useModalFocus({ onClose });
   const options = cardIds.flatMap((cardId, deckIndex) => {
     const card = getCard(cardId);
     if (card.kind !== "umamusume") return [];
@@ -131,7 +132,7 @@ export function DeckChoiceModal({
 
   return (
     <div style={deckBackdropStyle} onClick={onClose}>
-      <section role="dialog" aria-modal="true" aria-label="Choose a card from your deck" style={deckModalStyle} onClick={(event) => event.stopPropagation()}>
+      <section ref={modalRef} role="dialog" aria-modal="true" aria-label="Choose a card from your deck" style={deckModalStyle} onClick={(event) => event.stopPropagation()}>
         <style>{`.${deckScrollerClassName}{scrollbar-width:none;-ms-overflow-style:none;}.${deckScrollerClassName}::-webkit-scrollbar{display:none;width:0;height:0;}`}</style>
         <header style={deckHeaderStyle}>
           <div>

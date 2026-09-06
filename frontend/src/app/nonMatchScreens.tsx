@@ -8,6 +8,7 @@ import type { FirebaseAccountSnapshot } from "../utils/firebaseAuth";
 import { getAccountPlayerName } from "../utils/playerNames";
 import { getSelectablePremadeDecks } from "../utils/deck";
 import { appStyle, screenFadeOverlayStyle } from "./styles";
+import { LazyLoadErrorBoundary } from "./LazyLoadErrorBoundary";
 
 const MatchModeScreen = lazy(() => import("../screens/MatchModeScreen").then((module) => ({
   default: module.MatchModeScreen,
@@ -133,12 +134,14 @@ export function renderNonMatchScreen(props: NonMatchScreenProps): JSX.Element | 
   if (screen === "modeSelect") {
     return (
       <main style={appStyle(true, selectedPlaymatImage, uiTextTone)}>
-        <Suspense fallback={lazyFallback}>
-          <MatchModeScreen
-            onBack={() => navigateToScreen("mainMenu")}
-            onChooseMode={startWithMode}
-          />
-        </Suspense>
+        <LazyLoadErrorBoundary label="Match modes">
+          <Suspense fallback={lazyFallback}>
+            <MatchModeScreen
+              onBack={() => navigateToScreen("mainMenu")}
+              onChooseMode={startWithMode}
+            />
+          </Suspense>
+        </LazyLoadErrorBoundary>
         <div style={screenFadeOverlayStyle(screenFadeOverlayOpacity)} />
       </main>
     );
@@ -147,29 +150,31 @@ export function renderNonMatchScreen(props: NonMatchScreenProps): JSX.Element | 
   if (screen === "pvpLobby") {
     return (
       <main style={appStyle(true, selectedPlaymatImage, uiTextTone)}>
-        <Suspense fallback={lazyFallback}>
-          <PvpLobbyScreen
-            role={pvpRole}
-            statusDetail={pvpStatusDetail}
-            localSignal={pvpLocalSignal}
-            remoteSignal={pvpRemoteSignal}
-            connected={pvpConnected}
-            onBack={() => {
-              if (pvpRole) {
+        <LazyLoadErrorBoundary label="PvP lobby">
+          <Suspense fallback={lazyFallback}>
+            <PvpLobbyScreen
+              role={pvpRole}
+              statusDetail={pvpStatusDetail}
+              localSignal={pvpLocalSignal}
+              remoteSignal={pvpRemoteSignal}
+              connected={pvpConnected}
+              onBack={() => {
+                if (pvpRole) {
+                  onPvpClear();
+                  return;
+                }
                 onPvpClear();
-                return;
-              }
-              onPvpClear();
-              navigateToScreen("modeSelect");
-            }}
-            onSetRole={onPvpSetRole}
-            onCreateOffer={onPvpCreateOffer}
-            onJoinWithOffer={onPvpJoinWithOffer}
-            onRemoteSignalChange={onPvpRemoteSignalChange}
-            onCopyLocalSignal={onPvpCopyLocalSignal}
-            onClear={onPvpClear}
-          />
-        </Suspense>
+                navigateToScreen("modeSelect");
+              }}
+              onSetRole={onPvpSetRole}
+              onCreateOffer={onPvpCreateOffer}
+              onJoinWithOffer={onPvpJoinWithOffer}
+              onRemoteSignalChange={onPvpRemoteSignalChange}
+              onCopyLocalSignal={onPvpCopyLocalSignal}
+              onClear={onPvpClear}
+            />
+          </Suspense>
+        </LazyLoadErrorBoundary>
         <div style={screenFadeOverlayStyle(screenFadeOverlayOpacity)} />
       </main>
     );
@@ -178,14 +183,16 @@ export function renderNonMatchScreen(props: NonMatchScreenProps): JSX.Element | 
   if (screen === "decks") {
     return (
       <main style={appStyle(false, selectedPlaymatImage, uiTextTone)}>
-        <Suspense fallback={lazyFallback}>
-          <DeckBrowserScreen
-            decks={selectablePremadeDecks}
-            equippedDeckId={equippedDeck.id}
-            onEquipDeck={(deckId) => setEquippedDeckId(deckId)}
-            onBack={() => navigateToScreen("mainMenu")}
-          />
-        </Suspense>
+        <LazyLoadErrorBoundary label="Deck browser">
+          <Suspense fallback={lazyFallback}>
+            <DeckBrowserScreen
+              decks={selectablePremadeDecks}
+              equippedDeckId={equippedDeck.id}
+              onEquipDeck={(deckId) => setEquippedDeckId(deckId)}
+              onBack={() => navigateToScreen("mainMenu")}
+            />
+          </Suspense>
+        </LazyLoadErrorBoundary>
         <div style={screenFadeOverlayStyle(screenFadeOverlayOpacity)} />
       </main>
     );
@@ -194,13 +201,15 @@ export function renderNonMatchScreen(props: NonMatchScreenProps): JSX.Element | 
   if (screen === "customisation") {
     return (
       <main style={appStyle(false, selectedPlaymatImage, uiTextTone)}>
-        <Suspense fallback={lazyFallback}>
-          <CustomisationScreen
-            settings={customisation}
-            onChange={setCustomisation}
-            onBack={() => navigateToScreen("mainMenu")}
-          />
-        </Suspense>
+        <LazyLoadErrorBoundary label="Customisation">
+          <Suspense fallback={lazyFallback}>
+            <CustomisationScreen
+              settings={customisation}
+              onChange={setCustomisation}
+              onBack={() => navigateToScreen("mainMenu")}
+            />
+          </Suspense>
+        </LazyLoadErrorBoundary>
         <div style={screenFadeOverlayStyle(screenFadeOverlayOpacity)} />
       </main>
     );
@@ -209,9 +218,11 @@ export function renderNonMatchScreen(props: NonMatchScreenProps): JSX.Element | 
   if (screen === "cards") {
     return (
       <main style={appStyle(false, selectedPlaymatImage, uiTextTone)}>
-        <Suspense fallback={lazyFallback}>
-          <CardBrowserScreen onBack={() => navigateToScreen("mainMenu")} />
-        </Suspense>
+        <LazyLoadErrorBoundary label="Card browser">
+          <Suspense fallback={lazyFallback}>
+            <CardBrowserScreen onBack={() => navigateToScreen("mainMenu")} />
+          </Suspense>
+        </LazyLoadErrorBoundary>
         <div style={screenFadeOverlayStyle(screenFadeOverlayOpacity)} />
       </main>
     );

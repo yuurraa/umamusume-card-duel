@@ -20,6 +20,7 @@ import {
   type VisualAttachedEnergyByUid,
   type VisualHpByUid,
 } from "../animation";
+import { getVisualSequencePhase, isVisualSequenceBlocking } from "../sequence/visualSequence";
 
 type UseBattleVisualsArgs = {
   baseDisplayGame: GameState;
@@ -64,14 +65,6 @@ export function useBattleVisuals({
   const hasKoVacancy = Boolean(koVacancyBySide.player || koVacancyBySide.opponent);
   const hasKoPromotionLock = Boolean(koPromotionLockedBySide.player || koPromotionLockedBySide.opponent);
   const hasActivePromotionReveal = Boolean(activePromotionRevealingBySide.player || activePromotionRevealingBySide.opponent);
-  const visualFlowBlocked = battleEffectQueue.length > 0
-    || koCrumblingUids.size > 0
-    || pointGainQueue.length > 0
-    || hasKoVacancy
-    || hasKoPromotionLock
-    || hasActivePromotionReveal
-    || (cardFlowQueue.length > 0 && !pendingPlayerChoice);
-
   const clearKoTimers = () => {
     const timeouts = koVacancyTimeoutBySideRef.current;
     (["player", "opponent"] as SideId[]).forEach((sideId) => {
@@ -110,8 +103,13 @@ export function useBattleVisuals({
   }, []);
 
   useLayoutEffect(() => {
-    const current = createBattleSnapshot(baseDisplayGame);
     const previous = previousBattleSnapshotRef.current;
+    const previousRects = previous
+      ? new Map([...previous.player, ...previous.opponent].map((entry) => [entry.uid, entry.rect] as const))
+      : undefined;
+    const current = previousRects
+      ? createBattleSnapshot(baseDisplayGame, { reuseRects: previousRects })
+      : createBattleSnapshot(baseDisplayGame);
     if (!previous) {
       previousBattleSnapshotRef.current = current;
       return;
@@ -380,22 +378,25 @@ export function useBattleVisuals({
 
   const battleQueueHasKo = battleEffectQueue.some((effect) => effect.kind === "ko");
   const cardFlowHasPriority = !battleQueueHasKo && (cardFlowQueue[0]?.some((item) => item.group === "played" || item.group === "discarded") ?? false);
-  const canShowCardFlowOverlay = cardFlowQueue.length > 0
-    && (battleEffectQueue.length === 0 || cardFlowHasPriority)
-    && koCrumblingUids.size === 0
-    && pointGainQueue.length === 0
-    && !hasKoVacancy
-    && !hasKoPromotionLock
-    && !hasActivePromotionReveal
-    && !activeCoinFlip
-    && !pendingPlayerChoice;
-  const canShowBattleEffects = activeBattleEffects.length > 0
-    && !activeCoinFlip
-    && koCrumblingUids.size === 0
-    && pointGainQueue.length === 0
-    && !hasKoVacancy
-    && !hasActivePromotionReveal
-    && (!cardFlowHasPriority || battleQueueHasKo);
+  const visualSequencePhase = getVisualSequencePhase({
+    coinFlipBlocking: isCoinFlipBlocking || Boolean(activeCoinFlip),
+    battleEffectCount: battleEffectQueue.length,
+    battleQueueHasKo,
+    cardFlowCount: cardFlowQueue.length,
+    cardFlowHasPriority,
+    pointGainCount: pointGainQueue.length,
+    koCrumbleCount: koCrumblingUids.size,
+    hasKoVacancy,
+    hasKoPromotionLock,
+    hasActivePromotionReveal,
+    hasPendingChoice: Boolean(pendingPlayerChoice),
+  });
+  const visualFlowBlocked = isVisualSequenceBlocking(visualSequencePhase);
+  // The sequence reducer is the sole owner of visual precedence. Overlays
+  // render only when their phase owns the current boundary, so input blocking
+  // and presentation cannot drift into separate priority calculations.
+  const canShowCardFlowOverlay = visualSequencePhase === "cardFlow";
+  const canShowBattleEffects = visualSequencePhase === "battle" && activeBattleEffects.length > 0;
 
   useEffect(() => {
     if (!canShowBattleEffects) return;
@@ -448,16 +449,14 @@ export function useBattleVisuals({
     completeBattleEffect,
     canShowBattleEffects,
     canShowCardFlowOverlay,
+    canShowPointGainOverlay: visualSequencePhase === "pointGain",
     pointGainQueue,
     completePointGain,
     koCrumblingUids,
     koAnimatingUids,
     hasKoVacancy,
     visualFlowBlocked,
-    canShowSelectionPromptBase: battleEffectQueue.length === 0
-      && koCrumblingUids.size === 0
-      && !hasKoVacancy
-      && !activeCoinFlip,
+    canShowSelectionPromptBase: visualSequencePhase === "awaitingChoice",
     activeKoImpactUidBySide,
     activeKoAnimatingUidBySide,
     suppressActiveReplacementBySide,

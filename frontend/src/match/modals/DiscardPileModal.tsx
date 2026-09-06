@@ -4,6 +4,7 @@ import { getCard } from "../../game/engine";
 import { NeutralButton } from "../../components/buttons/NeutralButton";
 import { HoloCardImage } from "../../components/cards/HoloCardImage";
 import { borders, colors, overlayBackdropStyle, overlayButtonStyle, overlaySurfaceStyle, previewKickerStyle, radius, transitions } from "../../styles/shared";
+import { useModalFocus } from "../useModalFocus";
 
 export function DiscardPileModal({
   cardIds,
@@ -16,6 +17,7 @@ export function DiscardPileModal({
   onInspect: (card: Card) => void;
   onClose: () => void;
 }) {
+  const modalRef = useModalFocus({ onClose });
   const cards = cardIds.map(getCard).reverse();
   const discardScrollerClassName = `discard-scroller-${useId().replace(/:/g, "")}`;
   const discardScrollRef = useRef<HTMLDivElement | null>(null);
@@ -59,7 +61,7 @@ export function DiscardPileModal({
 
   return (
     <div style={discardBackdropStyle} onClick={onClose}>
-      <section role="dialog" aria-modal="true" aria-label={pileLabel} style={discardModalStyle} onClick={(event) => event.stopPropagation()}>
+      <section ref={modalRef} role="dialog" aria-modal="true" aria-label={pileLabel} style={discardModalStyle} onClick={(event) => event.stopPropagation()}>
         <style>{`.${discardScrollerClassName}{scrollbar-width:none;-ms-overflow-style:none;}.${discardScrollerClassName}::-webkit-scrollbar{display:none;width:0;height:0;}`}</style>
         <header style={discardHeaderStyle}>
           <div>

@@ -1,6 +1,7 @@
 import { type ComponentProps, type Dispatch, type SetStateAction, Suspense, useRef } from "react";
 import type { GameState, SideId } from "../../../shared/src/types";
 import type { BattleEffectEvent } from "../match/feedback/BattleEffectOverlay";
+import { BATTLE_EFFECT_KEYFRAMES } from "./animation/battleEffectKeyframes";
 import type { CardFlowItem } from "../match/feedback/CardFlowOverlay";
 import { DiscardPileModal } from "../match/modals/DiscardPileModal";
 import { OpponentZonesModal } from "../match/modals/OpponentZonesModal";
@@ -31,6 +32,7 @@ type MatchOverlaysProps = {
   reducedMotion: boolean;
   activeBattleEffects: BattleEffectEvent[];
   completeBattleEffect: () => void;
+  canShowPointGainOverlay: boolean;
   pointGainQueue: Array<ComponentProps<typeof PointGainOverlay>["event"]>;
   completePointGain: () => void;
   game: GameState;
@@ -93,6 +95,7 @@ export function MatchOverlays(props: MatchOverlaysProps) {
     reducedMotion,
     activeBattleEffects,
     completeBattleEffect,
+    canShowPointGainOverlay,
     pointGainQueue,
     completePointGain,
     game,
@@ -178,6 +181,7 @@ export function MatchOverlays(props: MatchOverlaysProps) {
 
   return (
     <>
+      <style data-battle-effect-keyframes>{BATTLE_EFFECT_KEYFRAMES}</style>
       {displayTopBanner && (
         <Suspense fallback={null}>
           <OpponentActionBanner title={displayTopBanner.title} message={displayTopBanner.message} paused={displayTopBanner.paused} />
@@ -185,18 +189,17 @@ export function MatchOverlays(props: MatchOverlaysProps) {
       )}
       {canShowBattleEffects && (
         <Suspense fallback={null}>
-          {activeBattleEffects.map((effect: BattleEffectEvent, index: number) => (
+          {activeBattleEffects.map((effect: BattleEffectEvent) => (
             <BattleEffectOverlay
               key={effect.id}
               event={effect}
-              includeStyles={index === 0}
               durationMs={motionBySequenceRef.current.battleReduced ? 180 : undefined}
               onDone={() => completeBattleMember(effect.id)}
             />
           ))}
         </Suspense>
       )}
-      {pointGainQueue[0] && (
+      {canShowPointGainOverlay && pointGainQueue[0] && (
         <Suspense fallback={null}>
           <PointGainOverlay
             event={pointGainQueue[0]}

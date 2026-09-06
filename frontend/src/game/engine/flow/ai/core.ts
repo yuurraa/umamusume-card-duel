@@ -26,6 +26,7 @@ import { cloneGame } from "../../core/stateClone";
 import { canUseStadium } from "../trainers";
 import { choosePreferredActiveIndex } from "../board";
 import { emitAiTelemetry } from "./telemetry";
+import { beginTransition, emitCardMovement, emitGameEvent, endTransition } from "../../core/events";
 import { scoreAttackEnergyPoolFit } from "./energyAwareness";
 
 const BASE_THREAT_PENALTY = 120;
@@ -48,6 +49,7 @@ export function aiPlayOneBasic(state: GameState, side: SideState): boolean {
   const card = getCard(cardId);
   if (card.kind !== "umamusume") return false;
   side.bench.push(createUmamusume(state, card.id, state.turnNumber));
+  emitCardMovement(state, side.id, "hand", "play", 1, [card.id]);
   log(state, `${actorName(side)} benched ${formatUmamusumeCardName(card)}.`);
   return true;
 }
@@ -69,6 +71,7 @@ export function aiEvolveOne(state: GameState, side: SideState): boolean {
   if (!cardId) return false;
   const card = getCard(cardId);
   if (card.kind !== "umamusume") return false;
+  emitCardMovement(state, side.id, "hand", "play", 1, [card.id]);
   evolveUmamusume(state, side, best.target, card);
   return true;
 }
@@ -121,6 +124,15 @@ export function aiPlayOneTrainer(
     const rainbowChoice = getAiRainbowUncapChoice(state, side);
     if (!rainbowChoice) return false;
     side.hand.splice(index, 1);
+    emitGameEvent(state, {
+      kind: "cardMovement",
+      visibility: "actor",
+      side: side.id,
+      from: "hand",
+      to: "play",
+      count: 1,
+      cardIds: [card.id],
+    });
     logPrimaryFirst(state, `${actorName(side)} played ${card.name}.`, () => {
       const shiftedEvolutionHandIndex = rainbowChoice.evolutionHandIndex > index
         ? rainbowChoice.evolutionHandIndex - 1
@@ -129,11 +141,29 @@ export function aiPlayOneTrainer(
         || useRainbowUncapCrystal(state, side, rainbowChoice.targetUid);
       if (resolved) {
         side.discard.push(card.id);
+        emitGameEvent(state, {
+          kind: "cardMovement",
+          visibility: "actor",
+          side: side.id,
+          from: "play",
+          to: "discard",
+          count: 1,
+          cardIds: [card.id],
+        });
       }
     });
     return true;
   }
   side.hand.splice(index, 1);
+  emitGameEvent(state, {
+    kind: "cardMovement",
+    visibility: "actor",
+    side: side.id,
+    from: "hand",
+    to: "play",
+    count: 1,
+    cardIds: [card.id],
+  });
   if (card.trainerType === "stadium") {
     playStadium(state, side, card);
     deps.refreshContinuousEffects(state);
@@ -160,6 +190,15 @@ export function aiPlayOneTrainer(
     );
     if (card.trainerType === "supporter") side.usedSupporterThisTurn = true;
     side.discard.push(card.id);
+    emitGameEvent(state, {
+      kind: "cardMovement",
+      visibility: "actor",
+      side: side.id,
+      from: "play",
+      to: "discard",
+      count: 1,
+      cardIds: [card.id],
+    });
   });
   return true;
 }
@@ -354,6 +393,12 @@ export function aiUseOneAbility(
   random: () => number = Math.random,
   turnGoal: AiTurnGoal = "maximize_progress",
 ): boolean {
+  const transitionBefore = state.nextTransitionId;
+  const hadActiveTransition = state.activeTransitionId !== undefined;
+  const transitionId = beginTransition(state);
+  let usedAbility = false;
+
+  try {
   emitAiTelemetry("turn_goal", {
     phase: "ability",
     side: side.id,
@@ -370,15 +415,24 @@ export function aiUseOneAbility(
     const ability = abilityCard.ability;
     if (!ability) continue;
 
-    if (ability.damageOpponent && aiUseDamageAbility(state, side, abilityUmamusume, deps)) return true;
+    if (ability.damageOpponent && aiUseDamageAbility(state, side, abilityUmamusume, deps)) {
+      usedAbility = true;
+      return true;
+    }
     if (ability.moveBenchedEnergyToActive && aiUseMoveBenchedEnergyAbility(state, side, abilityUmamusume, state.aiDifficulty, {
       estimateAttackDamageOutput,
       withEnergyShift,
       markAbilityUsed,
-    })) return true;
+    })) {
+      usedAbility = true;
+      return true;
+    }
     if (ability.coinFlipDrawOrActiveDamageCounter) {
       if (turnGoal === "deny_opponent_lethal" || turnGoal === "secure_lethal_now") continue;
-      if (aiUseCoinFlipDrawAbility(state, side, abilityUmamusume, random, deps, state.aiDifficulty)) return true;
+      if (aiUseCoinFlipDrawAbility(state, side, abilityUmamusume, random, deps, state.aiDifficulty)) {
+        usedAbility = true;
+        return true;
+      }
     }
     if (ability.shuffleRandomDiscardIntoDeck) {
       if (!shouldUseShuffleDiscardAbility(state, side, abilityUmamusume)) continue;
@@ -390,7 +444,18 @@ export function aiUseOneAbility(
         const [cardId] = side.discard.splice(randomIndex, 1);
         if (cardId) shuffledCardIds.push(cardId);
       }
-  side.deck = shuffle([...side.deck, ...shuffledCardIds], random);
+      side.deck = shuffle([...side.deck, ...shuffledCardIds], random);
+      if (shuffledCardIds.length > 0) {
+        emitGameEvent(state, {
+          kind: "cardMovement",
+          visibility: "actor",
+          side: side.id,
+          from: "discard",
+          to: "deck",
+          count: shuffledCardIds.length,
+          cardIds: [...shuffledCardIds],
+        });
+      }
       abilityUmamusume.usedAbilityThisTurn = true;
       side.usedAbilityNamesThisTurn ??= [];
       if (!side.usedAbilityNamesThisTurn.includes(ability.name)) side.usedAbilityNamesThisTurn.push(ability.name);
@@ -399,11 +464,21 @@ export function aiUseOneAbility(
         if (!side.usedAbilityNamesThisGame.includes(ability.name)) side.usedAbilityNamesThisGame.push(ability.name);
       }
       log(state, `${formatUmamusumeCardName(abilityCard)}'s ${ability.name} shuffled ${shuffledCardIds.length} random cards from discard into ${actorName(side)}'s deck.`);
+      usedAbility = true;
       return true;
     }
   }
 
   return false;
+  } finally {
+    if (!hadActiveTransition) {
+      endTransition(state, transitionId);
+      if (!usedAbility) {
+        if (transitionBefore === undefined) delete state.nextTransitionId;
+        else state.nextTransitionId = transitionBefore;
+      }
+    }
+  }
 }
 
 function shouldUseShuffleDiscardAbility(

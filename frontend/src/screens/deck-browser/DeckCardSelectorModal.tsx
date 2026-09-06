@@ -4,7 +4,7 @@ import { ownedStarterCardIds } from "../../../../shared/src/gameData";
 import type { Card, EnergyType } from "../../../../shared/src/types";
 import { energyLabel } from "../../game/engine";
 import { devUnlocksEnabled, isDevForcedUnowned } from "../../config/devUnlocks";
-import { formatCardName } from "../../game/engine/core/labels";
+import { formatCardName } from "../../game/engine";
 import { readCloudCardCollection } from "../../utils/cardCollectionApi";
 import { NeutralButton } from "../../components/buttons/NeutralButton";
 import { EnergyIcon } from "../../components/cards/EnergyIcon";

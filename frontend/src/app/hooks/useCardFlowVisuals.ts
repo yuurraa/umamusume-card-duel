@@ -109,11 +109,9 @@ export function useCardFlowVisuals({
       setOpeningHandDeferredRevealCardIds([]);
       openingHandDeferredRevealTimeoutRef.current = null;
     }, 120);
-    setGame((current) => {
-      const next = dealOpeningHands(current);
-      if (isPvpHost) syncToGuest(next);
-      return next;
-    });
+    const next = dealOpeningHands(game);
+    setGame(next);
+    if (isPvpHost) syncToGuest(next);
   };
 
   return {

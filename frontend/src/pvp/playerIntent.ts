@@ -1,5 +1,6 @@
-import type { EnergyType, GameState } from "../../../shared/src/types";
+import type { EnergyType, GameEvent, GameState } from "../../../shared/src/types";
 import type { PlayChoices } from "../game/engine";
+import { getNewGameEvents } from "../game/engine";
 import {
   attachPlayerEnergy,
   completePregameSetup,
@@ -32,7 +33,32 @@ export type PlayerIntent =
   | { type: "useStadium" }
   | { type: "surrender" };
 
+export type PlayerIntentResult = {
+  state: GameState;
+  accepted: boolean;
+  events: GameEvent[];
+  transitionId?: number;
+};
+
 export function applyPlayerIntent(state: GameState, intent: PlayerIntent): GameState {
+  return applyPlayerIntentWithResult(state, intent).state;
+}
+
+/** Applies a command once and reports whether it produced a canonical transition. */
+export function applyPlayerIntentWithResult(state: GameState, intent: PlayerIntent): PlayerIntentResult {
+  const before = JSON.stringify(state);
+  const next = applyPlayerIntentUnchecked(state, intent);
+  const events = getNewGameEvents(state.events, next.events);
+  const transitionId = events[0]?.transitionId;
+  return {
+    state: next,
+    accepted: before !== JSON.stringify(next),
+    events,
+    ...(transitionId === undefined ? {} : { transitionId }),
+  };
+}
+
+function applyPlayerIntentUnchecked(state: GameState, intent: PlayerIntent): GameState {
   switch (intent.type) {
     case "playHandCard":
       return playHandCard(state, intent.handIndex, intent.choices ?? {});

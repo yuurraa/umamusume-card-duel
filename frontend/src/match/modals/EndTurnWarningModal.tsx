@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react";
 import { NeutralButton } from "../../components/buttons/NeutralButton";
 import { colors, overlayBackdropStyle, overlayButtonStyle, overlaySurfaceStyle } from "../../styles/shared";
+import { useModalFocus } from "../useModalFocus";
 
 export function EndTurnWarningModal({
   actions,
@@ -15,11 +16,12 @@ export function EndTurnWarningModal({
   onCancel: () => void;
   onConfirm: () => void;
 }) {
+  const modalRef = useModalFocus({ active: Boolean(actions && actions.length > 0), onClose: onCancel });
   if (!actions || actions.length === 0) return null;
 
   return (
     <div style={warningBackdropStyle} onClick={onCancel}>
-      <section role="dialog" aria-modal="true" aria-label="End turn warning" style={warningShellStyle} onClick={(event) => event.stopPropagation()}>
+      <section ref={modalRef} role="dialog" aria-modal="true" aria-label="End turn warning" style={warningShellStyle} onClick={(event) => event.stopPropagation()}>
         <header style={warningHeaderStyle}>
           <h2 style={warningTitleStyle}>Are you sure you want to end your turn?</h2>
         </header>

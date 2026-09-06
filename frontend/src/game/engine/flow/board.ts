@@ -7,6 +7,7 @@ import { attachedEnergyCount, getAllUmamusume } from "../core/umamusume";
 import { retreatCost } from "./retreat";
 import { getUmamusumeAbility } from "./abilityRules";
 import { clearSpecialConditions } from "./specialConditions";
+import { emitCardMovement } from "../core/events";
 
 export type SwitchAfterGustResume = Extract<PendingPlayerChoice, { kind: "switchAfterGust" }>["resume"];
 
@@ -22,8 +23,8 @@ export function refreshContinuousHp(state: GameState): void {
 }
 
 export function normalizeBoardState(state: GameState): void {
-  normalizeSideBoard(state.sides.player);
-  normalizeSideBoard(state.sides.opponent);
+  normalizeSideBoard(state, state.sides.player);
+  normalizeSideBoard(state, state.sides.opponent);
 }
 
 export function switchOutOpponentActive(
@@ -71,7 +72,7 @@ export function choosePreferredActiveIndex(side: SideState): number {
   return bestIndex;
 }
 
-function normalizeSideBoard(side: SideState): void {
+function normalizeSideBoard(state: GameState, side: SideState): void {
   const activeUid = side.active?.uid;
   const seen = new Set<number>();
   const cleanBench: UmamusumeInstance[] = [];
@@ -88,11 +89,16 @@ function normalizeSideBoard(side: SideState): void {
   });
 
   if (overflow.length > 0) {
+    const discardedCardIds: string[] = [];
     overflow.forEach((umamusume) => {
       side.discard.push(umamusume.cardId);
+      discardedCardIds.push(umamusume.cardId);
       side.discard.push(...(umamusume.evolutionCardIds ?? []));
+      discardedCardIds.push(...(umamusume.evolutionCardIds ?? []));
       if (umamusume.toolCardId) side.discard.push(umamusume.toolCardId);
+      if (umamusume.toolCardId) discardedCardIds.push(umamusume.toolCardId);
     });
+    emitCardMovement(state, side.id, "play", "discard", discardedCardIds.length, discardedCardIds);
   }
   side.bench = cleanBench;
 }

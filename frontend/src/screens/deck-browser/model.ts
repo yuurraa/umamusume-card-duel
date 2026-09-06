@@ -2,7 +2,7 @@ import { createDeckIdFromName, type LocalDeck } from "../../../../shared/src/loc
 import type { EnergyType } from "../../../../shared/src/types";
 import type { PremadeDeck } from "../../types/ui";
 import { getCard } from "../../game/engine";
-import { energyLabel } from "../../game/engine/core/labels";
+import { energyLabel } from "../../game/engine";
 import { getDeckEnergyTypes, normalizeDeckEnergyTypes } from "../../utils/deck";
 import { DECK_CARD_COUNT, type DeckEntity, getSearchText } from "./helpers";
 

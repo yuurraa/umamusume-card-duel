@@ -2,6 +2,7 @@ import type { CSSProperties } from "react";
 import type { GameState } from "../../../../shared/src/types";
 import { NeutralButton } from "../../components/buttons/NeutralButton";
 import { colors, overlayBackdropStyle, overlaySurfaceStyle, previewKickerStyle, radius } from "../../styles/shared";
+import { useModalFocus } from "../useModalFocus";
 
 export function GameOverModal({
   game,
@@ -16,6 +17,7 @@ export function GameOverModal({
   onPlayAgain: () => void;
   onMainMenu: () => void;
 }) {
+  const modalRef = useModalFocus({ onClose: onMainMenu });
   const playerWon = game.winner === "player";
   const title = playerWon ? formatWinTitle(playerName) : formatWinTitle(opponentName);
   const winnerLabel = playerWon ? playerName : opponentName;
@@ -28,7 +30,7 @@ export function GameOverModal({
   return (
     <div style={gameOverBackdropStyle}>
       <style>{OVERLAY_FADE_IN_KEYFRAMES}</style>
-      <section role="dialog" aria-modal="true" aria-label="Match result" style={gameOverShellStyle(playerWon)}>
+      <section ref={modalRef} role="dialog" aria-modal="true" aria-label="Match result" style={gameOverShellStyle(playerWon)}>
         <div style={resultBadgeStyle(playerWon)}>{playerWon ? "Victory" : "Defeat"}</div>
         <div style={gameOverKickerStyle}>Duel Finished</div>
         <h2 style={gameOverTitleStyle}>{title}</h2>

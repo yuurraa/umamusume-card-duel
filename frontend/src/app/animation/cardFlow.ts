@@ -1,7 +1,6 @@
-import { getCard } from "../../game/engine";
+import { getNewGameEvents } from "../../game/engine";
 import type { CardFlowItem } from "../../match/feedback/CardFlowOverlay";
-import type { GameState, SideId, SideState } from "../../../../shared/src/types";
-import { getNewLogHeadEntries } from "../matchLog";
+import type { GameEvent, GameState, SideId, SideState } from "../../../../shared/src/types";
 
 export type PlayerZoneSnapshot = {
   hand: string[];
@@ -16,7 +15,7 @@ export type PlayerZonesSnapshot = {
   currentSide: GameState["currentSide"];
   turnNumber: number;
   phase: GameState["phase"];
-  log: string[];
+  events: GameEvent[];
 };
 
 export function createPlayerZonesSnapshot(game: GameState): PlayerZonesSnapshot {
@@ -36,7 +35,7 @@ export function createPlayerZonesSnapshot(game: GameState): PlayerZonesSnapshot 
     currentSide: game.currentSide,
     turnNumber: game.turnNumber,
     phase: game.phase,
-    log: [...game.log],
+    events: [...(game.events ?? [])],
   };
 }
 
@@ -52,7 +51,7 @@ export function buildCardFlowItems({
   sleeveBySide: Record<SideId, string | null>;
 }): CardFlowItem[] {
   const nextFlow: CardFlowItem[] = [];
-  const newLogEntries = getNewLogHeadEntries(previous.log, current.log);
+  const newEvents = getNewGameEvents(previous.events, current.events);
   const sideIds: SideId[] = ["player", "opponent"];
   for (const sideId of sideIds) {
     const previousSide = previous[sideId];
@@ -61,12 +60,21 @@ export function buildCardFlowItems({
     const actor = isPovSide ? "You" : "Opponent";
     const fadeOutInPlace = !isPovSide;
     const sideOnRight = sideId === "player";
+    const playedFromHandCards = allCardsMoved(
+      previousSide.hand,
+      currentSide.hand,
+      previousSide.inPlay,
+      currentSide.inPlay,
+    );
     const discardedFromHandCards = allCardsMoved(
       previousSide.hand,
       currentSide.hand,
       previousSide.discard,
       currentSide.discard,
     );
+    const structuredPlayedCards = getStructuredCardMovementCounts(newEvents, sideId, "play");
+    const structuredDiscardedCards = getStructuredCardMovementCounts(newEvents, sideId, "discard");
+    const deckToHandEvents = getStructuredCardMovements(newEvents, sideId, "deck", "hand");
     const retrievedIntoDeckCards = allCardsMoved(
       previousSide.inPlay,
       currentSide.inPlay,
@@ -74,17 +82,10 @@ export function buildCardFlowItems({
       currentSide.deck,
     );
     let obtainedFromDeckCards = subtractCardLists(currentSide.hand, previousSide.hand);
-    const shuffleDrawCount = getShuffleHandDrawCount(previous.log, current.log, sideId);
-    if (shuffleDrawCount && obtainedFromDeckCards.length < shuffleDrawCount) {
-      // For effects like Tracen Academy, a card may leave hand, shuffle into deck, then be redrawn.
-      // Diff alone misses those redraws, so take the freshly rebuilt hand tail by drawn count.
-      obtainedFromDeckCards = currentSide.hand.slice(-shuffleDrawCount);
-    }
-    const shouldShowHandGain = hasHandGainLogEntry(newLogEntries, sideId)
-      || isAutomaticTurnDraw(previous, current, sideId, obtainedFromDeckCards);
-    if (obtainedFromDeckCards.length > 0 && shouldShowHandGain) {
+    const structuredDrawnCards = resolveStructuredCardIds(deckToHandEvents, obtainedFromDeckCards, isPovSide, sleeveBySide[sideId]);
+    if (structuredDrawnCards.length > 0) {
       const label = `${actor} Drew`;
-      obtainedFromDeckCards.slice(0, 5).forEach((cardId) => {
+      structuredDrawnCards.slice(0, 5).forEach((cardId) => {
         nextFlow.push({
           cardId,
           label,
@@ -110,10 +111,11 @@ export function buildCardFlowItems({
       });
     }
 
-    discardedFromHandCards.slice(0, 5).forEach((discardedFromHand) => {
-      const cardName = tryGetCardName(discardedFromHand);
-      const played = Boolean(cardName && hasPlayLogEntry(previous.log, current.log, cardName));
-      const discarded = hasHandDiscardLogEntry(newLogEntries, sideId, cardName);
+    [...playedFromHandCards, ...discardedFromHandCards].slice(0, 5).forEach((discardedFromHand) => {
+      const played = consumeCardMovement(structuredPlayedCards, discardedFromHand)
+        || false;
+      const discarded = consumeCardMovement(structuredDiscardedCards, discardedFromHand)
+        || false;
       if (!played && !discarded) return;
 
       nextFlow.push({
@@ -129,6 +131,58 @@ export function buildCardFlowItems({
   }
 
   return nextFlow;
+}
+
+function getStructuredCardMovementCounts(
+  events: GameEvent[],
+  sideId: SideId,
+  destination: "play" | "discard",
+): Map<string, number> {
+  const counts = new Map<string, number>();
+  events.forEach((event) => {
+    if (event.kind !== "cardMovement" || event.side !== sideId || event.from !== "hand" || event.to !== destination) return;
+    (event.cardIds ?? []).forEach((cardId) => counts.set(cardId, (counts.get(cardId) ?? 0) + 1));
+  });
+  return counts;
+}
+
+function getStructuredCardMovements(
+  events: GameEvent[],
+  sideId: SideId,
+  from: Extract<GameEvent, { kind: "cardMovement" }>['from'],
+  to: Extract<GameEvent, { kind: "cardMovement" }>['to'],
+): Extract<GameEvent, { kind: "cardMovement" }>[] {
+  return events.filter((event): event is Extract<GameEvent, { kind: "cardMovement" }> => (
+    event.kind === "cardMovement" && event.side === sideId && event.from === from && event.to === to
+  ));
+}
+
+function resolveStructuredCardIds(
+  movements: Extract<GameEvent, { kind: "cardMovement" }>[],
+  stateDiffIds: string[],
+  isPovSide: boolean,
+  sleeveImage: string | null,
+): string[] {
+  if (movements.length === 0) return [];
+  const knownIds = movements.flatMap((event) => event.cardIds ?? []);
+  const expectedCount = movements.reduce((sum, event) => sum + event.count, 0);
+  const fallbackIds = stateDiffIds.slice(0, Math.max(0, expectedCount - knownIds.length));
+  const resolved = [...knownIds, ...fallbackIds];
+  if (resolved.length >= expectedCount) return resolved.slice(0, expectedCount);
+  // A recipient may know only the movement count for an opponent's hidden draw.
+  // The overlay can still render a sleeve-backed card without inventing its ID.
+  if (!isPovSide && sleeveImage) {
+    return [...resolved, ...Array.from({ length: expectedCount - resolved.length }, () => "")];
+  }
+  return resolved;
+}
+
+function consumeCardMovement(counts: Map<string, number>, cardId: string): boolean {
+  const remaining = counts.get(cardId) ?? 0;
+  if (remaining <= 0) return false;
+  if (remaining === 1) counts.delete(cardId);
+  else counts.set(cardId, remaining - 1);
+  return true;
 }
 
 export function splitCardFlowIntoBatches(items: CardFlowItem[]): CardFlowItem[][] {
@@ -189,58 +243,4 @@ function getInPlayCardIds(side: SideState): string[] {
     ...collectFromUmamusume(side.active),
     ...side.bench.flatMap((umamusume) => collectFromUmamusume(umamusume)),
   ];
-}
-
-function hasPlayLogEntry(previousLog: string[], currentLog: string[], cardName: string): boolean {
-  const newEntries = getNewLogHeadEntries(previousLog, currentLog);
-  return newEntries.some((entry) => entry.includes(`played ${cardName}.`));
-}
-
-function hasHandGainLogEntry(newEntries: string[], sideId: SideId): boolean {
-  const actor = sideId === "player" ? "You" : "Opponent";
-  return newEntries.some((entry) => (
-    entry.startsWith(`${actor} drew `)
-    || (entry.startsWith(`${actor} added `) && entry.includes(" hand"))
-    || (entry.startsWith(`${actor} revealed `) && entry.includes("added it to") && entry.includes(" hand"))
-    || (entry.startsWith(`${actor} put `) && entry.includes(" into ") && entry.includes(" hand"))
-  ));
-}
-
-function hasHandDiscardLogEntry(newEntries: string[], sideId: SideId, cardName: string | null): boolean {
-  const actor = sideId === "player" ? "You" : "Opponent";
-  return newEntries.some((entry) => {
-    if (!entry.startsWith(`${actor} discarded `)) return false;
-    return !cardName || entry.includes(cardName) || /\bdiscarded \d+ cards?\b/i.test(entry) || entry.includes("discarded 1 card");
-  });
-}
-
-function isAutomaticTurnDraw(
-  previous: { currentSide: GameState["currentSide"]; player: { deck: string[] }; opponent: { deck: string[] } },
-  current: { currentSide: GameState["currentSide"]; player: { deck: string[] }; opponent: { deck: string[] } },
-  sideId: SideId,
-  gainedCards: string[],
-): boolean {
-  return gainedCards.length === 1
-    && previous.currentSide !== current.currentSide
-    && current.currentSide === sideId
-    && current[sideId].deck.length === previous[sideId].deck.length - 1;
-}
-
-function getShuffleHandDrawCount(previousLog: string[], currentLog: string[], sideId: SideId): number | null {
-  const actor = sideId === "player" ? "You" : "Opponent";
-  const newEntries = getNewLogHeadEntries(previousLog, currentLog);
-  const entry = newEntries.find((line) => line.startsWith(`${actor} used `) && line.includes(" shuffled ") && line.includes(" and drew "));
-  if (!entry) return null;
-  const match = entry.match(/ and drew (\d+) cards?\./);
-  if (!match?.[1]) return null;
-  const count = Number(match[1]);
-  return Number.isFinite(count) && count > 0 ? count : null;
-}
-
-function tryGetCardName(cardId: string): string | null {
-  try {
-    return getCard(cardId).name;
-  } catch {
-    return null;
-  }
 }

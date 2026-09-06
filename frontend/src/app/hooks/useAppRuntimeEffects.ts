@@ -9,6 +9,7 @@ import {
   completePregameSetup,
   getAllUmamusume,
   getUmamusumeCard,
+  createReplayableRandomUpdate,
   resolvePendingPlayerChoice,
 } from "../../game/engine";
 import type { GameState, SideState } from "../../../../shared/src/types";
@@ -231,12 +232,13 @@ export function useAppRuntimeEffects({
     if (!isAiVsAi || game.phase !== "setup" || game.gameOver || isTurnFlowBlocked || isCoinFlipBlocking) return;
     if (game.setup?.coinFlipResult || game.setup?.coinChoice) return;
     const timeoutId = window.setTimeout(() => {
-      setGame((current) => {
+      const replayableUpdate = createReplayableRandomUpdate();
+      setGame((current) => replayableUpdate((random) => {
         if (current.phase !== "setup" || current.gameOver) return current;
         if (current.setup?.coinFlipResult || current.setup?.coinChoice) return current;
-        const choice = Math.random() >= 0.5 ? "heads" : "tails";
-        return chooseOpeningCoin(current, choice);
-      });
+        const choice = random() >= 0.5 ? "heads" : "tails";
+        return chooseOpeningCoin(current, choice, random);
+      }));
     }, 520);
     return () => window.clearTimeout(timeoutId);
   }, [game, isAiVsAi, isTurnFlowBlocked, isCoinFlipBlocking, setGame]);
@@ -276,7 +278,8 @@ export function useAppRuntimeEffects({
         setActiveCoinFlip(coinAttack);
         return;
       }
-      setGame((current) => advanceOpponentTurnStep(current));
+      const replayableUpdate = createReplayableRandomUpdate();
+      setGame((current) => replayableUpdate((random) => advanceOpponentTurnStep(current, undefined, random)));
     }, getOpponentStepDelay(game));
     return () => window.clearTimeout(timeoutId);
   }, [game, isTurnFlowBlocked, isNetworkMatch, coinFlipIdRef, setPendingCoinAttack, setActiveCoinFlip, setGame]);
@@ -292,7 +295,8 @@ export function useAppRuntimeEffects({
           return;
         }
       }
-      setGame((current) => advancePlayerAiTurnStep(current));
+      const replayableUpdate = createReplayableRandomUpdate();
+      setGame((current) => replayableUpdate((random) => advancePlayerAiTurnStep(current, undefined, random)));
     }, getOpponentStepDelay(game));
     return () => window.clearTimeout(timeoutId);
   }, [game, isTurnFlowBlocked, isAiVsAi, coinFlipIdRef, setPendingCoinAttack, setActiveCoinFlip, setGame]);

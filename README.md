@@ -28,13 +28,15 @@ npm run test      # engine rules, PvP protocol, and frontend feedback tests
 npm run lint      # frontend React/hooks/type-boundary lint checks
 ```
 
+Backend persistence defaults are intentionally conservative: `ENABLE_LOCAL_DECK_API=true` enables the local filesystem API, while cloud decks require Firebase service-account configuration. For a local Firebase-free development fallback, set `ENABLE_CLOUD_DEV_FALLBACK=true` and optionally `FIREBASE_DEV_USER_ID`; this fallback is ignored when `NODE_ENV=production`. Backend starter-card unlocks are also opt-in with `ENABLE_DEV_UNLOCKS=true` (the frontend equivalent is `VITE_ENABLE_DEV_UNLOCKS=true`); they default off and are forced off in production.
+
 The backend scenarios are also available independently as `npm --workspace backend run test:ai` and `npm --workspace backend run test:pvp-protocol`.
 
 ## Match and PvP model
 
 Normal matches use real gameplay randomness. Engine entry points also accept an optional injected random source for reproducible tests; it is not emitted in public match state, so it does not reveal hidden deck order.
 
-Peer-to-peer games use a trusted-host model: the host receives the guest deck, validates intents, resolves rules, and sends a redacted guest projection. This prevents accidental client-side state drift and hides the host’s private zones from the guest transport; it is not a cheating-prevention server. Incoming messages are validated, decompression is bounded, and sync packets carry a monotonic sequence.
+Peer-to-peer games use a trusted-host model: the host receives the guest deck, validates intents, resolves rules, and sends a redacted guest projection. This prevents accidental client-side state drift and hides the host’s private zones from the guest transport; it is not a cheating-prevention server. Incoming messages are validated, decompression is bounded, and handshake/session identities plus monotonic state and event sequences reject stale rematch traffic.
 
 ## Adding a card effect
 
@@ -42,7 +44,8 @@ Peer-to-peer games use a trusted-host model: the host receives the guest deck, v
 2. Implement the rule in the focused engine module (`trainers`, `combat`, `turn`, etc.) and validate inputs at the public action boundary.
 3. Keep randomness routed through the injected engine random source when the effect needs it.
 4. Add a meaningful scenario under `backend/src/tests/aiCombatScenarios.ts` or a focused protocol/frontend test.
-5. Map new presentation behavior without relying on English log text as an identifier; preserve hidden-information boundaries for PvP.
+5. Emit a typed public event from the resolving rule flow when the outcome needs presentation or network sequencing. Keep DOM geometry and durations in presentation code.
+6. Map new presentation behavior without relying on English log text as an identifier; preserve hidden-information boundaries for PvP.
 
 ## Current implementation record
 

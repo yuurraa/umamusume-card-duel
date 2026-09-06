@@ -2,12 +2,21 @@ import type { EnergyCost, EnergyType, GameState, SideState, UmamusumeCard, Umamu
 import { actorName, energyLabel, formatUmamusumeInstanceName } from "../core/labels";
 import { attachedEnergyCount } from "../core/umamusume";
 import { log } from "../core/log";
+import { emitGameEvent } from "../core/events";
 
 export function attachEnergy(state: GameState, side: SideState, umamusume: UmamusumeInstance): void {
   const nextEnergy = side.energyZone.shift();
   if (!nextEnergy) return;
   umamusume.energies[nextEnergy] += 1;
   side.energyAttachmentsThisTurn += 1;
+  emitGameEvent(state, {
+    kind: "energy",
+    visibility: "public",
+    side: side.id,
+    targetUid: umamusume.uid,
+    energyType: nextEnergy,
+    amount: 1,
+  });
   log(state, `${actorName(side)} attached 1 ${energyLabel(nextEnergy)} to ${formatUmamusumeInstanceName(umamusume)}.`);
 }
 

@@ -1,7 +1,7 @@
 import type { CSSProperties, Dispatch, SetStateAction } from "react";
 import type { EnergyType } from "../../../../shared/src/types";
 import { EnergyIcon } from "../../components/cards/EnergyIcon";
-import { energyLabel } from "../../game/engine/core/labels";
+import { energyLabel } from "../../game/engine";
 import { energyTypes, toggleSetValue } from "./helpers";
 import { deckListFilters, deckListSorts, type DeckListFilter, type DeckListSortKey } from "./model";
 import {

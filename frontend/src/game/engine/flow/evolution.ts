@@ -3,6 +3,7 @@ import { formatUmamusumeCardName, formatUmamusumeInstanceName, actorName } from 
 import { getAllUmamusume } from "../core/umamusume";
 import { log } from "../core/log";
 import { clearSpecialConditions } from "./specialConditions";
+import { emitGameEvent } from "../core/events";
 
 export function getEvolutionTargets(state: GameState, side: SideState, evolutionCard: UmamusumeCard): UmamusumeInstance[] {
   return [side.active, ...side.bench]
@@ -25,6 +26,7 @@ export function isValidEvolutionTarget(state: GameState, side: SideState, umamus
 
 export function evolveUmamusume(state: GameState, side: SideState, umamusume: UmamusumeInstance, evolutionCard: UmamusumeCard): void {
   const damage = umamusume.maxHp - umamusume.hp;
+  const previousCardId = umamusume.cardId;
   const previousName = formatUmamusumeInstanceName(umamusume);
   umamusume.evolutionCardIds = [...(umamusume.evolutionCardIds ?? []), umamusume.cardId];
   umamusume.cardId = evolutionCard.id;
@@ -36,6 +38,14 @@ export function evolveUmamusume(state: GameState, side: SideState, umamusume: Um
   umamusume.enteredTurn = Math.min(umamusume.enteredTurn, state.turnNumber - 1);
   // Evolution cures all special conditions.
   clearSpecialConditions(umamusume);
+  emitGameEvent(state, {
+    kind: "evolution",
+    visibility: "public",
+    side: side.id,
+    targetUid: umamusume.uid,
+    fromCardId: previousCardId,
+    toCardId: evolutionCard.id,
+  });
   log(state, `${actorName(side)} evolved ${previousName} into ${formatUmamusumeCardName(evolutionCard)}.`);
 }
 

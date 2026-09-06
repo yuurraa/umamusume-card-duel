@@ -5,7 +5,7 @@ import type { LocalDeck } from "../../../../shared/src/localDecks";
 import type { PremadeDeck } from "../../types/ui";
 import { inferDeckEnergyTypes, LOCAL_DECK_CACHE_STORAGE_KEY, normalizeDeckEnergyTypes } from "../../utils/deck";
 import { getCard } from "../../game/engine";
-import { formatCardName } from "../../game/engine/core/labels";
+import { formatCardName } from "../../game/engine";
 
 export const SELECTED_TICK = "\u2713";
 export const DECK_CARD_COUNT = 20;

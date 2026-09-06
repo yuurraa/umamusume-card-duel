@@ -1,6 +1,6 @@
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
 import type { EnergyType, GameState, SideId } from "../../../../shared/src/types";
-import { createGame } from "../../game/engine";
+import { clearAiTelemetry, createGame } from "../../game/engine";
 import type { InspectTarget } from "../../inspect";
 import type { AppScreen, MatchMode, PendingSelection } from "../../types/ui";
 import { getDeckEnergyTypes, pickRandomOpponentDeck } from "../../utils/deck";
@@ -19,7 +19,7 @@ export type UseAppNavigationArgs = {
   hasPendingPlayerChoice: boolean;
   isTurnFlowBlocked: boolean;
   previousLogRef: MutableRefObject<string[]>;
-  skipNextCoinLogMessageRef: MutableRefObject<string | null>;
+  skipNextCoinLogMessageRef: MutableRefObject<Array<"heads" | "tails"> | null>;
   setMatchMode: Dispatch<SetStateAction<MatchMode>>;
   setPendingScreen: Dispatch<SetStateAction<AppScreen | null>>;
   setGame: Dispatch<SetStateAction<GameState>>;
@@ -83,6 +83,7 @@ export function useAppNavigation({
   submitPlayerIntent,
 }: UseAppNavigationArgs) {
   const startNewGame = (mode: MatchMode = matchMode) => {
+    clearAiTelemetry();
     resetTransientMatchUi();
     setMatchMode(mode);
     setAiPerspective("player");

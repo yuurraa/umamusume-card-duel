@@ -1,9 +1,8 @@
 import assert from "node:assert/strict";
 import { opponentDeckList, playerDeckList } from "../../../shared/src/gameData";
 import type { EnergyType, GameState, SideState, UmamusumeInstance } from "../../../shared/src/types";
-import { advanceOpponentTurnStep, chooseOpeningCoin, createGame, getCard, playHandCard, playerAttack, playerEndTurn, playerRetreat, usePlayerAbility } from "../../../frontend/src/game/engine";
-import { refreshContinuousHp } from "../../../frontend/src/game/engine/flow/board";
-import { createUmamusume } from "../../../frontend/src/game/engine/flow/setup";
+import { advanceOpponentTurnStep, chooseOpeningCoin, createGame, createUmamusume, getCard, playHandCard, playerAttack, playerEndTurn, playerRetreat, refreshContinuousHp, usePlayerAbility } from "../../../frontend/src/game/engine";
+import { applyPlayerIntentWithResult } from "../../../frontend/src/pvp/playerIntent";
 
 type Scenario = {
   name: string;
@@ -48,9 +47,21 @@ const scenarios: Scenario[] = [
   { name: "invalid ability targets leave player state unchanged", run: scenarioRejectsInvalidAbilityTarget },
   { name: "invalid trainer targets leave player state unchanged", run: scenarioRejectsInvalidTrainerTarget },
   { name: "invalid retreat targets leave player state unchanged", run: scenarioRejectsInvalidRetreatTarget },
+  { name: "retreat payments emit structured Energy changes", run: scenarioStructuredRetreatEnergyEvent },
+  { name: "invalid selected evolution leaves player state unchanged", run: scenarioRejectsInvalidEvolutionSelection },
+  { name: "invalid optional discard selection leaves player state unchanged", run: scenarioRejectsInvalidDiscardSelection },
+  { name: "terminal matches reject further actions", run: scenarioRejectsTerminalActions },
+  { name: "trainer play preserves card conservation", run: scenarioTrainerPlayPreservesCardConservation },
+  { name: "ability damage emits a structured target event", run: scenarioStructuredAbilityDamageEvent },
+  { name: "lethal attacks emit ordered structured events", run: scenarioStructuredLethalAttackEvents },
+  { name: "coin knockout attacks preserve pre-KO HP in structured events", run: scenarioStructuredCoinKnockoutEvent },
+  { name: "card play and trainer draws emit structured movement events", run: scenarioStructuredCardMovementEvents },
+  { name: "AI card play and knockout discard emit structured movement events", run: scenarioStructuredAiCardMovementEvents },
+  { name: "player intents report rejected transitions without mutation", run: scenarioIntentResultContract },
   { name: "instance IDs are isolated between interleaved matches", run: scenarioMatchLocalInstanceIds },
   { name: "injected opening randomness produces reproducible match setup", run: scenarioDeterministicOpeningSetup },
   { name: "injected coin randomness resolves the chosen opening flip deterministically", run: scenarioDeterministicOpeningCoin },
+  { name: "invalid opening coin choice leaves setup state unchanged", run: scenarioRejectsInvalidOpeningCoin },
   { name: "injected turn randomness determines generated Energy", run: scenarioDeterministicTurnEnergy },
 ];
 
@@ -161,7 +172,12 @@ function scenarioUsefulMoveEnergyAbility() {
   const movedToActive = next.sides.opponent.active?.energies.darkness ?? 0;
   const movedFromSource = next.sides.opponent.bench.find((umamusume) => umamusume.uid === source.uid)?.energies.darkness ?? 0;
   assert.ok(movedToActive === 1 || (next.sides.player.active?.hp ?? 0) < 70, "AI should either use the move-energy ability or make attack progress");
-  if (movedToActive === 1) assert.equal(movedFromSource, 0, "AI should remove energy from selected bench source");
+  if (movedToActive === 1) {
+    assert.equal(movedFromSource, 0, "AI should remove energy from selected bench source");
+    const energyChanges = (next.events ?? []).filter((event) => event.kind === "energy");
+    assert.equal(energyChanges.some((event) => event.kind === "energy" && event.targetUid === source.uid && event.amount === -1), true);
+    assert.equal(energyChanges.some((event) => event.kind === "energy" && event.targetUid === opponent.active?.uid && event.amount === 1), true);
+  }
 }
 
 function scenarioSkipsUselessMoveEnergyAbility() {
@@ -250,6 +266,8 @@ function scenarioTeamRigilDiscardEnergy() {
   const next = playHandCard(state, 0);
   assert.equal(next.sides.opponent.active?.energies.darkness, 0, "Team Rigil should discard the only attached Energy");
   assert.equal(next.sides.player.usedSupporterThisTurn, true, "Team Rigil should consume Supporter use");
+  const energyEvent = (next.events ?? []).find((event) => event.kind === "energy" && event.targetUid === opponent.active?.uid);
+  assert.equal(energyEvent?.kind === "energy" ? energyEvent.amount : null, -1, "Team Rigil should emit the discarded Energy as a structured event");
 }
 
 function scenarioTeamSpicaSearchEvolution() {
@@ -587,6 +605,189 @@ function scenarioRejectsInvalidRetreatTarget() {
   assert.deepEqual(next, before, "an invalid retreat target must not spend Energy or substitute another bench card");
 }
 
+function scenarioStructuredRetreatEnergyEvent() {
+  const state = makePlayerActionState();
+  const active = withEnergy(createUma("nishinoFlowerBasic"), { grass: 1 });
+  const bench = createUma("manhattanCafeBasic");
+  state.sides.player.active = active;
+  state.sides.player.bench = [bench];
+
+  const next = playerRetreat(state, bench.uid, ["grass"]);
+  const energyEvent = (next.events ?? []).find((event) => event.kind === "energy" && event.targetUid === active.uid);
+  assert.equal(energyEvent?.kind === "energy" ? energyEvent.amount : null, -1, "retreat should emit the attached Energy that was paid");
+  assert.equal(next.sides.player.active?.uid, bench.uid);
+}
+
+function scenarioRejectsInvalidEvolutionSelection() {
+  const state = makePlayerActionState();
+  state.sides.player.active = withEnergy(createUma("tamamoCrossStage1"), { lightning: 1 });
+  state.sides.player.deck = ["riceShowerBasic", "tamamoCrossStage2"];
+  state.sides.opponent.active = createUma("riceShowerBasic");
+  const before = structuredClone(state);
+
+  const next = playerAttack(state, undefined, undefined, undefined, 0, 1);
+
+  assert.deepEqual(next, before, "an invalid selected evolution must not silently choose another deck card");
+}
+
+function scenarioRejectsInvalidDiscardSelection() {
+  const state = makePlayerActionState();
+  state.sides.player.active = withEnergy(createUma("symboliRudolfStage1"), { dragon: 1 });
+  state.sides.player.hand = ["riceShowerBasic"];
+  state.sides.opponent.active = createUma("riceShowerBasic");
+  const before = structuredClone(state);
+
+  const next = playerAttack(state, undefined, undefined, undefined, undefined, 0, 999_999);
+
+  assert.deepEqual(next, before, "an invalid optional discard selection must not resolve as a different choice");
+}
+
+function scenarioRejectsTerminalActions() {
+  const state = makePlayerActionState();
+  state.sides.player.active = withEnergy(createUma("riceShowerStage2"), { darkness: 2 });
+  state.sides.opponent.active = createUma("riceShowerBasic");
+  state.gameOver = true;
+  state.winner = "opponent";
+  state.currentSide = "done";
+  const before = structuredClone(state);
+
+  const results = [
+    playerAttack(state),
+    playerEndTurn(state),
+    playerRetreat(state, 999_999, ["darkness"]),
+    playHandCard(state, 0),
+    advanceOpponentTurnStep(state),
+    applyPlayerIntentWithResult(state, { type: "surrender" }).state,
+  ];
+  results.forEach((next) => assert.deepEqual(next, before, "terminal matches must reject actions without mutation or new events"));
+}
+
+function scenarioTrainerPlayPreservesCardConservation() {
+  const state = makePlayerActionState();
+  state.sides.player.active = createUma("tamamoCrossBasic");
+  state.sides.player.hand = ["teamSpica"];
+  state.sides.player.deck = ["tamamoCrossBasic", "tamamoCrossStage1"];
+  const beforeCards = collectSideCardIds(state.sides.player).sort();
+
+  const next = playHandCard(state, 0, { deckCardIndex: 1 });
+
+  assert.deepEqual(collectSideCardIds(next.sides.player).sort(), beforeCards, "trainer play must conserve cards across hand, deck, discard, and in-play zones");
+}
+
+function scenarioStructuredAbilityDamageEvent() {
+  const state = makePlayerActionState();
+  state.sides.player.active = createUma("manhattanCafeStage1");
+  state.sides.opponent.active = createUma("riceShowerBasic");
+  state.sides.opponent.active.hp = 45;
+
+  const next = usePlayerAbility(
+    state,
+    state.sides.player.active.uid,
+    state.sides.player.active.uid,
+    undefined,
+    undefined,
+    state.sides.opponent.active.uid,
+  );
+  const damage = (next.events ?? []).find((event) => event.kind === "damage");
+
+  assert.equal(next.activeTransitionId, undefined);
+  assert.equal(damage?.kind, "damage");
+  assert.equal(damage?.kind === "damage" ? damage.targetUid : null, state.sides.opponent.active.uid);
+  assert.equal(damage?.kind === "damage" ? damage.hpBefore : null, 45);
+  assert.equal(damage?.kind === "damage" ? damage.hpAfter : null, 25);
+  assert.equal(damage?.kind === "damage" ? damage.amount : null, 20);
+}
+
+function scenarioStructuredLethalAttackEvents() {
+  const state = makePlayerActionState();
+  state.sides.player.active = withEnergy(createUma("riceShowerStage2"), { darkness: 2 });
+  state.sides.opponent.active = createUma("riceShowerBasic");
+  state.sides.opponent.active.hp = 40;
+
+  const next = playerAttack(state);
+  const events = next.events ?? [];
+  assert.equal(next.activeTransitionId, undefined, "completed commands must not retain an active event transition");
+  const transitionEvents = events.filter((event) => event.transitionId === events[0]?.transitionId);
+
+  assert.deepEqual(transitionEvents.map((event) => event.kind), ["attack", "energy", "cardMovement", "knockout", "score", "gameEnd"]);
+  assert.equal(transitionEvents[0]?.kind === "attack" ? transitionEvents[0].targetUid : null, state.sides.opponent.active.uid);
+  const knockout = transitionEvents.find((event) => event.kind === "knockout");
+  assert.equal(knockout?.kind === "knockout" ? knockout.targetUid : null, state.sides.opponent.active.uid);
+}
+
+function scenarioStructuredCoinKnockoutEvent() {
+  const state = makePlayerActionState();
+  state.sides.player.active = withEnergy(createUma("matikanefukukitaruStage1"), { psychic: 1, colorless: 1 });
+  state.sides.opponent.active = createUma("riceShowerBasic");
+  const targetUid = state.sides.opponent.active.uid;
+  const targetHp = state.sides.opponent.active.hp;
+
+  const next = playerAttack(state, undefined, undefined, ["heads", "heads", "heads"], undefined, 1);
+  const transitionEvents = (next.events ?? []).filter((event) => event.transitionId === next.events?.[0]?.transitionId);
+  const attack = transitionEvents.find((event) => event.kind === "attack");
+  const coin = transitionEvents.find((event) => event.kind === "coin");
+
+  assert.equal(attack?.kind, "attack");
+  assert.equal(attack?.kind === "attack" ? attack.targetUid : null, targetUid);
+  assert.equal(attack?.kind === "attack" ? attack.hpBefore : null, targetHp);
+  assert.equal(attack?.kind === "attack" ? attack.hpAfter : null, 0);
+  assert.deepEqual(coin?.kind === "coin" ? coin.results : undefined, ["heads", "heads", "heads"]);
+  assert.equal(transitionEvents.some((event) => event.kind === "knockout" && event.targetUid === targetUid), true);
+}
+
+function scenarioStructuredCardMovementEvents() {
+  const state = makePlayerActionState();
+  state.sides.player.hand = ["tazunaHayakawa"];
+  state.sides.player.deck = ["riceShowerBasic", "nishinoFlowerBasic"];
+
+  const next = playHandCard(state, 0);
+  const movements = (next.events ?? []).filter((event) => event.kind === "cardMovement");
+  assert.equal(movements.some((event) => event.kind === "cardMovement" && event.from === "hand" && event.to === "play" && event.cardIds?.[0] === "tazunaHayakawa"), true);
+  assert.equal(movements.some((event) => event.kind === "cardMovement" && event.from === "play" && event.to === "discard" && event.cardIds?.[0] === "tazunaHayakawa"), true);
+  assert.equal(movements.filter((event) => event.kind === "cardMovement" && event.from === "deck" && event.to === "hand").length, 1);
+}
+
+function scenarioStructuredAiCardMovementEvents() {
+  const state = makeCombatState();
+  state.opponentTurnStep = "bench";
+  state.sides.opponent.active = createUma("manhattanCafeBasic");
+  state.sides.opponent.hand = ["riceShowerBasic"];
+  state.sides.player.active = createUma("nishinoFlowerBasic");
+
+  const afterPlay = advanceOpponentTurnStep(state);
+  const playEvent = (afterPlay.events ?? []).find((event) => event.kind === "cardMovement" && event.from === "hand" && event.to === "play");
+  assert.equal(playEvent?.kind, "cardMovement");
+  assert.deepEqual(playEvent?.kind === "cardMovement" ? playEvent.cardIds : undefined, ["riceShowerBasic"]);
+
+  const knockoutState = makePlayerActionState();
+  knockoutState.sides.player.active = withEnergy(createUma("riceShowerStage2"), { darkness: 2 });
+  knockoutState.sides.opponent.active = createUma("riceShowerBasic");
+  const afterKnockout = playerAttack(knockoutState);
+  const discardEvent = (afterKnockout.events ?? []).find((event) => event.kind === "cardMovement" && event.from === "play" && event.to === "discard");
+  assert.equal(discardEvent?.kind, "cardMovement");
+  assert.deepEqual(discardEvent?.kind === "cardMovement" ? discardEvent.cardIds : undefined, ["riceShowerBasic"]);
+}
+
+function scenarioIntentResultContract() {
+  const state = makePlayerActionState();
+  state.sides.player.active = withEnergy(createUma("manhattanCafeBasic"), { darkness: 1 });
+  state.sides.opponent.active = createUma("riceShowerBasic");
+  const before = structuredClone(state);
+  const result = applyPlayerIntentWithResult(state, { type: "attack", attackTargetUid: 999_999 });
+
+  assert.equal(result.accepted, false);
+  assert.deepEqual(result.state, before);
+  assert.deepEqual(result.events, []);
+
+  const legalState = makePlayerActionState();
+  legalState.sides.player.active = withEnergy(createUma("riceShowerStage2"), { darkness: 2 });
+  legalState.sides.opponent.active = createUma("riceShowerBasic");
+  const accepted = applyPlayerIntentWithResult(legalState, { type: "attack" });
+  assert.equal(accepted.accepted, true);
+  assert.equal(accepted.transitionId, accepted.events[0]?.transitionId);
+  assert.equal(accepted.events[0]?.kind, "attack");
+}
+
 function scenarioMatchLocalInstanceIds() {
   const first = createGame(playerDeckList, opponentDeckList, "First");
   const second = createGame(playerDeckList, opponentDeckList, "Second");
@@ -625,6 +826,14 @@ function scenarioDeterministicOpeningCoin() {
 
   assert.equal(next.setup?.coinFlipResult, "tails");
   assert.equal(next.firstPlayer, "opponent");
+}
+
+function scenarioRejectsInvalidOpeningCoin() {
+  const state = createGame(playerDeckList, opponentDeckList, "Guest");
+  state.setup!.coinFlipResult = "heads";
+  const before = structuredClone(state);
+  const next = chooseOpeningCoin(state, "tails", () => 0.1);
+  assert.deepEqual(next, before, "a repeated opening coin choice must not allocate a transition or mutate setup");
 }
 
 function scenarioDeterministicTurnEnergy() {
@@ -696,6 +905,17 @@ function withEnergy(umamusume: UmamusumeInstance, energies: Partial<Record<Energ
 
 function totalAttachedEnergy(umamusume: UmamusumeInstance): number {
   return Object.values(umamusume.energies).reduce((sum, value) => sum + value, 0);
+}
+
+function collectSideCardIds(side: SideState): string[] {
+  const inPlay = [side.active, ...side.bench]
+    .filter((umamusume): umamusume is UmamusumeInstance => Boolean(umamusume))
+    .flatMap((umamusume) => [
+      ...(umamusume.evolutionCardIds ?? []),
+      umamusume.cardId,
+      ...(umamusume.toolCardId ? [umamusume.toolCardId] : []),
+    ]);
+  return [...side.deck, ...side.hand, ...side.discard, ...inPlay];
 }
 
 function runOpponentUntilAttackResolution(state: GameState, maxSteps = 8): GameState {

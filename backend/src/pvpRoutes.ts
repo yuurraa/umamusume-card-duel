@@ -9,15 +9,23 @@ const PVP_CANDIDATE_MAX_LENGTH = 1024;
 const pvpSessions = new Map<string, PvpSession>();
 const pvpIceServers = readPvpIceServersFromEnv();
 
-export function createPvpRouter(): Router {
+export type PvpRouterOptions = {
+  now?: () => number;
+  sessionTtlMs?: number;
+};
+
+export function createPvpRouter(options: PvpRouterOptions = {}): Router {
   const router = Router();
+  const now = options.now ?? Date.now;
+  const sessionTtlMs = options.sessionTtlMs ?? PVP_SESSION_TTL_MS;
+  const prune = () => pruneExpiredPvpSessions(now(), sessionTtlMs);
 
   router.get("/ice-servers", (_request, response) => {
     response.json({ iceServers: pvpIceServers, iceTransportPolicy: readPvpIceTransportPolicyFromEnv() });
   });
 
   router.post("/sessions", (request, response) => {
-    pruneExpiredPvpSessions();
+    prune();
     const offer = typeof request.body?.offer === "string" ? request.body.offer.trim() : "";
     if (!offer) {
       response.status(400).json({ error: "Offer is required." });
@@ -28,14 +36,14 @@ export function createPvpRouter(): Router {
       return;
     }
     const code = createPvpCode();
-    const now = Date.now();
-    const expiresAt = new Date(now + PVP_SESSION_TTL_MS).toISOString();
-    pvpSessions.set(code, { code, offer, answer: null, createdAt: now, expiresAt, hostCandidates: [], guestCandidates: [] });
+    const createdAt = now();
+    const expiresAt = new Date(createdAt + sessionTtlMs).toISOString();
+    pvpSessions.set(code, { code, offer, answer: null, createdAt, expiresAt, hostCandidates: [], guestCandidates: [] });
     response.status(201).json({ code, expiresAt });
   });
 
   router.get("/sessions/:code/offer", (request, response) => {
-    pruneExpiredPvpSessions();
+    prune();
     const session = readPvpSession(request.params.code);
     if (!session) {
       response.status(404).json({ error: "Session not found or expired." });
@@ -45,7 +53,7 @@ export function createPvpRouter(): Router {
   });
 
   router.post("/sessions/:code/answer", (request, response) => {
-    pruneExpiredPvpSessions();
+    prune();
     const session = readPvpSession(request.params.code);
     if (!session) {
       response.status(404).json({ error: "Session not found or expired." });
@@ -69,7 +77,7 @@ export function createPvpRouter(): Router {
   });
 
   router.get("/sessions/:code/answer", (request, response) => {
-    pruneExpiredPvpSessions();
+    prune();
     const session = readPvpSession(request.params.code);
     if (!session) {
       response.status(404).json({ error: "Session not found or expired." });
@@ -83,7 +91,7 @@ export function createPvpRouter(): Router {
   });
 
   router.post("/sessions/:code/candidates", (request, response) => {
-    pruneExpiredPvpSessions();
+    prune();
     const session = readPvpSession(request.params.code);
     if (!session) {
       response.status(404).json({ error: "Session not found or expired." });
@@ -104,7 +112,7 @@ export function createPvpRouter(): Router {
   });
 
   router.get("/sessions/:code/candidates", (request, response) => {
-    pruneExpiredPvpSessions();
+    prune();
     const session = readPvpSession(request.params.code);
     if (!session) {
       response.status(404).json({ error: "Session not found or expired." });
@@ -204,10 +212,9 @@ function normalizePvpCode(code: string | undefined): string {
   return (code ?? "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
 }
 
-function pruneExpiredPvpSessions(): void {
-  const now = Date.now();
+function pruneExpiredPvpSessions(now: number, sessionTtlMs: number): void {
   for (const [code, session] of pvpSessions.entries()) {
-    if (session.createdAt + PVP_SESSION_TTL_MS > now) continue;
+    if (session.createdAt + sessionTtlMs > now) continue;
     pvpSessions.delete(code);
   }
 }

@@ -1,308 +1,123 @@
 import express from "express";
 import cors from "cors";
-import { existsSync, promises as fs, readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import type { CollectionReference } from "firebase-admin/firestore";
-import { getFirebaseAuth, getFirebaseDb, isFirebaseConfigured, readFirebaseProjectId } from "./firebase";
+import { getFirebaseDb, isFirebaseConfigured, readFirebaseProjectId } from "./firebase";
 import { createPvpRouter } from "./pvpRoutes";
+import { createLocalDeckRouter } from "./routes/localDeckRoutes";
+import { createCloudDeckRouter } from "./routes/cloudDeckRoutes";
+import { createLocalDeckStore, type LocalDeckStore } from "./storage/localDeckStore";
+import { createCloudDeckStore, type CloudDeckStore } from "./storage/cloudDeckStore";
+import { readCloudDevUnlocksEnabled } from "./config";
 import {
-  aiPremadeDecks,
-  cards,
-  buildLocalDeck,
-  createDeckIdFromName,
-  DECK_CARD_COUNT,
   gameData,
-  LOCAL_DECK_FORMAT_VERSION,
   MAX_BENCH,
   MAX_HAND,
   MAX_POINTS,
   OPENING_HAND,
-  ownedStarterCardIds,
-  premadeDecks,
-  type EnergyType,
-  type LocalDeck,
-  type LocalDeckInput,
-  type PremadeDeck,
-  normalizeDeckId,
-  validateLocalDeck,
 } from "../../shared/src";
 
-const app = express();
-const port = Number(process.env.PORT || 8787);
-const repoRoot = findRepoRoot(path.dirname(fileURLToPath(import.meta.url)));
-const localDecksDir = path.join(repoRoot, "local-data", "decks");
-const cloudFallbackDir = path.join(repoRoot, "local-data", "cloud-fallback");
-const frontendDistDir = path.join(repoRoot, "frontend", "dist");
-const localDeckApiEnabled = process.env.ENABLE_LOCAL_DECK_API === "true";
-const cloudDevUnlocksEnabled = readCloudDevUnlocksEnabled();
+export type FirebaseHealthDependencies = {
+  isConfigured: () => boolean;
+  check: () => Promise<string | null>;
+};
 
-app.use(cors());
-app.use(express.json({ limit: "256kb" }));
+export type AppDependencies = {
+  repoRoot?: string;
+  localDeckStore?: LocalDeckStore;
+  cloudDeckStore?: CloudDeckStore;
+  localDeckApiEnabled?: boolean;
+  firebaseHealth?: FirebaseHealthDependencies;
+};
 
-app.get("/api/health", (_request, response) => {
-  response.json({ ok: true });
-});
-
-app.get("/api/firebase/health", async (_request, response) => {
-  if (!isFirebaseConfigured()) {
-    response.status(503).json({ ok: false, configured: false, error: "FIREBASE_SERVICE_ACCOUNT_JSON is not configured." });
-    return;
-  }
-
-  try {
-    const db = getFirebaseDb();
-    await db.listCollections();
-    response.json({ ok: true, configured: true, projectId: readFirebaseProjectId() });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Firebase health check failed.";
-    response.status(500).json({ ok: false, configured: true, error: message });
-  }
-});
-
-app.use("/api/pvp", createPvpRouter());
-
-app.get("/api/game-data", (_request, response) => {
-  response.json({
-    ...gameData,
-    rules: {
-      maxBench: MAX_BENCH,
-      maxHand: MAX_HAND,
-      maxPoints: MAX_POINTS,
-      openingHand: OPENING_HAND,
-      weaknessBonus: 20,
-      noDeckOutLoss: true,
-      firstPlayerSkipsDrawAndEnergy: true,
-      supporterLimitPerTurn: 1,
-      unlimitedTrainerTypes: ["item", "stadium"],
+function defaultFirebaseHealthDependencies(): FirebaseHealthDependencies {
+  return {
+    isConfigured: isFirebaseConfigured,
+    check: async () => {
+      const db = getFirebaseDb();
+      await db.listCollections();
+      return readFirebaseProjectId();
     },
+  };
+}
+
+export function createApp(dependencies: AppDependencies = {}) {
+  const app = express();
+  const repoRoot = dependencies.repoRoot ?? findRepoRoot(path.dirname(fileURLToPath(import.meta.url)));
+  const localDeckStore = dependencies.localDeckStore ?? createLocalDeckStore(path.join(repoRoot, "local-data", "decks"));
+  const cloudDeckStore = dependencies.cloudDeckStore ?? createCloudDeckStore({
+    fallbackDir: path.join(repoRoot, "local-data", "cloud-fallback"),
+    devUnlocksEnabled: readCloudDevUnlocksEnabled(),
   });
-});
+  const localDeckApiEnabled = dependencies.localDeckApiEnabled ?? process.env.ENABLE_LOCAL_DECK_API === "true";
+  const firebaseHealth = dependencies.firebaseHealth ?? defaultFirebaseHealthDependencies();
+  const frontendDistDir = path.join(repoRoot, "frontend", "dist");
 
-if (localDeckApiEnabled) {
-  app.get("/api/local-decks", async (_request, response) => {
-    const decks = await readLocalDecks();
-    response.json({ decks });
-  });
+  app.use(cors());
+  app.use(express.json({ limit: "256kb" }));
 
-  app.get("/api/local-decks/:deckId", async (request, response) => {
-    const deckId = normalizeDeckId(request.params.deckId ?? "");
-    if (!deckId) {
-      response.status(400).json({ error: "Deck id is invalid." });
-      return;
-    }
-    const deck = await readLocalDeckById(deckId);
-    if (!deck) {
-      response.status(404).json({ error: "Deck not found." });
-      return;
-    }
-    response.json({ deck });
-  });
-
-  app.put("/api/local-decks/:deckId", async (request, response) => {
-    const deckId = normalizeDeckId(request.params.deckId ?? "");
-    if (!deckId) {
-      response.status(400).json({ error: "Deck id is invalid." });
-      return;
-    }
-
-    const input = request.body as LocalDeckInput;
-    const parseError = validateLocalDeckInput(input);
-    if (parseError) {
-      response.status(400).json({ error: parseError });
-      return;
-    }
-
-    const existing = await readLocalDeckById(deckId);
-    const nextDeck = buildLocalDeck(deckId, input, new Date().toISOString(), existing ?? undefined);
-    const validity = validateLocalDeck(nextDeck, cards);
-    if (!validity.ok) {
-      response.status(400).json({ error: validity.reason });
-      return;
-    }
-
-    await writeLocalDeck(nextDeck);
-    response.json({ deck: nextDeck });
+  app.get("/api/health", (_request, response) => {
+    response.json({ ok: true });
   });
 
-  app.post("/api/local-decks/import", async (request, response) => {
-    const input = request.body as LocalDeckInput;
-    const parseError = validateLocalDeckInput(input);
-    if (parseError) {
-      response.status(400).json({ error: parseError });
+  app.get("/api/firebase/health", async (_request, response) => {
+    if (!firebaseHealth.isConfigured()) {
+      response.status(503).json({ ok: false, configured: false, error: "FIREBASE_SERVICE_ACCOUNT_JSON is not configured." });
       return;
     }
 
-    const baseDeckId = createDeckIdFromName(input.name);
-    const deckId = await getUniqueDeckId(baseDeckId);
-    const nextDeck = buildLocalDeck(deckId, input, new Date().toISOString());
-    const validity = validateLocalDeck(nextDeck, cards);
-    if (!validity.ok) {
-      response.status(400).json({ error: validity.reason });
-      return;
-    }
-
-    await writeLocalDeck(nextDeck);
-    response.status(201).json({ deck: nextDeck });
-  });
-
-  app.delete("/api/local-decks/:deckId", async (request, response) => {
-    const deckId = normalizeDeckId(request.params.deckId ?? "");
-    if (!deckId) {
-      response.status(400).json({ error: "Deck id is invalid." });
-      return;
-    }
-    const deckPath = deckFilePath(deckId);
     try {
-      await fs.unlink(deckPath);
-      response.status(204).send();
+      response.json({ ok: true, configured: true, projectId: await firebaseHealth.check() });
     } catch (error) {
-      if (isNodeError(error) && error.code === "ENOENT") {
-        response.status(404).json({ error: "Deck not found." });
+      const message = error instanceof Error ? error.message : "Firebase health check failed.";
+      response.status(500).json({ ok: false, configured: true, error: message });
+    }
+  });
+
+  app.use("/api/pvp", createPvpRouter());
+
+  app.get("/api/game-data", (_request, response) => {
+    response.json({
+      ...gameData,
+      rules: {
+        maxBench: MAX_BENCH,
+        maxHand: MAX_HAND,
+        maxPoints: MAX_POINTS,
+        openingHand: OPENING_HAND,
+        weaknessBonus: 20,
+        noDeckOutLoss: true,
+        firstPlayerSkipsDrawAndEnergy: true,
+        supporterLimitPerTurn: 1,
+        unlimitedTrainerTypes: ["item", "stadium"],
+      },
+    });
+  });
+
+  app.use("/api/local-decks", createLocalDeckRouter({ enabled: localDeckApiEnabled, store: localDeckStore }));
+  app.use("/api", createCloudDeckRouter({ store: cloudDeckStore }));
+
+  if (existsSync(path.join(frontendDistDir, "index.html"))) {
+    app.use(express.static(frontendDistDir));
+    app.get("*", (request, response, next) => {
+      if (request.path.startsWith("/api/")) {
+        next();
         return;
       }
-      throw error;
-    }
-  });
-} else {
-  app.all(["/api/local-decks", "/api/local-decks/*"], (_request, response) => {
-    response.status(404).json({ error: "Local deck API is disabled." });
-  });
+      response.sendFile(path.join(frontendDistDir, "index.html"));
+    });
+  }
+
+  return app;
 }
 
-app.get("/api/cloud-decks", asyncHandler(async (request, response) => {
-  const userId = await getCloudDeckUserId(request, response);
-  if (!userId) return;
-  const decks = await readCloudDecks(userId);
-  response.json({ decks });
-}));
+export const app = createApp();
 
-app.get("/api/cloud-decks/:deckId", asyncHandler(async (request, response) => {
-  const userId = await getCloudDeckUserId(request, response);
-  if (!userId) return;
-  const deckId = normalizeDeckId(request.params.deckId ?? "");
-  if (!deckId) {
-    response.status(400).json({ error: "Deck id is invalid." });
-    return;
-  }
-  const deck = await readCloudDeckById(userId, deckId);
-  if (!deck) {
-    response.status(404).json({ error: "Deck not found." });
-    return;
-  }
-  response.json({ deck });
-}));
-
-app.put("/api/cloud-decks/:deckId", asyncHandler(async (request, response) => {
-  const userId = await getCloudDeckUserId(request, response);
-  if (!userId) return;
-  const deckId = normalizeDeckId(request.params.deckId ?? "");
-  if (!deckId) {
-    response.status(400).json({ error: "Deck id is invalid." });
-    return;
-  }
-
-  const input = request.body as LocalDeckInput;
-  const parseError = validateLocalDeckInput(input);
-  if (parseError) {
-    response.status(400).json({ error: parseError });
-    return;
-  }
-
-  const existing = await readCloudDeckById(userId, deckId);
-  const nextDeck = buildLocalDeck(deckId, input, new Date().toISOString(), existing ?? undefined);
-  const validity = validateLocalDeck(nextDeck, cards);
-  if (!validity.ok) {
-    response.status(400).json({ error: validity.reason });
-    return;
-  }
-
-  await writeCloudDeck(userId, nextDeck);
-  response.json({ deck: nextDeck });
-}));
-
-app.post("/api/cloud-decks/import", asyncHandler(async (request, response) => {
-  const userId = await getCloudDeckUserId(request, response);
-  if (!userId) return;
-  const input = request.body as LocalDeckInput;
-  const parseError = validateLocalDeckInput(input);
-  if (parseError) {
-    response.status(400).json({ error: parseError });
-    return;
-  }
-
-  const baseDeckId = createDeckIdFromName(input.name);
-  const deckId = await getUniqueCloudDeckId(userId, baseDeckId);
-  const nextDeck = buildLocalDeck(deckId, input, new Date().toISOString());
-  const validity = validateLocalDeck(nextDeck, cards);
-  if (!validity.ok) {
-    response.status(400).json({ error: validity.reason });
-    return;
-  }
-
-  await writeCloudDeck(userId, nextDeck);
-  response.status(201).json({ deck: nextDeck });
-}));
-
-app.delete("/api/cloud-decks/:deckId", asyncHandler(async (request, response) => {
-  const userId = await getCloudDeckUserId(request, response);
-  if (!userId) return;
-  const deckId = normalizeDeckId(request.params.deckId ?? "");
-  if (!deckId) {
-    response.status(400).json({ error: "Deck id is invalid." });
-    return;
-  }
-  const deck = await readCloudDeckById(userId, deckId);
-  if (!deck) {
-    response.status(404).json({ error: "Deck not found." });
-    return;
-  }
-  if (isFirebaseConfigured()) {
-    await cloudDecksCollection(userId).doc(deckId).delete();
-  } else {
-    await deleteFallbackCloudDeck(userId, deckId);
-  }
-  response.status(204).send();
-}));
-
-app.get("/api/cloud-deck-drafts", asyncHandler(async (request, response) => {
-  const userId = await getCloudDeckUserId(request, response);
-  if (!userId) return;
-  const drafts = await readCloudDeckDrafts(userId);
-  response.json(drafts);
-}));
-
-app.put("/api/cloud-deck-drafts", asyncHandler(async (request, response) => {
-  const userId = await getCloudDeckUserId(request, response);
-  if (!userId) return;
-  const payload = request.body as CloudDeckDraftsPayload;
-  const createDrafts = Array.isArray(payload?.createDrafts) ? payload.createDrafts.filter(isValidCreateDeckDraft) : [];
-  const editDrafts = isRecord(payload?.editDrafts) ? filterEditDeckDrafts(payload.editDrafts) : {};
-  await writeCloudDeckDrafts(userId, { createDrafts, editDrafts });
-  response.json({ createDrafts, editDrafts });
-}));
-
-app.get("/api/cloud-card-collection", asyncHandler(async (request, response) => {
-  const userId = await getCloudDeckUserId(request, response);
-  if (!userId) return;
-  const cardCounts = await readCloudCardCollection(userId);
-  response.json({ cardCounts });
-}));
-
-if (existsSync(path.join(frontendDistDir, "index.html"))) {
-  app.use(express.static(frontendDistDir));
-  app.get("*", (request, response, next) => {
-    if (request.path.startsWith("/api/")) {
-      next();
-      return;
-    }
-    response.sendFile(path.join(frontendDistDir, "index.html"));
+export function startServer(listenPort = Number(process.env.PORT || 8787), application = app) {
+  return application.listen(listenPort, () => {
+    console.log(`Umamusume Card Duel listening on port ${listenPort}`);
   });
 }
-
-app.listen(port, () => {
-  console.log(`Umamusume Card Duel listening on port ${port}`);
-});
 
 function findRepoRoot(startDir: string): string {
   let currentDir = startDir;
@@ -321,613 +136,4 @@ function findRepoRoot(startDir: string): string {
     if (parentDir === currentDir) return startDir;
     currentDir = parentDir;
   }
-}
-
-function validateLocalDeckInput(input: LocalDeckInput | undefined): string | null {
-  if (!input || typeof input !== "object") return "Deck payload is required.";
-  if (typeof input.name !== "string" || input.name.trim().length === 0) return "Deck name is required.";
-  if (!Array.isArray(input.cardIds)) return "Deck cardIds must be an array.";
-  if (input.cardIds.some((cardId) => typeof cardId !== "string" || cardId.length === 0)) return "Deck cardIds must contain card id strings.";
-  if (input.coverCardId !== undefined && (typeof input.coverCardId !== "string" || input.coverCardId.length === 0)) return "Deck coverCardId must be a non-empty string.";
-  if (input.energyTypes !== undefined) {
-    if (!Array.isArray(input.energyTypes)) return "Deck energyTypes must be an array.";
-    if (input.energyTypes.length < 1 || input.energyTypes.length > 3) return "Deck must select 1 to 3 Energy types.";
-    if (new Set(input.energyTypes).size !== input.energyTypes.length) return "Deck Energy types must be unique.";
-    if (input.energyTypes.some((energyType) => !VALID_GENERATED_ENERGY_TYPES.has(energyType))) return "Deck energyTypes contains an Energy type that cannot be generated.";
-  }
-  return null;
-}
-
-function deckFilePath(deckId: string): string {
-  return path.join(localDecksDir, `${deckId}.json`);
-}
-
-async function ensureLocalDecksDir(): Promise<void> {
-  await fs.mkdir(localDecksDir, { recursive: true });
-}
-
-async function readLocalDeckById(deckId: string): Promise<LocalDeck | null> {
-  await ensureLocalDecksDir();
-  const targetPath = deckFilePath(deckId);
-  try {
-    const content = await fs.readFile(targetPath, "utf8");
-    return JSON.parse(content) as LocalDeck;
-  } catch (error) {
-    if (isNodeError(error) && error.code === "ENOENT") return null;
-    throw error;
-  }
-}
-
-async function writeLocalDeck(deck: LocalDeck): Promise<void> {
-  await ensureLocalDecksDir();
-  const targetPath = deckFilePath(deck.id);
-  const tempPath = `${targetPath}.tmp`;
-  await fs.writeFile(tempPath, `${JSON.stringify(deck, null, 2)}\n`, "utf8");
-  await fs.rename(tempPath, targetPath);
-}
-
-async function readLocalDecks(): Promise<LocalDeck[]> {
-  await ensureLocalDecksDir();
-  const files = await fs.readdir(localDecksDir);
-  const decks: LocalDeck[] = [];
-
-  for (const file of files) {
-    if (!file.endsWith(".json")) continue;
-    try {
-      const content = await fs.readFile(path.join(localDecksDir, file), "utf8");
-      const parsed = JSON.parse(content) as LocalDeck;
-      const validity = validateLocalDeck(parsed, cards);
-      if (validity.ok) decks.push(parsed);
-    } catch {
-      continue;
-    }
-  }
-
-  decks.sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
-  return decks;
-}
-
-async function getUniqueDeckId(baseDeckId: string): Promise<string> {
-  let candidate = normalizeDeckId(baseDeckId);
-  if (!candidate) candidate = "deck";
-  let suffix = 1;
-  while (await readLocalDeckById(candidate)) {
-    suffix += 1;
-    candidate = `${baseDeckId}-${suffix}`;
-  }
-  return normalizeDeckId(candidate);
-}
-
-function cloudDecksCollection(userId: string): CollectionReference<CloudDeckDoc> {
-  return getFirebaseDb()
-    .collection("users")
-    .doc(userId)
-    .collection("decks") as CollectionReference<CloudDeckDoc>;
-}
-
-async function readCloudDecks(userId: string): Promise<LocalDeck[]> {
-  if (!isFirebaseConfigured()) return readFallbackCloudDecks(userId);
-  await ensureCloudSeedDecks(userId);
-  const snapshot = await cloudDecksCollection(userId).orderBy("updatedAt", "desc").get();
-  const decks: LocalDeck[] = [];
-
-  for (const doc of snapshot.docs) {
-    const deck = doc.data();
-    if (isSeedDeckDoc(deck)) continue;
-    const validity = validateLocalDeck(deck, cards);
-    if (validity.ok) decks.push(deck);
-  }
-
-  return decks;
-}
-
-async function readCloudDeckById(userId: string, deckId: string): Promise<LocalDeck | null> {
-  if (!isFirebaseConfigured()) return readFallbackCloudDeckById(userId, deckId);
-  await ensureCloudSeedDecks(userId);
-  const snapshot = await cloudDecksCollection(userId).doc(deckId).get();
-  if (!snapshot.exists) return null;
-  const deck = snapshot.data();
-  if (!deck) return null;
-  if (isSeedDeckDoc(deck)) return null;
-  const validity = validateLocalDeck(deck, cards);
-  return validity.ok ? deck : null;
-}
-
-async function writeCloudDeck(userId: string, deck: LocalDeck): Promise<void> {
-  if (!isFirebaseConfigured()) {
-    await writeFallbackCloudDeck(userId, deck);
-    return;
-  }
-  await cloudDecksCollection(userId).doc(deck.id).set(deck);
-}
-
-async function getUniqueCloudDeckId(userId: string, baseDeckId: string): Promise<string> {
-  let candidate = normalizeDeckId(baseDeckId);
-  if (!candidate) candidate = "deck";
-  let suffix = 1;
-  while (await cloudDeckDocumentExists(userId, candidate)) {
-    suffix += 1;
-    candidate = `${baseDeckId}-${suffix}`;
-  }
-  return normalizeDeckId(candidate);
-}
-
-async function cloudDeckDocumentExists(userId: string, deckId: string): Promise<boolean> {
-  if (!isFirebaseConfigured()) return Boolean(await readFallbackCloudDeckById(userId, deckId));
-  await ensureCloudSeedDecks(userId);
-  const snapshot = await cloudDecksCollection(userId).doc(deckId).get();
-  return snapshot.exists;
-}
-
-function cloudDeckDraftsCollection(userId: string): CollectionReference<CloudDeckDraft> {
-  return getFirebaseDb()
-    .collection("users")
-    .doc(userId)
-    .collection("deckDrafts") as CollectionReference<CloudDeckDraft>;
-}
-
-async function readCloudDeckDrafts(userId: string): Promise<Required<CloudDeckDraftsPayload>> {
-  if (!isFirebaseConfigured()) return readFallbackCloudDeckDrafts(userId);
-  const snapshot = await cloudDeckDraftsCollection(userId).orderBy("updatedAt", "desc").get();
-  const createDrafts: LocalDeck[] = [];
-  const editDrafts: Record<string, DeckEditorDraftPayload> = {};
-
-  for (const doc of snapshot.docs) {
-    const draft = doc.data();
-    if (draft.kind === "create" && draft.deck && isValidCreateDeckDraft(draft.deck)) {
-      createDrafts.push(draft.deck);
-      editDrafts[draft.id] = {
-        name: draft.name,
-        cardIds: draft.cardIds,
-        selectedCoverCardId: draft.selectedCoverCardId,
-        energyTypes: draft.energyTypes ?? ["psychic"],
-      };
-    }
-    if (draft.kind === "edit" && draft.sourceDeckId && isValidEditDeckDraft(draft)) {
-      editDrafts[draft.sourceDeckId] = {
-        name: draft.name,
-        cardIds: draft.cardIds,
-        selectedCoverCardId: draft.selectedCoverCardId,
-        energyTypes: draft.energyTypes ?? ["psychic"],
-      };
-    }
-  }
-
-  return { createDrafts, editDrafts };
-}
-
-async function writeCloudDeckDrafts(userId: string, drafts: Required<CloudDeckDraftsPayload>): Promise<void> {
-  if (!isFirebaseConfigured()) {
-    await writeFallbackCloudDeckDrafts(userId, drafts);
-    return;
-  }
-  const collection = cloudDeckDraftsCollection(userId);
-  const previous = await collection.listDocuments();
-  const batch = getFirebaseDb().batch();
-  for (const doc of previous) batch.delete(doc);
-
-  const nowIso = new Date().toISOString();
-  for (const deck of drafts.createDrafts) {
-    const editDraft = drafts.editDrafts[deck.id];
-    if (!editDraft || !isValidEditDeckDraft(editDraft)) continue;
-    batch.set(collection.doc(`${deck.id}`), {
-      id: deck.id,
-      kind: "create",
-      deck,
-      name: editDraft.name,
-      cardIds: editDraft.cardIds,
-      selectedCoverCardId: editDraft.selectedCoverCardId,
-      energyTypes: editDraft.energyTypes ?? ["psychic"],
-      updatedAt: deck.updatedAt || nowIso,
-    } satisfies CloudDeckDraft);
-  }
-
-  for (const [deckId, editDraft] of Object.entries(drafts.editDrafts)) {
-    if (drafts.createDrafts.some((deck) => deck.id === deckId)) continue;
-    if (!isValidEditDeckDraft(editDraft)) continue;
-    batch.set(collection.doc(`edit-${deckId}`), {
-      id: `edit-${deckId}`,
-      kind: "edit",
-      sourceDeckId: deckId,
-      name: editDraft.name,
-      cardIds: editDraft.cardIds,
-      selectedCoverCardId: editDraft.selectedCoverCardId,
-      energyTypes: editDraft.energyTypes ?? ["psychic"],
-      updatedAt: nowIso,
-    } satisfies CloudDeckDraft);
-  }
-
-  await batch.commit();
-}
-
-function cloudCardCollectionDoc(userId: string) {
-  return getFirebaseDb()
-    .collection("users")
-    .doc(userId)
-    .collection("inventory")
-    .doc("cards");
-}
-
-async function readCloudCardCollection(userId: string): Promise<Record<string, number>> {
-  const seededCounts = buildDefaultCardCollection();
-  if (!isFirebaseConfigured()) return seededCounts;
-
-  const collectionDoc = cloudCardCollectionDoc(userId);
-  const snapshot = await collectionDoc.get();
-  if (!snapshot.exists) {
-    const nowIso = new Date().toISOString();
-    await collectionDoc.set({
-      cardCounts: seededCounts,
-      seededAt: nowIso,
-      updatedAt: nowIso,
-    } satisfies CloudCardCollectionDoc);
-    return seededCounts;
-  }
-
-  const payload = snapshot.data() as CloudCardCollectionDoc | undefined;
-  const cardCounts = sanitizeCardCollectionCounts(payload?.cardCounts);
-  if (Object.keys(cardCounts).length > 0) return cardCounts;
-
-  const nowIso = new Date().toISOString();
-  await collectionDoc.set({
-    cardCounts: seededCounts,
-    updatedAt: nowIso,
-  } satisfies Partial<CloudCardCollectionDoc>, { merge: true });
-  return seededCounts;
-}
-
-function buildDefaultCardCollection(): Record<string, number> {
-  if (isLocalDevRuntime()) {
-    return Object.keys(cards).reduce<Record<string, number>>((counts, cardId) => {
-      counts[cardId] = 2;
-      return counts;
-    }, {});
-  }
-
-  return Array.from(ownedStarterCardIds).reduce<Record<string, number>>((counts, cardId) => {
-    if (!cards[cardId]) return counts;
-    counts[cardId] = 2;
-    return counts;
-  }, {});
-}
-
-function sanitizeCardCollectionCounts(input: unknown): Record<string, number> {
-  if (!isRecord(input)) return {};
-  const output: Record<string, number> = {};
-  for (const [cardId, count] of Object.entries(input)) {
-    if (!cards[cardId]) continue;
-    if (typeof count !== "number" || !Number.isFinite(count)) continue;
-    const normalized = Math.floor(count);
-    if (normalized <= 0) continue;
-    output[cardId] = normalized;
-  }
-  return output;
-}
-
-function isLocalDevRuntime(): boolean {
-  return process.env.NODE_ENV !== "production";
-}
-
-function isValidCreateDeckDraft(deck: unknown): deck is LocalDeck {
-  if (!deck || typeof deck !== "object") return false;
-  const candidate = deck as LocalDeck;
-  if (typeof candidate.id !== "string" || candidate.id.length === 0) return false;
-  if (typeof candidate.name !== "string" || candidate.name.length === 0) return false;
-  if (typeof candidate.coverCardId !== "string" || candidate.coverCardId.length === 0) return false;
-  if (!Array.isArray(candidate.cardIds) || candidate.cardIds.some((cardId) => typeof cardId !== "string")) return false;
-  if (candidate.energyTypes !== undefined && !isValidEnergyTypeArray(candidate.energyTypes)) return false;
-  return typeof candidate.createdAt === "string" && typeof candidate.updatedAt === "string";
-}
-
-function filterEditDeckDrafts(input: Record<string, unknown>): Record<string, DeckEditorDraftPayload> {
-  const output: Record<string, DeckEditorDraftPayload> = {};
-  for (const [deckId, draft] of Object.entries(input)) {
-    if (!isValidEditDeckDraft(draft)) continue;
-    output[normalizeDeckId(deckId) || deckId] = draft;
-  }
-  return output;
-}
-
-function isValidEditDeckDraft(draft: unknown): draft is DeckEditorDraftPayload {
-  if (!draft || typeof draft !== "object") return false;
-  const candidate = draft as DeckEditorDraftPayload;
-  if (typeof candidate.name !== "string") return false;
-  if (!Array.isArray(candidate.cardIds) || candidate.cardIds.length !== DECK_CARD_COUNT) return false;
-  if (candidate.cardIds.some((cardId) => cardId !== null && typeof cardId !== "string")) return false;
-  if (!(candidate.selectedCoverCardId === null || typeof candidate.selectedCoverCardId === "string")) return false;
-  return candidate.energyTypes === undefined || isValidEnergyTypeArray(candidate.energyTypes);
-}
-
-function isValidEnergyTypeArray(value: unknown): boolean {
-  if (!Array.isArray(value) || value.length < 1 || value.length > 3) return false;
-  return value.every((energyType) => typeof energyType === "string" && VALID_GENERATED_ENERGY_TYPES.has(energyType)) && new Set(value).size === value.length;
-}
-
-const VALID_GENERATED_ENERGY_TYPES = new Set([
-  "grass",
-  "fire",
-  "water",
-  "lightning",
-  "psychic",
-  "fighting",
-  "darkness",
-  "steel",
-  "dragon",
-]);
-
-function isRecord(input: unknown): input is Record<string, unknown> {
-  return typeof input === "object" && input !== null && !Array.isArray(input);
-}
-
-async function getCloudDeckUserId(request: express.Request, response: express.Response): Promise<string | null> {
-  if (!isFirebaseConfigured() && isLocalDevRuntime()) {
-    return getFallbackCloudDeckUserId();
-  }
-
-  const authHeader = request.header("authorization") ?? "";
-  const token = authHeader.match(/^Bearer\s+(.+)$/i)?.[1];
-  if (!token) {
-    if (!isFirebaseConfigured()) return getFallbackCloudDeckUserId();
-    response.status(401).json({ error: "Firebase auth token is required." });
-    return null;
-  }
-
-  if (!isFirebaseConfigured()) {
-    response.status(503).json({ error: "Firebase is not configured." });
-    return null;
-  }
-
-  try {
-    const decoded = await getFirebaseAuth().verifyIdToken(token);
-    await getFirebaseDb().collection("users").doc(decoded.uid).set({
-      displayName: typeof decoded.name === "string" ? decoded.name : null,
-      email: typeof decoded.email === "string" ? decoded.email : null,
-      photoUrl: typeof decoded.picture === "string" ? decoded.picture : null,
-      isAnonymous: decoded.firebase.sign_in_provider === "anonymous",
-      updatedAt: new Date().toISOString(),
-    }, { merge: true });
-    await ensureCloudSeedDecks(decoded.uid);
-    return decoded.uid;
-  } catch {
-    response.status(401).json({ error: "Firebase auth token is invalid or expired." });
-    return null;
-  }
-}
-
-async function ensureCloudSeedDecks(userId: string): Promise<void> {
-  if (!isFirebaseConfigured()) return;
-
-  const seedDecksById = getCloudSeedDecksById();
-  if (seedDecksById.size === 0) return;
-
-  const nowIso = new Date().toISOString();
-  const batch = getFirebaseDb().batch();
-  let hasWrites = false;
-  const snapshot = await cloudDecksCollection(userId).get();
-
-  for (const doc of snapshot.docs) {
-    const existing = doc.data();
-    if (!isSeedDeckDoc(existing)) continue;
-    if (seedDecksById.has(doc.id)) continue;
-    batch.delete(doc.ref);
-    hasWrites = true;
-  }
-
-  for (const deck of seedDecksById.values()) {
-    const existing = snapshot.docs.find((doc) => doc.id === deck.id)?.data();
-    if (existing && !isSeedDeckDoc(existing)) continue;
-    if (existing && isMatchingSeedDeckDoc(existing, deck)) continue;
-    const docRef = cloudDecksCollection(userId).doc(deck.id);
-    batch.set(docRef, {
-      id: deck.id,
-      name: deck.name,
-      coverCardId: deck.coverCardId,
-      cardIds: [...deck.cardIds],
-      ...(deck.energyTypes ? { energyTypes: [...deck.energyTypes] } : {}),
-      formatVersion: LOCAL_DECK_FORMAT_VERSION,
-      createdAt: nowIso,
-      updatedAt: nowIso,
-      seedKind: "premade",
-    } satisfies CloudDeckDoc);
-    hasWrites = true;
-  }
-
-  if (!hasWrites) return;
-  await batch.commit();
-}
-
-function getCloudSeedDecksById(): Map<string, PremadeDeck> {
-  const seedDecks = cloudDevUnlocksEnabled ? aiPremadeDecks : premadeDecks;
-  return new Map(seedDecks.map((deck) => [deck.id, deck]));
-}
-
-function isSeedDeckDoc(deck: CloudDeckDoc): boolean {
-  return deck.seedKind === "premade";
-}
-
-function isMatchingSeedDeckDoc(deck: CloudDeckDoc, seed: PremadeDeck): boolean {
-  return deck.id === seed.id
-    && deck.name === seed.name
-    && deck.coverCardId === seed.coverCardId
-    && deck.formatVersion === LOCAL_DECK_FORMAT_VERSION
-    && deck.cardIds.length === seed.cardIds.length
-    && deck.cardIds.every((cardId, index) => cardId === seed.cardIds[index])
-    && sameEnergyTypes(deck.energyTypes, seed.energyTypes);
-}
-
-function sameEnergyTypes(left: readonly EnergyType[] | undefined, right: readonly EnergyType[] | undefined): boolean {
-  const leftTypes = left ?? [];
-  const rightTypes = right ?? [];
-  return leftTypes.length === rightTypes.length
-    && leftTypes.every((energyType, index) => energyType === rightTypes[index]);
-}
-
-function readCloudDevUnlocksEnabled(): boolean {
-  return parseBooleanEnv(process.env.VITE_ENABLE_DEV_UNLOCKS)
-    ?? parseBooleanEnv(process.env.ENABLE_DEV_UNLOCKS)
-    ?? process.env.NODE_ENV !== "production";
-}
-
-function parseBooleanEnv(value: string | undefined): boolean | null {
-  if (!value) return null;
-  const normalized = value.trim().toLowerCase();
-  if (["1", "true", "yes", "on"].includes(normalized)) return true;
-  if (["0", "false", "no", "off"].includes(normalized)) return false;
-  return null;
-}
-
-type CloudDeckDraft = {
-  id: string;
-  kind: "create" | "edit";
-  deck?: LocalDeck;
-  sourceDeckId?: string;
-  name: string;
-  cardIds: Array<string | null>;
-  selectedCoverCardId: string | null;
-  energyTypes?: string[];
-  updatedAt: string;
-};
-
-type CloudDeckDoc = LocalDeck & {
-  seedKind?: "premade";
-};
-
-type CloudCardCollectionDoc = {
-  cardCounts: Record<string, number>;
-  seededAt?: string;
-  updatedAt: string;
-};
-
-type CloudDeckDraftsPayload = {
-  createDrafts?: LocalDeck[];
-  editDrafts?: Record<string, DeckEditorDraftPayload>;
-};
-
-type DeckEditorDraftPayload = {
-  name: string;
-  cardIds: Array<string | null>;
-  selectedCoverCardId: string | null;
-  energyTypes?: string[];
-};
-
-function getFallbackCloudDeckUserId(): string {
-  return process.env.FIREBASE_DEV_USER_ID?.trim() || "local-dev-user";
-}
-
-function fallbackUserDir(userId: string): string {
-  return path.join(cloudFallbackDir, sanitizeFallbackUserId(userId));
-}
-
-function fallbackDecksDir(userId: string): string {
-  return path.join(fallbackUserDir(userId), "decks");
-}
-
-function fallbackDeckPath(userId: string, deckId: string): string {
-  return path.join(fallbackDecksDir(userId), `${deckId}.json`);
-}
-
-function fallbackDeckDraftsPath(userId: string): string {
-  return path.join(fallbackUserDir(userId), "deckDrafts.json");
-}
-
-async function ensureFallbackDecksDir(userId: string): Promise<void> {
-  await fs.mkdir(fallbackDecksDir(userId), { recursive: true });
-}
-
-async function ensureFallbackUserDir(userId: string): Promise<void> {
-  await fs.mkdir(fallbackUserDir(userId), { recursive: true });
-}
-
-async function readFallbackCloudDeckById(userId: string, deckId: string): Promise<LocalDeck | null> {
-  await ensureFallbackDecksDir(userId);
-  const targetPath = fallbackDeckPath(userId, deckId);
-  try {
-    const content = await fs.readFile(targetPath, "utf8");
-    const parsed = JSON.parse(content) as LocalDeck;
-    const validity = validateLocalDeck(parsed, cards);
-    return validity.ok ? parsed : null;
-  } catch (error) {
-    if (isNodeError(error) && error.code === "ENOENT") return null;
-    throw error;
-  }
-}
-
-async function writeFallbackCloudDeck(userId: string, deck: LocalDeck): Promise<void> {
-  await ensureFallbackDecksDir(userId);
-  const targetPath = fallbackDeckPath(userId, deck.id);
-  const tempPath = `${targetPath}.tmp`;
-  await fs.writeFile(tempPath, `${JSON.stringify(deck, null, 2)}\n`, "utf8");
-  await fs.rename(tempPath, targetPath);
-}
-
-async function readFallbackCloudDecks(userId: string): Promise<LocalDeck[]> {
-  await ensureFallbackDecksDir(userId);
-  const files = await fs.readdir(fallbackDecksDir(userId));
-  const decks: LocalDeck[] = [];
-
-  for (const file of files) {
-    if (!file.endsWith(".json")) continue;
-    try {
-      const content = await fs.readFile(path.join(fallbackDecksDir(userId), file), "utf8");
-      const parsed = JSON.parse(content) as LocalDeck;
-      const validity = validateLocalDeck(parsed, cards);
-      if (validity.ok) decks.push(parsed);
-    } catch {
-      continue;
-    }
-  }
-
-  decks.sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
-  return decks;
-}
-
-async function deleteFallbackCloudDeck(userId: string, deckId: string): Promise<void> {
-  await ensureFallbackDecksDir(userId);
-  const targetPath = fallbackDeckPath(userId, deckId);
-  await fs.unlink(targetPath);
-}
-
-async function readFallbackCloudDeckDrafts(userId: string): Promise<Required<CloudDeckDraftsPayload>> {
-  await ensureFallbackUserDir(userId);
-  const targetPath = fallbackDeckDraftsPath(userId);
-  try {
-    const content = await fs.readFile(targetPath, "utf8");
-    const parsed = JSON.parse(content) as CloudDeckDraftsPayload;
-    const createDrafts = Array.isArray(parsed?.createDrafts)
-      ? parsed.createDrafts.filter(isValidCreateDeckDraft)
-      : [];
-    const editDrafts = isRecord(parsed?.editDrafts)
-      ? filterEditDeckDrafts(parsed.editDrafts)
-      : {};
-    return { createDrafts, editDrafts };
-  } catch (error) {
-    if (isNodeError(error) && error.code === "ENOENT") return { createDrafts: [], editDrafts: {} };
-    throw error;
-  }
-}
-
-async function writeFallbackCloudDeckDrafts(userId: string, drafts: Required<CloudDeckDraftsPayload>): Promise<void> {
-  await ensureFallbackUserDir(userId);
-  const targetPath = fallbackDeckDraftsPath(userId);
-  const tempPath = `${targetPath}.tmp`;
-  await fs.writeFile(tempPath, `${JSON.stringify(drafts, null, 2)}\n`, "utf8");
-  await fs.rename(tempPath, targetPath);
-}
-
-function sanitizeFallbackUserId(userId: string): string {
-  const trimmed = userId.trim();
-  const normalized = trimmed.replace(/[^a-zA-Z0-9_-]/g, "_");
-  return normalized.length > 0 ? normalized : "local-dev-user";
-}
-
-function asyncHandler(
-  handler: (request: express.Request, response: express.Response) => Promise<void>,
-): express.RequestHandler {
-  return (request, response, next) => {
-    handler(request, response).catch(next);
-  };
-}
-
-function isNodeError(error: unknown): error is NodeJS.ErrnoException {
-  return typeof error === "object" && error !== null && "code" in error;
 }

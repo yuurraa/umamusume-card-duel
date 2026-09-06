@@ -1,4 +1,5 @@
 import type { GameState, SideId, SideState } from "../../../shared/src/types";
+import { mirrorGameEvent } from "../pvp/stateMirror";
 
 export function toPerspectiveGame(game: GameState, perspective: SideId): GameState {
   if (perspective === "player") {
@@ -37,6 +38,15 @@ export function toPerspectiveGame(game: GameState, perspective: SideId): GameSta
       player: game.turnsTakenBySide.opponent,
       opponent: game.turnsTakenBySide.player,
     },
+    humanBySide: {
+      player: game.humanBySide.opponent,
+      opponent: game.humanBySide.player,
+    },
+    aiDeckStyleBySide: {
+      player: game.aiDeckStyleBySide.opponent,
+      opponent: game.aiDeckStyleBySide.player,
+    },
+    ...(game.events ? { events: game.events.map(mirrorGameEvent) } : {}),
     sides: {
       player: toDisplaySide(game.sides.opponent, "player", "You"),
       opponent: toDisplaySide(game.sides.player, "opponent", "Opponent"),

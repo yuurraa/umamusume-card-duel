@@ -1,5 +1,6 @@
 import { encodePvpMessage, parsePvpMessage, type PvpWireMessage } from "./protocol";
 import { createOrderedPvpReceiver } from "./orderedReceiver";
+import { BoundedOutbox } from "./outbox";
 
 export type PeerStatus = "idle" | "creatingOffer" | "awaitingAnswer" | "joining" | "connecting" | "connected" | "failed" | "closed";
 
@@ -23,7 +24,10 @@ export class PeerRuntime {
   private hasNonRelayCandidate = false;
   private gatheredCandidateLines: string[] = [];
   private pendingRemoteCandidates: RTCIceCandidateInit[] = [];
-  private sendQueue: Promise<void> = Promise.resolve();
+  private readonly outboundOutbox = new BoundedOutbox<PvpWireMessage>(32, (message) => (
+    message.type === "sync" ? `sync:${message.sessionId}` : undefined
+  ));
+  private flushingOutbound = false;
   private connectionGeneration = 0;
 
   constructor(private readonly options: PeerRuntimeOptions) {}
@@ -39,6 +43,7 @@ export class PeerRuntime {
     const channel = pc.createDataChannel("game", { ordered: true });
     this.attachChannel(channel);
     this.channel = channel;
+    void this.flushOutbound();
     this.pc = pc;
 
     const offer = await pc.createOffer();
@@ -75,6 +80,7 @@ export class PeerRuntime {
     pc.ondatachannel = (event) => {
       this.attachChannel(event.channel);
       this.channel = event.channel;
+      void this.flushOutbound();
     };
     this.pc = pc;
 
@@ -96,16 +102,8 @@ export class PeerRuntime {
   }
 
   send(message: PvpWireMessage): void {
-    if (!this.channel || this.channel.readyState !== "open") return;
-    const channel = this.channel;
-    this.sendQueue = this.sendQueue
-      .then(async () => {
-        if (channel.readyState !== "open") return;
-        channel.send(await encodePvpMessage(message));
-      })
-      .catch(() => {
-        this.options.onStatus("failed", "Data channel send failed.");
-      });
+    this.outboundOutbox.enqueue(message);
+    void this.flushOutbound();
   }
 
   close(): void {
@@ -125,6 +123,8 @@ export class PeerRuntime {
       this.pc = null;
     }
     this.pendingRemoteCandidates = [];
+    this.outboundOutbox.clear();
+    this.flushingOutbound = false;
     this.options.onStatus("closed", "Connection closed.");
   }
 
@@ -187,8 +187,14 @@ export class PeerRuntime {
       if (generation !== this.connectionGeneration || channel !== this.channel) return;
       this.options.onMessage(message);
     });
-    channel.onopen = () => this.options.onStatus("connected", "Connected.");
-    channel.onclose = () => this.options.onStatus("closed", "Data channel closed.");
+    channel.onopen = () => {
+      this.options.onStatus("connected", "Connected.");
+      void this.flushOutbound();
+    };
+    channel.onclose = () => {
+      this.outboundOutbox.clear();
+      this.options.onStatus("closed", "Data channel closed.");
+    };
     channel.onerror = () => this.options.onStatus("failed", "Data channel error.");
     channel.onmessage = (event) => {
       const raw = String(event.data);
@@ -196,6 +202,31 @@ export class PeerRuntime {
       // Keep failures local so one malformed packet cannot poison later packets.
       receive(raw);
     };
+  }
+
+  private async flushOutbound(): Promise<void> {
+    if (this.flushingOutbound) return;
+    this.flushingOutbound = true;
+    try {
+      while (this.outboundOutbox.size > 0) {
+        const channel = this.channel;
+        const generation = this.connectionGeneration;
+        if (!channel || channel.readyState !== "open") return;
+        const message = this.outboundOutbox.peek();
+        if (!message) return;
+        try {
+          const encoded = await encodePvpMessage(message);
+          if (generation !== this.connectionGeneration || channel !== this.channel || channel.readyState !== "open") return;
+          channel.send(encoded);
+          this.outboundOutbox.remove(message);
+        } catch {
+          this.options.onStatus("failed", "Data channel send failed.");
+          return;
+        }
+      }
+    } finally {
+      this.flushingOutbound = false;
+    }
   }
 
   private parseSignal(signalText: string, expectedType: "offer" | "answer"): RTCSessionDescriptionInit {

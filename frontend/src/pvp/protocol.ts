@@ -1,8 +1,9 @@
-import type { EnergyType, GameState } from "../../../shared/src/types";
+import type { EnergyType, GameEvent, GameState } from "../../../shared/src/types";
 import { cards } from "../../../shared/src/gameData";
 import type { PlayerIntent } from "./playerIntent";
 
 const COMPRESSED_MESSAGE_PREFIX = "UCDM1.";
+export const PVP_PROTOCOL_VERSION = 1;
 const COMPRESSION_THRESHOLD_BYTES = 1024;
 const MAX_WIRE_MESSAGE_CHARS = 512_000;
 const MAX_DECOMPRESSED_BYTES = 512_000;
@@ -16,10 +17,10 @@ const AI_DECK_STYLES = new Set(["blitz", "scaleBench", "stall", "balanced"]);
 const SPECIAL_CONDITIONS = new Set(["asleep", "burned", "frozen", "paralysed", "poisoned"]);
 
 export type PvpWireMessage =
-  | { type: "hello"; playerName: string; deckCardIds: string[]; energyTypes?: EnergyType[] }
-  | { type: "helloAck" }
-  | { type: "sync"; sequence: number; state: GameState }
-  | { type: "intent"; intent: PlayerIntent };
+  | { type: "hello"; version: number; sessionId: string; playerName: string; deckCardIds: string[]; energyTypes?: EnergyType[] }
+  | { type: "helloAck"; version: number; sessionId: string }
+  | { type: "sync"; version: number; sessionId: string; sequence: number; state: GameState; events?: GameEvent[]; eventCursor?: number; eventHistoryStart?: number }
+  | { type: "intent"; version: number; sessionId: string; intent: PlayerIntent };
 
 export async function encodePvpMessage(message: PvpWireMessage): Promise<string> {
   const raw = JSON.stringify(message);
@@ -81,14 +82,14 @@ function isEnergyTypes(value: unknown): value is EnergyType[] {
 }
 
 function isHelloMessage(value: unknown): value is Extract<PvpWireMessage, { type: "hello" }> {
-  if (!isRecord(value) || value.type !== "hello" || !isBoundedString(value.playerName, MAX_PLAYER_NAME_CHARS)) return false;
+  if (!isRecord(value) || value.type !== "hello" || !isProtocolVersion(value.version) || !isSessionId(value.sessionId) || !isBoundedString(value.playerName, MAX_PLAYER_NAME_CHARS)) return false;
   if (!Array.isArray(value.deckCardIds) || value.deckCardIds.length === 0 || value.deckCardIds.length > MAX_DECK_CARDS) return false;
   if (!value.deckCardIds.every((cardId) => isBoundedString(cardId, 128) && cardId.length > 0)) return false;
   return value.energyTypes === undefined || isEnergyTypes(value.energyTypes);
 }
 
 function isExactHelloAck(value: unknown): value is Extract<PvpWireMessage, { type: "helloAck" }> {
-  return isRecord(value) && value.type === "helloAck" && Object.keys(value).length === 1;
+  return isRecord(value) && value.type === "helloAck" && Object.keys(value).length === 3 && isProtocolVersion(value.version) && isSessionId(value.sessionId);
 }
 
 // Sync state is produced by the host, but it still crosses an untrusted transport.
@@ -99,7 +100,12 @@ function isSyncMessage(value: unknown): value is Extract<PvpWireMessage, { type:
   const state = value.state;
   if ((state.phase !== "setup" && state.phase !== "play") || !isRecord(state.sides)) return false;
   if (!isSideState(state.sides.player) || !isSideState(state.sides.opponent)) return false;
-  return isInteger(value.sequence, 1, Number.MAX_SAFE_INTEGER)
+  return isProtocolVersion(value.version)
+    && isSessionId(value.sessionId)
+    && isInteger(value.sequence, 1, Number.MAX_SAFE_INTEGER)
+    && (value.eventCursor === undefined || isInteger(value.eventCursor, 0, Number.MAX_SAFE_INTEGER))
+    && (value.eventHistoryStart === undefined || isInteger(value.eventHistoryStart, 1, Number.MAX_SAFE_INTEGER))
+    && (value.events === undefined || isGameEventArray(value.events))
     && isInteger(state.nextUmamusumeUid, 1)
     && typeof state.gameOver === "boolean"
     && (state.currentSide === "player" || state.currentSide === "opponent" || state.currentSide === "done")
@@ -115,7 +121,61 @@ function isSyncMessage(value: unknown): value is Extract<PvpWireMessage, { type:
     && isAiDeckStyleRecord(state.aiDeckStyleBySide)
     && (state.winner === null || SIDE_IDS.has(state.winner as string))
     && isSideIntegerRecord(state.turnsTakenBySide)
-    && Array.isArray(state.log) && state.log.length <= 500 && state.log.every((line) => isBoundedString(line, 2_000));
+    && Array.isArray(state.log) && state.log.length <= 500 && state.log.every((line) => isBoundedString(line, 2_000))
+    && (state.events === undefined || isGameEventArray(state.events))
+    && (state.nextEventId === undefined || isInteger(state.nextEventId, 1))
+    && (state.nextTransitionId === undefined || isInteger(state.nextTransitionId, 1));
+}
+
+function isGameEventArray(value: unknown): boolean {
+  return Array.isArray(value) && value.length <= 128 && value.every(isGameEvent);
+}
+
+function isGameEvent(value: unknown): boolean {
+  if (!isRecord(value) || !isInteger(value.id, 1) || !isInteger(value.transitionId, 1)) return false;
+  if (value.visibility !== "public" && value.visibility !== "actor" && value.visibility !== "private") return false;
+  if (value.kind === "attack") {
+    return isSide(value.actorSide) && isSide(value.targetSide) && isInteger(value.actorUid, 1)
+      && isInteger(value.targetUid, 1) && isBoundedString(value.attackName, 128)
+      && isInteger(value.damage, 0, 10_000) && isInteger(value.hpBefore, 0, 10_000) && isInteger(value.hpAfter, 0, 10_000);
+  }
+  if (value.kind === "damage" || value.kind === "heal") {
+    return (value.actorSide === undefined || isSide(value.actorSide)) && isSide(value.targetSide)
+      && isInteger(value.targetUid, 1) && isInteger(value.amount, 0, 10_000)
+      && isInteger(value.hpBefore, 0, 10_000) && isInteger(value.hpAfter, 0, 10_000);
+  }
+  if (value.kind === "knockout") {
+    return isSide(value.scoringSide) && isSide(value.knockedSide) && isInteger(value.targetUid, 1)
+      && isBoundedString(value.cardId, 128) && CARD_IDS.has(value.cardId)
+      && isInteger(value.points, 1, 3) && (value.cause === undefined || isBoundedString(value.cause, 256));
+  }
+  if (value.kind === "score") return isSide(value.side) && isInteger(value.points, 1, 3);
+  if (value.kind === "promotion") return isSide(value.side) && isInteger(value.targetUid, 1);
+  if (value.kind === "coin") return isSide(value.side) && Array.isArray(value.results)
+    && value.results.length > 0 && value.results.length <= 32
+    && value.results.every((result) => result === "heads" || result === "tails");
+  if (value.kind === "turn") return isSide(value.side) && isInteger(value.turnNumber, 0);
+  if (value.kind === "cardMovement") return isSide(value.side)
+    && ["deck", "hand", "discard", "play"].includes(value.from as string)
+    && ["deck", "hand", "discard", "play"].includes(value.to as string)
+    && isInteger(value.count, 1, MAX_DECK_CARDS)
+    && (value.cardIds === undefined || isCardZone(value.cardIds, true));
+  if (value.kind === "energy") return isSide(value.side) && isInteger(value.targetUid, 1)
+    && ENERGY_TYPES.has(value.energyType as EnergyType)
+    && isInteger(value.amount, -100, 100) && value.amount !== 0;
+  if (value.kind === "evolution") return isSide(value.side) && isInteger(value.targetUid, 1)
+    && isBoundedString(value.fromCardId, 128) && CARD_IDS.has(value.fromCardId)
+    && isBoundedString(value.toCardId, 128) && CARD_IDS.has(value.toCardId);
+  if (value.kind === "status") return isSide(value.side) && isInteger(value.targetUid, 1)
+    && SPECIAL_CONDITIONS.has(value.condition as string);
+  if (value.kind === "gameEnd") return isSide(value.winner)
+    && ["points", "noBench", "surrender", "disconnect"].includes(value.reason as string);
+  if (value.kind === "message") return isBoundedString(value.message, 2_000);
+  return false;
+}
+
+function isSide(value: unknown): value is "player" | "opponent" {
+  return value === "player" || value === "opponent";
 }
 
 function isSideState(value: unknown): boolean {
@@ -215,7 +275,7 @@ function isPendingChoice(value: unknown): boolean {
 }
 
 function isIntentMessage(value: unknown): value is Extract<PvpWireMessage, { type: "intent" }> {
-  if (!isRecord(value) || value.type !== "intent" || !isRecord(value.intent) || typeof value.intent.type !== "string") return false;
+  if (!isRecord(value) || value.type !== "intent" || !isProtocolVersion(value.version) || !isSessionId(value.sessionId) || !isRecord(value.intent) || typeof value.intent.type !== "string") return false;
   const intent = value.intent;
   const optionalIndex = (key: string) => intent[key] === undefined || isInteger(intent[key]);
   switch (intent.type) {
@@ -234,6 +294,14 @@ function isIntentMessage(value: unknown): value is Extract<PvpWireMessage, { typ
       && (intent.selectedEnergyType === undefined || ENERGY_TYPES.has(intent.selectedEnergyType as EnergyType));
     default: return false;
   }
+}
+
+function isSessionId(value: unknown): value is string {
+  return isBoundedString(value, 128) && value.length >= 8;
+}
+
+function isProtocolVersion(value: unknown): value is number {
+  return value === PVP_PROTOCOL_VERSION;
 }
 
 async function decodeCompressedMessage(raw: string): Promise<string> {

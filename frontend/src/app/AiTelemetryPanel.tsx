@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { clearAiTelemetry, getAiTelemetrySnapshot, type AiTelemetryRecord } from "../game/engine/flow/ai/telemetry";
+import { clearAiTelemetry, getAiTelemetrySnapshot, type AiTelemetryRecord } from "../game/engine";
 
 type EventFilter = "all" | "turn_goal" | "trainer_bundle_scores" | "combat_candidates";
 

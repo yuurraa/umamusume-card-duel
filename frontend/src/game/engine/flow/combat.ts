@@ -9,6 +9,7 @@ import { shuffle, type RandomSource } from "../core/random";
 import { evolveUmamusume } from "./evolution";
 import { getUmamusumeAbility } from "./abilityRules";
 import { clearSpecialConditions } from "./specialConditions";
+import { beginTransition, emitCardMovement, emitEnergyChanges, emitGameEvent, endTransition } from "../core/events";
 
 type CombatDeps = {
   refreshContinuousEffects: (state: GameState) => void;
@@ -17,6 +18,45 @@ type CombatDeps = {
 };
 
 export function performAttack(
+  state: GameState,
+  attackerId: SideId,
+  deps: CombatDeps,
+  attackTargetUid?: number,
+  healTargetUid?: number,
+  forcedCoinResult?: CoinFlipResult | CoinFlipResult[],
+  evolutionDeckCardIndex?: number,
+  attackIndex = 0,
+  discardHandIndex?: number,
+  randomDiscardIndex?: number,
+  switchTargetUid?: number,
+  useShuffleSelfIntoDeck?: boolean,
+  maxDiscardCount?: number,
+  discardHandIndexes?: number[],
+): void {
+  const transitionId = beginTransition(state);
+  try {
+    performAttackInternal(
+      state,
+      attackerId,
+      deps,
+      attackTargetUid,
+      healTargetUid,
+      forcedCoinResult,
+      evolutionDeckCardIndex,
+      attackIndex,
+      discardHandIndex,
+      randomDiscardIndex,
+      switchTargetUid,
+      useShuffleSelfIntoDeck,
+      maxDiscardCount,
+      discardHandIndexes,
+    );
+  } finally {
+    endTransition(state, transitionId);
+  }
+}
+
+function performAttackInternal(
   state: GameState,
   attackerId: SideId,
   deps: CombatDeps,
@@ -42,13 +82,29 @@ export function performAttack(
   const defender = state.sides[defenderId];
   if (!attacker.active || !defender.active) return;
   const attackerCard = getUmamusumeCard(attacker.active);
-  const attack = attackerCard.attacks[attackIndex] ?? getPrimaryAttack(attackerCard);
+  const attack = attackerCard.attacks[attackIndex];
+  if (!attack) return;
   const startingActive = attacker.active;
+  if (attackTargetUid !== undefined && (
+    attack.targetOpponent !== "any"
+    || !getAllUmamusume(defender).some((umamusume) => umamusume.uid === attackTargetUid)
+  )) return;
+  if (attack.targetOpponent === "any" && attackTargetUid === undefined) return;
+  if (healTargetUid !== undefined && (
+    !attack.heal
+    || attack.healTarget !== "any"
+    || !getAllUmamusume(attacker).some((umamusume) => umamusume.uid === healTargetUid)
+  )) return;
+  if (switchTargetUid !== undefined && (
+    !attack.switchSelfAfterAttack
+    || !attacker.bench.some((umamusume) => umamusume.uid === switchTargetUid)
+  )) return;
   const switchTarget = resolveSwitchTarget(state, attacker, attackerId, switchTargetUid, attack.switchSelfAfterAttack, deps.choosePreferredActiveIndex);
   const attackTarget = attack.targetOpponent === "any"
-    ? (attackTargetUid !== undefined ? getAllUmamusume(defender).find((umamusume) => umamusume.uid === attackTargetUid) : undefined) ?? defender.active
+    ? getAllUmamusume(defender).find((umamusume) => umamusume.uid === attackTargetUid)
     : defender.active;
   if (!attackTarget) return;
+  const attackTargetHpBefore = attackTarget.hp;
   const nonDamagingAttack = isNonDamagingAttack(attack);
   const defenderCard = getUmamusumeCard(attackTarget);
   let damage = attack.damage + (nonDamagingAttack ? 0 : attacker.activeAttackDamageBonus);
@@ -84,6 +140,15 @@ export function performAttack(
       if (discardedCardId) {
         attacker.discard.push(discardedCardId);
         damage += attack.attackDamageBonusIfDiscardHandCard;
+        emitGameEvent(state, {
+          kind: "cardMovement",
+          visibility: "actor",
+          side: attackerId,
+          from: "hand",
+          to: "discard",
+          count: 1,
+          cardIds: [discardedCardId],
+        });
         log(state, `${actorName(attacker)} discarded ${formatCardName(getCard(discardedCardId))} for ${attack.name}.`);
       }
     }
@@ -109,6 +174,15 @@ export function performAttack(
       const [discardedCardId] = attacker.hand.splice(index, 1);
       if (!discardedCardId) break;
       attacker.discard.push(discardedCardId);
+      emitGameEvent(state, {
+        kind: "cardMovement",
+        visibility: "actor",
+        side: attackerId,
+        from: "hand",
+        to: "discard",
+        count: 1,
+        cardIds: [discardedCardId],
+      });
       actualDiscardCount += 1;
     }
     if (actualDiscardCount > 0) {
@@ -121,7 +195,14 @@ export function performAttack(
     damage += evolvedLastTurnBonus;
   }
   if (attack.coinBonus || attack.drawOnHeads || attack.discardRandomOpponentHandOnHeads) {
-    const heads = flipCoin(attacker, forcedCoinResults, random) === "heads";
+    const coinResult = flipCoin(attacker, forcedCoinResults, random);
+    emitGameEvent(state, {
+      kind: "coin",
+      visibility: "public",
+      side: attackerId,
+      results: [coinResult],
+    });
+    const heads = coinResult === "heads";
     coinFlipHeads = heads;
     if (heads && attack.coinBonus) damage += attack.coinBonus;
   }
@@ -143,6 +224,12 @@ export function performAttack(
   }
   if (attack.knockOutActiveIfAllCoinHeads) {
     const results = Array.from({ length: attack.knockOutActiveIfAllCoinHeads }, () => flipCoin(attacker, forcedCoinResults, random));
+    emitGameEvent(state, {
+      kind: "coin",
+      visibility: "public",
+      side: attackerId,
+      results,
+    });
     log(state, formatCoinFlipResultLog(results));
     if (results.every((result) => result === "heads")) {
       attackTarget.hp = 0;
@@ -151,11 +238,34 @@ export function performAttack(
   }
   attackTarget.hp = Math.max(0, attackTarget.hp - damage);
   if (damage > 0) attackTarget.tookDamageThisTurn = true;
+  emitGameEvent(state, {
+    kind: "attack",
+    visibility: "public",
+    actorSide: attackerId,
+    actorUid: startingActive.uid,
+    targetSide: defenderId,
+    targetUid: attackTarget.uid,
+    attackName: attack.name,
+    damage,
+    hpBefore: attackTargetHpBefore,
+    hpAfter: attackTarget.hp,
+  });
   if (reduction > 0) log(state, `${actorPossessive(defender)} damage reduction prevented ${reduction} damage.`);
   const counterDamage = damage > 0 && defender.active?.uid === attackTarget.uid ? activeToolCounterDamage(state, defender.active) : 0;
   if (counterDamage > 0 && attacker.active) {
+    const attackerHpBefore = attacker.active.hp;
     attacker.active.hp = Math.max(0, attacker.active.hp - counterDamage);
     attacker.active.tookDamageThisTurn = true;
+    emitGameEvent(state, {
+      kind: "damage",
+      visibility: "public",
+      actorSide: defenderId,
+      targetSide: attackerId,
+      targetUid: attacker.active.uid,
+      amount: attackerHpBefore - attacker.active.hp,
+      hpBefore: attackerHpBefore,
+      hpAfter: attacker.active.hp,
+    });
     const toolName = defender.active.toolCardId ? getCard(defender.active.toolCardId).name : "Boxing Gloves";
     log(state, `${toolName} did ${counterDamage} damage to ${actorPossessive(attacker)} Attacking Umamusume.`);
   }
@@ -201,6 +311,18 @@ export function performAttack(
     const before = target.hp;
     target.hp = Math.min(target.maxHp, target.hp + attack.heal);
     const healed = target.hp - before;
+    if (healed > 0) {
+      emitGameEvent(state, {
+        kind: "heal",
+        visibility: "public",
+        actorSide: attackerId,
+        targetSide: attackerId,
+        targetUid: target.uid,
+        amount: healed,
+        hpBefore: before,
+        hpAfter: target.hp,
+      });
+    }
     if (healed > 0) log(state, `${attack.name} healed ${formatUmamusumeInstanceName(target)} for ${healed} HP.`);
     if (attack.recoverSpecialConditions) recoverSpecialConditions(state, target, attack.name);
   }
@@ -214,6 +336,15 @@ export function performAttack(
       const [discardedCardId] = defender.hand.splice(randomHandIndex, 1);
       if (discardedCardId) {
         defender.discard.push(discardedCardId);
+        emitGameEvent(state, {
+          kind: "cardMovement",
+          visibility: "actor",
+          side: defenderId,
+          from: "hand",
+          to: "discard",
+          count: 1,
+          cardIds: [discardedCardId],
+        });
         attacker.active.hp = Math.max(0, attacker.active.hp - attack.discardRandomOpponentHandOnHeads.selfDamage);
         attacker.active.tookDamageThisTurn = true;
         log(state, `${attack.name} discarded 1 random card from ${actorLowerPossessive(defender)} hand.`);
@@ -223,8 +354,21 @@ export function performAttack(
   }
   if (attack.benchDamage && attack.benchDamage > 0) {
     defender.bench.forEach((benchedUmamusume) => {
+      const hpBefore = benchedUmamusume.hp;
       benchedUmamusume.hp = Math.max(0, benchedUmamusume.hp - attack.benchDamage!);
       benchedUmamusume.tookDamageThisTurn = true;
+      if (hpBefore !== benchedUmamusume.hp) {
+        emitGameEvent(state, {
+          kind: "damage",
+          visibility: "public",
+          actorSide: attackerId,
+          targetSide: defenderId,
+          targetUid: benchedUmamusume.uid,
+          amount: hpBefore - benchedUmamusume.hp,
+          hpBefore,
+          hpAfter: benchedUmamusume.hp,
+        });
+      }
     });
     const count = defender.bench.length;
     if (count > 0) {
@@ -236,7 +380,9 @@ export function performAttack(
     if (!attackingActive) return;
     Object.entries(attack.discardEnergy).forEach(([type, amount]) => {
       const energyType = type as EnergyType;
+      const before = { ...attackingActive.energies };
       attackingActive.energies[energyType] = Math.max(0, attackingActive.energies[energyType] - (amount || 0));
+      emitEnergyChanges(state, attackerId, attackingActive.uid, before, attackingActive.energies);
       if (amount) log(state, `${actorName(attacker)} discarded ${amount} ${energyLabel(energyType)}.`);
     });
   }
@@ -301,6 +447,7 @@ function shuffleRandomDiscardIntoDeck(state: GameState, side: SideState, attackN
   const [cardId] = side.discard.splice(discardIndex, 1);
   if (!cardId) return;
   side.deck = shuffle([...side.deck, cardId], random);
+  emitCardMovement(state, side.id, "discard", "deck", 1, [cardId]);
   log(state, `${attackName} shuffled ${formatCardName(getCard(cardId))} from ${actorPossessive(side)} discard pile into the deck.`);
 }
 
@@ -320,6 +467,7 @@ function evolveActiveFromDeck(state: GameState, side: SideState, evolutionDeckCa
   if (!cardId) return;
   const evolutionCard = getCard(cardId);
   if (evolutionCard.kind !== "umamusume") return;
+  emitCardMovement(state, side.id, "deck", "play", 1, [cardId]);
   evolveUmamusume(state, side, active, evolutionCard);
 }
 
@@ -337,13 +485,16 @@ function shuffleActiveIntoDeckIfPaid(
 
   Object.entries(effect.discardEnergy).forEach(([type, amount]) => {
     const energyType = type as EnergyType;
+    const before = { ...active.energies };
     active.energies[energyType] = Math.max(0, active.energies[energyType] - (amount ?? 0));
+    emitEnergyChanges(state, side.id, active.uid, before, active.energies);
     if (amount) log(state, `${actorName(side)} discarded ${amount} ${energyLabel(energyType)}.`);
   });
 
   const shuffledCardIds = [...(active.evolutionCardIds ?? []), active.cardId, ...(active.toolCardId ? [active.toolCardId] : [])];
   side.active = null;
   side.deck = shuffle([...side.deck, ...shuffledCardIds], deps.random);
+  if (shuffledCardIds.length > 0) emitCardMovement(state, side.id, "play", "deck", shuffledCardIds.length, shuffledCardIds);
 
   const promotedIndex = deps.choosePreferredActiveIndex(side);
   const promoted = promotedIndex >= 0 ? side.bench.splice(promotedIndex, 1)[0] : side.bench.shift();
@@ -370,10 +521,24 @@ function applySpecialCondition(
   umamusume.specialConditions = [condition];
   if (condition === "paralysed") {
     umamusume.paralysedUntilOwnTurn = (state.turnsTakenBySide[affectedSideId] ?? 0) + 1;
+    emitGameEvent(state, {
+      kind: "status",
+      visibility: "public",
+      side: affectedSideId,
+      targetUid: umamusume.uid,
+      condition,
+    });
     log(state, `${formatUmamusumeInstanceName(umamusume)} is Paralysed and cannot attack or retreat until the end of ${affectedSideId === "player" ? "your" : "opponent's"} next turn.`);
     return;
   }
   umamusume.paralysedUntilOwnTurn = null;
+  emitGameEvent(state, {
+    kind: "status",
+    visibility: "public",
+    side: affectedSideId,
+    targetUid: umamusume.uid,
+    condition,
+  });
   log(state, `${formatUmamusumeInstanceName(umamusume)} is ${condition}.`);
 }
 
@@ -398,7 +563,25 @@ export function knockOutUmamusume(
   defender.discard.push(knockedOut.cardId);
   defender.discard.push(...(knockedOut.evolutionCardIds ?? []));
   if (knockedOut.toolCardId) defender.discard.push(knockedOut.toolCardId);
+  const discardedCardIds = [knockedOut.cardId, ...(knockedOut.evolutionCardIds ?? []), ...(knockedOut.toolCardId ? [knockedOut.toolCardId] : [])];
+  if (discardedCardIds.length > 0) emitCardMovement(state, knockedSideId, "play", "discard", discardedCardIds.length, discardedCardIds);
   attacker.points += 1;
+  emitGameEvent(state, {
+    kind: "knockout",
+    visibility: "public",
+    scoringSide: scoringSideId,
+    knockedSide: knockedSideId,
+    targetUid: knockedOut.uid,
+    cardId: knockedOut.cardId,
+    points: attacker.points,
+    ...(cause ? { cause } : {}),
+  });
+  emitGameEvent(state, {
+    kind: "score",
+    visibility: "public",
+    side: scoringSideId,
+    points: attacker.points,
+  });
   const knockedOwner = knockedSideId === "player" ? "Your" : "Opponent's";
   const sourceOwner = scoringSideId === "player" ? "your" : "opponent's";
   const causeSuffix = cause ? ` by ${sourceOwner} ${cause}` : "";
@@ -408,6 +591,7 @@ export function knockOutUmamusume(
     state.gameOver = true;
     state.winner = scoringSideId;
     state.currentSide = "done";
+    emitGameEvent(state, { kind: "gameEnd", visibility: "public", winner: scoringSideId, reason: "points" });
     log(state, `${actorName(attacker)} reached 3 points`);
     return true;
   }
@@ -416,6 +600,7 @@ export function knockOutUmamusume(
     state.gameOver = true;
     state.winner = scoringSideId;
     state.currentSide = "done";
+    emitGameEvent(state, { kind: "gameEnd", visibility: "public", winner: scoringSideId, reason: "noBench" });
     log(state, `${actorName(defender)} had no benched Umamusume.`);
     return true;
   }

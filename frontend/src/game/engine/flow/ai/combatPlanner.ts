@@ -19,6 +19,7 @@ import {
   getTargetValue,
 } from "./combatUtils";
 import { scoreCardFutureValue } from "./trainerUtils";
+import { emitEnergyChanges } from "../../core/events";
 
 const BASE_POINTS_WEIGHT = 1000;
 const BASE_KO_WEIGHT = 260;
@@ -63,7 +64,9 @@ export function aiRetreatToTarget(state: GameState, side: SideState, targetUid: 
   if (!target) return false;
   const retreatCost = effectiveRetreatCost(state, side);
   if (attachedEnergyCount(active) < retreatCost) return false;
+  const energyBefore = { ...active.energies };
   payRetreatCost(active, retreatCost);
+  emitEnergyChanges(state, side.id, active.uid, energyBefore, active.energies);
   const promoted = side.bench.splice(targetIndex, 1)[0];
   if (!promoted) return false;
   side.bench.push(active);

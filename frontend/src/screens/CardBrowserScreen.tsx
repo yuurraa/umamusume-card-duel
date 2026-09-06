@@ -5,7 +5,7 @@ import { EnergyIcon } from "../components/cards/EnergyIcon";
 import { HoloCardImage } from "../components/cards/HoloCardImage";
 import { NeutralButton } from "../components/buttons/NeutralButton";
 import { energyLabel } from "../game/engine";
-import { formatCardName } from "../game/engine/core/labels";
+import { formatCardName } from "../game/engine";
 import {
   HOVER_PREVIEW_ACTION_HEIGHT,
   HOVER_PREVIEW_MAX_WIDTH,

@@ -189,6 +189,102 @@ export type PendingPlayerChoice =
   | { kind: "promoteAfterKnockout"; sideId: SideId; resume: "finishOpponentTurn" | "none" }
   | { kind: "switchAfterGust"; sideId: SideId; resume: "resumeOpponentAfterFirstTrainerPass" | "resumeOpponentAfterSecondTrainerPass" | "none" };
 
+export type GameEventVisibility = "public" | "actor" | "private";
+
+export type GameEventBase = {
+  id: number;
+  transitionId: number;
+  visibility: GameEventVisibility;
+};
+
+export type GameEvent =
+  | (GameEventBase & {
+    kind: "attack";
+    actorSide: SideId;
+    actorUid: number;
+    targetSide: SideId;
+    targetUid: number;
+    attackName: string;
+    damage: number;
+    hpBefore: number;
+    hpAfter: number;
+  })
+  | (GameEventBase & {
+    kind: "damage" | "heal";
+    actorSide?: SideId;
+    targetSide: SideId;
+    targetUid: number;
+    amount: number;
+    hpBefore: number;
+    hpAfter: number;
+  })
+  | (GameEventBase & {
+    kind: "knockout";
+    scoringSide: SideId;
+    knockedSide: SideId;
+    targetUid: number;
+    cardId: string;
+    points: number;
+    cause?: string;
+  })
+  | (GameEventBase & {
+    kind: "score";
+    side: SideId;
+    points: number;
+  })
+  | (GameEventBase & {
+    kind: "promotion";
+    side: SideId;
+    targetUid: number;
+  })
+  | (GameEventBase & {
+    kind: "coin";
+    side: SideId;
+    results: CoinFlipResult[];
+  })
+  | (GameEventBase & {
+    kind: "turn";
+    side: SideId;
+    turnNumber: number;
+  })
+  | (GameEventBase & {
+    kind: "cardMovement";
+    side: SideId;
+    from: "deck" | "hand" | "discard" | "play";
+    to: "deck" | "hand" | "discard" | "play";
+    count: number;
+    cardIds?: string[];
+  })
+  | (GameEventBase & {
+    kind: "energy";
+    side: SideId;
+    targetUid: number;
+    energyType: EnergyType;
+    amount: number;
+  })
+  | (GameEventBase & {
+    kind: "evolution";
+    side: SideId;
+    targetUid: number;
+    fromCardId: string;
+    toCardId: string;
+  })
+  | (GameEventBase & {
+    kind: "status";
+    side: SideId;
+    targetUid: number;
+    condition: SpecialCondition;
+  })
+  | (GameEventBase & {
+    kind: "gameEnd";
+    winner: SideId;
+    reason: "points" | "noBench" | "surrender" | "disconnect";
+  })
+  | (GameEventBase & {
+    kind: "message";
+    message: string;
+  });
+
 export type SetupState = {
   coinChoice: CoinFlipResult | null;
   coinFlipResult: CoinFlipResult | null;
@@ -242,6 +338,11 @@ export type GameState = {
   gameOver: boolean;
   winner: SideId | null;
   log: string[];
+  /** Structured transition events are retained locally for presentation and catch-up. */
+  events?: GameEvent[];
+  nextEventId?: number;
+  nextTransitionId?: number;
+  activeTransitionId?: number;
 };
 
 export type PlayAction =
