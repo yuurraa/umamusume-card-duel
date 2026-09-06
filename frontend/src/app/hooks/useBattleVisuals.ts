@@ -104,12 +104,11 @@ export function useBattleVisuals({
 
   useLayoutEffect(() => {
     const previous = previousBattleSnapshotRef.current;
-    const previousRects = previous
-      ? new Map([...previous.player, ...previous.opponent].map((entry) => [entry.uid, entry.rect] as const))
-      : undefined;
-    const current = previousRects
-      ? createBattleSnapshot(baseDisplayGame, { reuseRects: previousRects })
-      : createBattleSnapshot(baseDisplayGame);
+    // Capture fresh card positions after each board update. Instance UIDs are
+    // stable while a card moves between Active and Bench, so reusing a prior
+    // rectangle would route later energy/evolution/attack effects to its old
+    // location.
+    const current = createBattleSnapshot(baseDisplayGame);
     if (!previous) {
       previousBattleSnapshotRef.current = current;
       return;

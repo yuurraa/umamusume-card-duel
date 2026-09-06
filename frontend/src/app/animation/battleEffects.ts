@@ -24,11 +24,6 @@ export type BattleSnapshot = {
   events: GameEvent[];
 };
 
-export type BattleSnapshotOptions = {
-  /** Reuse geometry already captured for cards that remain on the board. */
-  reuseRects?: ReadonlyMap<number, BattleEffectRect | undefined>;
-};
-
 export type PointGainEvent = {
   id: number;
   side: SideId;
@@ -40,7 +35,13 @@ export type VisualHpByUid = Record<number, number>;
 export type VisualAttachedEnergyByUid = Record<number, EnergyType[]>;
 export type KoRetainedBoardBySide = Partial<Record<SideId, BattleEffectBoardSnapshot>>;
 
-export function createBattleSnapshot(state: GameState, options: BattleSnapshotOptions = {}): BattleSnapshot {
+/**
+ * Capture the board immediately after it renders. Geometry must be fresh for
+ * every snapshot: a card can move between Active and Bench without changing
+ * its instance UID, so reusing an older rectangle makes later effects appear
+ * at the card's original location.
+ */
+export function createBattleSnapshot(state: GameState): BattleSnapshot {
   const collect = (sideId: SideId): BattleSnapshotEntry[] => {
     const side = state.sides[sideId];
     const active = side.active ? [{ umamusume: side.active, slot: { zone: "active" } satisfies BattleEffectSlot }] : [];
@@ -49,9 +50,7 @@ export function createBattleSnapshot(state: GameState, options: BattleSnapshotOp
       uid: entry.uid,
       sideId,
       slot,
-      rect: options.reuseRects?.has(entry.uid)
-        ? options.reuseRects.get(entry.uid)
-        : readBattleEffectCardRect(entry.uid),
+      rect: readBattleEffectCardRect(entry.uid),
       cardId: entry.cardId,
       hp: entry.hp,
       maxHp: entry.maxHp,

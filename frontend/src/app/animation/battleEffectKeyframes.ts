@@ -21,11 +21,11 @@ export const BATTLE_EFFECT_KEYFRAMES = `
 }
 
 @keyframes battle-ko-frame {
-  0% { opacity: 0; transform: translateX(0) rotate(0deg) scale(1); filter: grayscale(0); }
-  13% { opacity: 1; transform: translateX(-5px) rotate(-1.6deg) scale(1.018); filter: grayscale(0.35); }
+  0% { opacity: 0; transform: translateX(0) rotate(0deg) scale(1); }
+  13% { opacity: 1; transform: translateX(-5px) rotate(-1.6deg) scale(1.018); }
   25% { transform: translateX(5px) rotate(1.2deg) scale(1.01); }
-  42% { transform: translateX(-3px) rotate(-0.8deg) scale(1); filter: grayscale(0.7); }
-  100% { opacity: 0; transform: translateX(0) rotate(0deg) scale(0.96); filter: grayscale(1); }
+  42% { transform: translateX(-3px) rotate(-0.8deg) scale(1); }
+  100% { opacity: 0; transform: translateX(0) rotate(0deg) scale(0.96); }
 }
 
 @keyframes battle-attack-line {

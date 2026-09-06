@@ -44,6 +44,7 @@ export function UmaCard({
   const card = getUmamusumeCard(umamusume);
   const shadowColor = hidden ? "rgba(17, 24, 39, 0.24)" : alphaColor(typeAccentColors[card.type], 0.42);
   const activeHover = hovered && !hidden && !isDimmed;
+  const baseTransform = activeHover ? "translateY(-10px) rotate(0.8deg) scale(1.025)" : "translateY(0) rotate(0deg) scale(1)";
 
   return (
     <button
@@ -64,11 +65,12 @@ export function UmaCard({
         cursor: "pointer",
         opacity: isDimmed ? 0.45 : 1,
         boxShadow: hidden ? `0 18px 28px ${shadowColor}` : activeHover ? `0 34px 52px ${shadowColor}` : `0 28px 42px ${shadowColor}`,
-        transform: hidden ? "none" : activeHover ? "translateY(-10px) rotate(0.8deg) scale(1.025)" : "translateY(0) rotate(0deg) scale(1)",
+        transform: hidden ? "none" : baseTransform,
         transformStyle: "flat",
         backfaceVisibility: "hidden",
         WebkitBackfaceVisibility: "hidden",
-        willChange: hidden ? undefined : koCrumbling || koImpacting ? "transform, opacity, filter" : "transform",
+        ["--uma-ko-base-transform" as string]: baseTransform,
+        willChange: hidden ? undefined : koCrumbling || koImpacting ? "transform, opacity" : "transform",
         animation: koCrumbling
           ? "uma-ko-dissolve 860ms cubic-bezier(0.2, 0.72, 0.2, 1) both"
           : koImpacting
@@ -320,77 +322,37 @@ export const ENERGY_APPEAR_KEYFRAMES = `
 
 export const KO_CRUMBLE_KEYFRAMES = `
 @keyframes uma-ko-impact {
-  0% { transform: translate3d(0, 0, 0) rotate(0deg) scale(1); filter: brightness(1) saturate(1); }
-  12% { transform: translate3d(-1.4%, -0.8%, 0) rotate(-1.8deg) scale(1.018); filter: brightness(1.1) saturate(1.04); }
-  24% { transform: translate3d(1.2%, 0.6%, 0) rotate(1.25deg) scale(1.01); filter: brightness(1.04) saturate(1.02); }
-  40% { transform: translate3d(-0.6%, 0, 0) rotate(-0.65deg) scale(1.004); filter: brightness(1) saturate(1); }
-  62% { transform: translate3d(0, 0, 0) rotate(0deg) scale(1); filter: brightness(1) saturate(1); }
-  100% { transform: translate3d(0, 0, 0) rotate(0deg) scale(1); filter: brightness(1) saturate(1); }
+  0% { transform: var(--uma-ko-base-transform) translate3d(0, 0, 0) rotate(0deg) scale(1); }
+  12% { transform: var(--uma-ko-base-transform) translate3d(-1.4%, -0.8%, 0) rotate(-1.8deg) scale(1.018); }
+  24% { transform: var(--uma-ko-base-transform) translate3d(1.2%, 0.6%, 0) rotate(1.25deg) scale(1.01); }
+  40% { transform: var(--uma-ko-base-transform) translate3d(-0.6%, 0, 0) rotate(-0.65deg) scale(1.004); }
+  62% { transform: var(--uma-ko-base-transform) translate3d(0, 0, 0) rotate(0deg) scale(1); }
+  100% { transform: var(--uma-ko-base-transform) translate3d(0, 0, 0) rotate(0deg) scale(1); }
 }
 
 @keyframes uma-ko-dissolve {
   0% {
     opacity: 1;
-    transform: translate3d(0, 0, 0) scale(1);
-    filter: grayscale(0) brightness(1) saturate(1) blur(0);
+    transform: var(--uma-ko-base-transform) translate3d(0, 0, 0) scale(1);
   }
   24% {
     opacity: 1;
-    transform: translate3d(0, -2.5%, 0) scale(1.018);
-    filter: grayscale(0) brightness(1.08) saturate(1) blur(0);
+    transform: var(--uma-ko-base-transform) translate3d(0, -2.5%, 0) scale(1.018);
   }
   52% {
     opacity: 0.72;
-    transform: translate3d(0, -1%, 0) scale(0.985);
-    filter: grayscale(0.82) brightness(1.02) saturate(0.5) blur(1.2px);
+    transform: var(--uma-ko-base-transform) translate3d(0, -1%, 0) scale(0.985);
   }
   76% {
     opacity: 0.32;
-    transform: translate3d(0, 1.5%, 0) scale(0.94);
-    filter: grayscale(1) brightness(0.9) saturate(0.22) blur(2.4px);
+    transform: var(--uma-ko-base-transform) translate3d(0, 1.5%, 0) scale(0.94);
   }
   100% {
     opacity: 0;
-    transform: translate3d(0, 5%, 0) scale(0.86);
-    filter: grayscale(1) brightness(0.72) saturate(0) blur(4px);
+    transform: var(--uma-ko-base-transform) translate3d(0, 5%, 0) scale(0.86);
   }
 }
 
-@keyframes uma-ko-exit {
-  0% {
-    opacity: 1;
-    transform: translate3d(0, 0, 0) scale(1);
-    filter: grayscale(0) brightness(1) saturate(1) blur(0);
-  }
-  24% {
-    opacity: 1;
-    transform: translate3d(0, -2.5%, 0) scale(1.018);
-    filter: grayscale(0) brightness(1.08) saturate(1) blur(0);
-  }
-  52% {
-    opacity: 0.72;
-    transform: translate3d(0, -1%, 0) scale(0.985);
-    filter: grayscale(0.82) brightness(1.02) saturate(0.5) blur(1.2px);
-  }
-  76% {
-    opacity: 0.32;
-    transform: translate3d(0, 1.5%, 0) scale(0.94);
-    filter: grayscale(1) brightness(0.9) saturate(0.22) blur(2.4px);
-  }
-  100% {
-    opacity: 0;
-    transform: translate3d(0, 5%, 0) scale(0.86);
-    filter: grayscale(1) brightness(0.72) saturate(0) blur(4px);
-  }
-}
-
-@keyframes uma-ko-crumble {
-  0% { opacity: 1; transform: translate3d(0, 0, 0) scale(1); filter: grayscale(0) brightness(1) saturate(1) blur(0); }
-  24% { opacity: 1; transform: translate3d(0, -2.5%, 0) scale(1.018); filter: grayscale(0) brightness(1.08) saturate(1) blur(0); }
-  52% { opacity: 0.72; transform: translate3d(0, -1%, 0) scale(0.985); filter: grayscale(0.82) brightness(1.02) saturate(0.5) blur(1.2px); }
-  76% { opacity: 0.32; transform: translate3d(0, 1.5%, 0) scale(0.94); filter: grayscale(1) brightness(0.9) saturate(0.22) blur(2.4px); }
-  100% { opacity: 0; transform: translate3d(0, 5%, 0) scale(0.86); filter: grayscale(1) brightness(0.72) saturate(0) blur(4px); }
-}
 `;
 
 const HP_NUMBER_FILTER = "drop-shadow(0 3px 4px rgba(15, 23, 42, 0.4))";

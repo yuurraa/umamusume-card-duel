@@ -303,6 +303,7 @@ function BenchSlot({ card, umamusume, side, hidden, setupMode, setupInteractions
   const [hovered, setHovered] = useState(false);
   const [dropHovered, setDropHovered] = useState(false);
   const activeHover = hovered && !isDimmed;
+  const baseTransform = activeHover ? "translateY(-6px) rotate(0.8deg) scale(1.035)" : "translateY(0) rotate(0deg) scale(1)";
   return (
     <div
       style={{
@@ -332,8 +333,9 @@ function BenchSlot({ card, umamusume, side, hidden, setupMode, setupInteractions
           opacity: isDimmed ? 0.45 : 1,
           overflow: "visible",
           filter: activeHover ? "drop-shadow(0 18px 24px rgba(17, 24, 39, 0.22)) saturate(1.06)" : "drop-shadow(0 14px 18px rgba(17, 24, 39, 0.18))",
-          transform: activeHover ? "translateY(-6px) rotate(0.8deg) scale(1.035)" : "translateY(0) rotate(0deg) scale(1)",
-          willChange: koCrumbling ? "transform, opacity, filter" : undefined,
+          transform: baseTransform,
+          ["--uma-ko-base-transform" as string]: baseTransform,
+          willChange: koCrumbling ? "transform, opacity" : undefined,
           animation: koCrumbling
             ? "uma-ko-dissolve 860ms cubic-bezier(0.2, 0.72, 0.2, 1) both"
             : revealOrder !== undefined
