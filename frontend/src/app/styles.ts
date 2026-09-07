@@ -1,5 +1,6 @@
 import type { CSSProperties } from "react";
 import { APP_BACKGROUND_FALLBACK, borders, colors, fontStacks, radius, shadows, transitions } from "../styles/shared";
+import { getFallbackAssetPath } from "../utils/assetFallback";
 
 export const SCREEN_FADE_MS = 120;
 
@@ -27,7 +28,7 @@ export function appStyle(isMenu = false, playmatImage?: string | null, textTone:
     "--ui-text-shadow": uiTextShadow,
     "--ui-muted-text-color": uiMutedTextColor,
     backgroundImage: playmatImage
-      ? `url("${playmatImage}")`
+      ? getBackgroundImageValue(playmatImage)
       : `radial-gradient(circle at 18% 8%, rgba(214, 81, 157, 0.2), transparent 28%), radial-gradient(circle at 84% 20%, rgba(63, 159, 92, 0.16), transparent 30%), linear-gradient(135deg, ${APP_BACKGROUND_FALLBACK} 0%, #223733 54%, #4a2647 100%)`,
     backgroundPosition: "center",
     backgroundRepeat: "no-repeat",
@@ -60,12 +61,19 @@ export function matchBackgroundLayerStyle(
     pointerEvents: "none",
     opacity,
     transition: disableOpacityTransition ? "none" : `opacity ${transitions.backgroundFade}`,
-    backgroundImage: playmatImage ? `url("${playmatImage}")` : "none",
+    backgroundImage: playmatImage ? getBackgroundImageValue(playmatImage) : "none",
     backgroundPosition: "center",
     backgroundRepeat: "no-repeat",
     backgroundSize: "cover",
     backgroundAttachment: "fixed",
   };
+}
+
+function getBackgroundImageValue(assetPath: string): string {
+  const fallbackPath = getFallbackAssetPath(assetPath);
+  return fallbackPath
+    ? `image-set(url("${assetPath}") type("image/avif"), url("${fallbackPath}"))`
+    : `url("${assetPath}")`;
 }
 
 export const contentStyle: CSSProperties = {

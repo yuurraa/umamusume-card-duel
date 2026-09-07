@@ -95,15 +95,17 @@ function withGoldFullArtVariants(sourceCards: Record<string, Card>, baseCardIds:
 }
 
 function toFullArtAssetPath(assetPath: string): string {
-  return assetPath.endsWith(".png")
-    ? assetPath.slice(0, -4) + `${FULL_ART_SUFFIX}.png`
-    : `${assetPath}${FULL_ART_SUFFIX}`;
+  return addAssetSuffix(assetPath, FULL_ART_SUFFIX);
 }
 
 function toGoldFullArtAssetPath(assetPath: string): string {
-  return assetPath.endsWith(".png")
-    ? assetPath.slice(0, -4) + "-fullart-gold.png"
-    : `${assetPath}-fullart-gold`;
+  return addAssetSuffix(assetPath, "-fullart-gold");
+}
+
+function addAssetSuffix(assetPath: string, suffix: string): string {
+  const extensionIndex = assetPath.lastIndexOf(".");
+  if (extensionIndex < 0) return `${assetPath}${suffix}`;
+  return `${assetPath.slice(0, extensionIndex)}${suffix}${assetPath.slice(extensionIndex)}`;
 }
 
 function withUncommonPlusVariants(sourceCards: Record<string, Card>): Record<string, Card> {

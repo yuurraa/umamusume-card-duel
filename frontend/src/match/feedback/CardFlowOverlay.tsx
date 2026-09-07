@@ -3,6 +3,7 @@ import { getCard } from "../../game/engine";
 import { HoloCardImage } from "../../components/cards/HoloCardImage";
 import { CARD_ASPECT_RATIO, colors, radius, shadows } from "../../styles/shared";
 import { isImagePreloaded, preloadImage } from "../../utils/imagePreload";
+import { handleAssetError } from "../../utils/assetFallback";
 
 export type CardFlowAnchor = "bottomLeft" | "bottomCenter" | "bottomRight" | "leftDeck" | "rightDiscard" | "rightHand" | "leftHand";
 export type CardFlowGroup = "drawn" | "retrieved" | "played" | "discarded";
@@ -529,7 +530,7 @@ function FlowCard({
       >
         {faceDown ? (
           <div style={faceDownCardStyle}>
-            {image ? <img style={faceDownImageStyle} src={image} alt="Face-down card" draggable={false} /> : "Hidden"}
+            {image ? <img style={faceDownImageStyle} src={image} alt="Face-down card" draggable={false} onError={handleAssetError} /> : "Hidden"}
           </div>
         ) : (
           <HoloCardImage

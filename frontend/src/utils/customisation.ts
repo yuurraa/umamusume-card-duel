@@ -25,18 +25,18 @@ export const defaultSleeve: CustomisationOption = {
 
 export const playmatOptions: CustomisationOption[] = [
   defaultPlaymat,
-  { id: "agnes-tachyon", name: "Agnes Tachyon", image: "/assets/customisation/playmat/agnes-tachyon-playmat.png", textTone: "light" },
-  { id: "manhattan-cafe", name: "Manhattan Cafe", image: "/assets/customisation/playmat/manhattan-cafe-playmat.jpg", textTone: "light" },
-  { id: "rice-shower", name: "Rice Shower", image: "/assets/customisation/playmat/rice-shower-playmat.jpg", textTone: "light" },
-  { id: "tokai-teio", name: "Tokai Teio", image: "/assets/customisation/playmat/tokai-teio-playmat.jpg", textTone: "dark" },
+  { id: "agnes-tachyon", name: "Agnes Tachyon", image: "/assets/customisation/playmat/agnes-tachyon-playmat.avif", textTone: "light" },
+  { id: "manhattan-cafe", name: "Manhattan Cafe", image: "/assets/customisation/playmat/manhattan-cafe-playmat.avif", textTone: "light" },
+  { id: "rice-shower", name: "Rice Shower", image: "/assets/customisation/playmat/rice-shower-playmat.avif", textTone: "light" },
+  { id: "tokai-teio", name: "Tokai Teio", image: "/assets/customisation/playmat/tokai-teio-playmat.avif", textTone: "dark" },
 ];
 
 export const sleeveOptions: CustomisationOption[] = [
   defaultSleeve,
-  { id: "agnes-tachyon", name: "Agnes Tachyon", image: "/assets/customisation/sleeve/agnes-tachyon-sleeve.png" },
-  { id: "manhattan-cafe", name: "Manhattan Cafe", image: "/assets/customisation/sleeve/manhattan-cafe-sleeve.jpg" },
-  { id: "rice-shower", name: "Rice Shower", image: "/assets/customisation/sleeve/rice-shower-sleeve.jpg" },
-  { id: "tokai-teio", name: "Tokai Teio", image: "/assets/customisation/sleeve/tokai-teio-sleeve.jpg" },
+  { id: "agnes-tachyon", name: "Agnes Tachyon", image: "/assets/customisation/sleeve/agnes-tachyon-sleeve.avif" },
+  { id: "manhattan-cafe", name: "Manhattan Cafe", image: "/assets/customisation/sleeve/manhattan-cafe-sleeve.avif" },
+  { id: "rice-shower", name: "Rice Shower", image: "/assets/customisation/sleeve/rice-shower-sleeve.avif" },
+  { id: "tokai-teio", name: "Tokai Teio", image: "/assets/customisation/sleeve/tokai-teio-sleeve.avif" },
 ];
 
 const CUSTOMISATION_STORAGE_KEY = "umamusume-card-duel-customisation";

@@ -10,6 +10,7 @@ import { getUmamusumeCard } from "../../game/engine";
 import type { EnergyType, UmamusumeInstance } from "../../../../shared/src/types";
 import { CARD_ASPECT_RATIO, CARD_INSPECT_IMAGE_RADIUS, borders, colors, radius, transitions } from "../../styles/shared";
 import { alphaColor, typeAccentColors } from "../../utils/color";
+import { handleAssetError } from "../../utils/assetFallback";
 
 type UmaCardProps = {
   umamusume: UmamusumeInstance;
@@ -202,7 +203,7 @@ export function FaceDownCard({ sleeveImage, fontSize = 12 }: { sleeveImage?: str
   return (
     <div style={hiddenCardStyle(fontSize)}>
       {sleeveImage ? (
-        <img style={hiddenSleeveImageStyle} src={sleeveImage} alt="" draggable={false} />
+        <img style={hiddenSleeveImageStyle} src={sleeveImage} alt="" draggable={false} onError={handleAssetError} />
       ) : (
         "Hidden"
       )}

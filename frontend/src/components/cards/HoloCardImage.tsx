@@ -1,6 +1,7 @@
 import { useState, type CSSProperties, type MouseEvent, type PointerEvent } from "react";
 import { getCardRarity, isExCard, isFullArtCard, isGoldFullArtCard, isUncommonPlusCard } from "../../../../shared/src/cardRarity";
 import type { Card, CardPrintVariant, CardRarity } from "../../../../shared/src/types";
+import { getFallbackAssetPath, handleAssetError } from "../../utils/assetFallback";
 
 type HoloCardImageProps = {
   card: Card;
@@ -66,6 +67,7 @@ export function HoloCardImage({
   const pokemonVars = getPokemonFoilVars(pointer, isEffectActive, compact, inspectMotion);
   const pokemonData = getPokemonFoilData(card, foilEffect);
   const motionStyle = inspectMotion ? getInspectMotionStyle(pointer, isEffectActive, compact) : undefined;
+  const fallbackSrc = getFallbackAssetPath(src);
 
   return (
     <span
@@ -119,18 +121,22 @@ export function HoloCardImage({
       }}
     >
       <span className="pokemon-card-foil__front" style={{ borderRadius }}>
-        <img
-          style={{
-            ...imageStyle,
-            display: "block",
-            boxShadow: "none",
-            borderRadius,
-          }}
-          src={src}
-          alt={alt}
-          draggable={draggable}
-          onClick={onClick}
-        />
+        <picture>
+          {fallbackSrc && <source srcSet={src} type="image/avif" />}
+          <img
+            style={{
+              ...imageStyle,
+              display: "block",
+              boxShadow: "none",
+              borderRadius,
+            }}
+            src={fallbackSrc ?? src}
+            alt={alt}
+            draggable={draggable}
+            onClick={onClick}
+            onError={handleAssetError}
+          />
+        </picture>
       </span>
       {foilEffect && (
         <>

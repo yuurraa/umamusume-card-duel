@@ -6,6 +6,7 @@ import { HoloCardImage } from "../cards/HoloCardImage";
 import { applyDragPreview, writeDragPayload } from "../drag/dragData";
 import { CARD_ASPECT_RATIO, borders, colors, fontStacks, radius, shadows, transitions, uiTextColor, uiTextShadow } from "../../styles/shared";
 import { preloadImage } from "../../utils/imagePreload";
+import { handleAssetError } from "../../utils/assetFallback";
 
 type HandProps = {
   state: GameState;
@@ -377,10 +378,10 @@ function PileSlot({
       {cardImage && count > 0 && card ? (
         <HoloCardImage card={card} src={cardImage} alt="" imageStyle={pileCardImageStyle} draggable={false} />
       ) : cardImage && count > 0 ? (
-        <img style={pileCardImageStyle} src={cardImage} alt="" draggable={false} />
+        <img style={pileCardImageStyle} src={cardImage} alt="" draggable={false} onError={handleAssetError} />
       ) : sleeveImage ? (
         <span style={pileImageClipStyle}>
-          <img style={pileSleeveImageStyle} src={sleeveImage} alt="" draggable={false} />
+          <img style={pileSleeveImageStyle} src={sleeveImage} alt="" draggable={false} onError={handleAssetError} />
         </span>
       ) : label === "Discard" ? (
         <span style={pileEmptySlotStyle}>Empty</span>

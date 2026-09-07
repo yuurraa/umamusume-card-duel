@@ -3,6 +3,7 @@ import { NeutralButton } from "../components/buttons/NeutralButton";
 import { APP_BACKGROUND_FALLBACK, CARD_ASPECT_RATIO, GLASS_TILE_BACKGROUND, GLASS_TILE_BACKDROP_FILTER, borders, colors, glassPanelStyle, radius, shadows, previewKickerStyle, uiTextColor, uiTextShadow } from "../styles/shared";
 import type { CustomisationOption, CustomisationSettings } from "../utils/customisation";
 import { playmatOptions, sleeveOptions } from "../utils/customisation";
+import { handleAssetError } from "../utils/assetFallback";
 
 const SELECTED_TICK = "\u2713";
 
@@ -91,10 +92,10 @@ function CustomisationTile({
       <span style={optionPreviewWrapStyle(previewKind)}>
         {option.image && previewKind === "sleeve" ? (
           <span style={sleevePreviewClipStyle}>
-            <img style={sleevePreviewImageStyle} src={option.image} alt="" draggable={false} />
+            <img style={sleevePreviewImageStyle} src={option.image} alt="" draggable={false} onError={handleAssetError} />
           </span>
         ) : option.image ? (
-          <img style={optionPreviewImageStyle(previewKind)} src={option.image} alt="" draggable={false} />
+          <img style={optionPreviewImageStyle(previewKind)} src={option.image} alt="" draggable={false} onError={handleAssetError} />
         ) : (
           <span style={defaultPreviewStyle(previewKind)}>
             <span style={defaultPreviewMarkStyle}>D</span>
