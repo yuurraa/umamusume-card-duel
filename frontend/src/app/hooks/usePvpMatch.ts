@@ -503,11 +503,11 @@ export function usePvpMatch({
   const createOffer = async () => {
     try {
       setPvpStatusDetail("Loading network relay settings...");
-      const { runtime, result: offer } = await runWithRtcFallback((activeRuntime) => {
-        const rtcConfig = pvpRtcConfigRef.current;
-        if (rtcConfig?.iceTransportPolicy === "relay") return activeRuntime.hostCreateOffer();
-        return activeRuntime.hostCreateOffer({ trickle: true });
-      });
+      // Include the initial candidate set in the offer as well as forwarding
+      // later candidates through the signaling endpoint. Some joining peers
+      // never produce a usable trickle update after an immediate empty SDP,
+      // which leaves the host with no remote transport to try.
+      const { runtime, result: offer } = await runWithRtcFallback((activeRuntime) => activeRuntime.hostCreateOffer());
       const created = await createPvpSession(offer);
       const code = created.code.toUpperCase();
       const pollToken = ++pvpAnswerPollTokenRef.current;
@@ -546,11 +546,10 @@ export function usePvpMatch({
       const { offer } = await getPvpOffer(code);
       setPvpStatusDetail("Loading network relay settings...");
       setPvpStatusDetail("Creating connection answer...");
-      const { runtime, result: answer } = await runWithRtcFallback((activeRuntime) => {
-        const rtcConfig = pvpRtcConfigRef.current;
-        if (rtcConfig?.iceTransportPolicy === "relay") return activeRuntime.joinWithOffer(offer);
-        return activeRuntime.joinWithOffer(offer, { trickle: true });
-      });
+      // Mirror offer creation: do not submit an empty answer and hope that
+      // later trickle candidates arrive. The candidate endpoint still carries
+      // any candidates discovered after this initial gathering window.
+      const { runtime, result: answer } = await runWithRtcFallback((activeRuntime) => activeRuntime.joinWithOffer(offer));
       setPvpStatusDetail("Sending answer to host...");
       await submitPvpAnswer(code, answer);
       scheduleCandidateFlush();
