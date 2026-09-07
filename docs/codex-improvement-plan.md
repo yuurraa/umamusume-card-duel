@@ -353,6 +353,20 @@ Actions:
 
 Acceptance: Record tested mode/device/viewport and describe actual results. Fast/reduced motion, if available, produce identical canonical outcomes and complete every sequence correctly.
 
+### UX-03 — Make match layout responsive without separating cards from their frames [P1]
+
+Evidence: The match uses a 1760px maximum content width and a mixture of fixed pixels and viewport clamps. At high resolutions, this leaves the board visually undersized. A board-only enlargement was tried and reverted because `UmaCard` was capped below the enlarged Active-slot frame, producing excess empty boundary. The Active card now fills its existing padded slot; this is not yet a high-resolution scaling solution.
+
+Actions:
+
+- Treat the current 1920×1080 layout as the baseline to preserve. Record desired browser screenshots/measurements for 1366×768, 1920×1080, 2560×1440, 3840×2160, and one ultrawide viewport before applying new layout geometry.
+- Use the existing element measurement and pure metric helpers as a basis, but do not apply a scale to only a board wrapper. Resolve ordinary pixel dimensions for each complete visual unit: card, Active/Bench frame, board padding, center column, score controls, Stadium/drop zone, hand, and hand controls.
+- Do not use CSS `zoom`, a global transform, or CSS value multiplication. Preserve normal document flow so DOM rectangles remain valid for attack, card-flow, and KO overlays.
+- Change one region at a time, beginning with a matched Active card/frame pair. After each region, test 100% browser zoom in Chrome and Firefox plus drag/drop, hover/focus, Energy attachment, attack, KO, promotion, and reset behavior.
+- Keep smaller-screen clamps and the intentional horizontal-scroll fallback unless direct tests demonstrate a better accessible alternative.
+
+Acceptance: At recorded target viewports, cards remain proportionate to their frames and controls; no critical content clips or becomes too small. Chrome and Firefox evidence covers baseline, high-resolution, and ultrawide layouts. Attack/draw/KO overlays and input targets resolve to the correct cards before and after resizing.
+
 ### PERF-01 — Measure rendering before optimizing [P3]
 
 Evidence: Foil pointer movement sets React state on each pointer event; snapshots measure DOM rectangles; PvP clock state rerenders the owning component. These are profiling candidates, not verified performance bottlenecks.
@@ -426,6 +440,7 @@ A local fake transport can validate ordering and state contracts, but does not e
 - [ ] One sequence owner controls displayed progression and visual blocking.
 - [ ] Engine, application, network, and storage responsibilities are documented and separated.
 - [ ] Keyboard/touch/browser checks have recorded evidence or explicit limitations.
+- [ ] Responsive match layout is verified at baseline, high-resolution, ultrawide, and small viewports without separating cards from their frames.
 - [ ] Performance changes are supported by measurements.
 - [ ] Existing visual identity, supported modes, rules, and user data are preserved.
 - [ ] Progress record accurately identifies completed, deferred, and unverified work.

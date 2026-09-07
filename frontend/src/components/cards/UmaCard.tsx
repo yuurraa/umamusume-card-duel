@@ -54,7 +54,9 @@ export function UmaCard({
       style={{
         position: "relative",
         width: "100%",
-        maxWidth: 420,
+        // The Active-slot frame owns this card's available width. Capping the
+        // card below that frame leaves a visibly oversized empty boundary.
+        maxWidth: "100%",
         aspectRatio: CARD_ASPECT_RATIO,
         containerType: "inline-size",
         isolation: "isolate",

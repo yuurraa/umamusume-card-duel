@@ -7,6 +7,7 @@ import { PlayDropZone } from "../match/board/PlayDropZone";
 import { StadiumSpot } from "../match/board/StadiumSpot";
 import { PlayHandHeader } from "../match/controls/HandControls";
 import { PregameSetupPanel } from "../match/setup/PregameSetupPanel";
+import { useElementSize } from "./layout/useElementSize";
 import { contentStyle, duelGridStyle, handPanelStyle } from "./styles";
 
 type MatchBoardLayoutProps = {
@@ -142,6 +143,11 @@ export function MatchBoardLayout(props: MatchBoardLayoutProps) {
     scorePointGainAnimatingBySide,
   } = props;
 
+  // The wrapper is intentionally uncapped so wide displays report their real
+  // available match width. Measurement remains observational until cards and
+  // their surrounding board geometry can be scaled as one verified unit.
+  const matchViewportRef = useRef<HTMLDivElement>(null);
+  const matchViewportSize = useElementSize(matchViewportRef);
   const [opponentPlayRevealActive, setOpponentPlayRevealActive] = useState(false);
   const [playerSetupActiveRevealActive, setPlayerSetupActiveRevealActive] = useState(false);
   const [playerSetupBenchRevealActive, setPlayerSetupBenchRevealActive] = useState(false);
@@ -204,9 +210,14 @@ export function MatchBoardLayout(props: MatchBoardLayoutProps) {
     && opponentBoardHidden;
 
   return (
-    <div style={contentStyle}>
-      <div style={duelViewportStyle}>
-        <section style={duelGridStyle}>
+    <div ref={matchViewportRef} style={matchViewportShellStyle}>
+      <div
+        style={contentStyle}
+        data-match-viewport-width={matchViewportSize.width || undefined}
+        data-match-viewport-height={matchViewportSize.height || undefined}
+      >
+        <div style={duelViewportStyle}>
+          <section style={duelGridStyle}>
           <div style={playerBoardSlotStyle}>
             <SideBoard
               side={displayedPlayerSide}
@@ -278,9 +289,9 @@ export function MatchBoardLayout(props: MatchBoardLayoutProps) {
               <PlayDropZone onDropHandCard={onDropHandCardOnCenter} />
             </>
           )}
-        </section>
-      </div>
-      <section style={handPanelStyle}>
+          </section>
+        </div>
+        <section style={handPanelStyle}>
         {game.phase === "setup" ? (
           <PregameSetupPanel
             game={game}
@@ -335,10 +346,17 @@ export function MatchBoardLayout(props: MatchBoardLayoutProps) {
             />
           </>
         )}
-      </section>
+        </section>
+      </div>
     </div>
   );
 }
+
+const matchViewportShellStyle: CSSProperties = {
+  width: "100%",
+  overflowX: "visible",
+  overflowY: "visible",
+};
 
 const duelViewportStyle = {
   width: "100%",
