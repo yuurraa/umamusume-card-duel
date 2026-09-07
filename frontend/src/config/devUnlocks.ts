@@ -10,6 +10,11 @@ const rawDevUnlocksEnv = (import.meta.env as Record<string, unknown>).VITE_ENABL
 const envOverride = parseBoolean(typeof rawDevUnlocksEnv === "string" ? rawDevUnlocksEnv : undefined);
 const rawForcedUnownedCardIds = (import.meta.env as Record<string, unknown>).VITE_DEV_FORCE_UNOWNED_CARD_IDS;
 
+// Temporary deployment policy: all currently defined cards can be used while
+// collection/progression is not yet part of the released product. Keep this
+// separate from devUnlocksEnabled, which also exposes developer-only decks.
+export const allCardsAvailableForDeployment = true;
+
 function parseCsv(raw: unknown): Set<string> {
   if (typeof raw !== "string") return new Set();
   return new Set(

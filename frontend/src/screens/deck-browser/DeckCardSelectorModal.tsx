@@ -3,7 +3,7 @@ import { CARD_RARITY_SHORT_LABELS, getCardRarity, isCardDisabled } from "../../.
 import { ownedStarterCardIds } from "../../../../shared/src/gameData";
 import type { Card, EnergyType } from "../../../../shared/src/types";
 import { energyLabel } from "../../game/engine";
-import { devUnlocksEnabled, isDevForcedUnowned } from "../../config/devUnlocks";
+import { allCardsAvailableForDeployment, devUnlocksEnabled, isDevForcedUnowned } from "../../config/devUnlocks";
 import { formatCardName } from "../../game/engine";
 import { readCloudCardCollection } from "../../utils/cardCollectionApi";
 import { NeutralButton } from "../../components/buttons/NeutralButton";
@@ -103,6 +103,7 @@ export function DeckCardSelectorModal({
 
   const getOwnedCount = useCallback((cardId: string): number => {
     if (isDevForcedUnowned(cardId)) return 0;
+    if (allCardsAvailableForDeployment) return 2;
     const value = ownedCardCounts?.[cardId];
     if (typeof value === "number") return value;
     if (devUnlocksEnabled) return 2;

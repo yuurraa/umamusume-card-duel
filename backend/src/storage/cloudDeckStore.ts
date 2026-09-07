@@ -27,6 +27,10 @@ export type CloudDeckDraft = {
   updatedAt: string;
 };
 
+// Temporary deployment policy. Remove this when progression determines the
+// collection instead of granting every currently defined card at account seed.
+const ALL_CARDS_AVAILABLE_FOR_DEPLOYMENT = true;
+
 export type CloudDeckDoc = LocalDeck & { seedKind?: "premade" };
 
 export type CloudCardCollectionDoc = {
@@ -344,7 +348,9 @@ function draftsFromPayload(payload: CloudDeckDraftsPayload | undefined): Require
 }
 
 function buildDefaultCardCollection(devUnlocksEnabled: boolean): Record<string, number> {
-  const ids = devUnlocksEnabled ? Object.keys(cards) : [...ownedStarterCardIds];
+  const ids = ALL_CARDS_AVAILABLE_FOR_DEPLOYMENT || devUnlocksEnabled
+    ? Object.keys(cards)
+    : [...ownedStarterCardIds];
   return ids.reduce<Record<string, number>>((counts, cardId) => {
     if (cards[cardId]) counts[cardId] = 2;
     return counts;

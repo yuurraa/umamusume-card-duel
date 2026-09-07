@@ -24,7 +24,7 @@ import {
   type RarityFilter,
   type StageFilter,
 } from "./card-browser/model";
-import { devUnlocksEnabled, isDevForcedUnowned } from "../config/devUnlocks";
+import { allCardsAvailableForDeployment, devUnlocksEnabled, isDevForcedUnowned } from "../config/devUnlocks";
 import { CARD_ASPECT_RATIO, CARD_INSPECT_IMAGE_RADIUS, borders, colors, glassPanelStyle, radius, transitions, uiTextColor, uiTextShadow } from "../styles/shared";
 import { readCloudCardCollection } from "../utils/cardCollectionApi";
 import { DEFAULT_CARD_SORT, sortCardsForCollection, type CardSortKey, type CardSortOption } from "../utils/cardSorting";
@@ -49,6 +49,7 @@ export function CardBrowserScreen({ onBack }: { onBack: () => void }) {
 
   const getOwnedCount = useCallback((cardId: string): number => {
     if (isDevForcedUnowned(cardId)) return 0;
+    if (allCardsAvailableForDeployment) return 2;
     const value = ownedCardCounts?.[cardId];
     if (typeof value === "number") return value;
     if (devUnlocksEnabled) return 2;
