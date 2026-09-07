@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { getVisualSequencePhase, isVisualSequenceBlocking, type VisualSequenceInput } from "./visualSequence";
+import {
+  getVisualSequencePhase,
+  isCurrentVisualSequenceCompletion,
+  isVisualSequenceBlocking,
+  type ActiveVisualSequence,
+  type VisualSequenceInput,
+} from "./visualSequence";
 
 const idle: VisualSequenceInput = {
   coinFlipBlocking: false,
@@ -46,5 +52,28 @@ describe("visual sequence ownership", () => {
       cardFlowCount: 1,
       cardFlowHasPriority: true,
     })).toBe("battle");
+  });
+
+  it.each([
+    ["the active battle batch", { phase: "battle", batchKey: "4,5" }, true],
+    ["an older battle batch", { phase: "battle", batchKey: "1,2" }, false],
+    ["a point completion while battle owns flow", { phase: "pointGain", eventId: 8 }, false],
+  ] as const)("accepts only %s", (_label, completion, expected) => {
+    const active: ActiveVisualSequence = {
+      phase: "battle",
+      battleBatchKey: "4,5",
+      pointGainEventId: 8,
+    };
+    expect(isCurrentVisualSequenceCompletion(active, completion)).toBe(expected);
+  });
+
+  it("accepts only the current point reward after battle has completed", () => {
+    const active: ActiveVisualSequence = {
+      phase: "pointGain",
+      battleBatchKey: "",
+      pointGainEventId: 9,
+    };
+    expect(isCurrentVisualSequenceCompletion(active, { phase: "pointGain", eventId: 9 })).toBe(true);
+    expect(isCurrentVisualSequenceCompletion(active, { phase: "pointGain", eventId: 8 })).toBe(false);
   });
 });

@@ -22,6 +22,16 @@ export type VisualSequenceInput = {
   hasPendingChoice: boolean;
 };
 
+export type VisualSequenceCompletion =
+  | { phase: "battle"; batchKey: string }
+  | { phase: "pointGain"; eventId: number };
+
+export type ActiveVisualSequence = {
+  phase: VisualSequencePhase;
+  battleBatchKey: string;
+  pointGainEventId: number | null;
+};
+
 /** The single precedence order used to decide which visual phase owns input. */
 export function getVisualSequencePhase(input: VisualSequenceInput): VisualSequencePhase {
   if (input.coinFlipBlocking) return "coinFlip";
@@ -36,4 +46,14 @@ export function getVisualSequencePhase(input: VisualSequenceInput): VisualSequen
 
 export function isVisualSequenceBlocking(phase: VisualSequencePhase): boolean {
   return phase !== "idle" && phase !== "awaitingChoice";
+}
+
+/** Reject an overlay completion once another sequence owns presentation. */
+export function isCurrentVisualSequenceCompletion(
+  active: ActiveVisualSequence,
+  completion: VisualSequenceCompletion,
+): boolean {
+  if (active.phase !== completion.phase) return false;
+  if (completion.phase === "battle") return active.battleBatchKey === completion.batchKey;
+  return active.pointGainEventId === completion.eventId;
 }

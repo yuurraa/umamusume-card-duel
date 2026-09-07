@@ -1,4 +1,5 @@
 import type { Dispatch, SetStateAction } from "react";
+import type { SideId } from "../../../../shared/src/types";
 import type { InspectTarget } from "../../inspect";
 import type { AppScreen, PendingSelection } from "../../types/ui";
 import type { PlayerIntent } from "../../pvp/playerIntent";
@@ -11,7 +12,8 @@ type UseMatchModalActionsArgs = {
   startNewGame: () => void;
   navigateToScreen: (screen: AppScreen) => void;
   cancelPendingSelection: () => void;
-  setDiscardOpen: Dispatch<SetStateAction<boolean>>;
+  openDiscard: (side: SideId) => void;
+  closePile: () => void;
   setEndTurnWarningActions: Dispatch<SetStateAction<string[] | null>>;
   setPreviewTarget: Dispatch<SetStateAction<InspectTarget | null>>;
   setPendingSelection: Dispatch<SetStateAction<PendingSelection | null>>;
@@ -27,15 +29,16 @@ export function useMatchModalActions({
   startNewGame,
   navigateToScreen,
   cancelPendingSelection,
-  setDiscardOpen,
+  openDiscard,
+  closePile,
   setEndTurnWarningActions,
   setPreviewTarget,
   setPendingSelection,
   setActionNotice,
   submitPlayerIntent,
 }: UseMatchModalActionsArgs) {
-  const onOpenDiscard = () => setDiscardOpen(true);
-  const onCloseDiscard = () => setDiscardOpen(false);
+  const onOpenDiscard = () => openDiscard("player");
+  const onCloseDiscard = closePile;
   const onDiscardInspect = (card: InspectTarget["card"]) => setPreviewTarget({ card });
 
   const onEndTurnWarningCancel = () => setEndTurnWarningActions(null);

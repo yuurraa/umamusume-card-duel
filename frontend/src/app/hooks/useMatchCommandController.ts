@@ -37,11 +37,12 @@ export function useMatchCommandController({
   }, [game, isPvpHost, setGame, syncToGuest]);
 
   const handleChooseOpeningCoin = useCallback((choice: CoinFlipResult) => {
+    if (isNetworkMatch && !isPvpHost) return;
     setOpeningCoinChoicePending(true);
     const next = chooseOpeningCoin(game, choice);
     setGame(next);
     if (isPvpHost) syncToGuest(next);
-  }, [game, isPvpHost, setGame, setOpeningCoinChoicePending, syncToGuest]);
+  }, [game, isNetworkMatch, isPvpHost, setGame, setOpeningCoinChoicePending, syncToGuest]);
 
   const chooseAttackShuffleSelf = useCallback((shouldShuffle: boolean) => {
     if (!pendingSelection || pendingSelection.kind !== "attackShuffleSelfChoice") return;

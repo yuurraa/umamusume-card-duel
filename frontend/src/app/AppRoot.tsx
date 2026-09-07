@@ -39,6 +39,7 @@ import { useAppNavigation } from "./hooks/useAppNavigation";
 import { useAppRuntimeEffects } from "./hooks/useAppRuntimeEffects";
 import { useMatchUiActions } from "./hooks/useMatchUiActions";
 import { useMatchModalActions } from "./hooks/useMatchModalActions";
+import { useMatchZoneModal } from "./hooks/useMatchZoneModal";
 import { useMatchCommandController } from "./hooks/useMatchCommandController";
 import { useFirebaseAccount } from "./hooks/useFirebaseAccount";
 import { useBattleVisuals } from "./hooks/useBattleVisuals";
@@ -76,11 +77,16 @@ export function App() {
   const [endTurnWarningActions, setEndTurnWarningActions] = useState<string[] | null>(null);
   const [suppressEndTurnWarningForGame, setSuppressEndTurnWarningForGame] = useState(false);
   const [actionNotice, setActionNotice] = useState<string | null>(null);
-  const [discardOpen, setDiscardOpen] = useState(false);
-  const [revealedOpponentHandOpen, setRevealedOpponentHandOpen] = useState(false);
-  const [revealedOpponentHandCardIds, setRevealedOpponentHandCardIds] = useState<string[]>([]);
-  const [opponentZonesOpen, setOpponentZonesOpen] = useState(false);
-  const [discardViewSide, setDiscardViewSide] = useState<SideId>("player");
+  const {
+    pileModal,
+    opponentZonesOpen,
+    openDiscard,
+    openRevealedOpponentHand,
+    closePile,
+    openOpponentZones,
+    closeOpponentZones,
+    resetZoneModals,
+  } = useMatchZoneModal();
   const [coinFlipQueue, setCoinFlipQueue] = useState<CoinFlipEvent[]>([]);
   const [activeCoinFlip, setActiveCoinFlip] = useState<CoinFlipEvent | null>(null);
   const [acknowledgedCoinLogMessage, setAcknowledgedCoinLogMessage] = useState<string | null>(null);
@@ -284,8 +290,10 @@ export function App() {
     setPreviewTarget(null);
     setSuppressEndTurnWarningForGame(false);
     setActionNotice(null);
-    setDiscardOpen(false);
+    resetZoneModals();
     setMenuOpen(false);
+    setAiPerspective("player");
+    setPovSwitchAnimationToken(0);
     openingHandAnimationKeyRef.current = null;
     shouldDealOpeningHandsAfterFlowRef.current = false;
   };
@@ -418,27 +426,16 @@ export function App() {
     playerName: localPlayerName,
     hasPendingPlayerChoice: hasLocalPendingChoice,
     isTurnFlowBlocked,
-    previousLogRef,
-    skipNextCoinLogMessageRef,
     setMatchMode,
     setPendingScreen,
     setGame,
-    setCoinFlipQueue,
-    setActiveCoinFlip,
-    setAcknowledgedCoinLogMessage,
-    setPendingCoinAttack,
     setCardFlowQueue,
-    setSetupActiveIndex,
-    setSetupBenchIndexes,
     setPendingSelection,
     setPreviewTarget,
-    setSuppressEndTurnWarningForGame,
     setActionNotice,
-    setDiscardOpen,
+    resetZoneModals,
     setMenuOpen,
     setOpponentCustomisation,
-    setAiPerspective,
-    setPovSwitchAnimationToken,
     setEndTurnWarningActions,
     openingHandAnimationKeyRef,
     shouldDealOpeningHandsAfterFlowRef,
@@ -493,28 +490,22 @@ export function App() {
     },
     navigateToScreen,
     cancelPendingSelection,
-    setDiscardOpen,
+    openDiscard,
+    closePile,
     setEndTurnWarningActions,
     setPreviewTarget,
     setPendingSelection,
     setActionNotice,
     submitPlayerIntent,
   });
-  const onOpenPlayerDiscard = () => {
-    setDiscardViewSide("player");
-    onOpenDiscard();
-  };
-  const onOpenOpponentDiscard = () => {
-    setDiscardViewSide("opponent");
-    setOpponentZonesOpen(false);
-    setDiscardOpen(true);
-  };
+  const onOpenPlayerDiscard = onOpenDiscard;
+  const onOpenOpponentDiscard = () => openDiscard("opponent");
   const onOpenOpponentZones = () => {
     setMenuOpen(false);
-    setOpponentZonesOpen(true);
+    openOpponentZones();
   };
   useEffect(() => {
-    if (game.phase !== "setup") {
+    if (game.gameOver || game.phase !== "setup") {
       setOpeningCoinChoicePending(false);
       return;
     }
@@ -523,7 +514,7 @@ export function App() {
       return;
     }
     if (game.setup.coinFlipResult || activeCoinFlip) setOpeningCoinChoicePending(false);
-  }, [activeCoinFlip, game.phase, game.setup?.coinChoice, game.setup?.coinFlipResult]);
+  }, [activeCoinFlip, game.gameOver, game.phase, game.setup?.coinChoice, game.setup?.coinFlipResult]);
 
   useEffect(() => {
     const setup = game.setup;
@@ -581,7 +572,7 @@ export function App() {
     setEndTurnWarningActions,
     setSetupActiveIndex,
     setSetupBenchIndexes,
-    setDiscardOpen,
+    resetZoneModals,
     setMenuOpen,
     setPendingCoinAttack,
     setActiveCoinFlip,
@@ -603,7 +594,7 @@ export function App() {
     isTurnFlowBlocked: isTurnFlowBlocked || visualFlowBlocked,
     endTurnWarningActions,
     previewTarget,
-    discardOpen,
+    pileOpen: Boolean(pileModal),
     opponentZonesOpen,
     pendingSelection,
     actionNotice,
@@ -612,8 +603,8 @@ export function App() {
     onEscapeFromPvpLobby: handleEscapeFromPvpLobby,
     setEndTurnWarningActions,
     setPreviewTarget,
-    setDiscardOpen,
-    setOpponentZonesOpen,
+    closePile,
+    closeOpponentZones,
     setPendingSelection,
     setActionNotice,
     setMenuOpen,
@@ -670,10 +661,7 @@ export function App() {
     submitPlayerIntent,
     isNetworkMatch,
     showShuffleReveal,
-    onRevealOpponentHandSnapshot: (cardIds) => {
-      setRevealedOpponentHandCardIds(cardIds);
-      setRevealedOpponentHandOpen(true);
-    },
+    onRevealOpponentHandSnapshot: openRevealedOpponentHand,
   });
   const queuedPlayHandCardOnCenter = (handIndex: number) => queueVisualAction(() => playHandCardOnCenter(handIndex));
   const queuedPlayHandCardOnStadiumSpot = (handIndex: number) => queueVisualAction(() => playHandCardOnStadiumSpot(handIndex));
@@ -719,6 +707,7 @@ export function App() {
   const hasLocalSetupReady = game.phase === "setup" ? (game.setup?.readyBySide.player ?? false) : false;
   const openingHandsDealt = game.phase === "setup" ? (game.setup?.openingHandsDealt ?? false) : true;
   const canChooseOpeningCoin = game.phase === "setup"
+    && !game.gameOver
     && !game.setup?.coinFlipResult
     && !isAiVsAi
     && (!isNetworkMatch || isPvpHost);
@@ -940,17 +929,12 @@ export function App() {
           setSuppressEndTurnWarningForGame={setSuppressEndTurnWarningForGame}
           onEndTurnWarningCancel={onEndTurnWarningCancel}
           onEndTurnWarningConfirm={onEndTurnWarningConfirm}
-          discardOpen={discardOpen}
-          discardViewSide={discardViewSide}
+          pileModal={pileModal}
           onDiscardInspect={onDiscardInspect}
-          onCloseDiscard={onCloseDiscard}
-          revealedOpponentHandOpen={revealedOpponentHandOpen}
-          revealedOpponentHandCardIds={revealedOpponentHandCardIds}
-          setPreviewTarget={setPreviewTarget}
-          setRevealedOpponentHandOpen={setRevealedOpponentHandOpen}
+          onClosePile={onCloseDiscard}
           opponentZonesOpen={opponentZonesOpen}
           onOpenOpponentDiscard={onOpenOpponentDiscard}
-          setOpponentZonesOpen={setOpponentZonesOpen}
+          onCloseOpponentZones={closeOpponentZones}
           pendingSelection={pendingSelection}
           player={player}
           chooseScoutDeckCard={chooseScoutDeckCard}

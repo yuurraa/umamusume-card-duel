@@ -9,7 +9,7 @@ type UseEscapeHotkeyArgs = {
   isTurnFlowBlocked: boolean;
   endTurnWarningActions: string[] | null;
   previewTarget: InspectTarget | null;
-  discardOpen: boolean;
+  pileOpen: boolean;
   opponentZonesOpen: boolean;
   pendingSelection: PendingSelection | null;
   actionNotice: string | null;
@@ -18,8 +18,8 @@ type UseEscapeHotkeyArgs = {
   onEscapeFromPvpLobby: () => void;
   setEndTurnWarningActions: Dispatch<SetStateAction<string[] | null>>;
   setPreviewTarget: Dispatch<SetStateAction<InspectTarget | null>>;
-  setDiscardOpen: Dispatch<SetStateAction<boolean>>;
-  setOpponentZonesOpen: Dispatch<SetStateAction<boolean>>;
+  closePile: () => void;
+  closeOpponentZones: () => void;
   setPendingSelection: Dispatch<SetStateAction<PendingSelection | null>>;
   setActionNotice: Dispatch<SetStateAction<string | null>>;
   setMenuOpen: Dispatch<SetStateAction<boolean>>;
@@ -33,7 +33,7 @@ export function useEscapeHotkey({
   isTurnFlowBlocked,
   endTurnWarningActions,
   previewTarget,
-  discardOpen,
+  pileOpen,
   opponentZonesOpen,
   pendingSelection,
   actionNotice,
@@ -42,8 +42,8 @@ export function useEscapeHotkey({
   onEscapeFromPvpLobby,
   setEndTurnWarningActions,
   setPreviewTarget,
-  setDiscardOpen,
-  setOpponentZonesOpen,
+  closePile,
+  closeOpponentZones,
   setPendingSelection,
   setActionNotice,
   setMenuOpen,
@@ -74,12 +74,12 @@ export function useEscapeHotkey({
         setPreviewTarget(null);
         return;
       }
-      if (discardOpen) {
-        setDiscardOpen(false);
+      if (pileOpen) {
+        closePile();
         return;
       }
       if (opponentZonesOpen) {
-        setOpponentZonesOpen(false);
+        closeOpponentZones();
         return;
       }
       if (pendingSelection?.kind === "discardForScout") {
@@ -118,7 +118,7 @@ export function useEscapeHotkey({
     isTurnFlowBlocked,
     endTurnWarningActions,
     previewTarget,
-    discardOpen,
+    pileOpen,
     opponentZonesOpen,
     pendingSelection,
     actionNotice,
@@ -127,8 +127,8 @@ export function useEscapeHotkey({
     onEscapeFromPvpLobby,
     setEndTurnWarningActions,
     setPreviewTarget,
-    setDiscardOpen,
-    setOpponentZonesOpen,
+    closePile,
+    closeOpponentZones,
     setPendingSelection,
     setActionNotice,
     setMenuOpen,

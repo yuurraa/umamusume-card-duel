@@ -64,7 +64,7 @@ type UseAppRuntimeEffectsArgs = {
   setEndTurnWarningActions: SetState<string[] | null>;
   setSetupActiveIndex: SetState<number | null>;
   setSetupBenchIndexes: SetState<number[]>;
-  setDiscardOpen: SetState<boolean>;
+  resetZoneModals: () => void;
   setMenuOpen: SetState<boolean>;
   setPendingCoinAttack: SetState<PendingCoinAttack | null>;
   setActiveCoinFlip: SetState<CoinFlipEvent | null>;
@@ -107,7 +107,7 @@ export function useAppRuntimeEffects({
   setEndTurnWarningActions,
   setSetupActiveIndex,
   setSetupBenchIndexes,
-  setDiscardOpen,
+  resetZoneModals,
   setMenuOpen,
   setPendingCoinAttack,
   setActiveCoinFlip,
@@ -167,9 +167,9 @@ export function useAppRuntimeEffects({
     setPendingSelection(null);
     setEndTurnWarningActions(null);
     setPreviewTarget(null);
-    setDiscardOpen(false);
+    resetZoneModals();
     setMenuOpen(false);
-  }, [game.gameOver, setPendingSelection, setEndTurnWarningActions, setPreviewTarget, setDiscardOpen, setMenuOpen]);
+  }, [game.gameOver, setPendingSelection, setEndTurnWarningActions, setPreviewTarget, resetZoneModals, setMenuOpen]);
 
   useEffect(() => {
     if (!endTurnWarningActions) return;

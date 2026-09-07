@@ -1,5 +1,5 @@
 import { type ComponentProps, type Dispatch, type SetStateAction, Suspense, useRef } from "react";
-import type { GameState, SideId } from "../../../shared/src/types";
+import type { GameState } from "../../../shared/src/types";
 import type { BattleEffectEvent } from "../match/feedback/BattleEffectOverlay";
 import { BATTLE_EFFECT_KEYFRAMES } from "./animation/battleEffectKeyframes";
 import type { CardFlowItem } from "../match/feedback/CardFlowOverlay";
@@ -8,6 +8,7 @@ import { OpponentZonesModal } from "../match/modals/OpponentZonesModal";
 import type { InspectTarget } from "../inspect";
 import type { PendingSelection } from "../types/ui";
 import type { CoinFlipEvent } from "./gameUiHelpers";
+import type { PileModalState } from "./hooks/useMatchZoneModal";
 import { getActionNoticeTone, isBottomActionNotice } from "./gameUiHelpers";
 import { cardFlowBatchKey } from "./animation";
 import {
@@ -31,10 +32,10 @@ type MatchOverlaysProps = {
   canShowBattleEffects: boolean;
   reducedMotion: boolean;
   activeBattleEffects: BattleEffectEvent[];
-  completeBattleEffect: () => void;
+  completeBattleEffect: (batchKey: string) => void;
   canShowPointGainOverlay: boolean;
   pointGainQueue: Array<ComponentProps<typeof PointGainOverlay>["event"]>;
-  completePointGain: () => void;
+  completePointGain: (eventId: number) => void;
   game: GameState;
   openingCoinChoicePending: boolean;
   activeCoinFlip: CoinFlipEvent | null;
@@ -64,17 +65,12 @@ type MatchOverlaysProps = {
   setSuppressEndTurnWarningForGame: Dispatch<SetStateAction<boolean>>;
   onEndTurnWarningCancel: ComponentProps<typeof EndTurnWarningModal>["onCancel"];
   onEndTurnWarningConfirm: ComponentProps<typeof EndTurnWarningModal>["onConfirm"];
-  discardOpen: boolean;
-  discardViewSide: SideId;
+  pileModal: PileModalState;
   onDiscardInspect: ComponentProps<typeof DiscardPileModal>["onInspect"];
-  onCloseDiscard: ComponentProps<typeof DiscardPileModal>["onClose"];
-  revealedOpponentHandOpen: boolean;
-  revealedOpponentHandCardIds: string[];
-  setPreviewTarget: Dispatch<SetStateAction<InspectTarget | null>>;
-  setRevealedOpponentHandOpen: Dispatch<SetStateAction<boolean>>;
+  onClosePile: ComponentProps<typeof DiscardPileModal>["onClose"];
   opponentZonesOpen: boolean;
   onOpenOpponentDiscard: ComponentProps<typeof OpponentZonesModal>["onOpenDiscard"];
-  setOpponentZonesOpen: Dispatch<SetStateAction<boolean>>;
+  onCloseOpponentZones: ComponentProps<typeof OpponentZonesModal>["onClose"];
   pendingSelection: PendingSelection | null;
   player: GameState["sides"]["player"];
   chooseScoutDeckCard: ComponentProps<typeof DeckChoiceModal>["onChoose"];
@@ -127,17 +123,12 @@ export function MatchOverlays(props: MatchOverlaysProps) {
     setSuppressEndTurnWarningForGame,
     onEndTurnWarningCancel,
     onEndTurnWarningConfirm,
-    discardOpen,
-    discardViewSide,
+    pileModal,
     onDiscardInspect,
-    onCloseDiscard,
-    revealedOpponentHandOpen,
-    revealedOpponentHandCardIds,
-    setPreviewTarget,
-    setRevealedOpponentHandOpen,
+    onClosePile,
     opponentZonesOpen,
     onOpenOpponentDiscard,
-    setOpponentZonesOpen,
+    onCloseOpponentZones,
     pendingSelection,
     player,
     chooseScoutDeckCard,
@@ -161,7 +152,7 @@ export function MatchOverlays(props: MatchOverlaysProps) {
   const completeBattleMember = (id: number) => {
     const batch = battleBatchRef.current;
     if (!batch.pendingIds.delete(id)) return;
-    if (batch.pendingIds.size === 0) completeBattleEffect();
+    if (batch.pendingIds.size === 0) completeBattleEffect(batch.key);
   };
   const motionBySequenceRef = useRef({ battleKey: "", battleReduced: false, cardKey: "", cardReduced: false, pointId: -1, pointReduced: false });
   if (motionBySequenceRef.current.battleKey !== battleBatchKey) {
@@ -204,11 +195,11 @@ export function MatchOverlays(props: MatchOverlaysProps) {
           <PointGainOverlay
             event={pointGainQueue[0]}
             durationMs={motionBySequenceRef.current.pointReduced ? 280 : undefined}
-            onDone={completePointGain}
+            onDone={() => completePointGain(pointEventId)}
           />
         </Suspense>
       )}
-      {game.phase === "setup" && (!game.setup?.coinFlipResult || (openingCoinChoicePending && !activeCoinFlip)) && (
+      {!game.gameOver && game.phase === "setup" && (!game.setup?.coinFlipResult || (openingCoinChoicePending && !activeCoinFlip)) && (
         <CoinFlipOverlay
           key="opening-coin-choice"
           mode="prompt"
@@ -272,20 +263,20 @@ export function MatchOverlays(props: MatchOverlaysProps) {
         onCancel={onEndTurnWarningCancel}
         onConfirm={onEndTurnWarningConfirm}
       />
-      {discardOpen && (
+      {pileModal?.kind === "discard" && (
         <DiscardPileModal
-          cardIds={displayGame.sides[discardViewSide].discard}
-          pileLabel={discardViewSide === "opponent" ? "Opponent Discard Pile" : "Your Discard Pile"}
+          cardIds={displayGame.sides[pileModal.side].discard}
+          pileLabel={pileModal.side === "opponent" ? "Opponent Discard Pile" : "Your Discard Pile"}
           onInspect={onDiscardInspect}
-          onClose={onCloseDiscard}
+          onClose={onClosePile}
         />
       )}
-      {revealedOpponentHandOpen && (
+      {pileModal?.kind === "revealedOpponentHand" && (
         <DiscardPileModal
-          cardIds={revealedOpponentHandCardIds}
+          cardIds={pileModal.cardIds}
           pileLabel="Opponent Hand (Revealed)"
-          onInspect={(card) => setPreviewTarget({ card })}
-          onClose={() => setRevealedOpponentHandOpen(false)}
+          onInspect={onDiscardInspect}
+          onClose={onClosePile}
         />
       )}
       {opponentZonesOpen && (
@@ -294,7 +285,7 @@ export function MatchOverlays(props: MatchOverlaysProps) {
           deckCount={displayGame.sides.opponent.deck.length}
           discardCount={displayGame.sides.opponent.discard.length}
           onOpenDiscard={onOpenOpponentDiscard}
-          onClose={() => setOpponentZonesOpen(false)}
+          onClose={onCloseOpponentZones}
         />
       )}
       {(pendingSelection?.kind === "deckForScout" || pendingSelection?.kind === "deckForEvolutionSearch" || pendingSelection?.kind === "deckForAttackEvolution") && (

@@ -20,7 +20,7 @@ import {
   type VisualAttachedEnergyByUid,
   type VisualHpByUid,
 } from "../animation";
-import { getVisualSequencePhase, isVisualSequenceBlocking } from "../sequence/visualSequence";
+import { getVisualSequencePhase, isCurrentVisualSequenceCompletion, isVisualSequenceBlocking } from "../sequence/visualSequence";
 
 type UseBattleVisualsArgs = {
   baseDisplayGame: GameState;
@@ -170,6 +170,7 @@ export function useBattleVisuals({
     : battleEffectQueue[0]
       ? [battleEffectQueue[0]]
       : [], [battleEffectQueue]);
+  const activeBattleBatchKey = activeBattleEffects.map((effect) => effect.id).join(",");
 
   const scheduleKoPromotionRelease = (sideIds: SideId[]) => {
     const generation = visualGenerationRef.current;
@@ -235,7 +236,12 @@ export function useBattleVisuals({
     });
   };
 
-  const completeBattleEffect = () => {
+  const completeBattleEffect = (batchKey: string) => {
+    if (!isCurrentVisualSequenceCompletion({
+      phase: visualSequencePhase,
+      battleBatchKey: activeBattleBatchKey,
+      pointGainEventId: pointGainQueue[0]?.id ?? null,
+    }, { phase: "battle", batchKey })) return;
     const completedEffects = getLeadingBattleEffectBatch(battleEffectQueue);
     const remaining = battleEffectQueue.slice(completedEffects.length || 1);
     const completedKoEffects = completedEffects.filter((effect) => effect.kind === "ko" && effect.targetUid !== undefined);
@@ -421,7 +427,12 @@ export function useBattleVisuals({
     scorePointGainAnimatingBySide[activePointGain.side] = activePointGain.points;
   }
 
-  const completePointGain = () => {
+  const completePointGain = (eventId: number) => {
+    if (!isCurrentVisualSequenceCompletion({
+      phase: visualSequencePhase,
+      battleBatchKey: activeBattleBatchKey,
+      pointGainEventId: pointGainQueue[0]?.id ?? null,
+    }, { phase: "pointGain", eventId })) return;
     const remainingPointGains = pointGainQueue.slice(1);
     setPointGainQueue(remainingPointGains);
     setScorePointsOverrideBySide((current) => {

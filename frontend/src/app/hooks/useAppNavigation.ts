@@ -1,11 +1,10 @@
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
-import type { EnergyType, GameState, SideId } from "../../../../shared/src/types";
+import type { EnergyType, GameState } from "../../../../shared/src/types";
 import { clearAiTelemetry, createGame } from "../../game/engine";
 import type { InspectTarget } from "../../inspect";
 import type { AppScreen, MatchMode, PendingSelection } from "../../types/ui";
 import { getDeckEnergyTypes, pickRandomOpponentDeck } from "../../utils/deck";
 import { getRandomCustomisationSettings, type CustomisationSettings } from "../../utils/customisation";
-import type { PendingCoinAttack } from "./useMatchActions";
 import type { PlayerIntent } from "../../pvp/playerIntent";
 import type { CardFlowItem } from "../../match/feedback/CardFlowOverlay";
 
@@ -18,27 +17,16 @@ export type UseAppNavigationArgs = {
   playerName: string;
   hasPendingPlayerChoice: boolean;
   isTurnFlowBlocked: boolean;
-  previousLogRef: MutableRefObject<string[]>;
-  skipNextCoinLogMessageRef: MutableRefObject<Array<"heads" | "tails"> | null>;
   setMatchMode: Dispatch<SetStateAction<MatchMode>>;
   setPendingScreen: Dispatch<SetStateAction<AppScreen | null>>;
   setGame: Dispatch<SetStateAction<GameState>>;
-  setCoinFlipQueue: Dispatch<SetStateAction<Array<{ id: number; result: "heads" | "tails"; message: string }>>>;
-  setActiveCoinFlip: Dispatch<SetStateAction<{ id: number; result: "heads" | "tails"; message: string } | null>>;
-  setAcknowledgedCoinLogMessage: Dispatch<SetStateAction<string | null>>;
-  setPendingCoinAttack: Dispatch<SetStateAction<PendingCoinAttack | null>>;
   setCardFlowQueue: Dispatch<SetStateAction<CardFlowItem[][]>>;
-  setSetupActiveIndex: Dispatch<SetStateAction<number | null>>;
-  setSetupBenchIndexes: Dispatch<SetStateAction<number[]>>;
   setPendingSelection: Dispatch<SetStateAction<PendingSelection | null>>;
   setPreviewTarget: Dispatch<SetStateAction<InspectTarget | null>>;
-  setSuppressEndTurnWarningForGame: Dispatch<SetStateAction<boolean>>;
   setActionNotice: Dispatch<SetStateAction<string | null>>;
-  setDiscardOpen: Dispatch<SetStateAction<boolean>>;
+  resetZoneModals: () => void;
   setMenuOpen: Dispatch<SetStateAction<boolean>>;
   setOpponentCustomisation: Dispatch<SetStateAction<CustomisationSettings>>;
-  setAiPerspective: Dispatch<SetStateAction<SideId>>;
-  setPovSwitchAnimationToken: Dispatch<SetStateAction<number>>;
   setEndTurnWarningActions: Dispatch<SetStateAction<string[] | null>>;
   openingHandAnimationKeyRef: MutableRefObject<string | null>;
   shouldDealOpeningHandsAfterFlowRef: MutableRefObject<boolean>;
@@ -55,27 +43,16 @@ export function useAppNavigation({
   playerName,
   hasPendingPlayerChoice,
   isTurnFlowBlocked,
-  previousLogRef,
-  skipNextCoinLogMessageRef,
   setMatchMode,
   setPendingScreen,
   setGame,
-  setCoinFlipQueue,
-  setActiveCoinFlip,
-  setAcknowledgedCoinLogMessage,
-  setPendingCoinAttack,
   setCardFlowQueue,
-  setSetupActiveIndex,
-  setSetupBenchIndexes,
   setPendingSelection,
   setPreviewTarget,
-  setSuppressEndTurnWarningForGame,
   setActionNotice,
-  setDiscardOpen,
+  resetZoneModals,
   setMenuOpen,
   setOpponentCustomisation,
-  setAiPerspective,
-  setPovSwitchAnimationToken,
   setEndTurnWarningActions,
   openingHandAnimationKeyRef,
   shouldDealOpeningHandsAfterFlowRef,
@@ -86,25 +63,6 @@ export function useAppNavigation({
     clearAiTelemetry();
     resetTransientMatchUi();
     setMatchMode(mode);
-    setAiPerspective("player");
-    setPovSwitchAnimationToken(0);
-    previousLogRef.current = [];
-    setCoinFlipQueue([]);
-    setActiveCoinFlip(null);
-    setAcknowledgedCoinLogMessage(null);
-    setPendingCoinAttack(null);
-    setCardFlowQueue([]);
-    skipNextCoinLogMessageRef.current = null;
-    setSetupActiveIndex(null);
-    setSetupBenchIndexes([]);
-    setPendingSelection(null);
-    setPreviewTarget(null);
-    setSuppressEndTurnWarningForGame(false);
-    setActionNotice(null);
-    setDiscardOpen(false);
-    setMenuOpen(false);
-    openingHandAnimationKeyRef.current = null;
-    shouldDealOpeningHandsAfterFlowRef.current = false;
     setOpponentCustomisation(getRandomCustomisationSettings());
     const playerAiDeck = mode === "aiVsAi" ? pickRandomOpponentDeck() : null;
     const opponent = pickRandomOpponentDeck();
@@ -144,7 +102,7 @@ export function useAppNavigation({
     setEndTurnWarningActions(null);
     setPreviewTarget(null);
     setActionNotice(null);
-    setDiscardOpen(false);
+    resetZoneModals();
     setMenuOpen(false);
     navigateToScreen("mainMenu");
   };

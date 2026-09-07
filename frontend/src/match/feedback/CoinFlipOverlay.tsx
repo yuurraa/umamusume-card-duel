@@ -84,7 +84,7 @@ export function CoinFlipOverlay({
   }, [countdown, isPrompt, isSettled, hasMoreFlips]);
 
   if (isPrompt) {
-    const promptTitle = canChoose ? "Choose Heads or Tails" : "Preparing coin flip";
+    const promptTitle = canChoose ? "Choose Heads or Tails" : message;
     return (
       <div style={coinFlipBackdropStyle}>
         <style>{OVERLAY_FADE_IN_KEYFRAMES}</style>
@@ -104,22 +104,22 @@ export function CoinFlipOverlay({
             </div>
           </div>
           <strong style={coinResultStyle}>{promptTitle}</strong>
-          <div style={coinChoiceRowStyle}>
-            <NeutralButton
-              style={attackButtonStyle(canChoose)}
-              disabled={!canChoose}
-              onClick={() => onChoose?.("heads")}
-            >
-              Heads
-            </NeutralButton>
-            <NeutralButton
-              style={attackButtonStyle(canChoose)}
-              disabled={!canChoose}
-              onClick={() => onChoose?.("tails")}
-            >
-              Tails
-            </NeutralButton>
-          </div>
+          {canChoose && (
+            <div style={coinChoiceRowStyle}>
+              <NeutralButton
+                style={attackButtonStyle(true)}
+                onClick={() => onChoose?.("heads")}
+              >
+                Heads
+              </NeutralButton>
+              <NeutralButton
+                style={attackButtonStyle(true)}
+                onClick={() => onChoose?.("tails")}
+              >
+                Tails
+              </NeutralButton>
+            </div>
+          )}
         </section>
       </div>
     );
