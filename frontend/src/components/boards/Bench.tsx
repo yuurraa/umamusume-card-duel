@@ -281,7 +281,9 @@ export function Bench({
             hoverRingColor={hoverRingColor}
             hoverGlowColor={hoverGlowColor}
             isSelectable={Boolean(selectableUmamusumeUids?.has(umamusume.uid))}
-            isDimmed={isChoosingUmamusume && !selectableUmamusumeUids?.has(umamusume.uid)}
+            // Keep cards undergoing a visual HP/KO transition opaque until
+            // their own sequence takes control of the fade.
+            isDimmed={isChoosingUmamusume && !selectableUmamusumeUids?.has(umamusume.uid) && visualHpByUid?.[umamusume.uid] === undefined}
             abilityEnergyTypes={abilityEnergyTypes}
             sleeveImage={sleeveImage}
             visualHpByUid={visualHpByUid}

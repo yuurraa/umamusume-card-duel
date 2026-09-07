@@ -237,7 +237,11 @@ export function SideBoard({
             hidden={hidden}
             sleeveImage={sleeveImage}
             isSelectable={activeSelectable}
-            isDimmed={dimUnselectableActive && isChoosingUmamusume && !activeSelectable}
+            // A KO can create the replacement choice before the visual layer
+            // has finished retaining the defeated Active card. Do not apply
+            // the generic non-selectable dim state to a card with an in-flight
+            // HP transition; its KO sequence owns opacity instead.
+            isDimmed={dimUnselectableActive && isChoosingUmamusume && !activeSelectable && visualHpByUid?.[side.active.uid] === undefined}
             abilityReady={activeAbilityReady}
             koImpacting={activeIsKoImpacting}
             koCrumbling={activeIsKoAnimating}

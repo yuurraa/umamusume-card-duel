@@ -35,6 +35,8 @@ type UsePvpMatchOptions = {
   setPendingScreen: Dispatch<SetStateAction<AppScreen | null>>;
 };
 
+export const PVP_TURN_DURATION_MS = 45_000;
+
 export function usePvpMatch({
   game,
   screen,
@@ -256,7 +258,7 @@ export function usePvpMatch({
     if (game.currentSide === "done") return;
     const turnKey = `${game.turnNumber}:${game.currentSide}`;
     if (pvpDeadlineTurnKeyRef.current === turnKey && game.turnDeadlineMs !== null) return;
-    const deadline = Date.now() + 30_000;
+    const deadline = Date.now() + PVP_TURN_DURATION_MS;
     pvpDeadlineTurnKeyRef.current = turnKey;
     const current = gameRef.current;
     if (current.phase !== "play" || current.gameOver || current.currentSide === "done") return;

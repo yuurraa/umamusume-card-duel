@@ -44,7 +44,7 @@ import { useMatchCommandController } from "./hooks/useMatchCommandController";
 import { useFirebaseAccount } from "./hooks/useFirebaseAccount";
 import { useBattleVisuals } from "./hooks/useBattleVisuals";
 import { useCardFlowVisuals } from "./hooks/useCardFlowVisuals";
-import { usePvpMatch } from "./hooks/usePvpMatch";
+import { PVP_TURN_DURATION_MS, usePvpMatch } from "./hooks/usePvpMatch";
 import { useReducedMotion } from "./hooks/useReducedMotion";
 import { useQueuedVisualActions } from "./hooks/useQueuedVisualActions";
 import { AiTelemetryPanel } from "./AiTelemetryPanel";
@@ -669,7 +669,7 @@ export function App() {
   const canShowSelectionPrompt = Boolean(activePendingSelection)
     && (canShowSelectionPromptBase || !visualFlowBlocked);
   const pvpSecondsRemaining = game.turnDeadlineMs === null
-    ? 30
+    ? PVP_TURN_DURATION_MS / 1_000
     : Math.max(0, Math.ceil((game.turnDeadlineMs - pvpTimerNowMs) / 1000));
   const turnLabel = isNetworkMatch && game.phase === "play"
     ? `Turn ${game.turnNumber} • ${pvpSecondsRemaining}s`
