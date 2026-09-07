@@ -274,6 +274,14 @@ export type GameEvent =
     side: SideId;
     targetUid: number;
     condition: SpecialCondition;
+    action: "apply" | "clear";
+  })
+  | (GameEventBase & {
+    kind: "tool";
+    side: SideId;
+    targetUid: number;
+    toolCardId: string;
+    action: "attach" | "discard";
   })
   | (GameEventBase & {
     kind: "gameEnd";

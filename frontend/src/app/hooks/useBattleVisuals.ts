@@ -13,6 +13,7 @@ import {
   cloneBattleSnapshotUmamusume,
   createBattleSnapshot,
   getLeadingBattleEffectBatch,
+  getPendingKoRetainedBoards,
   withKoVacantActive,
   withRetainedKoBoard,
   type KoRetainedBoardBySide,
@@ -59,7 +60,12 @@ export function useBattleVisuals({
   const appliedVisibleHpBatchRef = useRef<string>("");
   const visualGenerationRef = useRef(0);
 
-  const retainedKoDisplayGame = withRetainedKoBoard(baseDisplayGame, battleEffectQueue, koRetainedBoardBySide);
+  const immediateKoRetainedBoardBySide = getPendingKoRetainedBoards(previousBattleSnapshotRef.current, baseDisplayGame);
+  const retainedKoDisplayGame = withRetainedKoBoard(
+    baseDisplayGame,
+    battleEffectQueue,
+    { ...immediateKoRetainedBoardBySide, ...koRetainedBoardBySide },
+  );
   const displayGame = withKoVacantActive(retainedKoDisplayGame, koVacancyBySide);
 
   const hasKoVacancy = Boolean(koVacancyBySide.player || koVacancyBySide.opponent);

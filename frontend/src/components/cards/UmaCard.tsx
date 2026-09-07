@@ -541,9 +541,10 @@ const cardHpCornerBlurStyle: CSSProperties = {
   zIndex: 2,
   pointerEvents: "none",
   borderRadius: `0 ${radius.xl + 8}px 32px 40px`,
+  // Preserve the original HP-corner shape. Backdrop filtering is deliberately
+  // omitted: Chromium can flatten a backdrop-filtered child to opaque white
+  // while its card parent is promoted during a movement animation.
   background: "linear-gradient(135deg, rgba(248, 250, 252, 0.9) 0%, rgba(248, 250, 252, 0.8) 48%, rgba(248, 250, 252, 0.5) 72%, rgba(248, 250, 252, 0) 100%)",
-  backdropFilter: "blur(72px) saturate(0.78) brightness(1.16)",
-  WebkitBackdropFilter: "blur(72px) saturate(0.78) brightness(1.16)",
   WebkitMaskImage: "linear-gradient(90deg, transparent 0%, rgba(0, 0, 0, 0.18) 20%, rgba(0, 0, 0, 0.86) 40%, black 100%), linear-gradient(180deg, black 0%, black 44%, rgba(0, 0, 0, 0.76) 64%, rgba(0, 0, 0, 0.22) 84%, transparent 100%)",
   maskImage: "linear-gradient(90deg, transparent 0%, rgba(0, 0, 0, 0.18) 20%, rgba(0, 0, 0, 0.86) 40%, black 100%), linear-gradient(180deg, black 0%, black 44%, rgba(0, 0, 0, 0.76) 64%, rgba(0, 0, 0, 0.22) 84%, transparent 100%)",
   WebkitMaskComposite: "source-in",

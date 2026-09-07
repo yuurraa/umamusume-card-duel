@@ -9,7 +9,7 @@ import { shuffle, type RandomSource } from "../core/random";
 import { evolveUmamusume } from "./evolution";
 import { getUmamusumeAbility } from "./abilityRules";
 import { clearSpecialConditions } from "./specialConditions";
-import { beginTransition, emitCardMovement, emitEnergyChanges, emitGameEvent, endTransition } from "../core/events";
+import { beginTransition, emitCardMovement, emitEnergyChanges, emitGameEvent, emitStatusChanges, endTransition } from "../core/events";
 
 type CombatDeps = {
   refreshContinuousEffects: (state: GameState) => void;
@@ -324,7 +324,7 @@ function performAttackInternal(
       });
     }
     if (healed > 0) log(state, `${attack.name} healed ${formatUmamusumeInstanceName(target)} for ${healed} HP.`);
-    if (attack.recoverSpecialConditions) recoverSpecialConditions(state, target, attack.name);
+    if (attack.recoverSpecialConditions) recoverSpecialConditions(state, attackerId, target, attack.name);
   }
   if (attack.inflictSpecialCondition && attackTarget.hp > 0) {
     applySpecialCondition(state, defenderId, attackTarget, attack.inflictSpecialCondition);
@@ -410,7 +410,9 @@ function performAttackInternal(
     if (switchIndex >= 0) {
       const promoted = attacker.bench.splice(switchIndex, 1)[0];
       if (promoted) {
+        const clearedConditions = [...attacker.active.specialConditions];
         clearSpecialConditions(attacker.active);
+        emitStatusChanges(state, attackerId, attacker.active.uid, clearedConditions, []);
         attacker.bench.push(attacker.active);
         attacker.active = promoted;
         log(state, `${actorName(attacker)} switched to ${formatUmamusumeInstanceName(promoted)}.`);
@@ -504,9 +506,11 @@ function shuffleActiveIntoDeckIfPaid(
   }
 }
 
-function recoverSpecialConditions(state: GameState, umamusume: UmamusumeInstance, sourceName: string): void {
+function recoverSpecialConditions(state: GameState, side: SideId, umamusume: UmamusumeInstance, sourceName: string): void {
   if (umamusume.specialConditions.length === 0) return;
+  const clearedConditions = [...umamusume.specialConditions];
   clearSpecialConditions(umamusume);
+  emitStatusChanges(state, side, umamusume.uid, clearedConditions, []);
   log(state, `${sourceName} cleared all Special Conditions from ${formatUmamusumeInstanceName(umamusume)}.`);
 }
 
@@ -518,27 +522,15 @@ function applySpecialCondition(
 ): void {
   if (umamusume.specialConditions.length === 1 && umamusume.specialConditions[0] === condition) return;
   // Rule: a Umamusume can only have one Special Condition at a time.
+  const beforeConditions = [...umamusume.specialConditions];
   umamusume.specialConditions = [condition];
+  emitStatusChanges(state, affectedSideId, umamusume.uid, beforeConditions, umamusume.specialConditions);
   if (condition === "paralysed") {
     umamusume.paralysedUntilOwnTurn = (state.turnsTakenBySide[affectedSideId] ?? 0) + 1;
-    emitGameEvent(state, {
-      kind: "status",
-      visibility: "public",
-      side: affectedSideId,
-      targetUid: umamusume.uid,
-      condition,
-    });
     log(state, `${formatUmamusumeInstanceName(umamusume)} is Paralysed and cannot attack or retreat until the end of ${affectedSideId === "player" ? "your" : "opponent's"} next turn.`);
     return;
   }
   umamusume.paralysedUntilOwnTurn = null;
-  emitGameEvent(state, {
-    kind: "status",
-    visibility: "public",
-    side: affectedSideId,
-    targetUid: umamusume.uid,
-    condition,
-  });
   log(state, `${formatUmamusumeInstanceName(umamusume)} is ${condition}.`);
 }
 
@@ -562,7 +554,17 @@ export function knockOutUmamusume(
   defender.bench = defender.bench.filter((umamusume) => umamusume.uid !== knockedOut.uid);
   defender.discard.push(knockedOut.cardId);
   defender.discard.push(...(knockedOut.evolutionCardIds ?? []));
-  if (knockedOut.toolCardId) defender.discard.push(knockedOut.toolCardId);
+  if (knockedOut.toolCardId) {
+    defender.discard.push(knockedOut.toolCardId);
+    emitGameEvent(state, {
+      kind: "tool",
+      visibility: "public",
+      side: knockedSideId,
+      targetUid: knockedOut.uid,
+      toolCardId: knockedOut.toolCardId,
+      action: "discard",
+    });
+  }
   const discardedCardIds = [knockedOut.cardId, ...(knockedOut.evolutionCardIds ?? []), ...(knockedOut.toolCardId ? [knockedOut.toolCardId] : [])];
   if (discardedCardIds.length > 0) emitCardMovement(state, knockedSideId, "play", "discard", discardedCardIds.length, discardedCardIds);
   attacker.points += 1;

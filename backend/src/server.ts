@@ -16,7 +16,7 @@ import {
   MAX_HAND,
   MAX_POINTS,
   OPENING_HAND,
-} from "../../shared/src";
+} from "umamusume-pocket-shared";
 
 export type FirebaseHealthDependencies = {
   isConfigured: () => boolean;

@@ -44,7 +44,7 @@ import { chooseAiTurnGoal } from "./engine/flow/ai/turnPlan";
 import { getUmamusumeAbility } from "./engine/flow/abilityRules";
 import { shuffle, type RandomSource } from "./engine/core/random";
 import { clearSpecialConditions } from "./engine/flow/specialConditions";
-import { beginTransition, emitCardMovement, emitEnergyChanges, emitGameEvent, endTransition } from "./engine/core/events";
+import { beginTransition, emitCardMovement, emitEnergyChanges, emitGameEvent, emitStatusChanges, endTransition } from "./engine/core/events";
 
 export type { PlayChoices };
 
@@ -187,7 +187,8 @@ export function playHandCard(state: GameState, handIndex: number, choices: PlayC
   let transitionId: number | null = null;
   try {
     const side = next.sides.player;
-    if (!isPlayerTurn(next) || next.pendingPlayerChoice) return next;
+    if (!choices || typeof choices !== "object" || Array.isArray(choices)) return next;
+    if (!Number.isInteger(handIndex) || !isPlayerTurn(next) || next.pendingPlayerChoice) return next;
     const cardId = side.hand[handIndex];
     if (!cardId) return next;
     const card = getCard(cardId);
@@ -205,8 +206,38 @@ export function playHandCard(state: GameState, handIndex: number, choices: PlayC
       const selectedOwnUmamusume = getAllUmamusume(side).find((umamusume) => umamusume.uid === choices.umamusumeTargetUid);
       const requiresBenchTarget = Boolean(card.effect.attachEnergyFromZoneToBench);
       const requiresAnyOwnTarget = card.effect.healTarget === "any";
-      if ((requiresBenchTarget && !side.bench.some((umamusume) => umamusume.uid === choices.umamusumeTargetUid)) || (requiresAnyOwnTarget && !selectedOwnUmamusume)) {
+      if (
+        (requiresBenchTarget && !side.bench.some((umamusume) => umamusume.uid === choices.umamusumeTargetUid))
+        || (requiresAnyOwnTarget && !selectedOwnUmamusume)
+      ) {
         return next;
+      }
+    }
+    if (card.kind === "trainer") {
+      const hasValidHandIndex = (index: number): boolean => Number.isInteger(index) && index >= 0 && index < side.hand.length;
+      if (card.effect.discardOtherCard && choices.discardHandIndex !== undefined
+        && (!hasValidHandIndex(choices.discardHandIndex) || choices.discardHandIndex === handIndex)) return next;
+      if (card.effect.swapHandUmamusumeWithRandomDeckUmamusume && choices.swapHandCardIndex !== undefined) {
+        const selected = hasValidHandIndex(choices.swapHandCardIndex) ? side.hand[choices.swapHandCardIndex] : undefined;
+        if (choices.swapHandCardIndex === handIndex || !selected || getCard(selected).kind !== "umamusume") return next;
+      }
+      if (card.effect.searchUmamusume && choices.deckCardIndex !== undefined) {
+        const selected = Number.isInteger(choices.deckCardIndex) ? side.deck[choices.deckCardIndex] : undefined;
+        if (!selected || !isUmamusumeInDeck(selected)) return next;
+      }
+      if (card.effect.searchEvolutionUmamusume && choices.deckCardIndex !== undefined) {
+        const selected = Number.isInteger(choices.deckCardIndex) ? side.deck[choices.deckCardIndex] : undefined;
+        const selectedCard = selected ? getCard(selected) : undefined;
+        if (!selectedCard || selectedCard.kind !== "umamusume" || selectedCard.stage <= 0) return next;
+      }
+      if (card.effect.discardToolOrStadium) {
+        if (choices.discardStadiumInPlay === true && !next.stadium) return next;
+        if (choices.discardToolHolderUmamusumeUid !== undefined) {
+          const target = [side, next.sides[side.id === "player" ? "opponent" : "player"]]
+            .flatMap((candidateSide) => getAllUmamusume(candidateSide))
+            .find((umamusume) => umamusume.uid === choices.discardToolHolderUmamusumeUid);
+          if (!target?.toolCardId) return next;
+        }
       }
     }
     if (card.kind === "trainer" && card.effect.rainbowUncapCrystal && choices.umamusumeTargetUid !== undefined) {
@@ -243,7 +274,7 @@ export function attachPlayerEnergy(state: GameState, umamusumeUid?: number): Gam
   const next = cloneGame(state);
   const side = next.sides.player;
   if (next.pendingPlayerChoice) return next;
-  const target = umamusumeUid ? findOwnUmamusumeByUid(side, umamusumeUid) : side.active;
+  const target = umamusumeUid !== undefined ? findOwnUmamusumeByUid(side, umamusumeUid) : side.active;
   if (!target || !canAttachEnergyToUmamusume(next, side, target)) return next;
   attachEnergy(next, side, target);
   normalizeBoardState(next);
@@ -264,7 +295,7 @@ export function playerAttack(
   random: RandomSource = Math.random,
 ): GameState {
   const next = cloneGame(state);
-  if (!canAttack(next, next.sides.player, attackIndex)) return next;
+  if (!Number.isInteger(attackIndex) || attackIndex < 0 || !canAttack(next, next.sides.player, attackIndex)) return next;
   const attacker = next.sides.player.active;
   if (!attacker) return next;
   const attack = getUmamusumeCard(attacker).attacks[attackIndex];
@@ -285,13 +316,22 @@ export function playerAttack(
     || !next.sides.player.bench.some((umamusume) => umamusume.uid === switchTargetUid)
   )) return next;
   if (evolutionDeckCardIndex !== undefined && (
-    !attack.evolveFromDeck
+    !Number.isInteger(evolutionDeckCardIndex)
+    || evolutionDeckCardIndex < 0
+    || !attack.evolveFromDeck
     || !isValidEvolutionDeckSelection(next, attacker, evolutionDeckCardIndex)
   )) return next;
   if (discardHandIndex !== undefined && (
-    !attack.attackDamageBonusIfDiscardHandCard
+    !Number.isInteger(discardHandIndex)
+    || !attack.attackDamageBonusIfDiscardHandCard
     || discardHandIndex < 0
     || discardHandIndex >= next.sides.player.hand.length
+  )) return next;
+  if (randomDiscardIndex !== undefined && (
+    !Number.isInteger(randomDiscardIndex)
+    || !attack.shuffleRandomDiscardIntoDeck
+    || randomDiscardIndex < 0
+    || randomDiscardIndex >= next.sides.player.discard.length
   )) return next;
   performAttack(
     next,
@@ -472,31 +512,39 @@ function advanceAiTurnStep(
 
 export function playerRetreat(state: GameState, benchUmamusumeUid?: number, discardEnergyTypes?: EnergyType[]): GameState {
   const next = cloneGame(state);
-  const side = next.sides.player;
-  if (next.pendingPlayerChoice || !side.active) return next;
-  if (!canRetreat(next, side)) return next;
-  const targetIndex = benchUmamusumeUid !== undefined
-    ? side.bench.findIndex((umamusume) => umamusume.uid === benchUmamusumeUid)
-    : 0;
-  if (targetIndex < 0) return next;
-  const cost = effectiveRetreatCost(next, side);
-  const energyBefore = { ...side.active.energies };
-  if (discardEnergyTypes) {
-    if (!payRetreatCostBySelection(side.active, discardEnergyTypes, cost)) return next;
-  } else {
-    payRetreatCost(side.active, cost);
+  let transitionId: number | null = null;
+  try {
+    const side = next.sides.player;
+    if (next.pendingPlayerChoice || !side.active) return next;
+    if (!canRetreat(next, side)) return next;
+    const targetIndex = benchUmamusumeUid !== undefined
+      ? side.bench.findIndex((umamusume) => umamusume.uid === benchUmamusumeUid)
+      : 0;
+    if (targetIndex < 0) return next;
+    const cost = effectiveRetreatCost(next, side);
+    const energyBefore = { ...side.active.energies };
+    if (discardEnergyTypes) {
+      if (!payRetreatCostBySelection(side.active, discardEnergyTypes, cost)) return next;
+    } else {
+      payRetreatCost(side.active, cost);
+    }
+    transitionId = beginTransition(next);
+    emitEnergyChanges(next, side.id, side.active.uid, energyBefore, side.active.energies);
+    const promoted = side.bench.splice(targetIndex, 1)[0];
+    if (!promoted) return next;
+    const clearedConditions = [...side.active.specialConditions];
+    clearSpecialConditions(side.active);
+    emitStatusChanges(next, side.id, side.active.uid, clearedConditions, []);
+    side.bench.push(side.active);
+    side.active = promoted;
+    side.usedRetreatThisTurn = true;
+    normalizeBoardState(next);
+    refreshContinuousEffects(next);
+    log(next, `You retreated to ${formatUmamusumeInstanceName(side.active)}.`);
+    return next;
+  } finally {
+    if (transitionId !== null) endTransition(next, transitionId);
   }
-  emitEnergyChanges(next, side.id, side.active.uid, energyBefore, side.active.energies);
-  const promoted = targetIndex >= 0 ? side.bench.splice(targetIndex, 1)[0] : undefined;
-  if (!promoted) return next;
-  clearSpecialConditions(side.active);
-  side.bench.push(side.active);
-  side.active = promoted;
-  side.usedRetreatThisTurn = true;
-  normalizeBoardState(next);
-  refreshContinuousEffects(next);
-  log(next, `You retreated to ${formatUmamusumeInstanceName(side.active)}.`);
-  return next;
 }
 
 export function usePlayerAbility(
@@ -602,6 +650,10 @@ export function usePlayerAbility(
   }
 
   if (ability.discardToDraw) {
+    if (discardHandIndex !== undefined
+      && (!Number.isInteger(discardHandIndex) || discardHandIndex < 0 || discardHandIndex >= side.hand.length)) {
+      return next;
+    }
     if (side.hand.length < ability.discardToDraw.discard) return next;
     const resolvedDiscardIndex = discardHandIndex !== undefined && discardHandIndex >= 0 && discardHandIndex < side.hand.length
       ? discardHandIndex
@@ -731,15 +783,21 @@ export function completePregameSetup(state: GameState, activeHandIndex: number, 
   if (next.phase !== "setup") return next;
   const setup = next.setup;
   if (!setup || setup.readyBySide.player || !setup.openingHandsDealt) return next;
+  // This is also the authoritative boundary for network/local intents. Keep
+  // malformed runtime payloads from being coerced into valid array indexes or
+  // throwing before the rejected action can return an unchanged state.
+  if (!Number.isInteger(activeHandIndex) || !Array.isArray(benchHandIndexes) || benchHandIndexes.some((index) => !Number.isInteger(index))) return next;
   const player = next.sides.player;
   const activeCardId = player.hand[activeHandIndex];
   if (!activeCardId || !isBasicUmamusumeInDeck(activeCardId)) return next;
-
-  const uniqueBenchIndexes = [...new Set(benchHandIndexes)]
-    .filter((index) => index !== activeHandIndex)
-    .filter((index) => index >= 0 && index < player.hand.length)
-    .filter((index) => isBasicUmamusumeInDeck(player.hand[index] ?? ""))
-    .slice(0, MAX_BENCH);
+  if (benchHandIndexes.length > MAX_BENCH || new Set(benchHandIndexes).size !== benchHandIndexes.length) return next;
+  if (benchHandIndexes.some((index) => (
+    index === activeHandIndex
+    || index < 0
+    || index >= player.hand.length
+    || !isBasicUmamusumeInDeck(player.hand[index] ?? "")
+  ))) return next;
+  const uniqueBenchIndexes = benchHandIndexes;
 
   player.active = createUmamusume(next, activeCardId, 0);
   player.bench = uniqueBenchIndexes.map((index) => createUmamusume(next, player.hand[index]!, 0));
@@ -843,11 +901,21 @@ export function tickSetupCountdown(state: GameState): GameState {
   return next;
 }
 
-export function resolvePendingPlayerChoice(state: GameState, umamusumeUid: number, random: RandomSource = Math.random): GameState {
+export function resolvePendingPlayerChoice(
+  state: GameState,
+  umamusumeUid: number,
+  random: RandomSource = Math.random,
+  requestingSideId: SideId = "player",
+): GameState {
   const next = cloneGame(state);
+  if (next.gameOver || next.currentSide === "done") return next;
   const pending = next.pendingPlayerChoice;
-  if (!pending) return next;
+  if (!pending || pending.sideId !== requestingSideId) return next;
   const side = next.sides[pending.sideId];
+  // Validate the requested replacement before normalizing the bench. An
+  // invalid choice must be a no-op, including when stale state contains a
+  // defeated or duplicate bench entry that would otherwise be cleaned up.
+  if (!side.bench.some((umamusume) => umamusume.uid === umamusumeUid && umamusume.hp > 0)) return next;
 
   side.bench = side.bench.filter((umamusume, index, bench) => umamusume.hp > 0 && bench.findIndex((entry) => entry.uid === umamusume.uid) === index);
   const requiresPromotion = pending.kind === "promoteAfterKnockout" || !side.active || side.active.hp <= 0;

@@ -6,6 +6,7 @@ import { formatStructuredKoActionNotice, type CoinFlipEvent, toCoinFlipEventFrom
 type UseLogNotificationsArgs = {
   gameLog: string[];
   gameEvents: GameEvent[] | undefined;
+  isSetupPhase: boolean;
   actionNotice: string | null;
   activeCoinFlip: CoinFlipEvent | null;
   previousLogRef: MutableRefObject<string[]>;
@@ -23,6 +24,7 @@ type UseLogNotificationsArgs = {
 export function useLogNotifications({
   gameLog,
   gameEvents,
+  isSetupPhase,
   actionNotice,
   activeCoinFlip,
   previousLogRef,
@@ -44,7 +46,9 @@ export function useLogNotifications({
     previousEventsRef.current = gameEvents ?? [];
 
     const coinFlips = newEvents
-      .filter((event): event is Extract<GameEvent, { kind: "coin" }> => event.kind === "coin")
+      // Opening coin presentation is owned by useOpeningHandFlow so both PvP
+      // peers animate the same authoritative setup event exactly once.
+      .filter((event): event is Extract<GameEvent, { kind: "coin" }> => event.kind === "coin" && !isSetupPhase)
       .map((event) => toCoinFlipEventFromGameEvent(event, coinFlipIdRef.current++));
     const filteredCoinFlips = coinFlips.filter((event) => {
       const skipResults = skipNextCoinLogMessageRef.current;
@@ -91,6 +95,7 @@ export function useLogNotifications({
     getKoCauseFromEntries,
     formatKoActionNotice,
     gameEvents,
+    isSetupPhase,
     previousEventsRef,
   ]);
 }

@@ -8,7 +8,7 @@ import { drawCards } from "./turn";
 import { rollEnergyFromPool, shuffle, type RandomSource } from "../core/random";
 import type { PlayChoices } from "../core/playTypes";
 import { clearSpecialConditions } from "./specialConditions";
-import { emitCardMovement, emitEnergyChanges, emitGameEvent } from "../core/events";
+import { emitCardMovement, emitEnergyChanges, emitGameEvent, emitStatusChanges } from "../core/events";
 
 export type SwitchAfterGustResume = Extract<PendingPlayerChoice, { kind: "switchAfterGust" }>["resume"];
 
@@ -262,7 +262,9 @@ function discardRandomOpponentActiveEnergy(state: GameState, side: SideState, tr
 function recoverActiveSpecialConditions(state: GameState, side: SideState, trainer: TrainerCard): void {
   const active = side.active;
   if (!active || active.specialConditions.length === 0) return;
+  const clearedConditions = [...active.specialConditions];
   clearSpecialConditions(active);
+  emitStatusChanges(state, side.id, active.uid, clearedConditions, []);
   log(state, `${trainer.name} cleared all Special Conditions from ${formatUmamusumeInstanceName(active)}.`);
 }
 
@@ -276,16 +278,12 @@ function moveEnergyFromBenchToActive(state: GameState, side: SideState, trainer:
   const energyType = (Object.entries(source.energies) as [EnergyType, number][])
     .find(([, count]) => count > 0)?.[0];
   if (!energyType) return;
+  const sourceEnergyBefore = { ...source.energies };
+  const activeEnergyBefore = { ...active.energies };
   source.energies[energyType] -= 1;
   active.energies[energyType] += 1;
-  emitGameEvent(state, {
-    kind: "energy",
-    visibility: "public",
-    side: side.id,
-    targetUid: active.uid,
-    energyType,
-    amount: 1,
-  });
+  emitEnergyChanges(state, side.id, source.uid, sourceEnergyBefore, source.energies);
+  emitEnergyChanges(state, side.id, active.uid, activeEnergyBefore, active.energies);
   log(
     state,
     `${trainer.name} moved 1 ${energyLabel(energyType)} from ${formatUmamusumeInstanceName(source)} to ${formatUmamusumeInstanceName(active)}.`,
@@ -377,6 +375,14 @@ function discardToolOrStadium(
   const discardedToolCardId = chosen.umamusume.toolCardId;
   chosen.umamusume.toolCardId = null;
   state.sides[chosen.sideId].discard.push(discardedToolCardId);
+  emitGameEvent(state, {
+    kind: "tool",
+    visibility: "public",
+    side: chosen.sideId,
+    targetUid: chosen.umamusume.uid,
+    toolCardId: discardedToolCardId,
+    action: "discard",
+  });
   emitGameEvent(state, {
     kind: "cardMovement",
     visibility: "public",

@@ -7,7 +7,7 @@ import { attachedEnergyCount, getAllUmamusume } from "../core/umamusume";
 import { retreatCost } from "./retreat";
 import { getUmamusumeAbility } from "./abilityRules";
 import { clearSpecialConditions } from "./specialConditions";
-import { emitCardMovement } from "../core/events";
+import { emitCardMovement, emitGameEvent, emitStatusChanges } from "../core/events";
 
 export type SwitchAfterGustResume = Extract<PendingPlayerChoice, { kind: "switchAfterGust" }>["resume"];
 
@@ -49,7 +49,9 @@ export function switchOutOpponentActive(
   const replacement = opponent.bench.splice(replacementIndex, 1)[0];
   if (!replacement) return;
   const switchedOut = opponent.active;
+  const clearedConditions = [...switchedOut.specialConditions];
   clearSpecialConditions(switchedOut);
+  emitStatusChanges(state, opponent.id, switchedOut.uid, clearedConditions, []);
   opponent.bench.push(switchedOut);
   opponent.active = replacement;
   log(state, `${actorName(opponent)} switched to ${formatUmamusumeInstanceName(replacement)}.`);
@@ -95,8 +97,18 @@ function normalizeSideBoard(state: GameState, side: SideState): void {
       discardedCardIds.push(umamusume.cardId);
       side.discard.push(...(umamusume.evolutionCardIds ?? []));
       discardedCardIds.push(...(umamusume.evolutionCardIds ?? []));
-      if (umamusume.toolCardId) side.discard.push(umamusume.toolCardId);
-      if (umamusume.toolCardId) discardedCardIds.push(umamusume.toolCardId);
+      if (umamusume.toolCardId) {
+        side.discard.push(umamusume.toolCardId);
+        discardedCardIds.push(umamusume.toolCardId);
+        emitGameEvent(state, {
+          kind: "tool",
+          visibility: "public",
+          side: side.id,
+          targetUid: umamusume.uid,
+          toolCardId: umamusume.toolCardId,
+          action: "discard",
+        });
+      }
     });
     emitCardMovement(state, side.id, "play", "discard", discardedCardIds.length, discardedCardIds);
   }

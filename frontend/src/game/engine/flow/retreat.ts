@@ -36,7 +36,8 @@ export function payRetreatCost(umamusume: UmamusumeInstance, cost: number): void
 }
 
 export function payRetreatCostBySelection(umamusume: UmamusumeInstance, selectedEnergyTypes: EnergyType[], cost: number): boolean {
-  if (selectedEnergyTypes.length !== cost) return false;
+  if (!Array.isArray(selectedEnergyTypes)) return false;
+  if (selectedEnergyTypes.length !== cost || selectedEnergyTypes.some((energyType) => !ALL_ENERGY_TYPES.includes(energyType))) return false;
 
   const requiredByType = selectedEnergyTypes.reduce<Partial<Record<EnergyType, number>>>((counts, energyType) => {
     counts[energyType] = (counts[energyType] ?? 0) + 1;

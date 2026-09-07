@@ -7,7 +7,7 @@ import {
   normalizeDeckId,
   validateLocalDeck,
   type LocalDeckInput,
-} from "../../../shared/src";
+} from "umamusume-pocket-shared";
 import type { LocalDeckStore } from "../storage/localDeckStore";
 
 type LocalDeckRouterOptions = {

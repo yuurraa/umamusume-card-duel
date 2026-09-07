@@ -12,11 +12,21 @@ const customisationFallbacks: Record<string, string> = {
 };
 
 export function getFallbackAssetPath(assetPath: string): string | undefined {
-  const normalizedPath = assetPath.split(/[?#]/, 1)[0] ?? assetPath;
+  const normalizedPath = normalizeAssetPath(assetPath);
   const customisationFallback = customisationFallbacks[normalizedPath];
   if (customisationFallback) return customisationFallback;
   if (!normalizedPath.startsWith("/assets/cards/") || !normalizedPath.endsWith(".avif")) return undefined;
   return `/fallback/${normalizedPath.slice("/assets/".length, -5)}.png`;
+}
+
+function normalizeAssetPath(assetPath: string): string {
+  const withoutQuery = assetPath.split(/[?#]/, 1)[0] ?? assetPath;
+  try {
+    const pathname = new URL(withoutQuery, "http://asset-fallback.invalid").pathname;
+    return decodeURIComponent(pathname);
+  } catch {
+    return withoutQuery;
+  }
 }
 
 export function handleAssetError(event: SyntheticEvent<HTMLImageElement>): void {

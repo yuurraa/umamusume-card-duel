@@ -283,7 +283,7 @@ Acceptance: Table-driven tests cover legal transitions, duplicate/outdated compl
 
 ### ARCH-01 — Reduce AppRoot coordination [P2]
 
-Evidence: `AppRoot.tsx` is about 999 lines; runtime and action hooks have large setter/ref argument bundles.
+Evidence: `AppRoot.tsx` is still about 889 lines; runtime and action hooks retain large setter/ref argument bundles.
 
 Actions:
 
@@ -297,7 +297,7 @@ Acceptance: Board/overlay components consume typed views/actions. Navigation doe
 
 ### ARCH-02 — Make engine packaging and dependencies coherent [P2]
 
-Evidence: `frontend/src/game/engine.ts` is about 756 lines and mixes exports with orchestration; backend tests import frontend internals. `docs/engine-dependency-map.md` includes paths from an earlier layout.
+Evidence: `frontend/src/game/engine.ts` is about 986 lines and still mixes the public facade with orchestration; the backend now reaches the supported engine/PvP boundaries through workspace exports. `docs/engine-dependency-map.md` records the current layout and remaining extraction boundary.
 
 Actions:
 
@@ -312,7 +312,7 @@ Acceptance: Engine tests run without React/DOM imports. UI and tests use documen
 
 ### ARCH-03 — Separate backend and persistence responsibilities [P2]
 
-Evidence: `backend/src/server.ts` is about 933 lines and combines bootstrapping, routes, deck storage, cloud/fallback handling, and helpers. This is an ownership concern, not evidence every route is faulty.
+Evidence: `backend/src/server.ts` is now about 139 lines after route/storage extraction; remaining authentication and persistence failure coverage is the ownership gap. This is an ownership concern, not evidence every route is faulty.
 
 Actions:
 

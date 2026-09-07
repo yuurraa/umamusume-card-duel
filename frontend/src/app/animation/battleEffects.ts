@@ -140,6 +140,39 @@ export function withRetainedKoBoard(
   };
 }
 
+/**
+ * Keeps a just-knocked-out board visible during the render between the
+ * canonical state update and the layout effect that queues its visuals.
+ * Without this bridge, the defeated card can briefly disappear and the
+ * replacement board can flash before the KO overlay takes ownership.
+ */
+export function getPendingKoRetainedBoards(
+  previous: BattleSnapshot | null,
+  current: GameState,
+): KoRetainedBoardBySide {
+  if (!previous || current.phase !== "play") return {};
+  const previousEventIds = new Set(previous.events.map((event) => event.id));
+  const currentUids = new Set<number>();
+  (['player', 'opponent'] as SideId[]).forEach((sideId) => {
+    const side = current.sides[sideId];
+    if (side.active) currentUids.add(side.active.uid);
+    side.bench.forEach((umamusume) => currentUids.add(umamusume.uid));
+  });
+  const pendingKnockouts = (current.events ?? []).filter((event): event is Extract<GameEvent, { kind: "knockout" }> => (
+    event.kind === "knockout" && !previousEventIds.has(event.id)
+  ));
+  if (pendingKnockouts.length === 0) return {};
+
+  const retained: KoRetainedBoardBySide = {};
+  pendingKnockouts.forEach((event) => {
+    if (currentUids.has(event.targetUid) || retained[event.knockedSide]) return;
+    const target = getBattleEntries(previous).find((entry) => entry.uid === event.targetUid);
+    if (!target) return;
+    retained[event.knockedSide] = createBattleEffectBoardSnapshot(previous, event.knockedSide);
+  });
+  return retained;
+}
+
 export function withKoVacantActive(state: GameState, vacancyBySide: Partial<Record<SideId, boolean>>): GameState {
   const playerVacant = Boolean(vacancyBySide.player);
   const opponentVacant = Boolean(vacancyBySide.opponent);
@@ -277,10 +310,15 @@ export function buildBattleEffects(
         });
       }
     }
-    if (entry.specialConditions !== before.specialConditions && entry.specialConditions) {
-      const structuredStatus = newEvents.some((event) => event.kind === "status" && event.targetUid === entry.uid);
-      if (structuredStatus) {
+    if (entry.specialConditions !== before.specialConditions) {
+      const statusEvents = newEvents.filter((event) => event.kind === "status" && event.targetUid === entry.uid);
+      const appliedStatus = statusEvents.find((event) => event.kind === "status" && event.action === "apply");
+      const clearedStatus = statusEvents.find((event) => event.kind === "status" && event.action === "clear");
+      if (appliedStatus || clearedStatus) {
         const condition = getAddedSpecialCondition(before, entry);
+        const eventCondition = appliedStatus?.kind === "status"
+          ? appliedStatus.condition
+          : clearedStatus?.kind === "status" ? clearedStatus.condition : condition;
         effects.push({
           id: nextId(),
           kind: "status",
@@ -289,17 +327,17 @@ export function buildBattleEffects(
           targetSlot: entry.slot,
           targetRect: entry.rect ?? before.rect,
           targetCardId: entry.cardId,
-          statusCondition: condition ?? undefined,
-          label: statusLabel(condition),
+          statusCondition: condition ?? eventCondition ?? undefined,
+          label: appliedStatus ? statusLabel(condition ?? eventCondition) : `Clear ${statusLabel(eventCondition ?? condition)}`,
         });
       }
     }
     if (entry.toolCardId && entry.toolCardId !== before.toolCardId) {
-      const structuredTool = newEvents.some((event) => event.kind === "cardMovement"
+      const structuredTool = newEvents.some((event) => event.kind === "tool"
         && event.side === entry.sideId
-        && event.from === "hand"
-        && event.to === "play"
-        && event.cardIds?.includes(entry.toolCardId ?? ""));
+        && event.targetUid === entry.uid
+        && event.action === "attach"
+        && event.toolCardId === entry.toolCardId);
       if (structuredTool) {
         effects.push({
           id: nextId(),

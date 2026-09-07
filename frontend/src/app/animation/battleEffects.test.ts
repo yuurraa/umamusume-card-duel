@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { opponentDeckList, playerDeckList } from "../../../../shared/src/gameData";
 import { createGame, createUmamusume, playerAttack } from "../../game/engine";
-import { buildBattleEffects, createBattleSnapshot } from "./battleEffects";
+import { buildBattleEffects, createBattleSnapshot, getPendingKoRetainedBoards } from "./battleEffects";
 
 afterEach(() => {
   document.body.innerHTML = "";
@@ -54,5 +54,86 @@ describe("structured battle events", () => {
     expect(initialSnapshot.player[0]?.rect).toEqual(firstRect);
     expect(movedSnapshot.player[0]?.rect).toEqual(secondRect);
     expect(getBoundingClientRect).toHaveBeenCalledTimes(2);
+  });
+
+  it("retains a newly knocked-out board before the visual effect queue commits", () => {
+    const state = createGame(playerDeckList, opponentDeckList);
+    state.phase = "play";
+    state.setup = null;
+    state.currentSide = "player";
+    state.sides.player.active = createUmamusume(state, "riceShowerStage2", 1);
+    state.sides.player.active.energies.darkness = 2;
+    state.sides.opponent.active = createUmamusume(state, "riceShowerBasic", 1);
+    state.sides.opponent.active.hp = 40;
+    const targetUid = state.sides.opponent.active.uid;
+    const previous = createBattleSnapshot(state);
+    const next = playerAttack(state);
+
+    const retained = getPendingKoRetainedBoards(previous, next);
+
+    expect(retained.opponent?.active?.uid).toBe(targetUid);
+    expect(next.sides.opponent.active).toBeNull();
+  });
+
+  it("uses the structured Tool event for attachment visuals", () => {
+    const state = createGame(playerDeckList, opponentDeckList);
+    state.phase = "play";
+    state.setup = null;
+    state.currentSide = "player";
+    state.sides.player.active = createUmamusume(state, "riceShowerBasic", 1);
+    const targetUid = state.sides.player.active.uid;
+    const previous = createBattleSnapshot(state);
+
+    state.sides.player.active.toolCardId = "leftoverCarrot";
+    state.events = [{
+      id: 1,
+      transitionId: 1,
+      visibility: "public",
+      kind: "tool",
+      side: "player",
+      targetUid,
+      toolCardId: "leftoverCarrot",
+      action: "attach",
+    }];
+    const current = createBattleSnapshot(state);
+    const effects = buildBattleEffects(previous, current, (() => {
+      let id = 0;
+      return () => ++id;
+    })());
+
+    expect(effects).toHaveLength(1);
+    expect(effects[0]?.kind).toBe("tool");
+    expect(effects[0]?.targetUid).toBe(targetUid);
+  });
+
+  it("uses the structured status-clear event when recovery removes a condition", () => {
+    const state = createGame(playerDeckList, opponentDeckList);
+    state.phase = "play";
+    state.setup = null;
+    state.sides.player.active = createUmamusume(state, "riceShowerBasic", 1);
+    state.sides.player.active.specialConditions = ["poisoned"];
+    const targetUid = state.sides.player.active.uid;
+    const previous = createBattleSnapshot(state);
+
+    state.sides.player.active.specialConditions = [];
+    state.events = [{
+      id: 1,
+      transitionId: 1,
+      visibility: "public",
+      kind: "status",
+      side: "player",
+      targetUid,
+      condition: "poisoned",
+      action: "clear",
+    }];
+    const current = createBattleSnapshot(state);
+    const effects = buildBattleEffects(previous, current, (() => {
+      let id = 0;
+      return () => ++id;
+    })());
+
+    expect(effects).toHaveLength(1);
+    expect(effects[0]?.kind).toBe("status");
+    expect(effects[0]?.label).toBe("Clear Poisoned");
   });
 });

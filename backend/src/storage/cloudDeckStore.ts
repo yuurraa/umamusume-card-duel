@@ -1,6 +1,6 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import type { CollectionReference } from "firebase-admin/firestore";
+import type { CollectionReference, Firestore } from "firebase-admin/firestore";
 import { getFirebaseDb, isFirebaseConfigured } from "../firebase";
 import {
   aiPremadeDecks,
@@ -12,8 +12,8 @@ import {
   type EnergyType,
   type LocalDeck,
   type PremadeDeck,
-} from "../../../shared/src";
-import { DECK_CARD_COUNT, validateLocalDeck } from "../../../shared/src/localDecks";
+} from "umamusume-pocket-shared";
+import { DECK_CARD_COUNT, validateLocalDeck } from "umamusume-pocket-shared/localDecks";
 
 export type CloudDeckDraft = {
   id: string;
@@ -62,6 +62,7 @@ export function createCloudDeckStore(options: {
   fallbackDir: string;
   devUnlocksEnabled: boolean;
   firebaseConfigured?: () => boolean;
+  firebaseDb?: () => Firestore;
 }): CloudDeckStore {
   const firebaseConfigured = options.firebaseConfigured ?? isFirebaseConfigured;
 
@@ -80,7 +81,7 @@ export function createCloudDeckStore(options: {
 async function listDecks(userId: string, options: StoreOptions, firebaseConfigured: () => boolean): Promise<LocalDeck[]> {
   if (!firebaseConfigured()) return readFallbackDecks(userId, options);
   await ensureSeedDecks(userId, options);
-  const snapshot = await cloudDecksCollection(userId).orderBy("updatedAt", "desc").get();
+  const snapshot = await cloudDecksCollection(userId, options).orderBy("updatedAt", "desc").get();
   const decks: LocalDeck[] = [];
   for (const doc of snapshot.docs) {
     const deck = doc.data();
@@ -94,7 +95,7 @@ async function listDecks(userId: string, options: StoreOptions, firebaseConfigur
 async function readDeckById(userId: string, deckId: string, options: StoreOptions, firebaseConfigured: () => boolean): Promise<LocalDeck | null> {
   if (!firebaseConfigured()) return readFallbackDeckById(userId, deckId, options);
   await ensureSeedDecks(userId, options);
-  const snapshot = await cloudDecksCollection(userId).doc(deckId).get();
+  const snapshot = await cloudDecksCollection(userId, options).doc(deckId).get();
   if (!snapshot.exists) return null;
   const deck = snapshot.data();
   if (!deck || isSeedDeckDoc(deck)) return null;
@@ -106,7 +107,7 @@ async function writeDeck(userId: string, deck: LocalDeck, options: StoreOptions,
     await writeFallbackDeck(userId, deck, options);
     return;
   }
-  await cloudDecksCollection(userId).doc(deck.id).set(deck);
+  await cloudDecksCollection(userId, options).doc(deck.id).set(deck);
 }
 
 async function deleteDeck(userId: string, deckId: string, options: StoreOptions, firebaseConfigured: () => boolean): Promise<void> {
@@ -114,7 +115,7 @@ async function deleteDeck(userId: string, deckId: string, options: StoreOptions,
     await fs.unlink(fallbackDeckPath(options.fallbackDir, userId, deckId));
     return;
   }
-  await cloudDecksCollection(userId).doc(deckId).delete();
+  await cloudDecksCollection(userId, options).doc(deckId).delete();
 }
 
 async function getUniqueDeckId(userId: string, baseDeckId: string, options: StoreOptions, firebaseConfigured: () => boolean): Promise<string> {
@@ -131,13 +132,13 @@ async function getUniqueDeckId(userId: string, baseDeckId: string, options: Stor
 async function deckDocumentExists(userId: string, deckId: string, options: StoreOptions, firebaseConfigured: () => boolean): Promise<boolean> {
   if (!firebaseConfigured()) return Boolean(await readFallbackDeckById(userId, deckId, options));
   await ensureSeedDecks(userId, options);
-  const snapshot = await cloudDecksCollection(userId).doc(deckId).get();
+  const snapshot = await cloudDecksCollection(userId, options).doc(deckId).get();
   return snapshot.exists;
 }
 
 async function readDrafts(userId: string, options: StoreOptions, firebaseConfigured: () => boolean): Promise<Required<CloudDeckDraftsPayload>> {
   if (!firebaseConfigured()) return readFallbackDrafts(userId, options);
-  const snapshot = await cloudDeckDraftsCollection(userId).orderBy("updatedAt", "desc").get();
+  const snapshot = await cloudDeckDraftsCollection(userId, options).orderBy("updatedAt", "desc").get();
   return draftsFromDocuments(snapshot.docs.map((doc) => doc.data()));
 }
 
@@ -146,9 +147,9 @@ async function writeDrafts(userId: string, drafts: Required<CloudDeckDraftsPaylo
     await writeFallbackDrafts(userId, drafts, options);
     return;
   }
-  const collection = cloudDeckDraftsCollection(userId);
+  const collection = cloudDeckDraftsCollection(userId, options);
   const previous = await collection.listDocuments();
-  const batch = getFirebaseDb().batch();
+  const batch = getFirebaseDbForOptions(options).batch();
   for (const doc of previous) batch.delete(doc);
 
   const nowIso = new Date().toISOString();
@@ -187,7 +188,7 @@ async function writeDrafts(userId: string, drafts: Required<CloudDeckDraftsPaylo
 async function readCardCollection(userId: string, options: StoreOptions, firebaseConfigured: () => boolean): Promise<Record<string, number>> {
   const seededCounts = buildDefaultCardCollection(options.devUnlocksEnabled);
   if (!firebaseConfigured()) return seededCounts;
-  const document = cloudCardCollectionDoc(userId);
+  const document = cloudCardCollectionDoc(userId, options);
   const snapshot = await document.get();
   if (!snapshot.exists) {
     const nowIso = new Date().toISOString();
@@ -204,10 +205,10 @@ async function readCardCollection(userId: string, options: StoreOptions, firebas
 async function ensureSeedDecks(userId: string, options: StoreOptions): Promise<void> {
   const seedDecks = options.devUnlocksEnabled ? aiPremadeDecks : premadeDecks;
   if (seedDecks.length === 0) return;
-  const collection = cloudDecksCollection(userId);
+  const collection = cloudDecksCollection(userId, options);
   const snapshot = await collection.get();
   const byId = new Map(seedDecks.map((deck) => [deck.id, deck]));
-  const batch = getFirebaseDb().batch();
+  const batch = getFirebaseDbForOptions(options).batch();
   let hasWrites = false;
   for (const doc of snapshot.docs) {
     if (isSeedDeckDoc(doc.data()) && !byId.has(doc.id)) {
@@ -236,18 +237,26 @@ async function ensureSeedDecks(userId: string, options: StoreOptions): Promise<v
   if (hasWrites) await batch.commit();
 }
 
-type StoreOptions = { fallbackDir: string; devUnlocksEnabled: boolean };
+type StoreOptions = {
+  fallbackDir: string;
+  devUnlocksEnabled: boolean;
+  firebaseDb?: () => Firestore;
+};
 
-function cloudDecksCollection(userId: string): CollectionReference<CloudDeckDoc> {
-  return getFirebaseDb().collection("users").doc(userId).collection("decks") as CollectionReference<CloudDeckDoc>;
+function getFirebaseDbForOptions(options: StoreOptions): Firestore {
+  return options.firebaseDb ? options.firebaseDb() : getFirebaseDb();
 }
 
-function cloudDeckDraftsCollection(userId: string): CollectionReference<CloudDeckDraft> {
-  return getFirebaseDb().collection("users").doc(userId).collection("deckDrafts") as CollectionReference<CloudDeckDraft>;
+function cloudDecksCollection(userId: string, options: StoreOptions): CollectionReference<CloudDeckDoc> {
+  return getFirebaseDbForOptions(options).collection("users").doc(userId).collection("decks") as CollectionReference<CloudDeckDoc>;
 }
 
-function cloudCardCollectionDoc(userId: string) {
-  return getFirebaseDb().collection("users").doc(userId).collection("inventory").doc("cards");
+function cloudDeckDraftsCollection(userId: string, options: StoreOptions): CollectionReference<CloudDeckDraft> {
+  return getFirebaseDbForOptions(options).collection("users").doc(userId).collection("deckDrafts") as CollectionReference<CloudDeckDraft>;
+}
+
+function cloudCardCollectionDoc(userId: string, options: StoreOptions) {
+  return getFirebaseDbForOptions(options).collection("users").doc(userId).collection("inventory").doc("cards");
 }
 
 async function readFallbackDeckById(userId: string, deckId: string, options: StoreOptions): Promise<LocalDeck | null> {

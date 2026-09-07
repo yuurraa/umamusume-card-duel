@@ -266,7 +266,7 @@ export function useAppRuntimeEffects({
     if (game.humanBySide[pendingChoice.sideId] && !isAiVsAi) return;
     const preferredBenchUid = choosePreferredBenchUid(game.sides[pendingChoice.sideId]);
     if (preferredBenchUid === undefined) return;
-    setGame((current) => resolvePendingPlayerChoice(current, preferredBenchUid));
+    setGame((current) => resolvePendingPlayerChoice(current, preferredBenchUid, Math.random, pendingChoice.sideId));
   }, [game, isAiVsAi, isBattleAnimationBlocking, setGame]);
 
   useEffect(() => {

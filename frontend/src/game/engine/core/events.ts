@@ -1,4 +1,4 @@
-import type { EnergyType, GameEvent, GameState } from "../../../../../shared/src/types";
+import type { EnergyType, GameEvent, GameState, SpecialCondition } from "../../../../../shared/src/types";
 
 export type GameEventPayload = GameEvent extends infer Event
   ? Event extends GameEvent
@@ -73,6 +73,40 @@ export function emitEnergyChanges(
       targetUid,
       energyType,
       amount,
+    }, transitionId);
+  });
+}
+
+export function emitStatusChanges(
+  state: GameState,
+  side: GameState["sides"]["player"]["id"],
+  targetUid: number,
+  before: SpecialCondition[],
+  after: SpecialCondition[],
+  transitionId?: number,
+): void {
+  const beforeSet = new Set(before);
+  const afterSet = new Set(after);
+  beforeSet.forEach((condition) => {
+    if (afterSet.has(condition)) return;
+    emitGameEvent(state, {
+      kind: "status",
+      visibility: "public",
+      side,
+      targetUid,
+      condition,
+      action: "clear",
+    }, transitionId);
+  });
+  afterSet.forEach((condition) => {
+    if (beforeSet.has(condition)) return;
+    emitGameEvent(state, {
+      kind: "status",
+      visibility: "public",
+      side,
+      targetUid,
+      condition,
+      action: "apply",
     }, transitionId);
   });
 }

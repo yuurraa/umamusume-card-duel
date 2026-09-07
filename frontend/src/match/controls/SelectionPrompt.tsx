@@ -17,6 +17,7 @@ export function SelectionPrompt({ pending, onCancel, nextEnergyType, onRetreatDi
   const isRetreatDiscard = pending.kind === "retreatDiscard";
   const isAttackShuffleChoice = pending.kind === "attackShuffleSelfChoice";
   const hasInlineActionRow = isRetreatDiscard || isAttackShuffleChoice;
+  const canCancel = isPendingSelectionCancelable(pending);
   const retreatSelectedCount = isRetreatDiscard ? getSelectedEnergyCount(pending.selectedEnergyCounts) : 0;
   const retreatConfirmEnabled = isRetreatDiscard && retreatSelectedCount === pending.retreatCost;
 
@@ -93,11 +94,25 @@ export function SelectionPrompt({ pending, onCancel, nextEnergyType, onRetreatDi
           <NeutralButton style={selectionPromptInlineButtonStyle} onClick={() => onChooseAttackShuffleSelf?.(true)}>Yes</NeutralButton>
           <NeutralButton style={selectionPromptInlineButtonStyle} onClick={() => onChooseAttackShuffleSelf?.(false)}>No</NeutralButton>
         </div>
-      ) : (
-        pending.kind !== "replaceActive" && pending.kind !== "forceSwitchActive" && <NeutralButton style={selectionPromptButtonStyle} onClick={onCancel}>Cancel</NeutralButton>
-      )}
+      ) : canCancel ? <NeutralButton style={selectionPromptButtonStyle} onClick={onCancel}>Cancel</NeutralButton> : null}
     </section>
   );
+}
+
+function isPendingSelectionCancelable(pending: PendingSelection): boolean {
+  // These choices happen only after an attack/ability has been committed. The
+  // player must resolve its required target rather than backing out of an
+  // already declared action (for example Nishino Flower or Super Creek heal).
+  switch (pending.kind) {
+    case "replaceActive":
+    case "forceSwitchActive":
+    case "attackDamageTarget":
+    case "attackHealTarget":
+    case "abilityDamageTarget":
+      return false;
+    default:
+      return true;
+  }
 }
 
 function RetreatDiscardSelector({ pending, onAdjust }: { pending: Extract<PendingSelection, { kind: "retreatDiscard" }>; onAdjust?: (energyType: EnergyType, delta: 1 | -1) => void }) {

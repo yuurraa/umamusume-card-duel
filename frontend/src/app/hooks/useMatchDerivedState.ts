@@ -73,8 +73,11 @@ export function useMatchDerivedState({
       : undefined;
   const abilityEnergyTypes = pendingSelection?.kind === "moveEnergyAbility" ? new Set(pendingSelection.energyTypes) : undefined;
   const hiddenOpponent = game.phase === "setup" && !game.setup?.opponentRevealed;
+  const hasStructuredCoinEvent = Boolean(game.events?.some((event) => event.kind === "coin"));
   const latestCoinFlipLog = game.log[0];
-  const latestCoinFlipMessage = latestCoinFlipLog && toCoinFlipEvent(latestCoinFlipLog, 0)
+  // The event ledger drives the synchronized animation. Do not let its
+  // duplicate prose log create a second, animation-less blocking state.
+  const latestCoinFlipMessage = !hasStructuredCoinEvent && latestCoinFlipLog && toCoinFlipEvent(latestCoinFlipLog, 0)
     ? latestCoinFlipLog
     : null;
   const unresolvedCoinLog = latestCoinFlipMessage !== null && latestCoinFlipMessage !== acknowledgedCoinLogMessage;

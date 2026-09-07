@@ -7,7 +7,7 @@ import { getCard, getUmamusumeCard } from "../core/catalog";
 import { rollEnergyFromPool, type RandomSource } from "../core/random";
 import { getUmamusumeAbility } from "./abilityRules";
 import { clearSpecialConditions } from "./specialConditions";
-import { emitCardMovement, emitGameEvent } from "../core/events";
+import { emitCardMovement, emitGameEvent, emitStatusChanges } from "../core/events";
 
 export function prepareUmamusumeForTurn(side: SideState): void {
   getAllUmamusume(side).forEach((umamusume) => {
@@ -158,7 +158,9 @@ function applyEndTurnToolTriggers(state: GameState, sideId: SideId): void {
       }
     }
     if (tool.effect.toolEndTurnRecoverSpecialConditionsDiscardSelf && umamusume.specialConditions.length > 0) {
+      const clearedConditions = [...umamusume.specialConditions];
       clearSpecialConditions(umamusume);
+      emitStatusChanges(state, sideId, umamusume.uid, clearedConditions, []);
       ownerSide.discard.push(toolCardId);
       umamusume.toolCardId = null;
       emitCardMovement(state, sideId, "play", "discard", 1, [toolCardId]);
@@ -201,8 +203,10 @@ function processEndTurnStatusConditions(state: GameState): void {
       if (recoveryTurn === null) return;
       const turnsTaken = state.turnsTakenBySide[sideId] ?? 0;
       if (turnsTaken < recoveryTurn) return;
+      const clearedConditions = [...umamusume.specialConditions];
       umamusume.specialConditions = umamusume.specialConditions.filter((condition) => condition !== "paralysed");
       umamusume.paralysedUntilOwnTurn = null;
+      emitStatusChanges(state, sideId, umamusume.uid, clearedConditions, umamusume.specialConditions);
       log(state, `${formatUmamusumeInstanceName(umamusume)} recovered from Paralysed.`);
     });
   });

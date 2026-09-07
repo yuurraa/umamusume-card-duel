@@ -4,7 +4,7 @@ import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import express from "express";
-import { premadeDecks } from "../../../shared/src/gameData";
+import { premadeDecks } from "umamusume-pocket-shared";
 import { createLocalDeckRouter } from "../routes/localDeckRoutes";
 import { createLocalDeckStore } from "../storage/localDeckStore";
 

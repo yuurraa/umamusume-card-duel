@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   canAttachEnergy,
   clearAiTelemetry,
@@ -52,10 +52,12 @@ import { getAccountPlayerName } from "../utils/playerNames";
 import type { CoinFlipResult, GameEvent, EnergyType, GameState, SideId, UmamusumeInstance } from "../../../shared/src/types";
 import { MatchBoardLayout } from "./lazyMatchComponents";
 import { MatchOverlays } from "./MatchOverlays";
-import { GAME_OVER_REVEAL_DELAY_MS } from "./constants";
 import { delay } from "./pvp/rtcHelpers";
 import { redactHiddenSidePrivateInfo, swapBattlePerspectiveText, toPerspectiveGame } from "./matchPerspective";
 import { LazyLoadErrorBoundary } from "./LazyLoadErrorBoundary";
+import { useGameOverPresentation } from "./hooks/useGameOverPresentation";
+import { useMatchTransientReset } from "./hooks/useMatchTransientReset";
+import { useOpeningHandFlow } from "./hooks/useOpeningHandFlow";
 export function App() {
   const reducedMotion = useReducedMotion();
   const [screen, setScreen] = useState<AppScreen>("mainMenu");
@@ -93,8 +95,6 @@ export function App() {
   const [pendingCoinAttack, setPendingCoinAttack] = useState<PendingCoinAttack | null>(null);
   const [cardFlowQueue, setCardFlowQueue] = useState<CardFlowItem[][]>([]);
   const [openingHandDeferredRevealCardIds, setOpeningHandDeferredRevealCardIds] = useState<string[]>([]);
-  const [gameOverModalVisible, setGameOverModalVisible] = useState(false);
-  const [openingCoinChoicePending, setOpeningCoinChoicePending] = useState(false);
   const [setupActiveIndex, setSetupActiveIndex] = useState<number | null>(null);
   const [setupBenchIndexes, setSetupBenchIndexes] = useState<number[]>([]);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -118,12 +118,10 @@ export function App() {
   const [hasSeenMatchSetupPhase, setHasSeenMatchSetupPhase] = useState(false);
   const previousLogRef = useRef<string[]>([]);
   const previousEventsRef = useRef<GameEvent[]>([]);
-  const gameOverRevealTimeoutRef = useRef<number | null>(null);
   const wasSetupCoinFlipBlockingRef = useRef(false);
   const coinFlipIdRef = useRef(1);
-  const openingHandAnimationKeyRef = useRef<string | null>(null);
+  const resetCardFlowTrackingRef = useRef<() => void>(() => undefined);
   const openingHandDeferredRevealTimeoutRef = useRef<number | null>(null);
-  const shouldDealOpeningHandsAfterFlowRef = useRef(false);
   const skipNextCoinLogMessageRef = useRef<CoinFlipResult[] | null>(null);
   const lastVisiblePlaymatSideRef = useRef<SideId>("player");
   const equippedDeck = getDeckById(equippedDeckId);
@@ -138,8 +136,12 @@ export function App() {
   // if the POV was previously switched in AI-vs-AI.
   const displayPerspective: SideId = isAiVsAi ? (game.phase === "setup" ? "player" : aiPerspective) : "player";
   const baseDisplayGame = isNetworkMatch ? game : toPerspectiveGame(game, displayPerspective);
+  const hasStructuredCoinEvent = Boolean(game.events?.some((event) => event.kind === "coin"));
   const latestCoinFlipLog = game.log[0];
-  const latestCoinFlipMessage = latestCoinFlipLog && toCoinFlipEvent(latestCoinFlipLog, 0)
+  // Structured coin events are authoritative in network games. Falling back to
+  // the human-readable setup log at the same time can block the board without
+  // an animation queued on a joining client.
+  const latestCoinFlipMessage = !hasStructuredCoinEvent && latestCoinFlipLog && toCoinFlipEvent(latestCoinFlipLog, 0)
     ? latestCoinFlipLog
     : null;
   const isCoinFlipBlockingForVisuals = Boolean(
@@ -147,6 +149,20 @@ export function App() {
     || coinFlipQueue.length > 0
     || (latestCoinFlipMessage !== null && latestCoinFlipMessage !== acknowledgedCoinLogMessage),
   );
+  const {
+    openingCoinChoicePending,
+    setOpeningCoinChoicePending,
+    openingHandAnimationKeyRef,
+    shouldDealOpeningHandsAfterFlowRef,
+  } = useOpeningHandFlow({
+    game,
+    activeCoinFlip,
+    isCoinFlipBlocking: isCoinFlipBlockingForVisuals,
+    cardFlowQueue,
+    setCardFlowQueue,
+    setActiveCoinFlip,
+    setCoinFlipQueue,
+  });
   const {
     displayGame,
     battleEffectQueue,
@@ -177,6 +193,19 @@ export function App() {
     pendingPlayerChoice: game.pendingPlayerChoice,
   });
   const { queueVisualAction, clearQueuedVisualActions } = useQueuedVisualActions(visualFlowBlocked);
+  const { gameOverModalVisible, resetGameOverPresentation } = useGameOverPresentation({
+    gameOver: game.gameOver,
+    battleEffectCount: battleEffectQueue.length,
+    koCrumbleCount: koCrumblingUids.size,
+    pointGainCount: pointGainQueue.length,
+    cardFlowCount: cardFlowQueue.length,
+    activeCoinFlip,
+    clearQueuedVisualActions,
+    setOpeningHandDeferredRevealCardIds,
+    openingHandDeferredRevealTimeoutRef,
+    openingHandAnimationKeyRef,
+    shouldDealOpeningHandsAfterFlowRef,
+  });
   const player = game.sides.player;
   const displayPlayer = displayGame.sides.player;
   const localPlayerName = getAccountPlayerName(firebaseAccount);
@@ -188,17 +217,6 @@ export function App() {
   const displayLog = game.log.map(formatMatchText);
   const hasLocalPendingChoice = game.pendingPlayerChoice?.sideId === "player";
   const nextPlayerEnergy = displayPlayer.energyZone[0] ?? null;
-  useEffect(() => () => {
-    if (gameOverRevealTimeoutRef.current !== null) {
-      window.clearTimeout(gameOverRevealTimeoutRef.current);
-      gameOverRevealTimeoutRef.current = null;
-    }
-    if (openingHandDeferredRevealTimeoutRef.current !== null) {
-      window.clearTimeout(openingHandDeferredRevealTimeoutRef.current);
-      openingHandDeferredRevealTimeoutRef.current = null;
-    }
-  }, []);
-
   useLayoutEffect(() => {
     // Prevent a one-frame flash of the opponent playmat when entering the match screen
     // while the game state is being replaced (e.g. starting a new game).
@@ -223,80 +241,34 @@ export function App() {
     }
   }, [game.phase, hasSeenMatchSetupPhase, isAiVsAi, screen]);
 
-  useEffect(() => {
-    if (!game.gameOver) {
-      setGameOverModalVisible(false);
-      if (gameOverRevealTimeoutRef.current !== null) {
-        window.clearTimeout(gameOverRevealTimeoutRef.current);
-        gameOverRevealTimeoutRef.current = null;
-      }
-      return;
-    }
-    clearQueuedVisualActions();
-    setOpeningHandDeferredRevealCardIds([]);
-    if (openingHandDeferredRevealTimeoutRef.current !== null) {
-      window.clearTimeout(openingHandDeferredRevealTimeoutRef.current);
-      openingHandDeferredRevealTimeoutRef.current = null;
-    }
-    openingHandAnimationKeyRef.current = null;
-    shouldDealOpeningHandsAfterFlowRef.current = false;
-  }, [clearQueuedVisualActions, game.gameOver]);
-
-  useEffect(() => {
-    if (!game.gameOver) return;
-    if (gameOverModalVisible) return;
-    if (battleEffectQueue.length > 0 || koCrumblingUids.size > 0 || pointGainQueue.length > 0 || cardFlowQueue.length > 0 || activeCoinFlip) return;
-    if (gameOverRevealTimeoutRef.current !== null) return;
-
-    gameOverRevealTimeoutRef.current = window.setTimeout(() => {
-      setGameOverModalVisible(true);
-      gameOverRevealTimeoutRef.current = null;
-    }, GAME_OVER_REVEAL_DELAY_MS);
-
-    return () => {
-      if (gameOverRevealTimeoutRef.current !== null) {
-        window.clearTimeout(gameOverRevealTimeoutRef.current);
-        gameOverRevealTimeoutRef.current = null;
-      }
-    };
-  }, [activeCoinFlip, battleEffectQueue.length, cardFlowQueue.length, game.gameOver, gameOverModalVisible, koCrumblingUids.size, pointGainQueue.length]);
-
-  const resetTransientMatchUi = () => {
-    previousLogRef.current = [];
-    previousEventsRef.current = [];
-    resetCardFlowTracking();
-    clearQueuedVisualActions();
-    setCoinFlipQueue([]);
-    setActiveCoinFlip(null);
-    setAcknowledgedCoinLogMessage(null);
-    setPendingCoinAttack(null);
-    setCardFlowQueue([]);
-    setOpeningHandDeferredRevealCardIds([]);
-    if (openingHandDeferredRevealTimeoutRef.current !== null) {
-      window.clearTimeout(openingHandDeferredRevealTimeoutRef.current);
-      openingHandDeferredRevealTimeoutRef.current = null;
-    }
-    resetBattleVisuals();
-    setGameOverModalVisible(false);
-    if (gameOverRevealTimeoutRef.current !== null) {
-      window.clearTimeout(gameOverRevealTimeoutRef.current);
-      gameOverRevealTimeoutRef.current = null;
-    }
-    skipNextCoinLogMessageRef.current = null;
-    setSetupActiveIndex(null);
-    setSetupBenchIndexes([]);
-    setPendingSelection(null);
-    setEndTurnWarningActions(null);
-    setPreviewTarget(null);
-    setSuppressEndTurnWarningForGame(false);
-    setActionNotice(null);
-    resetZoneModals();
-    setMenuOpen(false);
-    setAiPerspective("player");
-    setPovSwitchAnimationToken(0);
-    openingHandAnimationKeyRef.current = null;
-    shouldDealOpeningHandsAfterFlowRef.current = false;
-  };
+  const resetCardFlowTrackingBridge = useCallback(() => resetCardFlowTrackingRef.current(), []);
+  const resetTransientMatchUi = useMatchTransientReset({
+    previousLogRef,
+    previousEventsRef,
+    resetCardFlowTracking: resetCardFlowTrackingBridge,
+    clearQueuedVisualActions,
+    setCoinFlipQueue,
+    setActiveCoinFlip,
+    setAcknowledgedCoinLogMessage,
+    setPendingCoinAttack,
+    setCardFlowQueue,
+    resetGameOverPresentation,
+    resetBattleVisuals,
+    skipNextCoinLogMessageRef,
+    setSetupActiveIndex,
+    setSetupBenchIndexes,
+    setPendingSelection,
+    setEndTurnWarningActions,
+    setPreviewTarget,
+    setSuppressEndTurnWarningForGame,
+    setActionNotice,
+    resetZoneModals,
+    setMenuOpen,
+    setAiPerspective,
+    setPovSwitchAnimationToken,
+    openingHandAnimationKeyRef,
+    shouldDealOpeningHandsAfterFlowRef,
+  });
 
   const {
     pvpRole,
@@ -388,6 +360,7 @@ export function App() {
     isPvpHost,
     syncToGuest,
   });
+  resetCardFlowTrackingRef.current = resetCardFlowTracking;
   const isSetupCountdownActive = game.phase === "setup"
     && Boolean(game.setup?.readyBySide.player)
     && Boolean(game.setup?.readyBySide.opponent)
@@ -504,40 +477,6 @@ export function App() {
     setMenuOpen(false);
     openOpponentZones();
   };
-  useEffect(() => {
-    if (game.gameOver || game.phase !== "setup") {
-      setOpeningCoinChoicePending(false);
-      return;
-    }
-    if (!game.setup?.coinChoice) {
-      setOpeningCoinChoicePending(false);
-      return;
-    }
-    if (game.setup.coinFlipResult || activeCoinFlip) setOpeningCoinChoicePending(false);
-  }, [activeCoinFlip, game.gameOver, game.phase, game.setup?.coinChoice, game.setup?.coinFlipResult]);
-
-  useEffect(() => {
-    const setup = game.setup;
-    if (game.phase !== "setup" || !setup?.coinFlipResult || setup.openingHandsDealt) return;
-    if (isCoinFlipBlocking || cardFlowQueue.length > 0) return;
-    const openingHand = setup.openingHands.player.filter(Boolean);
-    if (openingHand.length === 0) return;
-
-    const animationKey = `${setup.coinFlipResult}:${openingHand.join("|")}`;
-    if (openingHandAnimationKeyRef.current === animationKey) return;
-    openingHandAnimationKeyRef.current = animationKey;
-    shouldDealOpeningHandsAfterFlowRef.current = true;
-    setCardFlowQueue((queue) => [
-      ...queue,
-      openingHand.map((cardId) => ({
-        cardId,
-        group: "drawn",
-        enterFrom: "leftDeck",
-        exitTo: "bottomCenter",
-      })),
-    ]);
-  }, [cardFlowQueue.length, game.phase, game.setup, isCoinFlipBlocking]);
-
   useAppRuntimeEffects({
     game,
     player,
@@ -614,6 +553,7 @@ export function App() {
   useLogNotifications({
     gameLog: game.log,
     gameEvents: game.events,
+    isSetupPhase: game.phase === "setup",
     actionNotice,
     activeCoinFlip,
     previousLogRef,
@@ -722,7 +662,12 @@ export function App() {
         message: formatMatchText(topBanner.message),
       }
     : null;
-  const canShowSelectionPrompt = Boolean(activePendingSelection) && canShowSelectionPromptBase;
+  // Engine-owned replacement choices enter the sequence reducer directly.
+  // Card-effect choices such as Rainbow Uncap's evolution pick and scout's
+  // discard pick live in local pendingSelection instead, so show their bottom
+  // prompt once any preceding visual sequence has finished.
+  const canShowSelectionPrompt = Boolean(activePendingSelection)
+    && (canShowSelectionPromptBase || !visualFlowBlocked);
   const pvpSecondsRemaining = game.turnDeadlineMs === null
     ? 30
     : Math.max(0, Math.ceil((game.turnDeadlineMs - pvpTimerNowMs) / 1000));

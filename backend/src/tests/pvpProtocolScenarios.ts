@@ -1,12 +1,11 @@
 import { strict as assert } from "node:assert";
 import { gzipSync } from "node:zlib";
-import { parsePvpMessage, PVP_PROTOCOL_VERSION } from "../../../frontend/src/pvp/protocol";
-import { cards, premadeDecks } from "../../../shared/src/gameData";
-import { validatePvpDeckCardIds } from "../../../shared/src/localDecks";
-import { createGame } from "../../../frontend/src/game/engine";
-import { createGuestSyncState, mirrorGameState, mirrorGameStateForGuest, projectGameEventsForSide } from "../../../frontend/src/pvp/stateMirror";
-import { createOrderedPvpReceiver } from "../../../frontend/src/pvp/orderedReceiver";
-import { toPerspectiveGame } from "../../../frontend/src/app/matchPerspective";
+import { parsePvpMessage, PVP_PROTOCOL_VERSION } from "umamusume-pocket-frontend/pvp/protocol";
+import { cards, premadeDecks, validatePvpDeckCardIds } from "umamusume-pocket-shared";
+import { createGame } from "umamusume-pocket-frontend/engine";
+import { createGuestSyncState, mirrorGameState, mirrorGameStateForGuest, projectGameEventsForSide } from "umamusume-pocket-frontend/pvp/stateMirror";
+import { createOrderedPvpReceiver } from "umamusume-pocket-frontend/pvp/orderedReceiver";
+import { toPerspectiveGame } from "umamusume-pocket-frontend/app/matchPerspective";
 
 async function expectRejected(raw: string): Promise<void> {
   assert.equal(await parsePvpMessage(raw), null, `Expected packet to be rejected: ${raw}`);
@@ -166,6 +165,24 @@ async function run(): Promise<void> {
     events: [negativeEnergyEvent],
   }));
   assert.equal(energySync?.type, "sync", "negative Energy deltas must remain valid on the PvP wire");
+  const statusClearSync = await parsePvpMessage(JSON.stringify({
+    type: "sync",
+    version: PVP_PROTOCOL_VERSION,
+    sessionId,
+    sequence: 2,
+    state: redactedSync,
+    events: [{
+      id: 7,
+      transitionId: 7,
+      visibility: "public",
+      kind: "status",
+      side: "player",
+      targetUid: 1,
+      condition: "poisoned",
+      action: "clear",
+    }],
+  }));
+  assert.equal(statusClearSync?.type, "sync", "status clear events must remain valid on the PvP wire");
   const invalidSync = structuredClone(redactedSync);
   invalidSync.sides.opponent.discard = ["not-a-card"];
   await expectRejected(JSON.stringify({ type: "sync", version: PVP_PROTOCOL_VERSION, sessionId, sequence: 2, state: invalidSync }));
@@ -175,6 +192,30 @@ async function run(): Promise<void> {
   await expectRejected(JSON.stringify({ type: "sync", version: PVP_PROTOCOL_VERSION, sessionId, sequence: 4, state: redactedSync, eventCursor: -1, events: guestEvents }));
   await expectRejected(JSON.stringify({ type: "sync", version: PVP_PROTOCOL_VERSION, sessionId, sequence: 4, state: redactedSync, eventHistoryStart: 0 }));
   await expectRejected(JSON.stringify({ type: "sync", version: PVP_PROTOCOL_VERSION, sessionId, sequence: 5, state: redactedSync, eventCursor: 4, events: [{ id: 1, transitionId: 1, visibility: "public", kind: "message" }] }));
+  await expectRejected(JSON.stringify({
+    type: "sync",
+    version: PVP_PROTOCOL_VERSION,
+    sessionId,
+    sequence: 6,
+    state: redactedSync,
+    events: [{ id: 1, transitionId: 1, visibility: "public", kind: "tool", side: "player", targetUid: 1, toolCardId: "not-a-card", action: "attach" }],
+  }));
+  await expectRejected(JSON.stringify({
+    type: "sync",
+    version: PVP_PROTOCOL_VERSION,
+    sessionId,
+    sequence: 8,
+    state: redactedSync,
+    events: [{ id: 1, transitionId: 1, visibility: "public", kind: "status", side: "player", targetUid: 1, condition: "poisoned" }],
+  }));
+  await expectRejected(JSON.stringify({
+    type: "sync",
+    version: PVP_PROTOCOL_VERSION,
+    sessionId,
+    sequence: 7,
+    state: redactedSync,
+    events: [guestEvents[0]!, guestEvents[0]!],
+  }));
   console.log("PASS: PvP protocol rejects malformed payloads and accepts valid intents");
 }
 

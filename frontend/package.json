@@ -7,6 +7,31 @@
       "types": "./src/game/engine.ts",
       "import": "./src/game/engine.ts",
       "default": "./src/game/engine.ts"
+    },
+    "./pvp/protocol": {
+      "types": "./src/pvp/protocol.ts",
+      "import": "./src/pvp/protocol.ts",
+      "default": "./src/pvp/protocol.ts"
+    },
+    "./pvp/stateMirror": {
+      "types": "./src/pvp/stateMirror.ts",
+      "import": "./src/pvp/stateMirror.ts",
+      "default": "./src/pvp/stateMirror.ts"
+    },
+    "./pvp/orderedReceiver": {
+      "types": "./src/pvp/orderedReceiver.ts",
+      "import": "./src/pvp/orderedReceiver.ts",
+      "default": "./src/pvp/orderedReceiver.ts"
+    },
+    "./pvp/playerIntent": {
+      "types": "./src/pvp/playerIntent.ts",
+      "import": "./src/pvp/playerIntent.ts",
+      "default": "./src/pvp/playerIntent.ts"
+    },
+    "./app/matchPerspective": {
+      "types": "./src/app/matchPerspective.ts",
+      "import": "./src/app/matchPerspective.ts",
+      "default": "./src/app/matchPerspective.ts"
     }
   },
   "scripts": {

@@ -3,7 +3,7 @@ import { formatUmamusumeCardName, formatUmamusumeInstanceName, actorName } from 
 import { getAllUmamusume } from "../core/umamusume";
 import { log } from "../core/log";
 import { clearSpecialConditions } from "./specialConditions";
-import { emitGameEvent } from "../core/events";
+import { emitGameEvent, emitStatusChanges } from "../core/events";
 
 export function getEvolutionTargets(state: GameState, side: SideState, evolutionCard: UmamusumeCard): UmamusumeInstance[] {
   return [side.active, ...side.bench]
@@ -37,7 +37,9 @@ export function evolveUmamusume(state: GameState, side: SideState, umamusume: Um
   umamusume.evolvedTurn = state.turnNumber;
   umamusume.enteredTurn = Math.min(umamusume.enteredTurn, state.turnNumber - 1);
   // Evolution cures all special conditions.
+  const clearedConditions = [...umamusume.specialConditions];
   clearSpecialConditions(umamusume);
+  emitStatusChanges(state, side.id, umamusume.uid, clearedConditions, []);
   emitGameEvent(state, {
     kind: "evolution",
     visibility: "public",

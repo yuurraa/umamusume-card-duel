@@ -119,6 +119,14 @@ export function resolveCardPlay(
     const target = chosenTarget && !chosenTarget.toolCardId ? chosenTarget : play.target;
     if (!target || target.toolCardId) return;
     target.toolCardId = card.id;
+    emitGameEvent(state, {
+      kind: "tool",
+      visibility: "public",
+      side: side.id,
+      targetUid: target.uid,
+      toolCardId: card.id,
+      action: "attach",
+    });
     log(state, `${actorName(side)} attached ${card.name} to ${formatUmamusumeInstanceName(target)}.`);
   } else if (play.type === "trainer" && card.kind === "trainer") {
     if (card.trainerType === "stadium") {

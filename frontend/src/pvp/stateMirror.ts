@@ -113,7 +113,8 @@ function isGameEventVisibleToSide(event: GameEvent, recipientSide: SideId): bool
     case "turn":
     case "energy":
     case "evolution":
-    case "status": return event.side === recipientSide;
+    case "status":
+    case "tool": return event.side === recipientSide;
     case "cardMovement": return event.side === recipientSide || event.to === "play" || event.to === "discard";
     case "gameEnd": return event.winner === recipientSide;
     case "message": return false;
@@ -156,6 +157,7 @@ export function mirrorGameEvent(event: GameEvent): GameEvent {
     case "energy":
     case "evolution":
     case "status":
+    case "tool":
       return { ...event, side: swapSideId(event.side) };
     case "gameEnd":
       return { ...event, winner: swapSideId(event.winner) };

@@ -3,9 +3,10 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import express from "express";
+import type { Auth } from "firebase-admin/auth";
+import type { Firestore } from "firebase-admin/firestore";
 import { createServer } from "node:http";
-import { playerDeckList } from "../../../shared/src/gameData";
-import { buildLocalDeck } from "../../../shared/src/localDecks";
+import { buildLocalDeck, playerDeckList } from "umamusume-pocket-shared";
 import { createCloudDeckRouter } from "../routes/cloudDeckRoutes";
 import { createCloudDeckStore } from "../storage/cloudDeckStore";
 
@@ -67,6 +68,24 @@ try {
       return [];
     },
   };
+  const firebaseFailureStore = createCloudDeckStore({
+    fallbackDir: rootDir,
+    devUnlocksEnabled: true,
+    firebaseConfigured: () => true,
+    firebaseDb: () => {
+      throw new Error("simulated Firebase outage");
+    },
+  });
+  const invalidTokenAuth = {
+    verifyIdToken: async () => {
+      throw new Error("simulated invalid token");
+    },
+  } as unknown as Auth;
+  const profileStorageFailureDb = {
+    collection: () => {
+      throw new Error("simulated profile storage outage");
+    },
+  } as unknown as Firestore;
   app.use("/api/failing", createCloudDeckRouter({
     store: failingStore,
     resolveUserId: async () => "fixture-user",
@@ -77,6 +96,26 @@ try {
       response.status(401).json({ error: "Fixture token rejected." });
       return null;
     },
+  }));
+  app.use("/api/firebase-failing", createCloudDeckRouter({
+    store: firebaseFailureStore,
+    resolveUserId: async () => "fixture-user",
+  }));
+  app.use("/api/auth-invalid", createCloudDeckRouter({
+    store,
+    firebaseConfigured: () => true,
+    firebaseAuth: () => invalidTokenAuth,
+  }));
+  app.use("/api/profile-failing", createCloudDeckRouter({
+    store,
+    firebaseConfigured: () => true,
+    firebaseAuth: () => ({
+      verifyIdToken: async () => ({
+        uid: "fixture-user",
+        firebase: { sign_in_provider: "custom" },
+      }),
+    } as unknown as Auth),
+    firebaseDb: () => profileStorageFailureDb,
   }));
   const server = createServer(app);
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", () => resolve()));
@@ -96,6 +135,27 @@ try {
     assert.equal(authFailureResponse.status, 401);
     assert.deepEqual(await authFailureResponse.json(), { error: "Fixture token rejected." });
     assert.equal(accessedAfterAuthFailure, false, "rejected cloud auth must not access persistence");
+
+    await assert.rejects(
+      () => firebaseFailureStore.listDecks("fixture-user"),
+      /simulated Firebase outage/,
+      "configured Firebase failures must be injectable without production credentials",
+    );
+    const firebaseFailureResponse = await fetch(`${baseUrl}/api/firebase-failing/cloud-decks`);
+    assert.equal(firebaseFailureResponse.status, 503);
+    assert.deepEqual(await firebaseFailureResponse.json(), { error: "Cloud deck storage is unavailable." });
+
+    const invalidTokenResponse = await fetch(`${baseUrl}/api/auth-invalid/cloud-decks`, {
+      headers: { authorization: "Bearer invalid-token" },
+    });
+    assert.equal(invalidTokenResponse.status, 401);
+    assert.deepEqual(await invalidTokenResponse.json(), { error: "Firebase auth token is invalid or expired." });
+
+    const profileFailureResponse = await fetch(`${baseUrl}/api/profile-failing/cloud-decks`, {
+      headers: { authorization: "Bearer valid-token" },
+    });
+    assert.equal(profileFailureResponse.status, 503);
+    assert.deepEqual(await profileFailureResponse.json(), { error: "Cloud user profile storage is unavailable." });
 
     const invalidResponse = await fetch(`${baseUrl}/api/cloud-decks/import`, {
       method: "POST",

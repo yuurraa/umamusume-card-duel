@@ -1,6 +1,6 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import { cards, normalizeDeckId, validateLocalDeck, type LocalDeck } from "../../../shared/src";
+import { cards, normalizeDeckId, validateLocalDeck, type LocalDeck } from "umamusume-pocket-shared";
 
 export type LocalDeckStore = {
   pathFor: (deckId: string) => string;

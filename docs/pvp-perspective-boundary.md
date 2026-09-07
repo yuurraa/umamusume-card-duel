@@ -45,8 +45,9 @@ Structured events travel separately through `projectGameEventsForSide`:
 - private events are omitted;
 - card IDs are removed when a card-movement event belongs to the other side.
 
-Each handshake creates a session identity and carries protocol version `1`.
-Hello, intent, and sync packets carry both values; an incompatible version is
+Each handshake creates a session identity and carries protocol version `2`.
+Version 2 adds an explicit `action` (`apply` or `clear`) to structured status
+events. Hello, intent, and sync packets carry both values; an incompatible version is
 rejected by the parser, a guest ignores sync from another session, and the host
 ignores intents from an obsolete session. Within a session, the canonical event
 ID is the event cursor. Guests merge only newer event IDs and reject stale state

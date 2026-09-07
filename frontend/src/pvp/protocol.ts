@@ -3,7 +3,10 @@ import { cards } from "../../../shared/src/gameData";
 import type { PlayerIntent } from "./playerIntent";
 
 const COMPRESSED_MESSAGE_PREFIX = "UCDM1.";
-export const PVP_PROTOCOL_VERSION = 1;
+// Version 2 adds explicit status-event actions (`apply`/`clear`) to the
+// structured event wire shape. Mismatched peers must be rejected rather than
+// interpreting those events ambiguously.
+export const PVP_PROTOCOL_VERSION = 2;
 const COMPRESSION_THRESHOLD_BYTES = 1024;
 const MAX_WIRE_MESSAGE_CHARS = 512_000;
 const MAX_DECOMPRESSED_BYTES = 512_000;
@@ -128,7 +131,13 @@ function isSyncMessage(value: unknown): value is Extract<PvpWireMessage, { type:
 }
 
 function isGameEventArray(value: unknown): boolean {
-  return Array.isArray(value) && value.length <= 128 && value.every(isGameEvent);
+  if (!Array.isArray(value) || value.length > 128) return false;
+  let previousId = 0;
+  return value.every((event) => {
+    if (!isGameEvent(event) || event.id <= previousId) return false;
+    previousId = event.id;
+    return true;
+  });
 }
 
 function isGameEvent(value: unknown): boolean {
@@ -167,7 +176,11 @@ function isGameEvent(value: unknown): boolean {
     && isBoundedString(value.fromCardId, 128) && CARD_IDS.has(value.fromCardId)
     && isBoundedString(value.toCardId, 128) && CARD_IDS.has(value.toCardId);
   if (value.kind === "status") return isSide(value.side) && isInteger(value.targetUid, 1)
-    && SPECIAL_CONDITIONS.has(value.condition as string);
+    && SPECIAL_CONDITIONS.has(value.condition as string)
+    && (value.action === "apply" || value.action === "clear");
+  if (value.kind === "tool") return isSide(value.side) && isInteger(value.targetUid, 1)
+    && isBoundedString(value.toolCardId, 128) && CARD_IDS.has(value.toolCardId)
+    && (value.action === "attach" || value.action === "discard");
   if (value.kind === "gameEnd") return isSide(value.winner)
     && ["points", "noBench", "surrender", "disconnect"].includes(value.reason as string);
   if (value.kind === "message") return isBoundedString(value.message, 2_000);
