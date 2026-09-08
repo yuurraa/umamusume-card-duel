@@ -597,6 +597,10 @@ function getMiscEffectGroups(state: GameState, umamusume: NonNullable<InspectTar
   if (evolvedLastTurnBonus > 0 && umamusume.evolvedTurn === state.turnNumber - 1) {
     buffs.push(`+${evolvedLastTurnBonus} Attack Damage - ${card.ability?.name}`);
   }
+  const evolvedThisTurnOrLastTurnBonus = card.ability?.attackDamageBonusIfEvolvedThisTurnOrLastTurn ?? 0;
+  if (evolvedThisTurnOrLastTurnBonus > 0 && (umamusume.evolvedTurn === state.turnNumber || umamusume.evolvedTurn === state.turnNumber - 1)) {
+    buffs.push(`+${evolvedThisTurnOrLastTurnBonus} Attack Damage - ${card.ability?.name}`);
+  }
   if (!areToolsDisabled(state) && umamusume.toolCardId) {
     const tool = getCard(umamusume.toolCardId);
     if (tool.kind === "trainer" && tool.effect.toolDamageReduction) buffs.push(`-${tool.effect.toolDamageReduction} Damage Reduction - ${tool.name}`);
@@ -699,6 +703,11 @@ function getAttackPreview(
   if (!nonDamagingAttack && evolvedLastTurnBonus > 0 && umamusume.evolvedTurn === state.turnNumber - 1) {
     damage += evolvedLastTurnBonus;
     notes.push(`+${evolvedLastTurnBonus} damage - ${card.ability?.name}`);
+  }
+  const evolvedThisTurnOrLastTurnBonus = card.ability?.attackDamageBonusIfEvolvedThisTurnOrLastTurn ?? 0;
+  if (!nonDamagingAttack && evolvedThisTurnOrLastTurnBonus > 0 && (umamusume.evolvedTurn === state.turnNumber || umamusume.evolvedTurn === state.turnNumber - 1)) {
+    damage += evolvedThisTurnOrLastTurnBonus;
+    notes.push(`+${evolvedThisTurnOrLastTurnBonus} damage - ${card.ability?.name}`);
   }
 
   if (!nonDamagingAttack && attack.coinBonus) {

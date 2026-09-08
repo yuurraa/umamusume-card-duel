@@ -65,6 +65,14 @@ export function SelectionPrompt({ pending, onCancel, nextEnergyType, onRetreatDi
               ? "Choose 1 of your opponent's Umamusume to damage."
             : pending.kind === "discardForAbility"
               ? "Choose 1 card from your hand to discard."
+              : pending.kind === "deckForScout"
+                ? "Choose 1 Umamusume from your deck, or cancel to return to the discard choice."
+                : pending.kind === "deckForEvolutionSearch"
+                  ? "Choose 1 Evolution Umamusume from your deck, or cancel to keep this card in hand."
+                  : pending.kind === "deckForAttackEvolution"
+                    ? pending.allowHand
+                      ? "Choose an evolution from your hand or deck, or cancel to stop this attack."
+                      : "Choose an evolution from your deck, or cancel to stop this attack."
               : pending.kind === "discardForAttackBonus"
                 ? "Choose 1 card from your hand to discard for +20 damage, or cancel to attack without the bonus."
           : "Choose your next action.";

@@ -135,6 +135,8 @@ export function predictAttackDamage(
   if (conditionalBonus && attacker.energies[conditionalBonus.type] >= conditionalBonus.min) damage += conditionalBonus.amount;
   const evolvedLastTurnBonus = attackerCard.ability?.attackDamageBonusIfEvolvedLastTurn ?? 0;
   if (evolvedLastTurnBonus > 0 && turnNumber !== undefined && attacker.evolvedTurn === turnNumber - 1) damage += evolvedLastTurnBonus;
+  const evolvedThisTurnOrLastTurnBonus = attackerCard.ability?.attackDamageBonusIfEvolvedThisTurnOrLastTurn ?? 0;
+  if (evolvedThisTurnOrLastTurnBonus > 0 && turnNumber !== undefined && (attacker.evolvedTurn === turnNumber || attacker.evolvedTurn === turnNumber - 1)) damage += evolvedThisTurnOrLastTurnBonus;
   if (attack.coinBonus) damage += Math.floor(attack.coinBonus / 2);
   if (attack.knockOutActiveIfAllCoinHeads) damage += Math.floor(defender.hp / Math.pow(2, attack.knockOutActiveIfAllCoinHeads));
   if (defenderCard.weakness.type === attackerCard.type) damage += defenderCard.weakness.amount;

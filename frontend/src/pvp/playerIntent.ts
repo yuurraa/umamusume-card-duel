@@ -17,7 +17,7 @@ import {
 export type PlayerIntent =
   | { type: "playHandCard"; handIndex: number; choices?: PlayChoices }
   | { type: "attachEnergy"; umamusumeUid?: number }
-  | { type: "attack"; attackTargetUid?: number; healTargetUid?: number; evolutionDeckCardIndex?: number; attackIndex?: number; discardHandIndex?: number; randomDiscardIndex?: number; switchTargetUid?: number; useShuffleSelfIntoDeck?: boolean }
+  | { type: "attack"; attackTargetUid?: number; healTargetUid?: number; evolutionDeckCardIndex?: number; evolutionHandCardIndex?: number; attackIndex?: number; discardHandIndex?: number; randomDiscardIndex?: number; switchTargetUid?: number; useShuffleSelfIntoDeck?: boolean }
   | { type: "retreat"; benchUmamusumeUid?: number; discardEnergyTypes?: EnergyType[] }
   | {
     type: "useAbility";
@@ -76,6 +76,8 @@ function applyPlayerIntentUnchecked(state: GameState, intent: PlayerIntent): Gam
         intent.randomDiscardIndex,
         intent.switchTargetUid,
         intent.useShuffleSelfIntoDeck,
+        undefined,
+        intent.evolutionHandCardIndex,
       );
     case "retreat":
       return playerRetreat(state, intent.benchUmamusumeUid, intent.discardEnergyTypes);

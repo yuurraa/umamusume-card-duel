@@ -293,6 +293,7 @@ export function playerAttack(
   switchTargetUid?: number,
   useShuffleSelfIntoDeck?: boolean,
   random: RandomSource = Math.random,
+  evolutionHandCardIndex?: number,
 ): GameState {
   const next = cloneGame(state);
   if (!Number.isInteger(attackIndex) || attackIndex < 0 || !canAttack(next, next.sides.player, attackIndex)) return next;
@@ -318,8 +319,14 @@ export function playerAttack(
   if (evolutionDeckCardIndex !== undefined && (
     !Number.isInteger(evolutionDeckCardIndex)
     || evolutionDeckCardIndex < 0
-    || !attack.evolveFromDeck
+    || (!attack.evolveFromDeck && !attack.evolveFromHandOrDeck)
     || !isValidEvolutionDeckSelection(next, attacker, evolutionDeckCardIndex)
+  )) return next;
+  if (evolutionHandCardIndex !== undefined && (
+    !Number.isInteger(evolutionHandCardIndex)
+    || evolutionHandCardIndex < 0
+    || !attack.evolveFromHandOrDeck
+    || !isValidEvolutionHandSelection(next, attacker, evolutionHandCardIndex)
   )) return next;
   if (discardHandIndex !== undefined && (
     !Number.isInteger(discardHandIndex)
@@ -346,6 +353,9 @@ export function playerAttack(
     randomDiscardIndex,
     switchTargetUid,
     useShuffleSelfIntoDeck,
+    undefined,
+    undefined,
+    evolutionHandCardIndex,
   );
   if (next.pendingPlayerChoice) {
     if (next.pendingPlayerChoice.kind === "promoteAfterKnockout") {
@@ -359,6 +369,15 @@ export function playerAttack(
 
 function isValidEvolutionDeckSelection(state: GameState, attacker: UmamusumeInstance, deckIndex: number): boolean {
   const cardId = state.sides.player.deck[deckIndex];
+  if (!cardId) return false;
+  const card = getCard(cardId);
+  return card.kind === "umamusume"
+    && card.evolvesFrom === attacker.species
+    && card.stage === attacker.stage + 1;
+}
+
+function isValidEvolutionHandSelection(state: GameState, attacker: UmamusumeInstance, handIndex: number): boolean {
+  const cardId = state.sides.player.hand[handIndex];
   if (!cardId) return false;
   const card = getCard(cardId);
   return card.kind === "umamusume"

@@ -84,11 +84,12 @@ export function useCardPreviewActions(args: UseCardPreviewActionsArgs) {
         return;
       }
     }
-    if (attack.evolveFromDeck) {
+    if (attack.evolveFromDeck || attack.evolveFromHandOrDeck) {
       setPendingSelection({
         kind: "deckForAttackEvolution",
         evolvesFrom: player.active.species,
         stage: player.active.stage + 1,
+        ...(attack.evolveFromHandOrDeck ? { allowHand: true } : {}),
       });
       setPreviewTarget(null);
       return;

@@ -330,13 +330,13 @@ export function useMatchActions(args: UseMatchActionsArgs) {
     setPreviewTarget(null);
   };
 
-  const chooseScoutDeckCard = (deckCardIndex: number) => {
+  const chooseScoutDeckCard = (source: "deck" | "hand", cardIndex: number) => {
     if (isTurnFlowBlocked) return;
     if (!pendingSelection || (pendingSelection.kind !== "deckForScout" && pendingSelection.kind !== "deckForEvolutionSearch" && pendingSelection.kind !== "deckForAttackEvolution")) return;
     if (pendingSelection.kind === "deckForAttackEvolution") {
       submitPlayerIntent({
         type: "attack",
-        evolutionDeckCardIndex: deckCardIndex,
+        ...(source === "hand" ? { evolutionHandCardIndex: cardIndex } : { evolutionDeckCardIndex: cardIndex }),
       });
       setPendingSelection(null);
       setPreviewTarget(null);
@@ -347,7 +347,7 @@ export function useMatchActions(args: UseMatchActionsArgs) {
         type: "playHandCard",
         handIndex: pendingSelection.handIndex,
         choices: {
-          deckCardIndex,
+          deckCardIndex: cardIndex,
         },
       });
       setPendingSelection(null);
@@ -359,7 +359,7 @@ export function useMatchActions(args: UseMatchActionsArgs) {
       handIndex: pendingSelection.handIndex,
       choices: {
         discardHandIndex: pendingSelection.discardHandIndex,
-        deckCardIndex,
+        deckCardIndex: cardIndex,
       },
     });
     setPendingSelection(null);

@@ -214,12 +214,12 @@ function scenarioTamamoAttackEvolvesFromDeck() {
   const state = makeCombatState();
   const opponent = state.sides.opponent;
   const player = state.sides.player;
-  opponent.active = withEnergy(createUma("tamamoCrossStage1"), { lightning: 1 });
-  opponent.deck = ["tamamoCrossStage2"];
+  opponent.active = createUma("tamamoCrossBasic");
+  opponent.deck = ["tamamoCrossStage1"];
   player.active = withEnergy(createUma("riceShowerStage2"), { darkness: 2 });
 
   const next = advanceOpponentTurnStep(state);
-  assert.equal(next.sides.opponent.active?.cardId, "tamamoCrossStage2", "Tamamo should evolve from deck after Fast As Lightning");
+  assert.equal(next.sides.opponent.active?.cardId, "tamamoCrossStage1", "Tamamo should evolve from deck after Fast As Lightning");
   assert.equal(next.sides.opponent.deck.length, 0, "evolution card should leave the deck");
 }
 
@@ -227,13 +227,13 @@ function scenarioPlayerTamamoAttackSelectsEvolution() {
   const state = makePlayerActionState();
   const player = state.sides.player;
   const opponent = state.sides.opponent;
-  player.active = withEnergy(createUma("tamamoCrossStage1"), { lightning: 1 });
-  player.deck = ["riceShowerBasic", "tamamoCrossStage2"];
+  player.active = createUma("tamamoCrossBasic");
+  player.deck = ["riceShowerBasic", "tamamoCrossStage1"];
   opponent.active = withEnergy(createUma("riceShowerStage2"), { darkness: 2 });
 
   const next = playerAttack(state, undefined, undefined, undefined, 1);
-  assert.equal(next.sides.player.active?.cardId, "tamamoCrossStage2", "Fast As Lightning should use the selected evolution from deck");
-  assert.deepEqual(next.sides.player.active?.evolutionCardIds, ["tamamoCrossStage1"], "the previous stage should stay under the evolved Umamusume");
+  assert.equal(next.sides.player.active?.cardId, "tamamoCrossStage1", "Fast As Lightning should use the selected evolution from deck");
+  assert.deepEqual(next.sides.player.active?.evolutionCardIds, ["tamamoCrossBasic"], "the previous stage should stay under the evolved Umamusume");
   assert.deepEqual(next.sides.player.deck, ["riceShowerBasic"], "only the selected evolution should leave the deck");
   const evolutionEvent = (next.events ?? []).find((event) => event.kind === "evolution");
   assert.deepEqual(evolutionEvent?.kind === "evolution" ? {
@@ -242,8 +242,8 @@ function scenarioPlayerTamamoAttackSelectsEvolution() {
     toCardId: evolutionEvent.toCardId,
   } : undefined, {
     targetUid: player.active.uid,
-    fromCardId: "tamamoCrossStage1",
-    toCardId: "tamamoCrossStage2",
+    fromCardId: "tamamoCrossBasic",
+    toCardId: "tamamoCrossStage1",
   }, "deck evolution should emit a structured identity-preserving event");
 }
 
@@ -251,7 +251,7 @@ function scenarioThunderboltStepDamage() {
   const state = makeCombatState();
   const opponent = state.sides.opponent;
   const player = state.sides.player;
-  opponent.active = withEnergy(createUma("tamamoCrossStage2"), { lightning: 1, colorless: 1 });
+  opponent.active = withEnergy(createUma("tamamoCrossStage1"), { lightning: 2 });
   opponent.active.evolvedTurn = state.turnNumber - 1;
   player.active = withEnergy(createUma("riceShowerBasic"), { darkness: 1 });
   player.active.hp = 60;
@@ -264,8 +264,8 @@ function scenarioWhiteLightningShuffle() {
   const state = makePlayerActionState();
   const player = state.sides.player;
   const opponent = state.sides.opponent;
-  player.active = withEnergy(createUma("tamamoCrossStage2"), { lightning: 3 });
-  player.active.evolutionCardIds = ["tamamoCrossBasic", "tamamoCrossStage1"];
+  player.active = withEnergy(createUma("tamamoCrossStage1"), { lightning: 2 });
+  player.active.evolutionCardIds = ["tamamoCrossBasic"];
   player.active.toolCardId = "leftoverCarrot";
   const promoted = withEnergy(createUma("tamamoCrossBasic"), { lightning: 1 });
   player.bench = [promoted];
@@ -273,8 +273,7 @@ function scenarioWhiteLightningShuffle() {
 
   const next = playerAttack(state, undefined, undefined, undefined, undefined, 0, undefined, undefined, undefined, true);
   assert.equal(next.sides.player.active?.uid, promoted.uid, "bench Umamusume should promote after White Lightning shuffles the active");
-  assert.ok(next.sides.player.deck.includes("tamamoCrossStage2"), "Tamamo Cross Stage 2 should be shuffled into the deck");
-  assert.ok(next.sides.player.deck.includes("tamamoCrossStage1"), "Tamamo Cross Stage 1 under Tamamo should be shuffled into the deck");
+  assert.ok(next.sides.player.deck.includes("tamamoCrossStage1"), "Tamamo Cross Stage 1 should be shuffled into the deck");
   assert.ok(next.sides.player.deck.includes("tamamoCrossBasic"), "Basic Tamamo Cross under Tamamo should be shuffled into the deck");
   assert.ok(next.sides.player.deck.includes("leftoverCarrot"), "attached Tool should be shuffled into the deck");
 }
@@ -404,7 +403,7 @@ function scenarioCarrotJellyEnablesRetreatLine() {
   state.opponentTurnStep = "trainerAfter";
   opponent.hand = ["carrotJelly"];
   opponent.active = withEnergy(createUma("riceShowerStage2"), { darkness: 1 });
-  const benchAttacker = withEnergy(createUma("tamamoCrossStage2"), { lightning: 1, colorless: 1 });
+  const benchAttacker = withEnergy(createUma("tamamoCrossStage1"), { lightning: 2 });
   opponent.bench = [benchAttacker];
   player.active = createUma("superCreekBasic");
   player.active.hp = 60;
@@ -428,7 +427,7 @@ function scenarioTracenGymDisablesToolBonusDamage() {
   opponent.active.hp = 70;
 
   const next = playerAttack(state);
-  assert.equal(next.sides.opponent.active?.hp, 30, "Tracen Gym should suppress Oguri's +30 tool damage bonus");
+  assert.equal(next.sides.opponent.active?.hp, 40, "Tracen Gym should suppress Oguri's +20 tool damage bonus");
 }
 
 function scenarioMasterCleatHammerTargetsOpponentTool() {
@@ -711,8 +710,8 @@ function scenarioStructuredRetreatEnergyEvent() {
 
 function scenarioRejectsInvalidEvolutionSelection() {
   const state = makePlayerActionState();
-  state.sides.player.active = withEnergy(createUma("tamamoCrossStage1"), { lightning: 1 });
-  state.sides.player.deck = ["riceShowerBasic", "tamamoCrossStage2"];
+  state.sides.player.active = createUma("tamamoCrossBasic");
+  state.sides.player.deck = ["riceShowerBasic", "tamamoCrossStage1"];
   state.sides.opponent.active = createUma("riceShowerBasic");
   const before = structuredClone(state);
 

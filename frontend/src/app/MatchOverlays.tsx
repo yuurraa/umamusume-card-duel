@@ -294,6 +294,7 @@ export function MatchOverlays(props: MatchOverlaysProps) {
           filter={pendingSelection.kind === "deckForEvolutionSearch" || pendingSelection.kind === "deckForAttackEvolution" ? "evolutionUmamusume" : "umamusume"}
           evolvesFrom={pendingSelection.kind === "deckForAttackEvolution" ? pendingSelection.evolvesFrom : undefined}
           stage={pendingSelection.kind === "deckForAttackEvolution" ? pendingSelection.stage : undefined}
+          handCardIds={pendingSelection.kind === "deckForAttackEvolution" && pendingSelection.allowHand ? player.hand : undefined}
           onChoose={chooseScoutDeckCard}
           onClose={onDeckScoutClose}
         />

@@ -40,9 +40,7 @@ export function useMatchDerivedState({
   const localPendingPlayerChoice = game.pendingPlayerChoice?.sideId === "player" ? game.pendingPlayerChoice : null;
   const activePendingSelection = localPendingPlayerChoice
     ? ({ kind: localPendingPlayerChoice.kind === "switchAfterGust" ? "forceSwitchActive" : "replaceActive" } as PendingSelection)
-    : pendingSelection?.kind === "deckForScout" || pendingSelection?.kind === "deckForEvolutionSearch"
-      ? null
-      : pendingSelection;
+    : pendingSelection;
   const selectableUmamusumeUids = getSelectableUmamusumeUids(game, activePendingSelection);
   const selectingOpponentUmamusume = pendingSelection?.kind === "attackDamageTarget" || pendingSelection?.kind === "abilityDamageTarget";
   const playerSelectableUmamusumeUids = selectingOpponentUmamusume ? undefined : selectableUmamusumeUids;

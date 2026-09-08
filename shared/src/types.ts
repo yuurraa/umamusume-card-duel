@@ -33,6 +33,7 @@ export type Attack = {
   healTarget?: "self" | "any";
   discardEnergy?: Partial<Record<EnergyType, number>>;
   evolveFromDeck?: boolean;
+  evolveFromHandOrDeck?: boolean;
   recoverSpecialConditions?: boolean;
   shuffleSelfIntoDeck?: {
     discardEnergy: Partial<Record<EnergyType, number>>;
@@ -85,6 +86,7 @@ export type Ability = {
     amount: number;
   };
   attackDamageBonusIfEvolvedLastTurn?: number;
+  attackDamageBonusIfEvolvedThisTurnOrLastTurn?: number;
   disableOtherUmamusumeAbilitiesWhileActive?: boolean;
   oncePerGame?: boolean;
   shuffleRandomDiscardIntoDeck?: number;

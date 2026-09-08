@@ -297,7 +297,7 @@ function isIntentMessage(value: unknown): value is Extract<PvpWireMessage, { typ
       return Object.keys(intent).length === 1;
     case "playHandCard": return isInteger(intent.handIndex) && (intent.choices === undefined || isRecord(intent.choices));
     case "attachEnergy": return optionalIndex("umamusumeUid");
-    case "attack": return ["attackTargetUid", "healTargetUid", "evolutionDeckCardIndex", "attackIndex", "discardHandIndex", "randomDiscardIndex", "switchTargetUid"].every(optionalIndex)
+    case "attack": return ["attackTargetUid", "healTargetUid", "evolutionDeckCardIndex", "evolutionHandCardIndex", "attackIndex", "discardHandIndex", "randomDiscardIndex", "switchTargetUid"].every(optionalIndex)
       && (intent.useShuffleSelfIntoDeck === undefined || typeof intent.useShuffleSelfIntoDeck === "boolean");
     case "retreat": return optionalIndex("benchUmamusumeUid") && (intent.discardEnergyTypes === undefined || isEnergyTypes(intent.discardEnergyTypes));
     case "resolvePendingChoice": return isInteger(intent.umamusumeUid);

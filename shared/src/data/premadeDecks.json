@@ -249,17 +249,15 @@
     {
       "id": "tamamoCross",
       "name": "Tamamo Cross",
-      "coverCardId": "tamamoCrossStage2FullArt",
+      "coverCardId": "tamamoCrossStage1FullArt",
       "energyTypes": [
         "lightning"
       ],
       "cardIds": [
         "tamamoCrossBasic",
         "tamamoCrossBasic",
-        "tamamoCrossStage1UncommonPlus",
         "tamamoCrossStage1",
-        "tamamoCrossStage2",
-        "tamamoCrossStage2FullArt",
+        "tamamoCrossStage1FullArt",
         "twinTurboBasicFullArt",
         "3starMakeDebutScout",
         "carrotHamburgerSteak",

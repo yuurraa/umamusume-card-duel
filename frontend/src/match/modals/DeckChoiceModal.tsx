@@ -28,7 +28,8 @@ import type { EnergyType, UmamusumeCard } from "../../../../shared/src/types";
 import { useModalFocus } from "../useModalFocus";
 
 type DeckChoiceOption = {
-  deckIndex: number;
+  source: "deck" | "hand";
+  cardIndex: number;
   cardId: string;
   card: UmamusumeCard;
 };
@@ -48,6 +49,7 @@ export function DeckChoiceModal({
   filter = "umamusume",
   evolvesFrom,
   stage,
+  handCardIds,
   onChoose,
   onClose,
 }: {
@@ -55,18 +57,20 @@ export function DeckChoiceModal({
   filter?: "umamusume" | "evolutionUmamusume";
   evolvesFrom?: string | undefined;
   stage?: number | undefined;
-  onChoose: (deckIndex: number) => void;
+  handCardIds?: string[] | undefined;
+  onChoose: (source: "deck" | "hand", cardIndex: number) => void;
   onClose: () => void;
 }) {
   const modalRef = useModalFocus({ onClose });
-  const options = cardIds.flatMap((cardId, deckIndex) => {
+  const getOptions = (ids: string[], source: "deck" | "hand") => ids.flatMap((cardId, cardIndex) => {
     const card = getCard(cardId);
     if (card.kind !== "umamusume") return [];
     if (filter === "evolutionUmamusume" && card.stage <= 0) return [];
     if (evolvesFrom !== undefined && card.evolvesFrom !== evolvesFrom) return [];
     if (stage !== undefined && card.stage !== stage) return [];
-    return [{ deckIndex, cardId, card }];
+    return [{ source, cardIndex, cardId, card }];
   });
+  const options = [...getOptions(handCardIds ?? [], "hand"), ...getOptions(cardIds, "deck")];
   const deckScrollerClassName = `deck-scroller-${useId().replace(/:/g, "")}`;
   const deckScrollRef = useRef<HTMLDivElement | null>(null);
   const deckPanRef = useRef<{ active: boolean; pointerId: number; startX: number; startScrollLeft: number } | null>(null);
@@ -136,7 +140,7 @@ export function DeckChoiceModal({
         <style>{`.${deckScrollerClassName}{scrollbar-width:none;-ms-overflow-style:none;}.${deckScrollerClassName}::-webkit-scrollbar{display:none;width:0;height:0;}`}</style>
         <header style={deckHeaderStyle}>
           <div>
-            <div style={deckKickerStyle}>Deck</div>
+            <div style={deckKickerStyle}>{handCardIds ? "Hand or Deck" : "Deck"}</div>
             <h2 style={deckTitleStyle}>{visibleOptions.length} of {options.length} {options.length === 1 ? "card" : "cards"}</h2>
           </div>
           <NeutralButton autoFocus style={closeButtonStyle} onClick={onClose}>Back</NeutralButton>
@@ -245,7 +249,7 @@ export function DeckChoiceModal({
           >
             {visibleOptions.map((option) => (
               <DeckChoiceCardButton
-                key={`${option.cardId}-${option.deckIndex}`}
+                key={`${option.source}-${option.cardId}-${option.cardIndex}`}
                 option={option}
                 onChoose={onChoose}
               />
@@ -260,22 +264,22 @@ export function DeckChoiceModal({
 function sortDeckChoiceOptions(options: DeckChoiceOption[], sortKey: DeckChoiceSortKey, direction: SortDirection): DeckChoiceOption[] {
   const multiplier = direction === "asc" ? 1 : -1;
   return [...options].sort((left, right) => {
-    if (sortKey === "deck") return left.deckIndex - right.deckIndex;
-    if (sortKey === "name") return (formatCardName(left.card).localeCompare(formatCardName(right.card)) || left.deckIndex - right.deckIndex) * multiplier;
-    if (sortKey === "stage") return (left.card.stage - right.card.stage || formatCardName(left.card).localeCompare(formatCardName(right.card)) || left.deckIndex - right.deckIndex) * multiplier;
-    return (left.card.type.localeCompare(right.card.type) || formatCardName(left.card).localeCompare(formatCardName(right.card)) || left.deckIndex - right.deckIndex) * multiplier;
+    if (sortKey === "deck") return left.source.localeCompare(right.source) || left.cardIndex - right.cardIndex;
+    if (sortKey === "name") return (formatCardName(left.card).localeCompare(formatCardName(right.card)) || left.cardIndex - right.cardIndex) * multiplier;
+    if (sortKey === "stage") return (left.card.stage - right.card.stage || formatCardName(left.card).localeCompare(formatCardName(right.card)) || left.cardIndex - right.cardIndex) * multiplier;
+    return (left.card.type.localeCompare(right.card.type) || formatCardName(left.card).localeCompare(formatCardName(right.card)) || left.cardIndex - right.cardIndex) * multiplier;
   });
 }
 
-function DeckChoiceCardButton({ option, onChoose }: { option: DeckChoiceOption; onChoose: (deckIndex: number) => void }) {
+function DeckChoiceCardButton({ option, onChoose }: { option: DeckChoiceOption; onChoose: (source: "deck" | "hand", cardIndex: number) => void }) {
   const card = option.card;
   const [hovered, setHovered] = useState(false);
   return (
     <button
       type="button"
-      aria-label={`Choose ${card.name}`}
+      aria-label={`Choose ${card.name} from your ${option.source}`}
       style={deckCardButtonStyle(hovered)}
-      onClick={() => onChoose(option.deckIndex)}
+      onClick={() => onChoose(option.source, option.cardIndex)}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       onFocus={() => setHovered(true)}

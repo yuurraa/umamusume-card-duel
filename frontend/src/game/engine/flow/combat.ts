@@ -33,6 +33,7 @@ export function performAttack(
   useShuffleSelfIntoDeck?: boolean,
   maxDiscardCount?: number,
   discardHandIndexes?: number[],
+  evolutionHandCardIndex?: number,
 ): void {
   const transitionId = beginTransition(state);
   try {
@@ -51,6 +52,7 @@ export function performAttack(
       useShuffleSelfIntoDeck,
       maxDiscardCount,
       discardHandIndexes,
+      evolutionHandCardIndex,
     );
   } finally {
     endTransition(state, transitionId);
@@ -72,6 +74,7 @@ function performAttackInternal(
   useShuffleSelfIntoDeck?: boolean,
   maxDiscardCount?: number,
   discardHandIndexes?: number[],
+  evolutionHandCardIndex?: number,
 ): void {
   const random = deps.random ?? Math.random;
   const defenderId = attackerId === "player" ? "opponent" : "player";
@@ -223,6 +226,10 @@ function performAttackInternal(
   const evolvedLastTurnBonus = attackerAbility?.attackDamageBonusIfEvolvedLastTurn ?? 0;
   if (!nonDamagingAttack && evolvedLastTurnBonus > 0 && attacker.active.evolvedTurn === state.turnNumber - 1) {
     damage += evolvedLastTurnBonus;
+  }
+  const evolvedThisTurnOrLastTurnBonus = attackerAbility?.attackDamageBonusIfEvolvedThisTurnOrLastTurn ?? 0;
+  if (!nonDamagingAttack && evolvedThisTurnOrLastTurnBonus > 0 && (attacker.active.evolvedTurn === state.turnNumber || attacker.active.evolvedTurn === state.turnNumber - 1)) {
+    damage += evolvedThisTurnOrLastTurnBonus;
   }
   if (attack.coinBonus || attack.drawOnHeads || attack.discardRandomOpponentHandOnHeads) {
     const coinResult = flipCoin(attacker, forcedCoinResults, random);
@@ -416,7 +423,9 @@ function performAttackInternal(
       if (amount) log(state, `${actorName(attacker)} discarded ${amount} ${energyLabel(energyType)}.`);
     });
   }
-  if (attack.evolveFromDeck && attacker.active) {
+  if (attack.evolveFromHandOrDeck && attacker.active) {
+    evolveActiveFromHandOrDeck(state, attacker, evolutionHandCardIndex, evolutionDeckCardIndex);
+  } else if (attack.evolveFromDeck && attacker.active) {
     evolveActiveFromDeck(state, attacker, evolutionDeckCardIndex);
   }
   const shouldShuffleSelfIntoDeck = useShuffleSelfIntoDeck ?? !state.humanBySide[attackerId];
@@ -501,6 +510,28 @@ function evolveActiveFromDeck(state: GameState, side: SideState, evolutionDeckCa
   if (evolutionCard.kind !== "umamusume") return;
   emitCardMovement(state, side.id, "deck", "play", 1, [cardId]);
   evolveUmamusume(state, side, active, evolutionCard);
+}
+
+function evolveActiveFromHandOrDeck(state: GameState, side: SideState, evolutionHandCardIndex?: number, evolutionDeckCardIndex?: number): void {
+  const active = side.active;
+  if (!active) return;
+  const isActiveEvolution = (cardId: string) => {
+    const card = getCard(cardId);
+    return card.kind === "umamusume" && card.evolvesFrom === active.species && card.stage === active.stage + 1;
+  };
+  const handIndex = evolutionHandCardIndex !== undefined && isActiveEvolution(side.hand[evolutionHandCardIndex] ?? "")
+    ? evolutionHandCardIndex
+    : -1;
+  if (handIndex >= 0) {
+    const [cardId] = side.hand.splice(handIndex, 1);
+    if (!cardId) return;
+    const card = getCard(cardId);
+    if (card.kind !== "umamusume") return;
+    emitCardMovement(state, side.id, "hand", "play", 1, [cardId]);
+    evolveUmamusume(state, side, active, card);
+    return;
+  }
+  evolveActiveFromDeck(state, side, evolutionDeckCardIndex);
 }
 
 function shuffleActiveIntoDeckIfPaid(
