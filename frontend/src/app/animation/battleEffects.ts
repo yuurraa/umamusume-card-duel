@@ -28,6 +28,7 @@ export type PointGainEvent = {
   id: number;
   side: SideId;
   previousPoints: number;
+  pointsAwarded: number;
   points: number;
 };
 
@@ -387,6 +388,7 @@ export function buildBattleEffects(
         targetSlot: entry.slot,
         targetRect: entry.rect ?? before.rect,
         amount: structuredDamage?.amount ?? (hpBefore - hpAfter),
+        pointsAwarded: knockoutEvents.find((event) => event.targetUid === entry.uid)?.pointsAwarded,
         hpBefore,
         hpAfter,
         label: "Damage",
@@ -425,6 +427,7 @@ export function buildBattleEffects(
       : undefined;
     const fallbackKnockedEntries = knockedEntries.length > 0 ? knockedEntries : knockedEntry ? [knockedEntry] : [];
     fallbackKnockedEntries.forEach((knocked) => {
+      const knockoutEvent = knockoutEvents.find((event) => event.targetUid === knocked.uid);
       if (!effects.some((effect) => effect.kind === "damage" && effect.targetUid === knocked.uid)) {
         effects.push({
           id: nextId(),
@@ -442,6 +445,7 @@ export function buildBattleEffects(
           targetSlot: knocked.slot,
           targetRect: knocked.rect,
           amount: knocked.hp,
+          pointsAwarded: knockoutEvent?.pointsAwarded,
           hpBefore: knocked.hp,
           hpAfter: 0,
           label: "Damage",
@@ -464,6 +468,7 @@ export function buildBattleEffects(
         targetRect: knocked.rect,
         hpBefore: knocked.hp,
         hpAfter: 0,
+        pointsAwarded: knockoutEvent?.pointsAwarded,
         label: "KO",
       });
     });

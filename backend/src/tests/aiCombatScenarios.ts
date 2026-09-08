@@ -60,6 +60,9 @@ const scenarios: Scenario[] = [
   { name: "bench-to-active trainer Energy emits both sides of the transfer", run: scenarioTrainerEnergyTransferEvents },
   { name: "ability damage emits a structured target event", run: scenarioStructuredAbilityDamageEvent },
   { name: "lethal attacks emit ordered structured events", run: scenarioStructuredLethalAttackEvents },
+  { name: "knocking out an EX awards two points", run: scenarioExKnockoutAwardsTwoPoints },
+  { name: "EX knockout score caps at three points", run: scenarioExKnockoutScoreCapsAtThreePoints },
+  { name: "Frozen uses the Pocket Confusion attack coin flip", run: scenarioFrozenAttackCoinFlip },
   { name: "coin knockout attacks preserve pre-KO HP in structured events", run: scenarioStructuredCoinKnockoutEvent },
   { name: "card play and trainer draws emit structured movement events", run: scenarioStructuredCardMovementEvents },
   { name: "AI card play and knockout discard emit structured movement events", run: scenarioStructuredAiCardMovementEvents },
@@ -853,6 +856,62 @@ function scenarioStructuredLethalAttackEvents() {
   assert.equal(transitionEvents[0]?.kind === "attack" ? transitionEvents[0].targetUid : null, state.sides.opponent.active.uid);
   const knockout = transitionEvents.find((event) => event.kind === "knockout");
   assert.equal(knockout?.kind === "knockout" ? knockout.targetUid : null, state.sides.opponent.active.uid);
+  assert.equal(knockout?.kind === "knockout" ? knockout.pointsAwarded : null, 1);
+}
+
+function scenarioExKnockoutAwardsTwoPoints() {
+  const state = makePlayerActionState();
+  state.sides.player.active = withEnergy(createUma("riceShowerStage2"), { darkness: 2 });
+  state.sides.opponent.active = createUma("twinTurboBasicEx");
+  state.sides.opponent.active.hp = 40;
+  state.sides.opponent.bench = [createUma("riceShowerBasic")];
+
+  const next = playerAttack(state);
+  const knockout = (next.events ?? []).find((event) => event.kind === "knockout");
+  assert.equal(next.sides.player.points, 2);
+  assert.equal(knockout?.kind === "knockout" ? knockout.pointsAwarded : null, 2);
+  assert.equal(knockout?.kind === "knockout" ? knockout.points : null, 2);
+  assert.equal(next.log.some((entry) => /scored 2 points/.test(entry)), true);
+}
+
+function scenarioExKnockoutScoreCapsAtThreePoints() {
+  const state = makePlayerActionState();
+  state.sides.player.points = 2;
+  state.sides.player.active = withEnergy(createUma("riceShowerStage2"), { darkness: 2 });
+  state.sides.opponent.active = createUma("twinTurboBasicEx");
+  state.sides.opponent.active.hp = 40;
+  state.sides.opponent.bench = [createUma("riceShowerBasic")];
+
+  const next = playerAttack(state);
+  const knockout = (next.events ?? []).find((event) => event.kind === "knockout");
+  assert.equal(next.sides.player.points, 3);
+  assert.equal(knockout?.kind === "knockout" ? knockout.pointsAwarded : null, 1);
+  assert.equal(knockout?.kind === "knockout" ? knockout.points : null, 3);
+}
+
+function scenarioFrozenAttackCoinFlip() {
+  const tailsState = makePlayerActionState();
+  tailsState.sides.player.active = withEnergy(createUma("riceShowerStage2"), { darkness: 2 });
+  tailsState.sides.player.active.specialConditions = ["frozen"];
+  tailsState.sides.opponent.active = createUma("riceShowerBasic");
+  const tailsTargetHp = tailsState.sides.opponent.active.hp;
+
+  const afterTails = playerAttack(tailsState, undefined, undefined, "tails");
+  const tailsAttack = (afterTails.events ?? []).find((event) => event.kind === "attack");
+  assert.equal(afterTails.sides.opponent.active?.hp, tailsTargetHp, "Frozen tails must fail the attack without damage");
+  assert.equal(tailsAttack?.kind === "attack" ? tailsAttack.damage : null, 0);
+  assert.equal(afterTails.sides.player.active?.specialConditions.includes("frozen"), true, "Frozen must persist until cured");
+
+  const headsState = makePlayerActionState();
+  headsState.sides.player.active = withEnergy(createUma("riceShowerStage2"), { darkness: 2 });
+  headsState.sides.player.active.specialConditions = ["frozen"];
+  headsState.sides.opponent.active = createUma("riceShowerBasic");
+  const headsTargetHp = headsState.sides.opponent.active.hp;
+
+  const afterHeads = playerAttack(headsState, undefined, undefined, "heads");
+  const headsAttack = (afterHeads.events ?? []).find((event) => event.kind === "attack");
+  assert.equal(headsAttack?.kind === "attack" ? headsAttack.damage : null, 80, "Frozen heads must allow the attack to proceed");
+  assert.equal(headsAttack?.kind === "attack" ? headsAttack.hpBefore : null, headsTargetHp);
 }
 
 function scenarioStructuredCoinKnockoutEvent() {

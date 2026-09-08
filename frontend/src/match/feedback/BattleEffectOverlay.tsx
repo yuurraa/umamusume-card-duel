@@ -36,6 +36,7 @@ export type BattleEffectEvent = {
   hpBefore?: number | undefined;
   hpAfter?: number | undefined;
   amount?: number | undefined;
+  pointsAwarded?: number | undefined;
   attachedEnergyBefore?: EnergyType[] | undefined;
   attachedEnergyAfter?: EnergyType[] | undefined;
   label: string;

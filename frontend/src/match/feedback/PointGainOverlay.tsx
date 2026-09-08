@@ -6,6 +6,7 @@ import { colors, fontStacks, radius, shadows } from "../../styles/shared";
 type PointGainEvent = {
   id: number;
   side: SideId;
+  pointsAwarded: number;
   points: number;
 };
 
@@ -29,7 +30,10 @@ export function PointGainOverlay({
     return () => window.clearTimeout(timeoutId);
   }, [durationMs, event.id]);
 
-  const label = event.side === "player" ? "You gained a point" : "Opponent gained a point";
+  const pointLabel = event.pointsAwarded === 1 ? "point" : "points";
+  const label = event.side === "player"
+    ? `You gained ${event.pointsAwarded} ${pointLabel}`
+    : `Opponent gained ${event.pointsAwarded} ${pointLabel}`;
   const overlay = (
     <div style={rootStyle} aria-live="polite">
       <style>{KEYFRAMES}</style>

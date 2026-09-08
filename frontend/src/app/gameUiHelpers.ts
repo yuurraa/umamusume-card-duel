@@ -92,7 +92,7 @@ export function formatStructuredKoActionNotice(event: Extract<GameEvent, { kind:
   const actor = event.scoringSide === "player" ? "You" : "Opponent";
   const cardName = getCard(event.cardId).name;
   const causeSuffix = event.cause ? ` by ${sourceOwner} ${event.cause}` : "";
-  return `KO | ${knockedOwner} ${cardName} was knocked out${causeSuffix}. ${actor} scored 1 point.`;
+  return `KO | ${knockedOwner} ${cardName} was knocked out${causeSuffix}. ${actor} scored ${event.pointsAwarded} ${event.pointsAwarded === 1 ? "point" : "points"}.`;
 }
 
 export function getTopActionBanner(game: GameState): { title: string; message: string; paused: boolean } | null {
@@ -169,10 +169,13 @@ export function getPendingAttackCoinFlip(state: GameState, attackerId: SideId, i
   const attackerCard = getUmamusumeCard(attacker.active);
   const attack = attackerCard.attacks[attackIndex];
   if (!attack) return null;
-  if (!attack.coinBonus && !attack.drawOnHeads && !attack.knockOutActiveIfAllCoinHeads) return null;
+  const frozen = attacker.active.specialConditions.includes("frozen");
+  const attackCoinCount = attack.knockOutActiveIfAllCoinHeads
+    ?? (attack.coinBonus || attack.drawOnHeads || attack.discardRandomOpponentHandOnHeads ? 1 : 0);
+  if (!frozen && attackCoinCount === 0) return null;
 
   const results = Array.from(
-    { length: attack.knockOutActiveIfAllCoinHeads ?? 1 },
+    { length: attackCoinCount + (frozen ? 1 : 0) },
     (_, index) => index < (attacker.guaranteedCoinFlipHeads ?? 0) ? "heads" : Math.random() >= 0.5 ? "heads" : "tails",
   );
   const result = results[0] ?? "heads";

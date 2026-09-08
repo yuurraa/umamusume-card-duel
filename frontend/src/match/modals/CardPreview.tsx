@@ -620,7 +620,7 @@ function getMiscEffectGroups(state: GameState, umamusume: NonNullable<InspectTar
       debuffs.push("Asleep");
       return;
     }
-    debuffs.push("Frozen");
+    debuffs.push("Frozen - Flip before attacking; tails fails the attack");
   });
 
   return { buffs, debuffs };

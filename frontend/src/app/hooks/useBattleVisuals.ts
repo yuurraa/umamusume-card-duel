@@ -129,7 +129,7 @@ export function useBattleVisuals({
         const totalGainsBySide: Partial<Record<SideId, number>> = {};
         koEffects.forEach((effect) => {
           const scoringSide: SideId = effect.side === "player" ? "opponent" : "player";
-          totalGainsBySide[scoringSide] = (totalGainsBySide[scoringSide] ?? 0) + 1;
+          totalGainsBySide[scoringSide] = (totalGainsBySide[scoringSide] ?? 0) + (effect.pointsAwarded ?? 1);
         });
         setScorePointsOverrideBySide((currentOverrides) => {
           const nextOverrides = { ...currentOverrides };
@@ -222,22 +222,24 @@ export function useBattleVisuals({
     const totalGainsBySide: Partial<Record<SideId, number>> = {};
     koEffects.forEach((effect) => {
       const scoringSide: SideId = effect.side === "player" ? "opponent" : "player";
-      totalGainsBySide[scoringSide] = (totalGainsBySide[scoringSide] ?? 0) + 1;
+      totalGainsBySide[scoringSide] = (totalGainsBySide[scoringSide] ?? 0) + (effect.pointsAwarded ?? 1);
     });
 
     const seenGainsBySide: Partial<Record<SideId, number>> = {};
     return koEffects.map((effect) => {
       const scoringSide: SideId = effect.side === "player" ? "opponent" : "player";
-      const seen = (seenGainsBySide[scoringSide] ?? 0) + 1;
-      seenGainsBySide[scoringSide] = seen;
+      const pointsAwarded = effect.pointsAwarded ?? 1;
+      const previousAwarded = seenGainsBySide[scoringSide] ?? 0;
+      seenGainsBySide[scoringSide] = previousAwarded + pointsAwarded;
       const totalGains = totalGainsBySide[scoringSide] ?? 1;
       const currentPoints = baseDisplayGame.sides[scoringSide].points;
-      const previousPoints = Math.max(0, currentPoints - totalGains + seen - 1);
+      const previousPoints = Math.max(0, currentPoints - totalGains + previousAwarded);
       return {
         id: pointGainIdRef.current++,
         side: scoringSide,
         previousPoints,
-        points: previousPoints + 1,
+        pointsAwarded,
+        points: previousPoints + pointsAwarded,
       };
     });
   };

@@ -6,7 +6,7 @@ const COMPRESSED_MESSAGE_PREFIX = "UCDM1.";
 // Version 2 adds explicit status-event actions (`apply`/`clear`) to the
 // structured event wire shape. Mismatched peers must be rejected rather than
 // interpreting those events ambiguously.
-export const PVP_PROTOCOL_VERSION = 2;
+export const PVP_PROTOCOL_VERSION = 3;
 const COMPRESSION_THRESHOLD_BYTES = 1024;
 const MAX_WIRE_MESSAGE_CHARS = 512_000;
 const MAX_DECOMPRESSED_BYTES = 512_000;
@@ -156,7 +156,8 @@ function isGameEvent(value: unknown): boolean {
   if (value.kind === "knockout") {
     return isSide(value.scoringSide) && isSide(value.knockedSide) && isInteger(value.targetUid, 1)
       && isBoundedString(value.cardId, 128) && CARD_IDS.has(value.cardId)
-      && isInteger(value.points, 1, 3) && (value.cause === undefined || isBoundedString(value.cause, 256));
+      && isInteger(value.pointsAwarded, 1, 2) && isInteger(value.points, 1, 3)
+      && (value.cause === undefined || isBoundedString(value.cause, 256));
   }
   if (value.kind === "score") return isSide(value.side) && isInteger(value.points, 1, 3);
   if (value.kind === "promotion") return isSide(value.side) && isInteger(value.targetUid, 1);

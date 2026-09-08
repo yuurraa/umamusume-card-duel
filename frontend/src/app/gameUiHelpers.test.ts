@@ -33,6 +33,7 @@ describe("structured knockout presentation", () => {
       knockedSide: "opponent",
       targetUid: 22,
       cardId: "riceShowerBasic",
+      pointsAwarded: 1,
       points: 1,
       cause: "Team Rigil's Teamwork",
     })).toContain("Opponent's Rice Shower was knocked out by your Team Rigil's Teamwork.");

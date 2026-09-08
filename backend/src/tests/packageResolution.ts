@@ -9,6 +9,6 @@ assert.ok(firstCardId, "shared workspace export should resolve card data at runt
 const game = createGame();
 assert.equal(game.phase, "setup");
 assert.equal(getCard(firstCardId).id, firstCardId);
-assert.equal(PVP_PROTOCOL_VERSION, 2);
+assert.equal(PVP_PROTOCOL_VERSION, 3);
 assert.equal(typeof createGuestSyncState, "function");
 console.log("PASS: workspace shared, engine, and PvP package exports resolve through public runtime entry points");

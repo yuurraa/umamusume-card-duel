@@ -1,4 +1,5 @@
 import { MAX_POINTS } from "../../../../../shared/src/gameData";
+import { isExCard } from "../../../../../shared/src/cardRarity";
 import type { CoinFlipResult, EnergyType, GameState, SideId, SideState, UmamusumeInstance } from "../../../../../shared/src/types";
 import { getCard, getPrimaryAttack, getUmamusumeCard } from "../core/catalog";
 import { actorLowerPossessive, actorName, actorPossessive, energyLabel, formatCardName, formatUmamusumeCardName, formatUmamusumeInstanceName, pluralize } from "../core/labels";
@@ -110,6 +111,35 @@ function performAttackInternal(
   let damage = attack.damage + (nonDamagingAttack ? 0 : attacker.activeAttackDamageBonus);
   let coinFlipHeads: boolean | null = null;
   const forcedCoinResults = Array.isArray(forcedCoinResult) ? [...forcedCoinResult] : forcedCoinResult ? [forcedCoinResult] : [];
+
+  // Frozen uses the Pokémon TCG Pocket Confusion rule: each attack attempt
+  // flips a coin, and tails ends the attack without any effect or self-damage.
+  if (attacker.active.specialConditions.includes("frozen")) {
+    const frozenCoinResult = flipCoin(attacker, forcedCoinResults, random);
+    emitGameEvent(state, {
+      kind: "coin",
+      visibility: "public",
+      side: attackerId,
+      results: [frozenCoinResult],
+    });
+    if (frozenCoinResult === "tails") {
+      log(state, `${formatUmamusumeInstanceName(attacker.active)} is Frozen. Flip a coin and got 1x tails; ${attack.name} failed.`);
+      emitGameEvent(state, {
+        kind: "attack",
+        visibility: "public",
+        actorSide: attackerId,
+        actorUid: startingActive.uid,
+        targetSide: defenderId,
+        targetUid: attackTarget.uid,
+        attackName: attack.name,
+        damage: 0,
+        hpBefore: attackTargetHpBefore,
+        hpAfter: attackTargetHpBefore,
+      });
+      return;
+    }
+    log(state, `${formatUmamusumeInstanceName(attacker.active)} is Frozen. Flip a coin and got 1x heads.`);
+  }
 
   if (attack.bonusIfTookDamageLastTurn && attacker.active.tookDamageLastTurn) {
     damage += attack.bonusIfTookDamageLastTurn;
@@ -567,7 +597,8 @@ export function knockOutUmamusume(
   }
   const discardedCardIds = [knockedOut.cardId, ...(knockedOut.evolutionCardIds ?? []), ...(knockedOut.toolCardId ? [knockedOut.toolCardId] : [])];
   if (discardedCardIds.length > 0) emitCardMovement(state, knockedSideId, "play", "discard", discardedCardIds.length, discardedCardIds);
-  attacker.points += 1;
+  const pointsAwarded = Math.min(isExCard(knockedCard) ? 2 : 1, MAX_POINTS - attacker.points);
+  attacker.points += pointsAwarded;
   emitGameEvent(state, {
     kind: "knockout",
     visibility: "public",
@@ -575,6 +606,7 @@ export function knockOutUmamusume(
     knockedSide: knockedSideId,
     targetUid: knockedOut.uid,
     cardId: knockedOut.cardId,
+    pointsAwarded,
     points: attacker.points,
     ...(cause ? { cause } : {}),
   });
@@ -587,7 +619,7 @@ export function knockOutUmamusume(
   const knockedOwner = knockedSideId === "player" ? "Your" : "Opponent's";
   const sourceOwner = scoringSideId === "player" ? "your" : "opponent's";
   const causeSuffix = cause ? ` by ${sourceOwner} ${cause}` : "";
-  log(state, `${knockedOwner} ${formatUmamusumeCardName(knockedCard)} was knocked out${causeSuffix}. ${actorName(attacker)} scored 1 point.`);
+  log(state, `${knockedOwner} ${formatUmamusumeCardName(knockedCard)} was knocked out${causeSuffix}. ${actorName(attacker)} scored ${pointsAwarded} ${pluralize(pointsAwarded, "point")}.`);
 
   if (attacker.points >= MAX_POINTS) {
     state.gameOver = true;

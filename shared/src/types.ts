@@ -224,6 +224,7 @@ export type GameEvent =
     knockedSide: SideId;
     targetUid: number;
     cardId: string;
+    pointsAwarded: number;
     points: number;
     cause?: string;
   })

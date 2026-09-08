@@ -183,6 +183,26 @@ async function run(): Promise<void> {
     }],
   }));
   assert.equal(statusClearSync?.type, "sync", "status clear events must remain valid on the PvP wire");
+  const exKnockoutSync = await parsePvpMessage(JSON.stringify({
+    type: "sync",
+    version: PVP_PROTOCOL_VERSION,
+    sessionId,
+    sequence: 3,
+    state: redactedSync,
+    events: [{
+      id: 8,
+      transitionId: 8,
+      visibility: "public",
+      kind: "knockout",
+      scoringSide: "player",
+      knockedSide: "opponent",
+      targetUid: 1,
+      cardId: "twinTurboBasicEx",
+      pointsAwarded: 2,
+      points: 2,
+    }],
+  }));
+  assert.equal(exKnockoutSync?.type, "sync", "EX knockout rewards must remain valid on the PvP wire");
   const invalidSync = structuredClone(redactedSync);
   invalidSync.sides.opponent.discard = ["not-a-card"];
   await expectRejected(JSON.stringify({ type: "sync", version: PVP_PROTOCOL_VERSION, sessionId, sequence: 2, state: invalidSync }));
