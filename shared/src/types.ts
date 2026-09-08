@@ -163,6 +163,8 @@ export type TrainerCard = {
     toolEndTurnHealActive?: number;
     toolEndTurnRecoverSpecialConditionsDiscardSelf?: boolean;
     disableTools?: boolean;
+    stadiumEndTurnHealActive?: number;
+    stadiumAttackDamageBonusAgainstEx?: number;
   };
 };
 

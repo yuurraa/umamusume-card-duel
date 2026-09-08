@@ -1765,6 +1765,26 @@
       "effect": {
         "disableTools": true
       }
+    },
+    "tracenCafeteria": {
+      "id": "tracenCafeteria",
+      "kind": "trainer",
+      "trainerType": "stadium",
+      "name": "Tracen Cafeteria",
+      "label": "Trainer - Stadium",
+      "image": "/assets/cards/trainer/stadium/tracen-cafeteria.avif",
+      "text": "At the end of each player's turn, heal 10 damage from that player's Active Umamusume.",
+      "effect": { "stadiumEndTurnHealActive": 10 }
+    },
+    "gamePlaza": {
+      "id": "gamePlaza",
+      "kind": "trainer",
+      "trainerType": "stadium",
+      "name": "Game Plaza",
+      "label": "Trainer - Stadium",
+      "image": "/assets/cards/trainer/stadium/game-plaza.avif",
+      "text": "Attacks used by each player's Umamusume do +10 damage to the opponent's Umamusume ex.",
+      "effect": { "stadiumAttackDamageBonusAgainstEx": 10 }
     }
   }
 }

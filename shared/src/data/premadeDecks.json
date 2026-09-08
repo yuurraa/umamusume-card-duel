@@ -121,7 +121,7 @@
         "teamSpicaFullArt",
         "yayoiAkikawaFullArt",
         "hanshinRacetrack",
-        "tracenAcademy"
+        "gamePlaza"
       ]
     },
     {
@@ -152,7 +152,7 @@
         "tazunaHayakawaFullArt",
         "teamCanopusFullArt",
         "hanshinRacetrack",
-        "nakayamaTurf"
+        "tracenCafeteria"
       ]
     },
     {
@@ -243,7 +243,7 @@
         "leftoverCarrot",
         "trainingHelmet",   
         "hanshinRacetrack",
-        "nakayamaTurf"
+        "tracenCafeteria"
       ]
     },
     {
@@ -271,7 +271,9 @@
         "teamSpicaFullArt",
         "yayoiAkikawa",
         "etsukoOtonashi",
-        "nakayamaTurf"
+        "nakayamaTurf",
+        "masterCleatHammer",
+        "sparkResearchReport"
       ]
     },
     {
@@ -301,7 +303,7 @@
         "teamCanopusFullArt",
         "teamSpicaFullArt",
         "nakayamaTurf",
-        "tracenAcademy"
+        "gamePlaza"
       ]
     },
     {
@@ -363,7 +365,7 @@
         "teamCanopusFullArt",
         "teamSpicaFullArt",
         "nakayamaTurf",
-        "tracenGym"
+        "gamePlaza"
       ]
     },
     {
@@ -398,7 +400,7 @@
     },
     {
       "id": "grassWonderNishinoFlower",
-      "name": "Grass Wonder / Nishino Flower",
+      "name": "Grass Wonder",
       "coverCardId": "grassWonderStage2FullArt",
       "energyTypes": [
         "grass"
@@ -422,7 +424,7 @@
         "teamRigil",
         "aoiKiryuin",
         "tazunaHayakawa",
-        "tazunaHayakawaFullArt",
+        "gamePlaza",
         "masterCleatHammer"
       ]
     }

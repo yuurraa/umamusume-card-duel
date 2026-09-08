@@ -234,6 +234,8 @@ function performAttackInternal(
   if (attack.attackDamageBonusIfOpponentActiveHasSpecialCondition && attackTarget.specialConditions.length > 0) {
     damage += attack.attackDamageBonusIfOpponentActiveHasSpecialCondition;
   }
+  const stadiumBonusAgainstEx = getStadiumAttackDamageBonusAgainstEx(state);
+  if (stadiumBonusAgainstEx > 0 && isExCard(defenderCard)) damage += stadiumBonusAgainstEx;
   if (attack.coinBonus || attack.drawOnHeads || attack.discardRandomOpponentHandOnHeads) {
     const coinResult = flipCoin(attacker, forcedCoinResults, random);
     emitGameEvent(state, {
@@ -706,6 +708,14 @@ function areToolsDisabled(state: GameState): boolean {
   if (!state.stadium) return false;
   const stadium = getCard(state.stadium.cardId);
   return stadium.kind === "trainer" && Boolean(stadium.effect.disableTools);
+}
+
+function getStadiumAttackDamageBonusAgainstEx(state: GameState): number {
+  if (!state.stadium) return 0;
+  const stadium = getCard(state.stadium.cardId);
+  return stadium.kind === "trainer" && stadium.trainerType === "stadium"
+    ? stadium.effect.stadiumAttackDamageBonusAgainstEx ?? 0
+    : 0;
 }
 
 function resolveKnockout(state: GameState, attackerId: SideId, defenderId: SideId, deps: CombatDeps, cause?: string): void {

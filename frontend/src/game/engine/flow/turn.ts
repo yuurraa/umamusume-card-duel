@@ -114,6 +114,7 @@ export function endTurn(
 ): void {
   if (state.gameOver || state.currentSide === "done") return;
   processEndTurnStatusConditions(state);
+  applyEndTurnStadiumTrigger(state, state.currentSide);
   applyEndTurnToolTriggers(state, state.currentSide);
   refreshContinuousEffects(state);
   if (
@@ -127,6 +128,19 @@ export function endTurn(
   const nextSide: SideId = state.currentSide === "player" ? "opponent" : "player";
   if (nextSide === state.firstPlayer) state.turnNumber += 1;
   startTurnImpl(state, nextSide);
+}
+
+function applyEndTurnStadiumTrigger(state: GameState, sideId: SideId): void {
+  if (!state.stadium) return;
+  const stadium = getCard(state.stadium.cardId);
+  const heal = stadium.kind === "trainer" && stadium.trainerType === "stadium" ? stadium.effect.stadiumEndTurnHealActive ?? 0 : 0;
+  const active = state.sides[sideId].active;
+  if (!active || heal <= 0 || active.hp >= active.maxHp) return;
+  const before = active.hp;
+  active.hp = Math.min(active.maxHp, active.hp + heal);
+  const healed = active.hp - before;
+  emitGameEvent(state, { kind: "heal", visibility: "public", actorSide: sideId, targetSide: sideId, targetUid: active.uid, amount: healed, hpBefore: before, hpAfter: active.hp });
+  log(state, `${stadium.name} healed ${formatUmamusumeInstanceName(active)} for ${healed} HP.`);
 }
 
 function applyEndTurnToolTriggers(state: GameState, sideId: SideId): void {
