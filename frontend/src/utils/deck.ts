@@ -2,12 +2,13 @@ import { aiPremadeDecks, defaultPlayerDeckId, premadeDecks } from "../../../shar
 import { getCard } from "../game/engine";
 import type { EnergyType, UmamusumeType } from "../../../shared/src/types";
 import type { PremadeDeck } from "../types/ui";
-import { devUnlocksEnabled } from "../config/devUnlocks";
+import { allCardsAvailableForDeployment, devUnlocksEnabled } from "../config/devUnlocks";
 
 const EQUIPPED_DECK_STORAGE_KEY = "umamusume-tcg-pocket-equipped-deck";
 const HIDDEN_PREMADE_DECKS_STORAGE_KEY = "umamusume-tcg-pocket-hidden-premade-decks";
 const EDITED_PREMADE_DECK_ID_SUFFIX = "-edited";
 export const LOCAL_DECK_CACHE_STORAGE_KEY = "umamusume-tcg-pocket-local-decks-cache";
+const customDecksAvailable = devUnlocksEnabled || allCardsAvailableForDeployment;
 const LEGACY_DECK_ID_MAP: Record<string, string> = {
   matikanetannhauserNiceNature: "matikanetannhauser",
   riceShowerHaruUrara: "riceShower",
@@ -33,7 +34,7 @@ export function getDeckById(deckId: string): PremadeDeck {
     ?? selectablePremadeDecks[0]?.id
     ?? defaultPlayerDeckId;
   const hiddenDeckIds = readHiddenPremadeDeckIds();
-  const localDecks = devUnlocksEnabled ? readCachedLocalDecks().filter((deck) => !isHiddenEditedPremadeDeck(deck.id, hiddenDeckIds)) : [];
+  const localDecks = customDecksAvailable ? readCachedLocalDecks().filter((deck) => !isHiddenEditedPremadeDeck(deck.id, hiddenDeckIds)) : [];
   return selectablePremadeDecks.find((deck) => deck.id === resolvedDeckId)
     ?? localDecks.find((deck) => deck.id === resolvedDeckId)
     ?? selectablePremadeDecks.find((deck) => deck.id === defaultSelectableDeckId)
@@ -51,7 +52,7 @@ export function readEquippedDeckId(): string {
   if (!stored) return defaultSelectableDeckId;
   const resolvedDeckId = LEGACY_DECK_ID_MAP[stored] ?? stored;
   const hiddenDeckIds = readHiddenPremadeDeckIds();
-  const localDecks = devUnlocksEnabled ? readCachedLocalDecks().filter((deck) => !isHiddenEditedPremadeDeck(deck.id, hiddenDeckIds)) : [];
+  const localDecks = customDecksAvailable ? readCachedLocalDecks().filter((deck) => !isHiddenEditedPremadeDeck(deck.id, hiddenDeckIds)) : [];
   const exists = selectablePremadeDecks.some((deck) => deck.id === resolvedDeckId)
     || localDecks.some((deck) => deck.id === resolvedDeckId);
   return exists ? resolvedDeckId : defaultSelectableDeckId;
