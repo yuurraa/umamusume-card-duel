@@ -25,7 +25,7 @@ export function canAttachEnergyToUmamusume(state: GameState, side: SideState, um
 
 export function canAttack(state: GameState, side: SideState, attackIndex = 0): boolean {
   if (state.phase !== "play" || state.pendingPlayerChoice || state.gameOver || state.currentSide !== side.id || !side.active) return false;
-  if (side.active.specialConditions.includes("paralysed")) return false;
+  if (side.active.specialConditions.includes("paralysed") || side.active.specialConditions.includes("asleep")) return false;
   if (side.active.attackBlockedUntilOwnTurn === state.turnsTakenBySide[side.id]) return false;
   const card = getUmamusumeCard(side.active);
   const attack = card.attacks[attackIndex];
@@ -43,7 +43,7 @@ export function canUseAnyAttack(state: GameState, side: SideState): boolean {
 
 export function canRetreat(state: GameState, side: SideState): boolean {
   if (state.phase !== "play" || state.pendingPlayerChoice || state.gameOver || state.currentSide !== side.id || side.usedRetreatThisTurn || !side.active) return false;
-  if (side.active.specialConditions.includes("paralysed")) return false;
+  if (side.active.specialConditions.includes("paralysed") || side.active.specialConditions.includes("asleep")) return false;
   if (side.bench.length === 0) return false;
   return attachedEnergyCount(side.active) >= effectiveRetreatCost(state, side);
 }

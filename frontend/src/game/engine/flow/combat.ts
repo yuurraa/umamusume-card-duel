@@ -231,6 +231,9 @@ function performAttackInternal(
   if (!nonDamagingAttack && evolvedThisTurnOrLastTurnBonus > 0 && (attacker.active.evolvedTurn === state.turnNumber || attacker.active.evolvedTurn === state.turnNumber - 1)) {
     damage += evolvedThisTurnOrLastTurnBonus;
   }
+  if (attack.attackDamageBonusIfOpponentActiveHasSpecialCondition && attackTarget.specialConditions.length > 0) {
+    damage += attack.attackDamageBonusIfOpponentActiveHasSpecialCondition;
+  }
   if (attack.coinBonus || attack.drawOnHeads || attack.discardRandomOpponentHandOnHeads) {
     const coinResult = flipCoin(attacker, forcedCoinResults, random);
     emitGameEvent(state, {
@@ -363,7 +366,7 @@ function performAttackInternal(
     if (healed > 0) log(state, `${attack.name} healed ${formatUmamusumeInstanceName(target)} for ${healed} HP.`);
     if (attack.recoverSpecialConditions) recoverSpecialConditions(state, attackerId, target, attack.name);
   }
-  if (attack.inflictSpecialCondition && attackTarget.hp > 0) {
+  if (attack.inflictSpecialCondition && attackTarget.hp > 0 && (!attack.inflictSpecialConditionOnHeads || coinFlipHeads)) {
     applySpecialCondition(state, defenderId, attackTarget, attack.inflictSpecialCondition);
   }
   if (attack.discardRandomOpponentHandOnHeads && coinFlipHeads) {

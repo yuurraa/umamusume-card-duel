@@ -209,5 +209,12 @@ function processEndTurnStatusConditions(state: GameState): void {
       emitStatusChanges(state, sideId, umamusume.uid, clearedConditions, umamusume.specialConditions);
       log(state, `${formatUmamusumeInstanceName(umamusume)} recovered from Paralysed.`);
     });
+    if (sideId !== state.currentSide) return;
+    getAllUmamusume(side).filter((umamusume) => umamusume.specialConditions.includes("asleep")).forEach((umamusume) => {
+      const clearedConditions = [...umamusume.specialConditions];
+      umamusume.specialConditions = umamusume.specialConditions.filter((condition) => condition !== "asleep");
+      emitStatusChanges(state, sideId, umamusume.uid, clearedConditions, umamusume.specialConditions);
+      log(state, `${formatUmamusumeInstanceName(umamusume)} woke up.`);
+    });
   });
 }

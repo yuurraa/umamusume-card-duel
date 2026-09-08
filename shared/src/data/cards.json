@@ -16,6 +16,7 @@
     "riceShowerStage2",
     "tazunaHayakawa",
     "teamCanopus",
+    "grassWonderStage2",
     "superCreekStage1",
     "symboliRudolfStage2",
     "tamamoCrossStage1",
@@ -762,6 +763,56 @@
         "text": "If this Umamusume evolved this turn or last turn, her attacks do +20 damage.",
         "attackDamageBonusIfEvolvedThisTurnOrLastTurn": 20
       }
+    },
+    "grassWonderBasic": {
+      "id": "grassWonderBasic",
+      "owner": "player",
+      "kind": "umamusume",
+      "name": "Grass Wonder",
+      "label": "Umamusume - Grass - Basic",
+      "species": "Grass Wonder",
+      "type": "Grass",
+      "stage": 0,
+      "hp": 60,
+      "portrait": "/assets/cards/umamusume/grass-wonder/basic.avif",
+      "weakness": { "type": "Fire", "amount": 20 },
+      "retreat": "Colorless",
+      "attacks": [{ "name": "Stone Piercer", "cost": { "grass": 1 }, "damage": 20, "text": "Do 20 damage to the Active Umamusume." }]
+    },
+    "grassWonderStage1": {
+      "id": "grassWonderStage1",
+      "owner": "player",
+      "kind": "umamusume",
+      "name": "Grass Wonder",
+      "label": "Umamusume - Grass - Stage 1",
+      "species": "Grass Wonder",
+      "type": "Grass",
+      "stage": 1,
+      "evolvesFrom": "Grass Wonder",
+      "hp": 90,
+      "portrait": "/assets/cards/umamusume/grass-wonder/stage1.avif",
+      "weakness": { "type": "Fire", "amount": 20 },
+      "retreat": "Colorless x2",
+      "attacks": [{ "name": "Focused Mind", "cost": { "grass": 1, "colorless": 1 }, "damage": 30, "inflictSpecialCondition": "asleep", "inflictSpecialConditionOnHeads": true, "text": "Flip a coin. If heads, your opponent's Active Umamusume is now Asleep." }]
+    },
+    "grassWonderStage2": {
+      "id": "grassWonderStage2",
+      "owner": "player",
+      "kind": "umamusume",
+      "name": "Grass Wonder",
+      "label": "Umamusume - Grass - Stage 2",
+      "species": "Grass Wonder",
+      "type": "Grass",
+      "stage": 2,
+      "evolvesFrom": "Grass Wonder",
+      "hp": 130,
+      "portrait": "/assets/cards/umamusume/grass-wonder/stage2.avif",
+      "weakness": { "type": "Fire", "amount": 20 },
+      "retreat": "Colorless x3",
+      "attacks": [
+        { "name": "Focused Mind", "cost": { "grass": 1, "colorless": 1 }, "damage": 30, "inflictSpecialCondition": "asleep", "inflictSpecialConditionOnHeads": true, "text": "Flip a coin. If heads, your opponent's Active Umamusume is now Asleep." },
+        { "name": "Where There's a Will, There's a Way", "cost": { "grass": 2, "colorless": 1 }, "damage": 80, "attackDamageBonusIfOpponentActiveHasSpecialCondition": 40, "text": "If your opponent's Active Umamusume is affected by a Special Condition, this attack does +40 damage." }
+      ]
     },
     "superCreekBasic": {
       "id": "superCreekBasic",

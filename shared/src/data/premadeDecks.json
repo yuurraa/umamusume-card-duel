@@ -261,7 +261,7 @@
         "twinTurboBasicFullArt",
         "3starMakeDebutScout",
         "carrotHamburgerSteak",
-        "rainbowUncapCrystalFullArtGold",
+        "3starMakeDebutScoutFullArtGold",
         "traineeScoutTicket",
         "traineeScoutTicket",
         "aoiKiryuin",
@@ -270,7 +270,7 @@
         "teamRigilFullArt",
         "teamSpicaFullArt",
         "yayoiAkikawa",
-        "trainingHelmet",
+        "etsukoOtonashi",
         "nakayamaTurf"
       ]
     },
@@ -394,6 +394,36 @@
         "teamCanopusFullArt",
         "teamSpicaFullArt",
         "nakayamaTurf"
+      ]
+    },
+    {
+      "id": "grassWonderNishinoFlower",
+      "name": "Grass Wonder / Nishino Flower",
+      "coverCardId": "grassWonderStage2FullArt",
+      "energyTypes": [
+        "grass"
+      ],
+      "cardIds": [
+        "grassWonderBasic",
+        "grassWonderBasic",
+        "grassWonderStage1",
+        "grassWonderStage1",
+        "grassWonderStage2",
+        "grassWonderStage2FullArt",
+        "nishinoFlowerBasic",
+        "nishinoFlowerBasicFullArt",
+        "3starMakeDebutScout",
+        "3starMakeDebutScout",
+        "rainbowUncapCrystal",
+        "traineeScoutTicket",
+        "traineeScoutTicket",
+        "teamSpica",
+        "teamSpicaFullArt",
+        "teamRigil",
+        "aoiKiryuin",
+        "tazunaHayakawa",
+        "tazunaHayakawaFullArt",
+        "masterCleatHammer"
       ]
     }
   ]

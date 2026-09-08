@@ -621,7 +621,7 @@ function getMiscEffectGroups(state: GameState, umamusume: NonNullable<InspectTar
       return;
     }
     if (condition === "asleep") {
-      debuffs.push("Asleep");
+      debuffs.push("Asleep - Cannot attack or retreat");
       return;
     }
     debuffs.push("Frozen - Flip before attacking; tails fails the attack");

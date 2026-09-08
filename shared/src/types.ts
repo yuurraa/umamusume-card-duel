@@ -67,6 +67,8 @@ export type Attack = {
   knockOutActiveIfAllCoinHeads?: number;
   cannotAttackNextTurn?: boolean;
   inflictSpecialCondition?: SpecialCondition;
+  inflictSpecialConditionOnHeads?: boolean;
+  attackDamageBonusIfOpponentActiveHasSpecialCondition?: number;
 };
 
 export type Ability = {
