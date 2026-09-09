@@ -359,11 +359,11 @@ Evidence: The match uses a 1760px maximum content width and a mixture of fixed p
 
 Actions:
 
-- Treat the current 1920×1080 layout as the baseline to preserve. Record desired browser screenshots/measurements for 1366×768, 1920×1080, 2560×1440, 3840×2160, and one ultrawide viewport before applying new layout geometry.
-- Use the existing element measurement and pure metric helpers as a basis, but do not apply a scale to only a board wrapper. Resolve ordinary pixel dimensions for each complete visual unit: card, Active/Bench frame, board padding, center column, score controls, Stadium/drop zone, hand, and hand controls.
-- Do not use CSS `zoom`, a global transform, or CSS value multiplication. Preserve normal document flow so DOM rectangles remain valid for attack, card-flow, and KO overlays.
-- Change one region at a time, beginning with a matched Active card/frame pair. After each region, test 100% browser zoom in Chrome and Firefox plus drag/drop, hover/focus, Energy attachment, attack, KO, promotion, and reset behavior.
-- Keep smaller-screen clamps and the intentional horizontal-scroll fallback unless direct tests demonstrate a better accessible alternative.
+- Treat the current 1920×1080 layout as the baseline to preserve. Record desired browser screenshots/measurements for 1366×768, 1920×1080, 2560×1440, 3840×2160, and one ultrawide viewport before changing visual proportions further.
+- Measure the usable match container rather than raw monitor resolution. Fit the complete board canvas—card, Active/Bench frame, board padding, center column, score controls, Stadium/drop zone, hand, and hand controls—with one uniform contained scale. The scale must consider both available width and height, cap enlargement conservatively, and reserve the scaled canvas dimensions in normal layout flow.
+- Do not use CSS `zoom`, independent per-zone scaling, or a global application transform. A local match-canvas transform is permitted only when its untransformed layout size is measured, its scaled dimensions are reserved by a containing stage, and overlays remain outside that transform. This preserves card/frame proportion and keeps `getBoundingClientRect()`-based animation targets meaningful.
+- Keep match-level overlays, dialogs, prompts, and accessibility controls at normal responsive size. Use ordinary fluid CSS sizing for non-board UI rather than shrinking it with the game canvas.
+- Test 100% browser zoom in Chrome and Firefox plus drag/drop, hover/focus, Energy attachment, attack, draw, KO, promotion, and reset behavior after resizing. Replace horizontal gameplay scrolling only after these checks demonstrate that all critical targets remain usable.
 
 Acceptance: At recorded target viewports, cards remain proportionate to their frames and controls; no critical content clips or becomes too small. Chrome and Firefox evidence covers baseline, high-resolution, and ultrawide layouts. Attack/draw/KO overlays and input targets resolve to the correct cards before and after resizing.
 

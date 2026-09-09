@@ -8,7 +8,15 @@ import { StadiumSpot } from "../match/board/StadiumSpot";
 import { PlayHandHeader } from "../match/controls/HandControls";
 import { PregameSetupPanel } from "../match/setup/PregameSetupPanel";
 import { useElementSize } from "./layout/useElementSize";
+import { getMatchLayoutMetrics } from "./layout/matchViewport";
 import { contentStyle, duelGridStyle, handPanelStyle } from "./styles";
+
+// These dimensions describe the established 1920x1080 presentation after the
+// app's 16px outer padding. They are the reference point for the board, not a
+// hard requirement for the user's monitor resolution.
+const MATCH_BASELINE_VIEWPORT = { width: 1888, height: 1048 };
+const MATCH_CANVAS_WIDTH = 1760;
+const MAX_MATCH_SCALE = 1.18;
 
 type MatchBoardLayoutProps = {
   game: GameState;
@@ -143,11 +151,26 @@ export function MatchBoardLayout(props: MatchBoardLayoutProps) {
     scorePointGainAnimatingBySide,
   } = props;
 
-  // The wrapper is intentionally uncapped so wide displays report their real
-  // available match width. Measurement remains observational until cards and
-  // their surrounding board geometry can be scaled as one verified unit.
+  // The whole interactive board is measured and scaled as one canvas. This
+  // preserves the relationship between card art, card frames, board slots, and
+  // animation origins at every viewport size.
   const matchViewportRef = useRef<HTMLDivElement>(null);
+  const matchCanvasRef = useRef<HTMLDivElement>(null);
   const matchViewportSize = useElementSize(matchViewportRef);
+  const matchCanvasSize = useElementSize(matchCanvasRef, { includeTransforms: false });
+  const matchViewportMetrics = getMatchLayoutMetrics(matchViewportSize, MATCH_BASELINE_VIEWPORT);
+  const matchStageReady = matchCanvasSize.width > 0 && matchCanvasSize.height > 0;
+  // The baseline ratio preserves the established 1080p presentation, while
+  // the measured-canvas ratios are the hard containment guard. The latter
+  // prevents a taller hand/setup panel from being clipped below the viewport.
+  const matchScale = matchStageReady
+    ? Math.min(
+        MAX_MATCH_SCALE,
+        matchViewportMetrics.scale || 1,
+        matchViewportSize.width / matchCanvasSize.width,
+        matchViewportSize.height / matchCanvasSize.height,
+      )
+    : 1;
   const [opponentPlayRevealActive, setOpponentPlayRevealActive] = useState(false);
   const [playerSetupActiveRevealActive, setPlayerSetupActiveRevealActive] = useState(false);
   const [playerSetupBenchRevealActive, setPlayerSetupBenchRevealActive] = useState(false);
@@ -212,10 +235,36 @@ export function MatchBoardLayout(props: MatchBoardLayoutProps) {
   return (
     <div ref={matchViewportRef} style={matchViewportShellStyle}>
       <div
-        style={contentStyle}
+        style={{
+          ...matchStageStyle,
+          ...(matchStageReady
+            ? {
+                width: matchCanvasSize.width * matchScale,
+                height: matchCanvasSize.height * matchScale,
+              }
+            : { width: "100%" }),
+        }}
         data-match-viewport-width={matchViewportSize.width || undefined}
         data-match-viewport-height={matchViewportSize.height || undefined}
       >
+        <div
+          ref={matchCanvasRef}
+          style={{
+            ...contentStyle,
+            width: MATCH_CANVAS_WIDTH,
+            maxWidth: "none",
+            margin: 0,
+            ...(matchStageReady
+              ? {
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  transform: `scale(${matchScale})`,
+                  transformOrigin: "top left",
+                }
+              : undefined),
+          }}
+        >
         <div style={duelViewportStyle}>
           <section style={duelGridStyle}>
           <div style={playerBoardSlotStyle}>
@@ -349,18 +398,27 @@ export function MatchBoardLayout(props: MatchBoardLayoutProps) {
         </section>
       </div>
     </div>
+    </div>
   );
 }
 
 const matchViewportShellStyle: CSSProperties = {
   width: "100%",
-  overflowX: "visible",
-  overflowY: "visible",
+  height: "100%",
+  display: "flex",
+  alignItems: "flex-start",
+  justifyContent: "center",
+  overflow: "hidden",
+};
+
+const matchStageStyle: CSSProperties = {
+  position: "relative",
+  flex: "none",
 };
 
 const duelViewportStyle = {
   width: "100%",
-  overflowX: "auto" as const,
+  overflowX: "visible" as const,
   overflowY: "visible" as const,
 };
 

@@ -8,7 +8,18 @@ const EMPTY_SIZE: MatchViewportSize = { width: 0, height: 0 };
  * dimensions. This matters because app padding, browser UI, and side panels
  * can all change the room available to the match.
  */
-export function useElementSize<TElement extends Element>(ref: RefObject<TElement | null>): MatchViewportSize {
+type UseElementSizeOptions = Readonly<{
+  /**
+   * False reads the element's layout box, excluding CSS transforms. This is
+   * needed when an element is both measured and visually scaled by its parent.
+   */
+  includeTransforms?: boolean;
+}>;
+
+export function useElementSize<TElement extends Element>(
+  ref: RefObject<TElement | null>,
+  { includeTransforms = true }: UseElementSizeOptions = {},
+): MatchViewportSize {
   const [size, setSize] = useState<MatchViewportSize>(EMPTY_SIZE);
 
   useLayoutEffect(() => {
@@ -23,7 +34,10 @@ export function useElementSize<TElement extends Element>(ref: RefObject<TElement
         : { width, height });
     };
 
-    update(element.getBoundingClientRect());
+    const initialSize = !includeTransforms && element instanceof HTMLElement
+      ? { width: element.offsetWidth, height: element.offsetHeight }
+      : element.getBoundingClientRect();
+    update(initialSize);
     const observer = new ResizeObserver((entries) => {
       const entry = entries[0];
       if (entry) update(entry.contentRect);
