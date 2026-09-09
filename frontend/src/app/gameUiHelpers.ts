@@ -171,7 +171,7 @@ export function getPendingAttackCoinFlip(state: GameState, attackerId: SideId, i
   if (!attack) return null;
   const frozen = attacker.active.specialConditions.includes("frozen");
   const attackCoinCount = attack.knockOutActiveIfAllCoinHeads
-    ?? (attack.coinBonus || attack.drawOnHeads || attack.discardRandomOpponentHandOnHeads ? 1 : 0);
+    ?? (attack.coinBonus || attack.drawOnHeads || attack.discardRandomOpponentHandOnHeads || attack.inflictSpecialConditionOnHeads ? 1 : 0);
   if (!frozen && attackCoinCount === 0) return null;
 
   const results = Array.from(

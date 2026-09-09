@@ -236,7 +236,7 @@ function performAttackInternal(
   }
   const stadiumBonusAgainstEx = getStadiumAttackDamageBonusAgainstEx(state);
   if (stadiumBonusAgainstEx > 0 && isExCard(defenderCard)) damage += stadiumBonusAgainstEx;
-  if (attack.coinBonus || attack.drawOnHeads || attack.discardRandomOpponentHandOnHeads) {
+  if (attack.coinBonus || attack.drawOnHeads || attack.discardRandomOpponentHandOnHeads || attack.inflictSpecialConditionOnHeads) {
     const coinResult = flipCoin(attacker, forcedCoinResults, random);
     emitGameEvent(state, {
       kind: "coin",

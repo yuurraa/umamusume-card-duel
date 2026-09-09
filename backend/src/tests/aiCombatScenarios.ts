@@ -22,6 +22,8 @@ const scenarios: Scenario[] = [
   { name: "Fast As Lightning evolves into the selected deck card", run: scenarioPlayerTamamoAttackSelectsEvolution },
   { name: "Thunderbolt Step adds damage when evolved last turn", run: scenarioThunderboltStepDamage },
   { name: "White Lightning shuffles Tamamo Cross and attached cards into deck", run: scenarioWhiteLightningShuffle },
+  { name: "Focused Mind flips a coin and applies Sleep only on heads", run: scenarioFocusedMindSleepCoin },
+  { name: "Sleep recovery flips each ending turn and wakes only on heads", run: scenarioSleepRecoveryCoin },
   { name: "Team Rigil discards opponent active Energy", run: scenarioTeamRigilDiscardEnergy },
   { name: "Team Spica searches an Evolution Umamusume", run: scenarioTeamSpicaSearchEvolution },
   { name: "Leftover Carrot heals active at end of turn", run: scenarioLeftoverCarrotEndTurnHeal },
@@ -931,6 +933,46 @@ function scenarioStructuredCoinKnockoutEvent() {
   assert.equal(attack?.kind === "attack" ? attack.hpAfter : null, 0);
   assert.deepEqual(coin?.kind === "coin" ? coin.results : undefined, ["heads", "heads", "heads"]);
   assert.equal(transitionEvents.some((event) => event.kind === "knockout" && event.targetUid === targetUid), true);
+}
+
+function scenarioFocusedMindSleepCoin() {
+  const headsState = makePlayerActionState();
+  headsState.sides.player.active = withEnergy(createUma("grassWonderStage1"), { grass: 1, colorless: 1 });
+  headsState.sides.opponent.active = createUma("riceShowerBasic");
+
+  const afterHeads = playerAttack(headsState, undefined, undefined, "heads");
+  const headsCoin = (afterHeads.events ?? []).find((event) => event.kind === "coin");
+  assert.deepEqual(headsCoin?.kind === "coin" ? headsCoin.results : undefined, ["heads"]);
+  assert.deepEqual(afterHeads.sides.opponent.active?.specialConditions, ["asleep"]);
+
+  const tailsState = makePlayerActionState();
+  tailsState.sides.player.active = withEnergy(createUma("grassWonderStage1"), { grass: 1, colorless: 1 });
+  tailsState.sides.opponent.active = createUma("riceShowerBasic");
+
+  const afterTails = playerAttack(tailsState, undefined, undefined, "tails");
+  const tailsCoin = (afterTails.events ?? []).find((event) => event.kind === "coin");
+  assert.deepEqual(tailsCoin?.kind === "coin" ? tailsCoin.results : undefined, ["tails"]);
+  assert.deepEqual(afterTails.sides.opponent.active?.specialConditions, []);
+}
+
+function scenarioSleepRecoveryCoin() {
+  const tailsState = makePlayerActionState();
+  tailsState.sides.player.active = createUma("riceShowerBasic");
+  tailsState.sides.player.active.specialConditions = ["asleep"];
+
+  const afterTails = playerEndTurn(tailsState, () => 0.1);
+  const tailsCoin = (afterTails.events ?? []).find((event) => event.kind === "coin");
+  assert.deepEqual(tailsCoin?.kind === "coin" ? tailsCoin.results : undefined, ["tails"]);
+  assert.deepEqual(afterTails.sides.player.active?.specialConditions, ["asleep"]);
+
+  const headsState = makePlayerActionState();
+  headsState.sides.player.active = createUma("riceShowerBasic");
+  headsState.sides.player.active.specialConditions = ["asleep"];
+
+  const afterHeads = playerEndTurn(headsState, () => 0.9);
+  const headsCoin = (afterHeads.events ?? []).find((event) => event.kind === "coin");
+  assert.deepEqual(headsCoin?.kind === "coin" ? headsCoin.results : undefined, ["heads"]);
+  assert.deepEqual(afterHeads.sides.player.active?.specialConditions, []);
 }
 
 function scenarioStructuredCardMovementEvents() {

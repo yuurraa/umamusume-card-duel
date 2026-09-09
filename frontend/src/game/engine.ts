@@ -972,7 +972,12 @@ export function resolvePendingPlayerChoice(
 
 function advanceToNextTurn(state: GameState, random: RandomSource = Math.random): void {
   state.turnDeadlineMs = null;
-  endTurn(state, (turnState, sideId) => startTurn(turnState, sideId, refreshContinuousEffects, false, random), refreshContinuousEffects);
+  endTurn(
+    state,
+    (turnState, sideId) => startTurn(turnState, sideId, refreshContinuousEffects, false, random),
+    refreshContinuousEffects,
+    random,
+  );
 }
 
 function refreshContinuousEffects(state: GameState): void {

@@ -95,7 +95,13 @@ function buildAttackCandidates(
     : [undefined];
   const resolvedAttackTargets = attackTargetUids.length > 0 ? attackTargetUids : [undefined];
   const resolvedHealTargets = healTargetUids.length > 0 ? healTargetUids : [undefined];
-  const usesCoinFlip = Boolean(attack.coinBonus || attack.drawOnHeads || attack.knockOutActiveIfAllCoinHeads);
+  const usesCoinFlip = Boolean(
+    attack.coinBonus
+    || attack.drawOnHeads
+    || attack.discardRandomOpponentHandOnHeads
+    || attack.inflictSpecialConditionOnHeads
+    || attack.knockOutActiveIfAllCoinHeads,
+  );
   const shuffleOptions = attack.shuffleSelfIntoDeck ? [false, true] : [undefined];
   const discardOptions = buildDiscardOptions(state, side);
   const candidates: CombatCandidate[] = [];

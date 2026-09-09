@@ -111,9 +111,10 @@ export function endTurn(
   state: GameState,
   startTurnImpl: (state: GameState, sideId: SideId) => void,
   refreshContinuousEffects: (state: GameState) => void,
+  random: RandomSource = Math.random,
 ): void {
   if (state.gameOver || state.currentSide === "done") return;
-  processEndTurnStatusConditions(state);
+  processEndTurnStatusConditions(state, random);
   applyEndTurnStadiumTrigger(state, state.currentSide);
   applyEndTurnToolTriggers(state, state.currentSide);
   refreshContinuousEffects(state);
@@ -189,7 +190,7 @@ function areToolsDisabled(state: GameState): boolean {
   return stadium.kind === "trainer" && Boolean(stadium.effect.disableTools);
 }
 
-function processEndTurnStatusConditions(state: GameState): void {
+function processEndTurnStatusConditions(state: GameState, random: RandomSource): void {
   (["player", "opponent"] as SideId[]).forEach((sideId) => {
     const side = state.sides[sideId];
     getAllUmamusume(side).forEach((umamusume) => {
@@ -225,6 +226,15 @@ function processEndTurnStatusConditions(state: GameState): void {
     });
     if (sideId !== state.currentSide) return;
     getAllUmamusume(side).filter((umamusume) => umamusume.specialConditions.includes("asleep")).forEach((umamusume) => {
+      const coinResult = random() >= 0.5 ? "heads" : "tails";
+      emitGameEvent(state, {
+        kind: "coin",
+        visibility: "public",
+        side: sideId,
+        results: [coinResult],
+      });
+      log(state, `${formatUmamusumeInstanceName(umamusume)} is Asleep. Flip a coin and got 1x ${coinResult}.`);
+      if (coinResult !== "heads") return;
       const clearedConditions = [...umamusume.specialConditions];
       umamusume.specialConditions = umamusume.specialConditions.filter((condition) => condition !== "asleep");
       emitStatusChanges(state, sideId, umamusume.uid, clearedConditions, umamusume.specialConditions);

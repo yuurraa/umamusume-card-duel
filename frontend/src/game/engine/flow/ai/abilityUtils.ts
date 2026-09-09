@@ -258,7 +258,7 @@ function estimateBestAttackTotalDamage(state: GameState, actingSideId: SideId, d
 
   resolvedAttackTargets.forEach((attackTargetUid) => {
     resolvedHealTargets.forEach((healTargetUid) => {
-      if (attack.coinBonus || attack.drawOnHeads) {
+      if (attack.coinBonus || attack.drawOnHeads || attack.discardRandomOpponentHandOnHeads || attack.inflictSpecialConditionOnHeads) {
         const headsState = cloneGame(state);
         const tailsState = cloneGame(state);
         const headsBefore = cloneGame(state).sides[defendingId];
