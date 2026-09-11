@@ -5,7 +5,7 @@ import { getCard } from "../../game/engine";
 import { AbilityReadyBadge } from "../../components/cards/AbilityReadyBadge";
 import { HoloCardImage } from "../../components/cards/HoloCardImage";
 import { hasTextDragPayload, readDragPayload } from "../../components/drag/dragData";
-import { radius, transitions, uiTextColor, uiTextShadow } from "../../styles/shared";
+import { CARD_ASPECT_RATIO, radius, transitions, uiTextColor, uiTextShadow } from "../../styles/shared";
 
 export function StadiumSpot({ state, abilityReady = false, onDropHandCard, onInspect, selectable = false, onSelect }: {
   state: GameState;
@@ -91,18 +91,19 @@ export function StadiumSpot({ state, abilityReady = false, onDropHandCard, onIns
 }
 
 function StadiumSpotStyle(hovered: boolean, hasCard: boolean, abilityReady: boolean): CSSProperties {
-  // Match the *visible* bench frame, not the raw bench slot box.
-  // Bench frame is inset horizontally (~11% each side) and extended vertically (~106%).
-  const width = "clamp(111px, 7.232vw, 139px)";
-  const height = "clamp(190px, 9.44vw, 214px)";
   return {
     position: "absolute",
     left: "50%",
-    top: "calc(52% - clamp(140px, 8.75vw, 168px))",
+    // Position from the two targets' edges instead of a standalone offset.
+    // The previous offset was shorter than their combined half-heights at
+    // narrow desktop widths, causing the Stadium and Play Card targets to
+    // overlap on 16:10 displays.
+    top: "calc(52% - var(--center-stadium-half-height) - var(--center-play-half-size) - var(--center-control-gap))",
     transform: "translate(-50%, -50%)",
     zIndex: 4,
-    width,
-    height,
+    width: "auto",
+    height: "var(--center-stadium-height)",
+    aspectRatio: CARD_ASPECT_RATIO,
     display: "grid",
     placeItems: "center",
     overflow: "visible",

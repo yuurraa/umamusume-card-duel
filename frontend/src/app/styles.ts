@@ -86,11 +86,22 @@ export const contentStyle: CSSProperties = {
   gap: 16,
 };
 
-export const duelGridStyle: CSSProperties = {
+export const duelGridStyle: CSSProperties & Record<`--${string}`, string> = {
   position: "relative",
   display: "grid",
   gridTemplateColumns: "minmax(0, 1fr) clamp(154px, 10vw, 192px) minmax(0, 1fr)",
   gap: "clamp(13px, 0.833vw, 16px)",
+  // The central play target and Stadium card are independently absolutely
+  // positioned. Keep their dimensions and their vertical separation in one
+  // coordinate system so a narrower (for example 16:10) viewport cannot make
+  // their hit areas overlap.
+  "--center-play-size": "clamp(106px, 6.875vw, 132px)",
+  "--center-play-half-size": "clamp(53px, 3.438vw, 66px)",
+  // These mirror SideBoard's visible bench-card height. Width is derived
+  // from the shared card aspect ratio in StadiumSpot.
+  "--center-stadium-height": "clamp(159px, 8.906vw, 202px)",
+  "--center-stadium-half-height": "clamp(79.5px, 4.453vw, 101px)",
+  "--center-control-gap": "clamp(16px, 0.833vw, 20px)",
   alignItems: "start",
   minWidth: 0,
 };
